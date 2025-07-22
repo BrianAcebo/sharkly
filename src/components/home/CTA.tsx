@@ -14,12 +14,11 @@ const CTA: React.FC = () => {
 					{/* Main Content */}
 					<div className="mb-12">
 						<h2 className="mb-6 text-4xl font-bold text-white md:text-5xl lg:text-6xl">
-							Ready to Uncover
-							<span className="block">Digital Intelligence?</span>
+							Ready to Transform
+							<span className="block">Your Sales Process?</span>
 						</h2>
 						<p className="text-blue-light-100 mx-auto mb-8 max-w-3xl text-xl md:text-2xl">
-							Join thousands of security professionals using True Sight Intelligence to conduct
-							faster, more comprehensive OSINT investigations.
+							Join hundreds of sales teams using Paperboat CRM to automate outreach, qualify leads faster, and close more deals with AI-powered assistance.
 						</p>
 					</div>
 
@@ -31,7 +30,7 @@ const CTA: React.FC = () => {
 							</div>
 							<h3 className="mb-2 text-lg font-semibold text-white">Instant Setup</h3>
 							<p className="text-blue-light-100 text-center">
-								Start investigating in under 5 minutes
+								Start automating sales in under 5 minutes
 							</p>
 						</div>
 
@@ -50,7 +49,7 @@ const CTA: React.FC = () => {
 								<Users className="h-8 w-8 text-white" />
 							</div>
 							<h3 className="mb-2 text-lg font-semibold text-white">Expert Support</h3>
-							<p className="text-blue-light-100 text-center">24/7 support from OSINT specialists</p>
+							<p className="text-blue-light-100 text-center">24/7 support from sales automation specialists</p>
 						</div>
 					</div>
 
@@ -68,12 +67,12 @@ const CTA: React.FC = () => {
 					{/* Trust Indicators */}
 					<div className="mt-12 border-t border-white/20 pt-8">
 						<p className="text-blue-light-100 mb-4 text-sm">
-							Trusted by leading organizations worldwide
+							Trusted by leading sales teams worldwide
 						</p>
 						<div className="flex items-center justify-center space-x-8 text-white/60">
-							<span className="text-sm font-medium">50,000+ Investigations</span>
+							<span className="text-sm font-medium">10,000+ Leads Qualified</span>
 							<span className="text-sm">•</span>
-							<span className="text-sm font-medium">99.9% Uptime</span>
+							<span className="text-sm font-medium">500+ Sales Teams</span>
 							<span className="text-sm">•</span>
 							<span className="text-sm font-medium">SOC 2 Certified</span>
 						</div>

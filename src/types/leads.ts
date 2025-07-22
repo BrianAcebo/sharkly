@@ -2,6 +2,77 @@ export type PriorityFilter = 'all' | 'low' | 'medium' | 'high' | 'critical';
 
 export type CaseStatusFilter = 'all' | 'active' | 'closed' | 'in_progress';
 
+// CRM Lead Types
+export interface Lead {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  title?: string;
+  stage: 'new' | 'contacted' | 'qualified' | 'proposal' | 'closed-won' | 'closed-lost';
+  value?: number;
+  status: 'active' | 'in_progress' | 'closed';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  category?: string;
+  tags?: string[];
+  notes?: string;
+  assigned_to?: string;
+  organization_id: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  last_contact?: string;
+  assigned_to_user?: {
+    id: string;
+    email: string;
+    user_metadata: Record<string, unknown>;
+  };
+  created_by_user?: {
+    id: string;
+    email: string;
+    user_metadata: Record<string, unknown>;
+  };
+}
+
+export interface CreateLeadData {
+  name: string;
+  email: string;
+  phone?: string;
+  company?: string;
+  stage: 'new' | 'contacted' | 'qualified' | 'proposal' | 'closed-won' | 'closed-lost';
+  value?: number;
+  title?: string;
+  description?: string;
+  category?: string;
+  status?: 'active' | 'in_progress' | 'closed';
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  tags?: string[];
+  notes?: string;
+  assigned_to?: string;
+}
+
+export type UpdateLeadData = Partial<CreateLeadData>;
+
+export interface Communication {
+  id: string;
+  lead_id: string;
+  type: 'email' | 'text' | 'call';
+  direction: 'inbound' | 'outbound';
+  subject?: string;
+  content: string;
+  duration?: number;
+  status?: 'sent' | 'delivered' | 'read' | 'failed';
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  created_by_user?: {
+    id: string;
+    email: string;
+    user_metadata: Record<string, unknown>;
+  };
+}
+
 export interface Entity {
 	id: string;
 	name: string;
@@ -34,10 +105,10 @@ export interface Case {
 	priority: 'low' | 'medium' | 'high' | 'critical';
 	entity: Entity;
 	tags: string[]; // ex: ["fraud", "cyber", "surveillance"]
-	assignedTo: Investigator[];
+	assignedTo: TeamMember[];
 	createdAt: Date;
 	updatedAt: Date;
-	graphId: string; // Reference to associated OSINT graph
+	graphId: string; // Reference to associated lead graph
 }
 
 export interface SearchFilter {
@@ -99,12 +170,10 @@ export interface Report {
 	id: string;
 	caseId: string;
 	title: string;
-	summary: string;
-	findings: string; // Full narrative
-	recommendations: string;
+	content: string;
 	attachedFiles: string[]; // Links to PDFs, images, logs
 	submittedAt: Date;
-	submittedBy: Investigator;
+	submittedBy: TeamMember;
 }
 
 export interface UserProfile {
@@ -115,7 +184,7 @@ export interface UserProfile {
 	completed_onboarding: boolean;
 }
 
-export interface Investigator {
+export interface TeamMember {
 	id: string;
 	organizationId: string;
 	role: 'admin' | 'analyst' | 'viewer';

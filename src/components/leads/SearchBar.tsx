@@ -4,30 +4,31 @@ import { Search as SearchIcon, X, Clock } from 'lucide-react';
 import { Button } from '../ui/button';
 import Input from '../form/input/InputField';
 import { cn } from '../../utils';
-import { useLeads } from '../../hooks/useLeads';
 
 interface SearchBarProps {
 	className?: string;
+	value?: string;
+	onChange?: (value: string) => void;
 }
 
-export function SearchBar({ className }: SearchBarProps) {
+export function SearchBar({ className, value = '', onChange }: SearchBarProps) {
 	const [showHistory, setShowHistory] = useState(false);
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const historyRef = useRef<HTMLDivElement>(null);
-	const { searchQuery, setSearchQuery, searchHistory } = useLeads();
+	const [searchHistory] = useState<string[]>([]);
 
 	const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		setShowHistory(false);
-		setSearchQuery(event.target.value);
+		onChange?.(event.target.value);
 	};
 
 	const handleHistoryItemClick = (item: string) => {
-		setSearchQuery(item);
+		onChange?.(item);
 		setShowHistory(false);
 	};
 
 	const clearSearch = () => {
-		setSearchQuery('');
+		onChange?.('');
 		if (searchInputRef.current) {
 			searchInputRef.current.focus();
 		}
@@ -58,16 +59,16 @@ export function SearchBar({ className }: SearchBarProps) {
 				<Input
 					ref={searchInputRef}
 					type="text"
-					placeholder="Search cases..."
+					placeholder="Search leads..."
 					className="h-12 border-2 border-gray-200 bg-white pr-10 pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-offset-0 dark:border-gray-800 dark:bg-white/[0.03] dark:placeholder:text-white/60"
-					value={searchQuery}
+					value={value}
 					onChange={handleInputChange}
 					onFocus={() => setShowHistory(searchHistory.length > 0)}
 				/>
 
 				<SearchIcon className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 stroke-current transition-colors" />
 
-				{searchQuery && (
+				{value && (
 					<>
 						<Button
 							type="button"

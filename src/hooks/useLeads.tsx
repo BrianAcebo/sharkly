@@ -33,9 +33,9 @@ export const getSearchResults = (
 				caseItem.title.toLowerCase().includes(lowerQuery) ||
 				caseItem.tags.some((tag) => tag.toLowerCase().includes(lowerQuery)) ||
 				caseItem.assignedTo.some(
-					(investigator) =>
-						investigator.profile.first_name.toLowerCase().includes(lowerQuery) ||
-						investigator.profile.last_name.toLowerCase().includes(lowerQuery)
+					(teamMember) =>
+						teamMember.profile.first_name.toLowerCase().includes(lowerQuery) ||
+						teamMember.profile.last_name.toLowerCase().includes(lowerQuery)
 				)
 			);
 		});

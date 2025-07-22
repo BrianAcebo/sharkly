@@ -5,44 +5,44 @@ const Testimonials: React.FC = () => {
 	const testimonials = [
 		{
 			name: 'Sarah Chen',
-			role: 'Senior Threat Intelligence Analyst',
-			company: 'CyberShield Security',
+			role: 'Sales Director',
+			company: 'TechFlow Solutions',
 			avatar:
 				'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
 			content:
-				'True Sight Intelligence has revolutionized our investigation process. What used to take days now takes hours. The AI correlation capabilities are simply outstanding.',
+				'Paperboat CRM has revolutionized our sales process. The AI assistant handles initial outreach and qualification, allowing our team to focus on closing deals. Our conversion rates have increased by 40%.',
 			rating: 5,
-			industry: 'Cybersecurity'
+			industry: 'SaaS'
 		},
 		{
 			name: 'Michael Rodriguez',
-			role: 'Digital Forensics Investigator',
-			company: 'Federal Bureau of Investigation',
+			role: 'VP of Sales',
+			company: 'Growth Dynamics',
 			avatar:
 				'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
 			content:
-				'The depth and accuracy of intelligence gathering is remarkable. The platform has become an indispensable tool in our digital investigation toolkit.',
+				'The automated sequences and knowledge base features ensure consistent messaging across our entire sales team. The AI qualification has helped us identify high-value prospects much faster.',
 			rating: 5,
-			industry: 'Law Enforcement'
+			industry: 'Consulting'
 		},
 		{
-			name: 'Dr. Emily Watson',
-			role: 'Research Director',
-			company: 'University Security Lab',
+			name: 'Emily Watson',
+			role: 'Sales Manager',
+			company: 'InnovateCorp',
 			avatar:
 				'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
 			content:
-				'The visualization capabilities and network mapping features provide insights that were previously impossible to achieve. A game-changer for OSINT research.',
+				'Having an AI assistant that can engage with leads 24/7 has been a game-changer. Our response times went from hours to minutes, and the lead qualification accuracy is impressive.',
 			rating: 5,
-			industry: 'Academic Research'
+			industry: 'Technology'
 		}
 	];
 
 	const certifications = [
 		{ name: 'SOC 2 Type II', icon: Shield },
-		{ name: 'ISO 27001', icon: Building },
-		{ name: 'GDPR Compliant', icon: Users },
-		{ name: 'Enterprise Ready', icon: Shield }
+		{ name: 'GDPR Compliant', icon: Building },
+		{ name: 'Enterprise Ready', icon: Users },
+		{ name: 'AI-Powered', icon: Shield }
 	];
 
 	return (
@@ -52,17 +52,16 @@ const Testimonials: React.FC = () => {
 				<div className="mb-16 text-center">
 					<div className="bg-success-100 dark:bg-success-500/20 text-success-600 dark:text-success-400 mb-6 inline-flex items-center rounded-full px-4 py-2 text-sm font-medium">
 						<Users className="mr-2 h-4 w-4" />
-						Trusted by Professionals
+						Trusted by Sales Teams
 					</div>
 					<h2 className="mb-6 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
-						Intelligence Teams
+						Sales Professionals
 						<span className="from-brand-500 to-blue-light-500 block bg-gradient-to-r bg-clip-text text-transparent">
-							Trust Our Platform
+							Love Our Platform
 						</span>
 					</h2>
 					<p className="mx-auto max-w-3xl text-xl text-gray-600 dark:text-gray-300">
-						Join hundreds of security professionals, investigators, and researchers who rely on True
-						Sight Intelligence for their most critical investigations.
+						Join hundreds of sales teams who have transformed their processes with Paperboat CRM's AI-powered automation and lead qualification capabilities.
 					</p>
 				</div>
 
@@ -120,7 +119,7 @@ const Testimonials: React.FC = () => {
 							Enterprise Security & Compliance
 						</h3>
 						<p className="text-gray-600 dark:text-gray-300">
-							Built with security-first principles and certified for enterprise use
+							Built with security-first principles and certified for enterprise sales teams
 						</p>
 					</div>
 

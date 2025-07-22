@@ -12,7 +12,8 @@ import {
 	Calendar,
 	Bookmark,
 	Share2,
-	MoreHorizontal
+	MoreHorizontal,
+	Edit
 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader } from '../ui/card';
 import {
@@ -21,21 +22,28 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger
 } from '../ui/dropdown-menu';
-import { useLeads } from '../../hooks/useLeads';
 
 interface SearchResultsProps {
-	perPage: number;
+	leads: Lead[];
+	totalLeads: number;
+	currentPage: number;
+	totalPages: number;
+	onPageChange: (page: number) => void;
+	onEditLead: (lead: Lead) => void;
 }
 
-export function SearchResults({ perPage }: SearchResultsProps) {
-	const { results, currentPage, setCurrentPage } = useLeads();
-	const [selectedResult, setSelectedResult] = useState<Lead | null>(results?.results[0] ?? null);
+export function SearchResults({ 
+	leads, 
+	currentPage, 
+	totalPages, 
+	onPageChange, 
+	onEditLead 
+}: SearchResultsProps) {
+	const [selectedResult, setSelectedResult] = useState<Lead | null>(leads[0] ?? null);
 
 	useEffect(() => {
-		setSelectedResult(results?.results[0] ?? null);
-	}, [results]);
-
-	const totalPages = Math.ceil(results.total / perPage);
+		setSelectedResult(leads[0] ?? null);
+	}, [leads]);
 
 	const getStatusColor = (status: string) => {
 		switch (status) {
@@ -63,22 +71,41 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 		}
 	};
 
+	const getStageColor = (stage: string) => {
+		switch (stage) {
+			case 'new':
+				return 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-900';
+			case 'contacted':
+				return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900';
+			case 'qualified':
+				return 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-900';
+			case 'proposal':
+				return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-900';
+			case 'closed-won':
+				return 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900';
+			case 'closed-lost':
+				return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900';
+			default:
+				return 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-900';
+		}
+	};
+
 	// Handle page change
 	const handlePageChange = (page: number) => {
-		setCurrentPage(page);
+		onPageChange(page);
 		// Scroll to top of results
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	};
 
-	if (results.results.length === 0) {
+	if (leads.length === 0) {
 		return (
 			<div className="bg-card flex flex-col items-center justify-center rounded-lg border p-8 text-center">
 				<div className="bg-muted mb-4 flex h-20 w-20 items-center justify-center rounded-full">
 					<SearchIcon className="h-10 w-10 text-gray-600 dark:text-gray-300" />
 				</div>
-				<h3 className="mb-2 text-xl font-semibold">No results found</h3>
+				<h3 className="mb-2 text-xl font-semibold">No leads found</h3>
 				<p className="max-w-md text-gray-600 dark:text-gray-300">
-					We couldn't find what you're looking for. Try adjusting your search terms or filters.
+					We couldn't find any leads matching your criteria. Try adjusting your search terms or filters.
 				</p>
 			</div>
 		);
@@ -88,25 +115,25 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 		<div className="grid grid-cols-1 gap-6 md:grid-cols-3">
 			<div className="col-span-1 md:col-span-2">
 				<div className="space-y-5">
-					{results.results.map((result) => (
+					{leads.map((lead) => (
 						<Card
-							key={result.id}
+							key={lead.id}
 							className={`overflow-hidden ${
-								selectedResult?.id === result.id ? 'ring-1 ring-offset-1' : 'hover:ring-1'
+								selectedResult?.id === lead.id ? 'ring-1 ring-offset-1' : 'hover:ring-1'
 							}`}
 						>
 							<CardHeader className="p-6">
 								<div className="flex flex-col items-start justify-between gap-3 md:flex-row">
 									<div className="flex items-center space-x-2">
 										<Avatar className="h-8 w-8 border">
-											<AvatarImage src={result.avatar} alt={result.name} />
-											<AvatarFallback>{result.name.charAt(0)}</AvatarFallback>
+											<AvatarImage src={lead.avatar} alt={lead.name} />
+											<AvatarFallback>{lead.name.charAt(0)}</AvatarFallback>
 										</Avatar>
 										<div>
-											<p className="text-sm font-medium">{result.name}</p>
+											<p className="text-sm font-medium">{lead.name}</p>
 											<p className="text-xs text-gray-600 dark:text-gray-300">
 												Updated:{' '}
-												{formatDistanceToNow(new Date(result.updatedAt), {
+												{formatDistanceToNow(new Date(lead.updatedAt), {
 													addSuffix: true
 												})}
 											</p>
@@ -116,8 +143,8 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 										<div>
 											<span className="flex items-center gap-2 text-sm">
 												Priority:
-												<span className={`text-xs uppercase ${getPriorityColor(result.priority)}`}>
-													{result.priority}
+												<span className={`text-xs uppercase ${getPriorityColor(lead.priority)}`}>
+													{lead.priority}
 												</span>
 											</span>
 										</div>
@@ -127,9 +154,9 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 										<div className="flex items-center justify-between">
 											<Badge
 												variant="outline"
-												className={`text-xs capitalize ${getStatusColor(result.status)}`}
+												className={`text-xs capitalize ${getStatusColor(lead.status)}`}
 											>
-												{result.status.replace('in_progress', 'In Progress')}
+												{lead.status.replace('in_progress', 'In Progress')}
 											</Badge>
 											<DropdownMenu>
 												<DropdownMenuTrigger asChild>
@@ -139,7 +166,10 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 													</Button>
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
-													<DropdownMenuItem>Edit</DropdownMenuItem>
+													<DropdownMenuItem onClick={() => onEditLead(lead)}>
+														<Edit className="mr-2 h-4 w-4" />
+														Edit
+													</DropdownMenuItem>
 													<DropdownMenuItem>Share</DropdownMenuItem>
 													<DropdownMenuItem>Save</DropdownMenuItem>
 												</DropdownMenuContent>
@@ -149,21 +179,37 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 								</div>
 							</CardHeader>
 							<CardContent className="pt-0 pb-6">
-								<div className="cursor-pointer" onClick={() => setSelectedResult(result)}>
+								<div className="cursor-pointer" onClick={() => setSelectedResult(lead)}>
 									<h3 className="hover:text-primary mb-1 text-xl font-semibold transition-colors">
-										{result.title}
+										{lead.title || `${lead.name} - ${lead.company || 'No Company'}`}
 									</h3>
-									<p className="mb-5 text-gray-600 dark:text-gray-300">{result.description}</p>
-									<p className="text-sm text-gray-600 dark:text-gray-300">- {result.category}</p>
+									<p className="mb-5 text-gray-600 dark:text-gray-300">
+										{lead.description || `${lead.email} • ${lead.phone || 'No phone'}`}
+									</p>
+									<div className="flex items-center gap-2">
+										<Badge
+											variant="outline"
+											className={`text-xs capitalize ${getStageColor(lead.stage)}`}
+										>
+											{lead.stage.replace('-', ' ')}
+										</Badge>
+										{lead.category && (
+											<span className="text-sm text-gray-600 dark:text-gray-300">
+												• {lead.category}
+											</span>
+										)}
+									</div>
 								</div>
 							</CardContent>
 							<Separator />
 							<CardFooter className="flex items-center justify-between p-3">
 								<div className="flex flex-wrap gap-1">
-									{result.tags && result.tags.length > 0 ? (
-										result.tags.map((tag, index) => (
+									{lead.tags && lead.tags.length > 0 ? (
+										lead.tags.map((tag, index) => (
 											<Badge
 												key={index}
+												variant="secondary"
+												className="text-xs"
 											>
 												{tag}
 											</Badge>
@@ -218,10 +264,12 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 			{/* Details panel */}
 			<div className="col-span-1 md:block">
 				{selectedResult ? (
-					<Card className="animate-in slide-in-from-right-5 sticky top-24 duration-200">
+					<Card className="animate-in slide-in-from-right-5 sticky top-0 duration-200">
 						<CardHeader>
 							<div className="flex items-center justify-between gap-5">
-								<h3 className="text-xl font-semibold">{selectedResult.title}</h3>
+								<h3 className="text-xl font-semibold">
+									{selectedResult.title || `${selectedResult.name} - ${selectedResult.company || 'No Company'}`}
+								</h3>
 								<div className="flex flex-col items-end gap-2">
 									<Badge
 										variant="outline"
@@ -264,18 +312,23 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 								</div>
 							</div>
 
-							<p className="mb-4 text-gray-600 dark:text-gray-300">{selectedResult.description}</p>
+							<p className="mb-4 text-gray-600 dark:text-gray-300">
+								{selectedResult.description || `${selectedResult.email} • ${selectedResult.phone || 'No phone'}`}
+							</p>
 
 							<div className="mb-4 grid grid-cols-2 gap-4">
 								<div className="flex flex-col space-y-1">
-									<span className="text-xs text-gray-600 dark:text-gray-300">Category</span>
-									<span className="font-medium">{selectedResult.category}</span>
+									<span className="text-xs text-gray-600 dark:text-gray-300">Company</span>
+									<span className="font-medium">{selectedResult.company || 'Not specified'}</span>
 								</div>
 								<div className="flex flex-col space-y-1">
-									<span className="text-xs text-gray-600 dark:text-gray-300">Created</span>
-									<span className="font-medium">
-										{new Date(selectedResult.createdAt).toLocaleDateString()}
-									</span>
+									<span className="text-xs text-gray-600 dark:text-gray-300">Stage</span>
+									<Badge
+										variant="outline"
+										className={`text-xs capitalize ${getStageColor(selectedResult.stage)}`}
+									>
+										{selectedResult.stage.replace('-', ' ')}
+									</Badge>
 								</div>
 							</div>
 
@@ -287,6 +340,8 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 										selectedResult.tags.map((tag, index) => (
 											<Badge
 												key={index}
+												variant="secondary"
+												className="text-xs"
 											>
 												{tag}
 											</Badge>
@@ -307,17 +362,21 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 						</CardContent>
 						<Separator />
 						<CardFooter className="flex justify-end pt-4">
-							<a href="/cases/1">
-								<Button variant="outline">View Details</Button>
-							</a>
+							<Button 
+								variant="outline" 
+								onClick={() => onEditLead(selectedResult)}
+							>
+								<Edit className="mr-2 h-4 w-4" />
+								Edit Lead
+							</Button>
 						</CardFooter>
 					</Card>
 				) : (
 					<Card className="bg-muted/40 flex h-[400px] items-center justify-center border-dashed p-8 text-center">
 						<div className="max-w-sm">
-							<h3 className="mb-2 text-lg font-medium">No item selected</h3>
+							<h3 className="mb-2 text-lg font-medium">No lead selected</h3>
 							<p className="text-sm text-gray-600 dark:text-gray-300">
-								Select an item from the search results to view its details here.
+								Select a lead from the list to view its details here.
 							</p>
 						</div>
 					</Card>

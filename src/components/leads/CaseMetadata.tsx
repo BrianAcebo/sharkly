@@ -1,9 +1,9 @@
 import React from 'react';
 import { Database } from 'lucide-react';
-import type { Case } from '../../types/case';
+import type { Case } from '../../types/leads';
 import ComponentCard from '../common/ComponentCard';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
-import Button from '../../components/ui/button/Button';
+import { TeamMember } from '../../types/leads';
 
 interface CaseMetadataProps {
 	caseData: Case;
@@ -27,31 +27,24 @@ const CaseMetadata: React.FC<CaseMetadataProps> = ({ caseData }) => {
 
 			{caseData.assignedTo.length > 0 && (
 				<ComponentCard>
-					<h3 className="mb-4 text-lg font-semibold">Assigned Investigators</h3>
-
-					<div>
-						<div className="mt-1 flex flex-wrap gap-1">
-							{caseData.assignedTo.map((investigator, index) => (
-								<Button
-									key={index}
-									variant="flat"
-									className="flex items-center space-x-1 px-3 py-2"
-								>
-									<Avatar className="h-8 w-8">
-										<AvatarImage
-											src={investigator.profile.avatar}
-											alt={investigator.profile.first_name}
-										/>
-										<AvatarFallback>{investigator.profile.first_name.charAt(0)}</AvatarFallback>
-									</Avatar>
-									<div>
-										<p className="text-sm font-medium">
-											{investigator.profile.first_name} {investigator.profile.last_name}
-										</p>
-									</div>
-								</Button>
-							))}
-						</div>
+					<h3 className="mb-4 text-lg font-semibold">Assigned Team Members</h3>
+					<div className="space-y-3">
+						{caseData.assignedTo.map((teamMember: TeamMember, index: number) => (
+							<div key={index} className="flex items-center space-x-3">
+								<Avatar className="h-8 w-8">
+									<AvatarImage
+										src={teamMember.profile.avatar}
+										alt={teamMember.profile.first_name}
+									/>
+									<AvatarFallback>{teamMember.profile.first_name.charAt(0)}</AvatarFallback>
+								</Avatar>
+								<div>
+									<p className="font-medium">
+										{teamMember.profile.first_name} {teamMember.profile.last_name}
+									</p>
+								</div>
+							</div>
+						))}
 					</div>
 				</ComponentCard>
 			)}

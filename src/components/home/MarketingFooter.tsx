@@ -13,13 +13,12 @@ const Footer: React.FC = () => {
 								<Shield className="h-6 w-6 text-white" />
 							</div>
 							<div>
-								<h3 className="text-xl font-bold">True Sight Intelligence</h3>
-								<p className="text-sm text-gray-400">AI-Powered OSINT</p>
+								<h3 className="text-xl font-bold">Paperboat CRM</h3>
+								<p className="text-sm text-gray-400">AI-Powered Sales Assistant</p>
 							</div>
 						</div>
 						<p className="mb-6 max-w-md text-gray-300">
-							Advanced AI-powered OSINT platform for comprehensive digital intelligence gathering,
-							identity mapping, and threat analysis across the digital landscape.
+							AI sales assistant that automates outreach, chats with leads, and pre-qualifies prospects to help your teams close more deals faster.
 						</p>
 						<div className="flex items-center space-x-4">
 							<a
@@ -81,7 +80,7 @@ const Footer: React.FC = () => {
 						<div className="space-y-4">
 							<div className="flex items-center space-x-3">
 								<Mail className="h-5 w-5 text-gray-400" />
-								<span className="text-gray-300">contact@truesight.ai</span>
+								<span className="text-gray-300">contact@paperboatcrm.com</span>
 							</div>
 							<div className="flex items-center space-x-3">
 								<Phone className="h-5 w-5 text-gray-400" />
@@ -99,7 +98,7 @@ const Footer: React.FC = () => {
 				<div className="mt-12 border-t border-gray-800 pt-8">
 					<div className="flex flex-col items-center justify-between md:flex-row">
 						<div className="mb-4 text-sm text-gray-400 md:mb-0">
-							© 2025 True Sight Intelligence. All rights reserved.
+							© 2025 Paperboat CRM. All rights reserved.
 						</div>
 						<div className="flex items-center space-x-6 text-sm">
 							<a href="#" className="text-gray-400 transition-colors hover:text-white">

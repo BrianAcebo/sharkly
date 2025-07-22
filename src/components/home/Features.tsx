@@ -1,48 +1,48 @@
 import React from 'react';
-import { Search, Network, Eye, Database, Shield, TrendingUp, FileSearch } from 'lucide-react';
+import { MessageSquare, Users, Zap, Shield, Brain, Target, BarChart3 } from 'lucide-react';
 
 const Features: React.FC = () => {
 	const features = [
 		{
-			icon: Search,
-			title: 'AI-Powered Search',
+			icon: MessageSquare,
+			title: 'AI Sales Assistant',
 			description:
-				'Advanced machine learning algorithms automatically correlate data across multiple sources for comprehensive intelligence gathering.',
+				'Intelligent AI that can engage with leads through text, email, and phone calls, automatically qualifying prospects and scheduling meetings.',
 			color: 'brand'
 		},
 		{
-			icon: Network,
-			title: 'Identity Mapping',
+			icon: Users,
+			title: 'Lead Management',
 			description:
-				'Visualize complex relationships and connections between individuals, organizations, and digital assets in interactive graphs.',
+				'Complete CRM system to track leads, manage pipeline stages, and organize prospect information with detailed profiles and interaction history.',
 			color: 'blue-light'
 		},
 		{
-			icon: Eye,
-			title: 'Real-time Monitoring',
+			icon: Zap,
+			title: 'Automated Sequences',
 			description:
-				'Continuous surveillance of target entities with instant alerts when new information becomes available across the web.',
+				'Set up intelligent follow-up sequences that automatically engage leads at the right time with personalized messages and next steps.',
 			color: 'success'
 		},
 		{
-			icon: Database,
-			title: 'Breach Data Analysis',
+			icon: Brain,
+			title: 'Knowledge Base',
 			description:
-				'Access and analyze data from major security breaches to identify compromised credentials and exposed information.',
+				'Create and manage responses to common questions, objections, and scenarios to ensure consistent, high-quality interactions.',
 			color: 'warning'
 		},
 		{
-			icon: FileSearch,
-			title: 'Deep Web Crawling',
+			icon: Target,
+			title: 'Lead Qualification',
 			description:
-				'Sophisticated crawlers search beyond surface web content to uncover hidden information and obscure digital footprints.',
+				'AI-powered scoring and qualification system that identifies high-value prospects and prioritizes follow-up based on engagement signals.',
 			color: 'theme-purple'
 		},
 		{
-			icon: TrendingUp,
-			title: 'Threat Intelligence',
+			icon: BarChart3,
+			title: 'Sales Analytics',
 			description:
-				'Track emerging threats, monitor suspicious activities, and assess risk levels with comprehensive threat intelligence feeds.',
+				'Comprehensive reporting and analytics to track conversion rates, pipeline performance, and AI assistant effectiveness.',
 			color: 'error'
 		}
 	];
@@ -67,17 +67,16 @@ const Features: React.FC = () => {
 				<div className="mb-16 text-center">
 					<div className="bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 mb-6 inline-flex items-center rounded-full px-4 py-2 text-sm font-medium">
 						<Shield className="mr-2 h-4 w-4" />
-						Advanced Capabilities
+						Powerful Sales Automation
 					</div>
 					<h2 className="mb-6 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
-						Comprehensive OSINT
+						Complete AI-Powered
 						<span className="from-brand-500 to-blue-light-500 block bg-gradient-to-r bg-clip-text text-transparent">
-							Intelligence Platform
+							Sales Platform
 						</span>
 					</h2>
 					<p className="mx-auto max-w-3xl text-xl text-gray-600 dark:text-gray-300">
-						Leverage cutting-edge AI technology to gather, analyze, and visualize intelligence from
-						across the digital landscape with unprecedented speed and accuracy.
+						Transform your sales process with intelligent automation, AI-powered lead qualification, and comprehensive CRM capabilities designed to close more deals faster.
 					</p>
 				</div>
 
@@ -109,26 +108,26 @@ const Features: React.FC = () => {
 				{/* Stats Section */}
 				<div className="mt-20 grid grid-cols-2 gap-8 md:grid-cols-4">
 					<div className="text-center">
-						<div className="text-brand-500 dark:text-brand-400 mb-2 text-4xl font-bold">500M+</div>
-						<div className="text-gray-600 dark:text-gray-400">Data Points Analyzed</div>
+						<div className="text-brand-500 dark:text-brand-400 mb-2 text-4xl font-bold">10K+</div>
+						<div className="text-gray-600 dark:text-gray-400">Leads Qualified</div>
 					</div>
 					<div className="text-center">
 						<div className="text-blue-light-500 dark:text-blue-light-400 mb-2 text-4xl font-bold">
-							50K+
+							500+
 						</div>
-						<div className="text-gray-600 dark:text-gray-400">Investigations Completed</div>
+						<div className="text-gray-600 dark:text-gray-400">Sales Teams</div>
 					</div>
 					<div className="text-center">
 						<div className="text-success-500 dark:text-success-400 mb-2 text-4xl font-bold">
-							99.9%
+							3x
 						</div>
-						<div className="text-gray-600 dark:text-gray-400">Uptime Guarantee</div>
+						<div className="text-gray-600 dark:text-gray-400">Faster Response</div>
 					</div>
 					<div className="text-center">
 						<div className="text-warning-500 dark:text-warning-400 mb-2 text-4xl font-bold">
 							24/7
 						</div>
-						<div className="text-gray-600 dark:text-gray-400">Real-time Monitoring</div>
+						<div className="text-gray-600 dark:text-gray-400">AI Availability</div>
 					</div>
 				</div>
 			</div>

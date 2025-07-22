@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import { Investigator } from '../types/leads';
+import { TeamMember } from '../types/leads';
 
 export interface Lead {
   id: string;
@@ -19,7 +19,7 @@ export interface Lead {
 	status: 'active' | 'in_progress' | 'closed';
 	priority: 'low' | 'medium' | 'high' | 'critical';
 	tags: string[];
-	assignedTo: Investigator[];
+	assignedTo: TeamMember[];
 	createdAt: Date;
 	updatedAt: Date;
 }

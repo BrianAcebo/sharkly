@@ -85,8 +85,8 @@ const LeadPipeline: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
-        <div className="h-full p-6">
-          <div className="flex gap-4 h-full min-w-max overflow-x-auto">
+        <div className="h-full py-6 w-full overflow-auto">
+          <div className="flex gap-4 h-full min-w-max">
             {stages.map((stage) => (
               <div
                 key={stage.id}

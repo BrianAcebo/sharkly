@@ -16,10 +16,11 @@ import Chat from './pages/Chat';
 import Email from './pages/Email';
 import Assistant from './pages/Assistant'
 import Leads from './pages/Leads'
+import ErrorBoundary from './components/common/ErrorBoundary';
 
 export default function App() {
 	return (
-		<>
+		<ErrorBoundary>
 			<Toaster richColors />
 			<Router>
 				<ScrollToTop />
@@ -50,6 +51,6 @@ export default function App() {
 					<Route path="*" element={<NotFound />} />
 				</Routes>
 			</Router>
-		</>
+		</ErrorBoundary>
 	);
 }

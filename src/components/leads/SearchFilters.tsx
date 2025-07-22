@@ -12,57 +12,60 @@ import { Button as Button2 } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { X, Filter, CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
-import type { SearchFilter } from '../../types/leads';
 import DatePicker from '../form/date-picker';
-import { useLeads } from '../../hooks/useLeads';
 
-export function SearchFilters() {
-	const { filters, setFilters, results, dateRange, setDateRange } = useLeads();
+interface Filters {
+	status: string;
+	priority: string;
+	stage: string;
+}
+
+interface SearchFiltersProps {
+	filters: Filters;
+	onFiltersChange: (filters: Filters) => void;
+	totalResults?: number;
+}
+
+export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: SearchFiltersProps) {
 	const [showFilters, setShowFilters] = useState<boolean>(false);
+	const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
 
 	const handleStatusChange = (value: string) => {
-		setFilters({
+		onFiltersChange({
 			...filters,
-			status: value as 'active' | 'inactive' | 'in progress' | 'all'
+			status: value
 		});
 	};
 
-	const handlePriorityLevelChange = (value: string) => {
-		setFilters({
+	const handlePriorityChange = (value: string) => {
+		onFiltersChange({
 			...filters,
-			priorityLevel: value as 'low' | 'medium' | 'high' | 'critical' | 'all'
+			priority: value
 		});
 	};
 
-	const handleSortChange = (value: string) => {
-		setFilters({
+	const handleStageChange = (value: string) => {
+		onFiltersChange({
 			...filters,
-			sortBy: value as 'recent' | 'priority' | 'alphabetical'
-		});
-	};
-
-	const handleDateRangeChange = () => {
-		setFilters({
-			...filters,
-			dateRange
+			stage: value
 		});
 	};
 
 	const clearFilters = () => {
-		setFilters({
+		onFiltersChange({
 			status: 'all',
-			priorityLevel: 'all',
-			dateRange: { from: undefined, to: undefined },
-			sortBy: 'recent'
+			priority: 'all',
+			stage: 'all'
 		});
-		setDateRange({ from: undefined, to: undefined });
+		setDateRange({});
 	};
 
 	// Count active filters
 	const activeFilterCount = [
 		filters.status !== 'all',
-		filters.priorityLevel !== 'all',
-		filters.dateRange?.from || filters.dateRange?.to
+		filters.priority !== 'all',
+		filters.stage !== 'all',
+		dateRange.from || dateRange.to
 	].filter(Boolean).length;
 
 	type Select = {
@@ -82,7 +85,7 @@ export function SearchFilters() {
 	) => {
 		return (
 			<Select
-				value={filters[select.name as keyof SearchFilter] as string}
+				value={filters[select.name as keyof Filters] as string}
 				onValueChange={onValueChange}
 			>
 				<SelectTrigger className="h-9 w-[180px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
@@ -102,10 +105,6 @@ export function SearchFilters() {
 			</Select>
 		);
 	};
-
-	const renderValue = (value: string) => {
-		return value.replace(/_/g, ' ');
-	}
 
 	const statusOptions: Select = {
 		name: 'status',
@@ -129,26 +128,8 @@ export function SearchFilters() {
 		]
 	};
 
-	const sortOptions: Select = {
-		name: 'sortBy',
-		options: [
-			{
-				value: 'recent',
-				label: 'Most Recent'
-			},
-			{
-				value: 'priority',
-				label: 'Priority Level'
-			},
-			{
-				value: 'alphabetical',
-				label: 'Alphabetical'
-			}
-		]
-	};
-
 	const priorityOptions: Select = {
-		name: 'priorityLevel',
+		name: 'priority',
 		options: [
 			{
 				value: 'all',
@@ -169,6 +150,40 @@ export function SearchFilters() {
 			{
 				value: 'critical',
 				label: 'Critical'
+			}
+		]
+	};
+
+	const stageOptions: Select = {
+		name: 'stage',
+		options: [
+			{
+				value: 'all',
+				label: 'All stages'
+			},
+			{
+				value: 'new',
+				label: 'New Lead'
+			},
+			{
+				value: 'contacted',
+				label: 'Contacted'
+			},
+			{
+				value: 'qualified',
+				label: 'Qualified'
+			},
+			{
+				value: 'proposal',
+				label: 'Proposal'
+			},
+			{
+				value: 'closed-won',
+				label: 'Closed Won'
+			},
+			{
+				value: 'closed-lost',
+				label: 'Closed Lost'
 			}
 		]
 	};
@@ -195,11 +210,21 @@ export function SearchFilters() {
 						)}
 					</Button>
 
-					{renderSelect(sortOptions, 'Sort by', handleSortChange)}
+					{activeFilterCount > 0 && (
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={clearFilters}
+							className="h-9"
+						>
+							<X className="mr-2 h-4 w-4" />
+							Clear
+						</Button>
+					)}
 				</div>
 
 				<p className="text-sm">
-					{results.total} result{results.total !== 1 ? 's' : ''} found
+					{totalResults} result{totalResults !== 1 ? 's' : ''} found
 				</p>
 			</div>
 
@@ -212,7 +237,12 @@ export function SearchFilters() {
 
 					<div className="space-y-4">
 						<label className="mb-3 block text-sm font-medium">Priority Level</label>
-						{renderSelect(priorityOptions, 'Select priority level', handlePriorityLevelChange)}
+						{renderSelect(priorityOptions, 'Select priority level', handlePriorityChange)}
+					</div>
+
+					<div className="space-y-4">
+						<label className="mb-3 block text-sm font-medium">Stage</label>
+						{renderSelect(stageOptions, 'Select stage', handleStageChange)}
 					</div>
 
 					<div className="space-y-4">
@@ -248,101 +278,14 @@ export function SearchFilters() {
 									placeholder="Select a date"
 									mode="range"
 									onChange={(dates: Date[]) => {
-										if (dates.length) {
-											setDateRange({
-												from: dates[0],
-												to: dates[1] || undefined
-											});
-										} else {
-											setDateRange({ from: undefined, to: undefined });
+										if (dates && dates.length === 2) {
+											setDateRange({ from: dates[0], to: dates[1] });
 										}
 									}}
 								/>
-								<div className="flex items-center justify-between p-3">
-									<Button
-										variant="ghost"
-										size="sm"
-										onClick={() => {
-											const resetDate = { from: undefined, to: undefined };
-											setDateRange(resetDate);
-											filters.dateRange = resetDate;
-											handleDateRangeChange();
-										}}
-									>
-										Clear
-									</Button>
-									<Button size="sm" onClick={handleDateRangeChange}>
-										Apply
-									</Button>
-								</div>
 							</PopoverContent>
 						</Popover>
 					</div>
-
-					{activeFilterCount > 0 && (
-						<div className="flex justify-end md:col-span-3">
-							<Button variant="ghost" size="sm" onClick={clearFilters}>
-								<X className="mr-2 h-4 w-4" />
-								Clear all filters
-							</Button>
-						</div>
-					)}
-				</div>
-			)}
-
-			{activeFilterCount > 0 && (
-				<div className="flex flex-wrap gap-2">
-					{filters.status !== 'all' && (
-						<Badge variant="secondary" className="flex items-center gap-1 text-sm capitalize">
-							Status: {renderValue(filters.status ?? '')}
-							<Button2
-								variant="ghost"
-								size="icon"
-								className="ml-1 h-4 w-4 p-0"
-								onClick={() => handleStatusChange('all')}
-							>
-								<X className="size-3" />
-								<span className="sr-only">Remove status filter</span>
-							</Button2>
-						</Badge>
-					)}
-
-					{filters.priorityLevel !== 'all' && (
-						<Badge variant="secondary" className="flex items-center gap-1 text-sm capitalize">
-							Priority Level: {renderValue(filters.priorityLevel ?? '')}
-							<Button2
-								variant="ghost"
-								size="icon"
-								className="ml-1 h-4 w-4 p-0"
-								onClick={() => handlePriorityLevelChange('all')}
-							>
-								<X className="size-3" />
-								<span className="sr-only">Remove priority filter</span>
-							</Button2>
-						</Badge>
-					)}
-
-					{(filters.dateRange?.from || filters.dateRange?.to) && (
-						<Badge variant="secondary" className="flex items-center gap-1">
-							{filters.dateRange.from && filters.dateRange.to
-								? `${format(filters.dateRange.from, 'LLL dd, y')} - ${format(filters.dateRange.to, 'LLL dd, y')}`
-								: filters.dateRange.from
-									? format(filters.dateRange.from, 'LLL dd, y')
-									: format(filters.dateRange.to!, 'LLL dd, y')}
-							<Button2
-								variant="ghost"
-								size="icon"
-								className="ml-1 h-4 w-4 p-0"
-								onClick={() => {
-									setDateRange({ from: undefined, to: undefined });
-									handleDateRangeChange();
-								}}
-							>
-								<X className="h-3 w-3" />
-								<span className="sr-only">Remove date range filter</span>
-							</Button2>
-						</Badge>
-					)}
 				</div>
 			)}
 		</div>

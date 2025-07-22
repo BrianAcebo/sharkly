@@ -4,7 +4,7 @@ import SignInForm from '../../components/auth/SignInForm';
 export default function SignIn() {
 	return (
 		<>
-			<PageMeta title="" description="" />
+			<PageMeta noIndex title="Sign In" description="Sign in to your account" />
 			<SignInForm />
 		</>
 	);

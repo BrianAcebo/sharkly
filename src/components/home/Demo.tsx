@@ -1,37 +1,37 @@
 import React, { useState } from 'react';
-import { Play, Search, Users, Globe, Database, ArrowRight } from 'lucide-react';
+import { Play, MessageSquare, Users, Zap, Database, ArrowRight } from 'lucide-react';
 
 const Demo: React.FC = () => {
 	const [activeStep, setActiveStep] = useState(0);
 
 	const steps = [
 		{
-			icon: Search,
-			title: 'Input Target',
-			description: 'Enter email, username, or identifier to begin investigation',
+			icon: Users,
+			title: 'Add Lead',
+			description: 'Enter lead information and contact details',
 			detail:
-				'Our AI engine accepts multiple input types and automatically determines the best search strategy for maximum intelligence gathering.'
+				'Our CRM accepts multiple lead sources and automatically creates comprehensive profiles with contact information, company details, and interaction history.'
+		},
+		{
+			icon: MessageSquare,
+			title: 'AI Outreach',
+			description: 'AI assistant engages leads via text, email, and phone',
+			detail:
+				'Intelligent AI automatically reaches out to leads through their preferred channels, using personalized messaging based on lead profile and behavior.'
+		},
+		{
+			icon: Zap,
+			title: 'Lead Qualification',
+			description: 'AI scores and qualifies prospects automatically',
+			detail:
+				'Advanced algorithms analyze engagement patterns, responses, and behavior to score leads and identify high-value prospects ready for sales team follow-up.'
 		},
 		{
 			icon: Database,
-			title: 'Data Aggregation',
-			description: 'AI scans surface web, social media, and breach databases',
+			title: 'Pipeline Management',
+			description: 'Track leads through sales pipeline stages',
 			detail:
-				'Advanced crawlers and APIs simultaneously search across hundreds of data sources including social platforms, public records, and known breach data.'
-		},
-		{
-			icon: Users,
-			title: 'Identity Mapping',
-			description: 'Machine learning correlates and maps digital identities',
-			detail:
-				'Sophisticated algorithms identify connections between accounts, profiles, and digital assets to build comprehensive identity profiles.'
-		},
-		{
-			icon: Globe,
-			title: 'Visualization',
-			description: 'Interactive graphs reveal relationships and intelligence',
-			detail:
-				'Dynamic network visualizations display complex relationships, timelines, and threat indicators in an intuitive, explorable interface.'
+				'Comprehensive pipeline visualization shows lead progression, conversion rates, and automated follow-up sequences to ensure no opportunity is missed.'
 		}
 	];
 
@@ -45,14 +45,14 @@ const Demo: React.FC = () => {
 						See It In Action
 					</div>
 					<h2 className="mb-6 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
-						OSINT Investigation
+						AI Sales Assistant
 						<span className="from-brand-500 to-blue-light-500 block bg-gradient-to-r bg-clip-text text-transparent">
 							Workflow Demo
 						</span>
 					</h2>
 					<p className="mx-auto max-w-3xl text-xl text-gray-600 dark:text-gray-300">
-						Experience how True Sight Intelligence transforms raw data into actionable intelligence
-						through our streamlined four-step investigation process.
+						Experience how Paperboat CRM transforms lead management with AI-powered automation
+						through our streamlined four-step sales process.
 					</p>
 				</div>
 
@@ -116,7 +116,7 @@ const Demo: React.FC = () => {
 						<div className="shadow-theme-xl rounded-2xl border border-gray-200 bg-white p-8 dark:border-gray-700 dark:bg-gray-900">
 							<div className="mb-6 flex items-center justify-between">
 								<h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-									Investigation Dashboard
+									Sales Dashboard
 								</h4>
 								<div className="flex items-center space-x-2">
 									<div className="bg-success-500 h-3 w-3 rounded-full"></div>
@@ -127,27 +127,27 @@ const Demo: React.FC = () => {
 							{/* Mock Interface */}
 							<div className="space-y-4">
 								<div className="flex items-center space-x-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
-									<Search className="h-5 w-5 text-gray-400" />
-									<span className="text-gray-600 dark:text-gray-300">john.doe@example.com</span>
+									<Users className="h-5 w-5 text-gray-400" />
+									<span className="text-gray-600 dark:text-gray-300">john.doe@techcompany.com</span>
 								</div>
 
 								<div className="grid grid-cols-2 gap-4">
 									<div className="bg-brand-50 dark:bg-brand-500/10 rounded-lg p-4">
 										<div className="text-brand-500 dark:text-brand-400 text-2xl font-bold">127</div>
-										<div className="text-sm text-gray-600 dark:text-gray-400">Data Sources</div>
+										<div className="text-sm text-gray-600 dark:text-gray-400">Active Leads</div>
 									</div>
 									<div className="bg-success-50 dark:bg-success-500/10 rounded-lg p-4">
 										<div className="text-success-500 dark:text-success-400 text-2xl font-bold">
 											89
 										</div>
-										<div className="text-sm text-gray-600 dark:text-gray-400">Identities Found</div>
+										<div className="text-sm text-gray-600 dark:text-gray-400">Qualified Prospects</div>
 									</div>
 								</div>
 
 								<div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
 									<div className="mb-3 flex items-center justify-between">
 										<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-											Processing Status
+											Pipeline Progress
 										</span>
 										<span className="text-brand-500 dark:text-brand-400 text-sm">
 											{activeStep === 0
