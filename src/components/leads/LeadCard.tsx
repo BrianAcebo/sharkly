@@ -1,6 +1,7 @@
 import React from 'react';
 import { Lead } from '../../contexts/DataContext';
 import { Building2, Phone, Mail, Calendar, DollarSign } from 'lucide-react';
+import { getStatusColor } from '../../utils/stages';
 
 interface LeadCardProps {
   lead: Lead;
@@ -12,22 +13,10 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick }) => {
     return new Date(dateString).toLocaleDateString();
   };
 
-  // const getStatusColor = (stage: Lead['stage']) => {
-  //   const colors = {
-  //     'new': 'bg-gray-100 text-gray-800',
-  //     'contacted': 'bg-blue-100 text-blue-800',
-  //     'qualified': 'bg-yellow-100 text-yellow-800',
-  //     'proposal': 'bg-purple-100 text-purple-800',
-  //     'closed-won': 'bg-green-100 text-green-800',
-  //     'closed-lost': 'bg-red-100 text-red-800'
-  //   };
-  //   return colors[stage as keyof typeof colors] || 'bg-gray-100 text-gray-800';
-  // };
-
   return (
     <div
       onClick={onClick}
-      className="bg-white dark:bg-gray-700 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-600 hover:shadow-md transition-shadow duration-200 cursor-pointer"
+      className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md border border-gray-200 dark:border-gray-700 hover:shadow-lg dark:shadow-gray-700 transition-shadow duration-200 cursor-pointer"
     >
       <div className="flex items-start justify-between mb-3">
         <div>
@@ -65,8 +54,9 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick }) => {
       <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-600">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span className="text-xs text-gray-600 dark:text-gray-300">{lead.assignedAgent}</span>
+            <span className={`capitalize px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.stage)}`}>
+              {lead.stage}
+            </span>
           </div>
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {lead.communications.length} interactions

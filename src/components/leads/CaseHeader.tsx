@@ -48,7 +48,7 @@ const CaseHeader: React.FC<CaseHeaderProps> = ({ caseData }) => {
 		<ComponentCard className="mb-6 rounded-xl border border-slate-200 bg-white">
 			<div className="mb-4 flex flex-col items-start justify-between gap-5 md:flex-row">
 				<div className="flex items-center space-x-3">
-					<div className="rounded-lg border border-gray-200 bg-gray-100 p-2 dark:border-gray-800 dark:bg-gray-800">
+					<div className="rounded-lg border border-gray-200 bg-gray-100 p-2 dark:border-gray-900 dark:bg-gray-900">
 						<FileText className="h-6 w-6 text-current" />
 					</div>
 					<div>
@@ -94,14 +94,14 @@ const CaseHeader: React.FC<CaseHeaderProps> = ({ caseData }) => {
 			</div>
 
 			{caseData.tags.length > 0 && (
-				<div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
+				<div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-900">
 					<div className="flex items-center space-x-2">
 						<span className="text-sm font-medium">Tags:</span>
 						<div className="flex flex-wrap gap-2">
 							{caseData.tags.map((tag, index) => (
 								<span
 									key={`${tag}-${index}`}
-									className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+									className="rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-gray-900/20 dark:text-gray-400"
 								>
 									#{tag}
 								</span>

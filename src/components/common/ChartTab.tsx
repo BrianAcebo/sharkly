@@ -5,7 +5,7 @@ const ChartTab: React.FC = () => {
 
 	const getButtonClass = (option: 'optionOne' | 'optionTwo' | 'optionThree') =>
 		selected === option
-			? 'shadow-theme-xs text-gray-900 dark:text-white bg-white dark:bg-gray-800'
+			? 'shadow-theme-xs text-gray-900 dark:text-white bg-white dark:bg-gray-900'
 			: 'text-gray-500 dark:text-gray-400';
 
 	return (

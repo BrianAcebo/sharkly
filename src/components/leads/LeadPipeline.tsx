@@ -5,16 +5,8 @@ import LeadCard from './LeadCard';
 import AddLeadModal from './AddLeadModal';
 import { Lead } from '../../contexts/DataContext';
 import { useLeads } from '../../hooks/useLeads';
-import Button from '../form/button/Button';
-
-const stages = [
-  { id: 'new', name: 'New Leads', color: 'bg-gray-100 text-gray-800' },
-  { id: 'contacted', name: 'Contacted', color: 'bg-blue-100 text-blue-800' },
-  { id: 'qualified', name: 'Qualified', color: 'bg-yellow-100 text-yellow-800' },
-  { id: 'proposal', name: 'Proposal', color: 'bg-purple-100 text-purple-800' },
-  { id: 'closed-won', name: 'Closed Won', color: 'bg-green-100 text-green-800' },
-  { id: 'closed-lost', name: 'Closed Lost', color: 'bg-red-100 text-red-800' },
-];
+import { Button } from '../ui/button';
+import { LeadStage, getStageLabel, getStatusColor, stages } from '../../utils/stages';
 
 const LeadPipeline: React.FC = () => {
   const { leads, updateLead } = useData();
@@ -52,11 +44,11 @@ const LeadPipeline: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="bg-white shadow-sm border-b p-6">
+      <div className="bg-white dark:bg-gray-800 shadow-sm p-6">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Lead Pipeline</h1>
-            <p className="text-gray-600">Manage your leads and track progress</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Lead Pipeline</h1>
+            <p className="text-gray-600 dark:text-gray-400">Manage your leads and track progress</p>
           </div>
           <Button
             variant="primary"
@@ -71,11 +63,12 @@ const LeadPipeline: React.FC = () => {
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <input
+              name="lead-search"
               type="text"
               placeholder="Search leads..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="text-gray-900 dark:text-gray-100 w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gray-500 dark:focus:ring-gray-400 focus:border-transparent"
             />
           </div>
           <Button variant="outline" startIcon={<Filter className="h-4 w-4" />}>
@@ -87,20 +80,20 @@ const LeadPipeline: React.FC = () => {
       <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
         <div className="h-full py-6 w-full overflow-auto">
           <div className="flex gap-4 h-full min-w-max">
-            {stages.map((stage) => (
+            {stages.map((stage: LeadStage) => (
               <div
-                key={stage.id}
+                key={stage}
                 className="bg-white dark:bg-gray-800 rounded-lg p-4 flex flex-col min-w-[280px] w-80 border border-gray-200 dark:border-gray-700"
                 onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, stage.id)}
+                onDrop={(e) => handleDrop(e, stage)}
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${stage.color}`}>
-                      {stage.name}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(stage)}`}>
+                      {getStageLabel(stage)}
                     </span>
                     <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {getLeadsByStage(stage.id).length}
+                      {getLeadsByStage(stage).length}
                     </span>
                   </div>
                   <Button variant="icon" startIcon={<MoreHorizontal className="h-4 w-4" />} />
@@ -108,12 +101,12 @@ const LeadPipeline: React.FC = () => {
 
                 <div className="mb-3">
                   <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    ${getTotalValue(stage.id).toLocaleString()}
+                    ${getTotalValue(stage).toLocaleString()}
                   </p>
                 </div>
 
                 <div className="flex-1 overflow-y-auto space-y-3">
-                  {getLeadsByStage(stage.id).map((lead: Lead) => (
+                  {getLeadsByStage(stage).map((lead: Lead) => (
                     <div
                       key={lead.id}
                       draggable

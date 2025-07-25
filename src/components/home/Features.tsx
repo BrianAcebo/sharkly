@@ -87,7 +87,7 @@ const Features: React.FC = () => {
 						return (
 							<div
 								key={index}
-								className="group hover:shadow-theme-lg rounded-2xl border border-transparent bg-gray-50 p-8 transition-all duration-300 hover:-translate-y-1 hover:border-gray-200 hover:bg-white dark:bg-gray-800 dark:hover:border-gray-600 dark:hover:bg-gray-700"
+								className="group hover:shadow-theme-lg rounded-2xl border border-transparent bg-gray-50 p-8 transition-all duration-300 hover:-translate-y-1 hover:border-gray-200 hover:bg-white dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-700"
 							>
 								<div
 									className={`mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl ${getColorClasses(feature.color)}`}

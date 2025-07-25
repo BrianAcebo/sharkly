@@ -36,7 +36,7 @@ const Demo: React.FC = () => {
 	];
 
 	return (
-		<section id="demo" className="bg-gray-50 py-20 dark:bg-gray-800">
+		<section id="demo" className="bg-gray-50 py-20 dark:bg-gray-900">
 			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 				{/* Section Header */}
 				<div className="mb-16 text-center">
@@ -126,7 +126,7 @@ const Demo: React.FC = () => {
 
 							{/* Mock Interface */}
 							<div className="space-y-4">
-								<div className="flex items-center space-x-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
+								<div className="flex items-center space-x-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
 									<Users className="h-5 w-5 text-gray-400" />
 									<span className="text-gray-600 dark:text-gray-300">john.doe@techcompany.com</span>
 								</div>
@@ -144,7 +144,7 @@ const Demo: React.FC = () => {
 									</div>
 								</div>
 
-								<div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-800">
+								<div className="rounded-lg bg-gray-50 p-4 dark:bg-gray-900">
 									<div className="mb-3 flex items-center justify-between">
 										<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
 											Pipeline Progress

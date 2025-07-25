@@ -377,10 +377,10 @@ export default function OrganizationPage() {
 										value={inviteRole}
 										onValueChange={(value: string) => setInviteRole(value)}
 									>
-										<SelectTrigger className="h-11 w-[180px] border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+										<SelectTrigger className="h-11 w-[180px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
 											<SelectValue placeholder="Select role" />
 										</SelectTrigger>
-										<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
+										<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
 											<SelectItem value="admin">As admin</SelectItem>
 											<SelectItem value="analyst">As analyst</SelectItem>
 											<SelectItem value="viewer">As viewer</SelectItem>
@@ -475,10 +475,10 @@ export default function OrganizationPage() {
 															handleUpdateRole(member.id, value)
 														}
 													>
-														<SelectTrigger className="h-11 w-[100px] border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+														<SelectTrigger className="h-11 w-[100px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
 															<SelectValue />
 														</SelectTrigger>
-														<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
+														<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
 															<SelectItem value="analyst">Analyst</SelectItem>
 															<SelectItem value="admin">Admin</SelectItem>
 														</SelectContent>

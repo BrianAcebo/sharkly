@@ -10,8 +10,8 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
   const { notifications, markAsRead, markAllAsRead } = useNotifications();
 
   return (
-    <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-black rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 z-50">
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+    <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-900 z-50">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-900">
         <h3 className="text-lg font-semibold text-black dark:text-white">Notifications</h3>
         <button
           onClick={onClose}
@@ -75,7 +75,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
       </div>
 
       {notifications.length > 0 && (
-        <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-900">
           <button
             onClick={markAllAsRead}
             className="w-full text-center text-sm text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300 font-medium"

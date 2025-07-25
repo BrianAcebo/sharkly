@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { LeadService } from '../utils/leadService';
 import { Lead } from '../contexts/DataContext';
 import { SearchBar } from '../components/leads/SearchBar';
@@ -13,24 +13,12 @@ import { Button } from '../components/ui/button';
 import { Plus, Loader2 } from 'lucide-react';
 import { useToast } from '../hooks/useToast';
 
-const LeadsContent: React.FC = () => {
+// Custom hook for managing leads data
+const useLeadsData = () => {
     const { toast } = useToast();
     const [leads, setLeads] = useState<Lead[]>([]);
-    const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [filters, setFilters] = useState({
-        status: 'all',
-        priority: 'all',
-        stage: 'all'
-    });
-    const [currentPage, setCurrentPage] = useState(1);
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [editingLead, setEditingLead] = useState<Lead | null>(null);
-    const perPage = 10;
-    const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
-    // Fetch leads function - not memoized to avoid circular dependencies
     const fetchLeads = async () => {
         try {
             setIsLoading(true);
@@ -71,8 +59,30 @@ const LeadsContent: React.FC = () => {
         }
     };
 
-    // Filter leads function
-    const filterLeads = useCallback(() => {
+    // Fetch leads on mount
+    React.useEffect(() => {
+        fetchLeads();
+    }, []);
+
+    return { leads, isLoading, refetch: fetchLeads };
+};
+
+const LeadsContent: React.FC = () => {
+    const { leads, isLoading, refetch } = useLeadsData();
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filters, setFilters] = useState({
+        status: 'all',
+        priority: 'all',
+        stage: 'all'
+    });
+    const [currentPage, setCurrentPage] = useState(1);
+    const [showAddModal, setShowAddModal] = useState(false);
+    const [editingLead, setEditingLead] = useState<Lead | null>(null);
+    const perPage = 10;
+    const debouncedSearchQuery = useDebounce(searchQuery, 500);
+
+    // Filter and paginate leads using useMemo for performance
+    const { filteredLeads, totalPages, currentLeads } = useMemo(() => {
         let filtered = [...leads];
 
         // Apply search filter
@@ -99,43 +109,39 @@ const LeadsContent: React.FC = () => {
             filtered = filtered.filter(lead => lead.stage === filters.stage);
         }
 
-        setFilteredLeads(filtered);
-        setCurrentPage(1); // Reset to first page when filtering
-    }, [leads, debouncedSearchQuery, filters]);
+        // Calculate pagination
+        const totalPages = Math.ceil(filtered.length / perPage);
+        const startIndex = (currentPage - 1) * perPage;
+        const endIndex = startIndex + perPage;
+        const currentLeads = filtered.slice(startIndex, endIndex);
 
-    // Fetch leads on component mount only
-    useEffect(() => {
-        fetchLeads();
-    }, []); // Empty dependency array - only run on mount
+        return { filteredLeads: filtered, totalPages, currentLeads };
+    }, [leads, debouncedSearchQuery, filters, currentPage, perPage]);
 
-    // Filter leads when dependencies change
-    useEffect(() => {
-        filterLeads();
-    }, [filterLeads]); // filterLeads already includes all necessary dependencies
+    // Event handlers - simple functions, no need for useCallback
+    const handleLeadCreated = () => {
+        refetch();
+    };
 
-    const handleLeadCreated = useCallback(() => {
-        fetchLeads();
-    }, []); // No dependencies since fetchLeads is not memoized
-
-    const handleLeadUpdated = useCallback(() => {
-        fetchLeads();
+    const handleLeadUpdated = () => {
+        refetch();
         setEditingLead(null);
-    }, []); // No dependencies since fetchLeads is not memoized
+    };
 
-    const handleLeadDeleted = useCallback(() => {
-        fetchLeads();
+    const handleLeadDeleted = () => {
+        refetch();
         setEditingLead(null);
-    }, []); // No dependencies since fetchLeads is not memoized
+    };
 
-    const handleEditLead = useCallback((lead: Lead) => {
+    const handleEditLead = (lead: Lead) => {
         setEditingLead(lead);
-    }, []);
+    };
 
-    // Calculate pagination
-    const totalPages = Math.ceil(filteredLeads.length / perPage);
-    const startIndex = (currentPage - 1) * perPage;
-    const endIndex = startIndex + perPage;
-    const currentLeads = filteredLeads.slice(startIndex, endIndex);
+    const handlePageChange = (page: number) => {
+        setCurrentPage(page);
+        // Scroll to top of results
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     if (isLoading) {
         return (
@@ -181,7 +187,7 @@ const LeadsContent: React.FC = () => {
                 totalLeads={filteredLeads.length}
                 currentPage={currentPage}
                 totalPages={totalPages}
-                onPageChange={setCurrentPage}
+                onPageChange={handlePageChange}
                 onEditLead={handleEditLead}
             />
 
@@ -208,7 +214,8 @@ const LeadsContent: React.FC = () => {
 export default function Leads() {
     const { setTitle } = useBreadcrumbs();
 
-    useEffect(() => {
+    // Simple effect for setting breadcrumb title
+    React.useEffect(() => {
         setTitle('Leads');
     }, [setTitle]);
 

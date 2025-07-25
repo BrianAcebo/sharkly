@@ -41,7 +41,7 @@ const DevicesSection: React.FC<DevicesSectionProps> = ({ devices }) => {
 					return (
 						<div
 							key={index}
-							className="flex items-center justify-between rounded-lg bg-slate-50 p-4 transition-colors hover:bg-slate-100 dark:bg-gray-800"
+							className="flex items-center justify-between rounded-lg bg-slate-50 p-4 transition-colors hover:bg-slate-100 dark:bg-gray-900"
 						>
 							<div className="flex items-center space-x-3">
 								<div className="rounded-lg bg-blue-100 p-2 dark:bg-gray-600">

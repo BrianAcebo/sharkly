@@ -11,7 +11,7 @@ import {
   ChevronRight,
   Edit
 } from 'lucide-react';
-import Button from '../form/button/Button';
+import { Button } from '../ui/button';
 
 interface Email {
   id: string;
@@ -187,9 +187,9 @@ const EmailInbox: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full bg-gray-50 dark:bg-black">
+    <div className="flex h-full bg-gray-50 dark:bg-gray-900">
       {/* Sidebar */}
-      <div className="w-64 bg-white dark:bg-black border-r border-gray-200 dark:border-gray-800 flex flex-col">
+      <div className="w-64 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-900 flex flex-col">
         <div className="p-4">
           <Button variant="primary" fullWidth startIcon={<Edit className="h-4 w-4" />}>
             Compose
@@ -261,7 +261,7 @@ const EmailInbox: React.FC = () => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Toolbar */}
-        <div className="bg-white dark:bg-black border-b border-gray-200 dark:border-gray-800 p-4">
+        <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-900 p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-4">
               <input
@@ -294,7 +294,7 @@ const EmailInbox: React.FC = () => {
                 placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+                className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-brand-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -305,8 +305,8 @@ const EmailInbox: React.FC = () => {
           {emails.map((email) => (
             <div
               key={email.id}
-              className={`flex items-center px-4 py-3 border-b border-gray-200 dark:border-gray-800 hover:bg-brand-50 dark:hover:bg-brand-900/20 cursor-pointer ${
-                !email.read ? 'bg-white dark:bg-black' : 'bg-gray-50 dark:bg-black/50'
+              className={`flex items-center px-4 py-3 border-b border-gray-200 dark:border-gray-900 hover:bg-brand-50 dark:hover:bg-brand-900/20 cursor-pointer ${
+                !email.read ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-900/50'
               }`}
             >
               <input
@@ -344,7 +344,7 @@ const EmailInbox: React.FC = () => {
         </div>
 
         {/* Pagination */}
-        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-4 py-3">
+        <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500 dark:text-gray-400">
               Showing 1 of 159

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, MoreHorizontal, Phone, Video, Paperclip, Mic, Send, Smile } from 'lucide-react';
-import Button from '../form/button/Button';
+import { Button } from '../ui/button';
 
 interface ChatUser {
   id: string;
@@ -175,7 +175,7 @@ const Chat: React.FC = () => {
   return (
     <div className="flex h-full bg-gray-50 dark:bg-gray-900">
       {/* Chat List Sidebar */}
-      <div className="w-80 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
+      <div className="w-80 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">Chats</h2>
@@ -210,7 +210,7 @@ const Chat: React.FC = () => {
                   className="w-12 h-12 rounded-full object-cover"
                 />
                 {user.online && (
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
                 )}
               </div>
               <div className="flex-1 text-left">
@@ -228,7 +228,7 @@ const Chat: React.FC = () => {
       {/* Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Chat Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="relative">
@@ -238,7 +238,7 @@ const Chat: React.FC = () => {
                   className="w-10 h-10 rounded-full object-cover"
                 />
                 {selectedUser.online && (
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"></div>
                 )}
               </div>
               <div>
@@ -301,7 +301,7 @@ const Chat: React.FC = () => {
         </div>
 
         {/* Message Input */}
-        <div className="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
+        <div className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center space-x-3">
             <Button variant="icon" startIcon={<Smile className="h-5 w-5" />} />
             

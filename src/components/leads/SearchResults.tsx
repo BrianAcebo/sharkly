@@ -71,24 +71,7 @@ export function SearchResults({
 		}
 	};
 
-	const getStageColor = (stage: string) => {
-		switch (stage) {
-			case 'new':
-				return 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-900';
-			case 'contacted':
-				return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900';
-			case 'qualified':
-				return 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-900';
-			case 'proposal':
-				return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-900';
-			case 'closed-won':
-				return 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900';
-			case 'closed-lost':
-				return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900';
-			default:
-				return 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-900/20 dark:text-gray-400 dark:border-gray-900';
-		}
-	};
+
 
 	// Handle page change
 	const handlePageChange = (page: number) => {
@@ -189,7 +172,7 @@ export function SearchResults({
 									<div className="flex items-center gap-2">
 										<Badge
 											variant="outline"
-											className={`text-xs capitalize ${getStageColor(lead.stage)}`}
+											className={`text-xs capitalize ${getStatusColor(lead.stage)}`}
 										>
 											{lead.stage.replace('-', ' ')}
 										</Badge>
@@ -325,7 +308,7 @@ export function SearchResults({
 									<span className="text-xs text-gray-600 dark:text-gray-300">Stage</span>
 									<Badge
 										variant="outline"
-										className={`text-xs capitalize ${getStageColor(selectedResult.stage)}`}
+										className={`text-xs capitalize ${getStatusColor(selectedResult.stage)}`}
 									>
 										{selectedResult.stage.replace('-', ' ')}
 									</Badge>

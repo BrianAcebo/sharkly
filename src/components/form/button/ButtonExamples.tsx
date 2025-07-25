@@ -1,5 +1,5 @@
 import React from 'react';
-import Button from './Button';
+import { Button } from '../../ui/button';
 import { 
   Plus, 
   Edit, 
@@ -151,14 +151,18 @@ const ButtonExamples: React.FC = () => {
 
       {/* Link Buttons */}
       <section>
-        <h2 className="text-lg font-semibold text-black dark:text-white mb-4">Link Buttons</h2>
+        <h2 className="text-lg font-semibold text-black dark:text-white mb-4">Link Buttons (Using anchor tags)</h2>
         <div className="flex flex-wrap gap-4">
-          <Button href="/dashboard" variant="primary">
-            Go to Dashboard
-          </Button>
-          <Button href="https://example.com" target="_blank" variant="outline" endIcon={<ArrowRight className="h-4 w-4" />}>
-            External Link
-          </Button>
+          <a href="/dashboard" className="inline-block">
+            <Button variant="primary">
+              Go to Dashboard
+            </Button>
+          </a>
+          <a href="https://example.com" target="_blank" rel="noopener noreferrer" className="inline-block">
+            <Button variant="outline" endIcon={<ArrowRight className="h-4 w-4" />}>
+              External Link
+            </Button>
+          </a>
         </div>
       </section>
 

@@ -4,7 +4,7 @@ import { ChevronLeft, EyeOff, Eye } from 'lucide-react';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
 import Checkbox from '../form/input/Checkbox';
-import Button from '../form/button/Button';
+import { Button } from '../ui/button';
 import useAuth from '../../hooks/useAuth';
 import {
 	validateEmail,
@@ -108,7 +108,7 @@ export default function SignUpForm() {
 			<div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
 				<div>
 					<div className="mb-5 sm:mb-8">
-						<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-800 dark:text-white/90">
+						<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-900 dark:text-white/90">
 							Sign Up
 						</h1>
 						<p className="text-sm text-gray-500 dark:text-gray-400">
@@ -162,7 +162,7 @@ export default function SignUpForm() {
 						</div>
 						<div className="relative py-3 sm:py-5">
 							<div className="absolute inset-0 flex items-center">
-								<div className="w-full border-t border-gray-200 dark:border-gray-800"></div>
+								<div className="w-full border-t border-gray-200 dark:border-gray-900"></div>
 							</div>
 							<div className="relative flex justify-center text-sm">
 								<span className="bg-white p-2 text-gray-400 sm:px-5 sm:py-2 dark:bg-gray-900">
@@ -221,8 +221,8 @@ export default function SignUpForm() {
 									/>
 									<p className="inline-block font-normal text-gray-500 dark:text-gray-400">
 										By creating an account means you agree to the{' '}
-										<span className="text-gray-800 dark:text-white/90">Terms and Conditions,</span>{' '}
-										and our <span className="text-gray-800 dark:text-white">Privacy Policy</span>
+										<span className="text-gray-900 dark:text-white/90">Terms and Conditions,</span>{' '}
+										and our <span className="text-gray-900 dark:text-white">Privacy Policy</span>
 									</p>
 								</div>
 								<div>

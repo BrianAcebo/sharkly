@@ -10,7 +10,7 @@ import {
   Brain,
   Zap
 } from 'lucide-react';
-import Button from '../form/button/Button';
+import { Button } from '../ui/button';
 import KnowledgeBaseManager from './KnowledgeBaseManager';
 import EmailSequenceBuilder from './EmailSequenceBuilder';
 import TextSequenceBuilder from './TextSequenceBuilder';
@@ -57,7 +57,7 @@ const AIAssistant: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
-      <div className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 p-6">
+      <div className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
             <div className="p-3 bg-gradient-to-r from-red-500 to-purple-600 rounded-lg">
@@ -101,7 +101,7 @@ const AIAssistant: React.FC = () => {
           <div className="py-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
               {stats.map((stat) => (
-                <div key={stat.label} className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                <div key={stat.label} className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{stat.label}</p>
@@ -116,7 +116,7 @@ const AIAssistant: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h3>
                 <div className="space-y-4">
                   <div className="flex items-center space-x-3">
@@ -149,7 +149,7 @@ const AIAssistant: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">AI Performance</h3>
                 <div className="space-y-4">
                   <div>

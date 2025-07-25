@@ -11,35 +11,13 @@ import {
   Target
 } from 'lucide-react';
 import { Communication } from '../../contexts/DataContext';
+import { getStatusColor, getStageLabel } from '../../utils/stages';
 
 interface LeadInfoProps {
   lead: Lead;
 }
 
 const LeadInfo: React.FC<LeadInfoProps> = ({ lead }) => {
-  const getStageColor = (stage: string) => {
-    const colors = {
-      'new': 'bg-gray-100 text-gray-800',
-      'contacted': 'bg-blue-100 text-blue-800',
-      'qualified': 'bg-yellow-100 text-yellow-800',
-      'proposal': 'bg-purple-100 text-purple-800',
-      'closed-won': 'bg-green-100 text-green-800',
-      'closed-lost': 'bg-red-100 text-red-800'
-    };
-    return colors[stage as keyof typeof colors] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getStageLabel = (stage: string) => {
-    const labels = {
-      'new': 'New Lead',
-      'contacted': 'Contacted',
-      'qualified': 'Qualified',
-      'proposal': 'Proposal',
-      'closed-won': 'Closed Won',
-      'closed-lost': 'Closed Lost'
-    };
-    return labels[stage as keyof typeof labels] || stage;
-  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -101,7 +79,7 @@ const LeadInfo: React.FC<LeadInfoProps> = ({ lead }) => {
                 <Target className="h-5 w-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Stage</p>
-                  <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${getStageColor(lead.stage)}`}>
+                  <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.stage)}`}>
                     {getStageLabel(lead.stage)}
                   </span>
                 </div>
@@ -117,7 +95,7 @@ const LeadInfo: React.FC<LeadInfoProps> = ({ lead }) => {
                 <Clock className="h-5 w-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500">Created</p>
-                  <p className="font-medium text-gray-900">{formatDate(lead.createdAt)}</p>
+                  <p className="font-medium text-gray-900">{formatDate(lead.createdAt.toString())}</p>
                 </div>
               </div>
             </div>
@@ -163,11 +141,13 @@ const LeadInfo: React.FC<LeadInfoProps> = ({ lead }) => {
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Assigned Agent</h3>
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <User className="h-5 w-5 text-blue-600" />
+              <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                <User className="h-5 w-5 text-gray-600" />
               </div>
               <div>
-                <p className="font-medium text-gray-900">{lead.assignedAgent}</p>
+                <p className="font-medium text-gray-900">
+                  {lead.assignedTo.length > 0 ? `${lead.assignedTo[0].profile.first_name} ${lead.assignedTo[0].profile.last_name}` : 'Unassigned'}
+                </p>
                 <p className="text-sm text-gray-500">Sales Agent</p>
               </div>
             </div>

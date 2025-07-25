@@ -62,7 +62,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 									selectedValuesText.map((text, index) => (
 										<div
 											key={index}
-											className="group flex items-center justify-center rounded-full border-[0.7px] border-transparent bg-gray-100 py-1 pr-2 pl-2.5 text-sm text-gray-800 hover:border-gray-200 dark:bg-gray-800 dark:text-white/90 dark:hover:border-gray-800"
+											className="group flex items-center justify-center rounded-full border-[0.7px] border-transparent bg-gray-100 py-1 pr-2 pl-2.5 text-sm text-gray-900 hover:border-gray-200 dark:bg-gray-900 dark:text-white/90 dark:hover:border-gray-900"
 										>
 											<span className="max-w-full flex-initial">{text}</span>
 											<div className="flex flex-auto flex-row-reverse">
@@ -94,7 +94,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 								) : (
 									<input
 										placeholder="Select option"
-										className="h-full w-full appearance-none border-0 bg-transparent p-1 pr-2 text-sm outline-hidden placeholder:text-gray-800 focus:border-0 focus:ring-0 focus:outline-hidden dark:placeholder:text-white/90"
+										className="h-full w-full appearance-none border-0 bg-transparent p-1 pr-2 text-sm outline-hidden placeholder:text-gray-900 focus:border-0 focus:ring-0 focus:outline-hidden dark:placeholder:text-white/90"
 										readOnly
 										value="Select option"
 									/>
@@ -136,7 +136,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 								{options.map((option, index) => (
 									<div
 										key={index}
-										className={`hover:bg-primary/5 w-full cursor-pointer rounded-t border-b border-gray-200 dark:border-gray-800`}
+										className={`hover:bg-primary/5 w-full cursor-pointer rounded-t border-b border-gray-200 dark:border-gray-900`}
 										onClick={() => handleSelect(option.value)}
 									>
 										<div
@@ -144,7 +144,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
 												selectedOptions.includes(option.value) ? 'bg-primary/10' : ''
 											}`}
 										>
-											<div className="mx-2 leading-6 text-gray-800 dark:text-white/90">
+											<div className="mx-2 leading-6 text-gray-900 dark:text-white/90">
 												{option.text}
 											</div>
 										</div>

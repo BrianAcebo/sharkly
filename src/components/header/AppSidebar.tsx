@@ -27,8 +27,8 @@ const Sidebar: React.FC = () => {
   ];
 
   return (
-    <div className="w-64 bg-white dark:bg-black shadow-lg flex flex-col border-r border-gray-200 dark:border-gray-800">
-      <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-center">
+    <div className="w-64 bg-white dark:bg-gray-800 shadow-lg flex flex-col border-r border-gray-200 dark:border-gray-600">
+      <div className="p-6 border-b border-gray-200 dark:border-gray-600 flex items-center justify-center">
         <Link to="/">
 					<img
 						className="block dark:hidden"
@@ -68,7 +68,7 @@ const Sidebar: React.FC = () => {
         </ul>
       </nav>
 
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+      <div className="p-4 border-t border-gray-200 dark:border-gray-900">
         <div className="flex items-center space-x-3 mb-4">
           <div className="p-2 bg-brand-100 dark:bg-brand-900 rounded-full">
             <User className="h-5 w-5 text-brand-600 dark:text-brand-400" />

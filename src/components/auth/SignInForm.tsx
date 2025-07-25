@@ -4,7 +4,7 @@ import { ChevronLeft, EyeOff, Eye } from 'lucide-react';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
 import Checkbox from '../form/input/Checkbox';
-import Button from '../form/button/Button';
+import { Button } from '../ui/button';
 import useAuth from '../../hooks/useAuth';
 import { AuthLoadingState } from '../../contexts/AuthContext';
 import { validateEmail, sanitizeInput, checkRateLimit, resetRateLimit } from '../../utils/validation';
@@ -95,7 +95,7 @@ export default function SignInForm() {
 			<div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
 				<div>
 					<div className="mb-5 sm:mb-8">
-						<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-800 dark:text-white/90">
+						<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-900 dark:text-white/90">
 							Sign In
 						</h1>
 						<p className="text-sm text-gray-500 dark:text-gray-400">
@@ -117,7 +117,7 @@ export default function SignInForm() {
 							<button
 								onClick={signInWithGoogle}
 								disabled={isLoading || isRateLimited}
-								className="inline-flex items-center justify-center gap-3 rounded-lg bg-gray-100 px-7 py-3 text-sm font-normal text-gray-700 transition-colors hover:bg-gray-200 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+								className="inline-flex items-center justify-center gap-3 rounded-lg bg-gray-100 px-7 py-3 text-sm font-normal text-gray-700 transition-colors hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
 							>
 								<svg
 									width="20"
@@ -148,7 +148,7 @@ export default function SignInForm() {
 						</div>
 						<div className="relative py-3 sm:py-5">
 							<div className="absolute inset-0 flex items-center">
-								<div className="w-full border-t border-gray-200 dark:border-gray-800"></div>
+								<div className="w-full border-t border-gray-200 dark:border-gray-900"></div>
 							</div>
 							<div className="relative flex justify-center text-sm">
 								<span className="bg-white p-2 text-gray-400 sm:px-5 sm:py-2 dark:bg-gray-900">

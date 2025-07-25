@@ -5,7 +5,7 @@ const CTA: React.FC = () => {
 	return (
 		<section className="from-brand-600 via-brand-500 to-blue-light-500 relative overflow-hidden bg-gradient-to-br py-20">
 			{/* Background Elements */}
-			<div className="absolute inset-0 bg-black/10"></div>
+			<div className="absolute inset-0 bg-gray-900/10"></div>
 			<div className="absolute top-0 left-1/4 h-96 w-96 rounded-full bg-white/5 blur-3xl"></div>
 			<div className="absolute right-1/4 bottom-0 h-72 w-72 rounded-full bg-white/5 blur-3xl"></div>
 

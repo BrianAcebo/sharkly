@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useModal } from '../../hooks/useModal';
 import { Modal } from '../../components/ui/modal';
-import Button from '../../components/ui/button/Button';
+import { Button } from '../../components/ui/button';
 import Input from '../../components/form/input/InputField';
 import Label from '../../components/form/Label';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,7 +10,7 @@ import { Elements, PaymentElement, ExpressCheckoutElement } from '@stripe/react-
 import useAuth from '../../hooks/useAuth';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { HttpError } from '@/utils/error';
+import { HttpError } from '../../utils/error';
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -159,7 +159,7 @@ const SubscriptionForm = ({
 		return (
 			<div className="flex flex-col">
 				<div className="space-y-6">
-					<div className="rounded-lg border border-gray-200 p-6 dark:border-gray-800">
+					<div className="rounded-lg border border-gray-200 p-6 dark:border-gray-900">
 						<h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
 							Organization Details
 						</h3>
@@ -177,7 +177,7 @@ const SubscriptionForm = ({
 						</div>
 					</div>
 
-					<div className="rounded-lg border border-gray-200 p-6 dark:border-gray-800">
+					<div className="rounded-lg border border-gray-200 p-6 dark:border-gray-900">
 						<h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
 							Subscription Plan
 						</h3>
@@ -393,7 +393,7 @@ export default function OrganizationRequired() {
 			<Modal isOpen={isOpen} onClose={closeModal} className="m-4 max-w-[500px]">
 				<div className="no-scrollbar relative max-h-[800px] w-full overflow-y-auto rounded-3xl bg-white p-4 lg:p-11 dark:bg-gray-900">
 					<div className="px-2 pr-14">
-						<h4 className="mb-2 text-2xl font-semibold text-gray-800 dark:text-white/90">
+						<h4 className="mb-2 text-2xl font-semibold text-gray-900 dark:text-white/90">
 							Let's get started
 						</h4>
 						<p className="mb-6 text-sm text-gray-500 lg:mb-7 dark:text-gray-400">

@@ -284,7 +284,7 @@ export default function InviteAccept() {
 							</div>
 						</div>
 
-						<div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-800">
+						<div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
 							<Users className="h-5 w-5 text-gray-600" />
 							<div>
 								<h3 className="font-semibold text-gray-900 dark:text-white">

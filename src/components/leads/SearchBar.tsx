@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Search as SearchIcon, X, Clock } from 'lucide-react';
 import { Button } from '../ui/button';
 import Input from '../form/input/InputField';
-import { cn } from '../../utils';
+import { cn } from '../../utils/common';
 
 interface SearchBarProps {
 	className?: string;
@@ -55,12 +55,12 @@ export function SearchBar({ className, value = '', onChange }: SearchBarProps) {
 
 	return (
 		<div className={cn('relative w-full', className)}>
-			<form className="dark:text-white-/60 relative text-gray-300 focus-within:text-gray-800 focus-within:dark:text-white">
+			<form className="dark:text-white-/60 relative text-gray-300 focus-within:text-gray-900 focus-within:dark:text-white">
 				<Input
 					ref={searchInputRef}
 					type="text"
 					placeholder="Search leads..."
-					className="h-12 border-2 border-gray-200 bg-white pr-10 pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-offset-0 dark:border-gray-800 dark:bg-white/[0.03] dark:placeholder:text-white/60"
+					className="h-12 border-2 border-gray-200 bg-white pr-10 pl-10 shadow-sm focus-visible:ring-2 focus-visible:ring-offset-0 dark:border-gray-900 dark:bg-white/[0.03] dark:placeholder:text-white/60"
 					value={value}
 					onChange={handleInputChange}
 					onFocus={() => setShowHistory(searchHistory.length > 0)}
@@ -76,14 +76,14 @@ export function SearchBar({ className, value = '', onChange }: SearchBarProps) {
 							size="sm"
 							className="absolute top-1/2 right-24 h-8 w-8 -translate-y-1/2"
 							onClick={clearSearch}
-							icon={<X className="size-4 stroke-current" />}
+							startIcon={<X className="size-4 stroke-current" />}
 						>
 							<span className="sr-only">Clear search</span>
 						</Button>
 					</>
 				)}
 
-				<Button type="submit" size="sm" className="absolute top-1/2 right-2 h-8 -translate-y-1/2">
+				<Button variant="outline" type="submit" size="sm" className="absolute top-1/2 right-2 h-8 -translate-y-1/2">
 					Search
 				</Button>
 			</form>
@@ -92,7 +92,7 @@ export function SearchBar({ className, value = '', onChange }: SearchBarProps) {
 			{showHistory && searchHistory.length > 0 && (
 				<div
 					ref={historyRef}
-					className="animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 absolute z-50 mt-3 w-full rounded-md border border-gray-200 bg-white p-2 shadow-md duration-100 dark:border-gray-700 dark:bg-gray-800"
+					className="animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 absolute z-50 mt-3 w-full rounded-md border border-gray-200 bg-white p-2 shadow-md duration-100 dark:border-gray-700 dark:bg-gray-900"
 				>
 					<div className="p-2">
 						<h3 className="mb-5 px-2 text-sm font-medium">Recent Searches</h3>

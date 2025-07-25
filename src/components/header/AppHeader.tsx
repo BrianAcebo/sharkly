@@ -82,7 +82,7 @@ const Header: React.FC = () => {
 
   return (
     <>
-      <header ref={headerRef} className="bg-white dark:bg-black border-b border-gray-200 dark:border-gray-800 px-6 py-4">
+      <header ref={headerRef} className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-6 py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
             <button
@@ -108,7 +108,7 @@ const Header: React.FC = () => {
           <div ref={searchRef} className="relative w-full max-w-[600px]">
             <button
               onClick={handleSearchClick}
-              className="flex items-center space-x-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors duration-200 w-full justify-start"
+              className="text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors duration-200 w-full justify-start"
             >
               <Search className="h-4 w-4 text-gray-400" />
               <span className="text-gray-500 dark:text-gray-400">Search or type command...</span>
@@ -158,8 +158,8 @@ const Header: React.FC = () => {
               </button>
 
               {showUserMenu && (
-                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-black rounded-lg shadow-lg border border-gray-200 dark:border-gray-800 py-1 z-50">
-                  <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-800">
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-900 py-1 z-50">
+                  <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-900">
                     <p className="text-sm font-medium text-black dark:text-white">{user?.email}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
                   </div>

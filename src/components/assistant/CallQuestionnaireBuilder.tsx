@@ -164,7 +164,7 @@ const CallQuestionnaireBuilder: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredQuestionnaires.map((questionnaire) => (
-          <div key={questionnaire.id} className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+          <div key={questionnaire.id} className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-full">
@@ -231,7 +231,7 @@ const CallQuestionnaireBuilder: React.FC = () => {
                 <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
                   questionnaire.active
                     ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                    : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+                    : 'bg-gray-100 text-gray-900 dark:bg-gray-900/20 dark:text-gray-400'
                 }`}>
                   {questionnaire.active ? 'Active' : 'Inactive'}
                 </span>
@@ -262,8 +262,8 @@ const CallQuestionnaireBuilder: React.FC = () => {
       )}
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+        <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
               {editingQuestionnaire ? 'Edit Call Questionnaire' : 'Create Call Questionnaire'}
             </h2>

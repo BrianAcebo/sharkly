@@ -33,7 +33,7 @@ const Switch: React.FC<SwitchProps> = ({
 					knob: isChecked ? 'translate-x-full bg-white' : 'translate-x-0 bg-white'
 				}
 			: {
-					background: isChecked ? 'bg-gray-800 dark:bg-white/10' : 'bg-gray-200 dark:bg-white/10', // Gray version
+					background: isChecked ? 'bg-gray-900 dark:bg-white/10' : 'bg-gray-200 dark:bg-white/10', // Gray version
 					knob: isChecked ? 'translate-x-full bg-white' : 'translate-x-0 bg-white'
 				};
 
@@ -47,7 +47,7 @@ const Switch: React.FC<SwitchProps> = ({
 			<div className="relative">
 				<div
 					className={`block h-6 w-11 rounded-full transition duration-150 ease-linear ${
-						disabled ? 'pointer-events-none bg-gray-100 dark:bg-gray-800' : switchColors.background
+						disabled ? 'pointer-events-none bg-gray-100 dark:bg-gray-900' : switchColors.background
 					}`}
 				></div>
 				<div

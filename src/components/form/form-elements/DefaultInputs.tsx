@@ -79,7 +79,7 @@ export default function DefaultInputs() {
 					<Label htmlFor="tm">Input with Payment</Label>
 					<div className="relative">
 						<Input type="text" placeholder="Card number" className="pl-[62px]" />
-						<span className="absolute top-1/2 left-0 flex h-11 w-[46px] -translate-y-1/2 items-center justify-center border-r border-gray-200 dark:border-gray-800">
+						<span className="absolute top-1/2 left-0 flex h-11 w-[46px] -translate-y-1/2 items-center justify-center border-r border-gray-200 dark:border-gray-900">
 							<svg
 								width="20"
 								height="20"

@@ -3,7 +3,7 @@ import { Shield, Mail, Phone, MapPin, Twitter, Linkedin, Github } from 'lucide-r
 
 const Footer: React.FC = () => {
 	return (
-		<footer id="contact" className="bg-gray-900 text-white dark:bg-black">
+		<footer id="contact" className="bg-gray-900 text-white dark:bg-gray-900">
 			<div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
 				<div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
 					{/* Company Info */}
@@ -23,19 +23,19 @@ const Footer: React.FC = () => {
 						<div className="flex items-center space-x-4">
 							<a
 								href="#"
-								className="rounded-lg bg-gray-800 p-2 transition-colors hover:bg-gray-700"
+								className="rounded-lg bg-gray-900 p-2 transition-colors hover:bg-gray-700"
 							>
 								<Twitter className="h-5 w-5" />
 							</a>
 							<a
 								href="#"
-								className="rounded-lg bg-gray-800 p-2 transition-colors hover:bg-gray-700"
+								className="rounded-lg bg-gray-900 p-2 transition-colors hover:bg-gray-700"
 							>
 								<Linkedin className="h-5 w-5" />
 							</a>
 							<a
 								href="#"
-								className="rounded-lg bg-gray-800 p-2 transition-colors hover:bg-gray-700"
+								className="rounded-lg bg-gray-900 p-2 transition-colors hover:bg-gray-700"
 							>
 								<Github className="h-5 w-5" />
 							</a>
@@ -95,7 +95,7 @@ const Footer: React.FC = () => {
 				</div>
 
 				{/* Bottom Section */}
-				<div className="mt-12 border-t border-gray-800 pt-8">
+				<div className="mt-12 border-t border-gray-900 pt-8">
 					<div className="flex flex-col items-center justify-between md:flex-row">
 						<div className="mb-4 text-sm text-gray-400 md:mb-0">
 							© 2025 Paperboat CRM. All rights reserved.

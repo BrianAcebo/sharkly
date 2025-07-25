@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 
 const Header: React.FC = () => {
 	return (
-		<header className="fixed top-0 right-0 left-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-gray-800 dark:bg-gray-900/80">
+		<header className="fixed top-0 right-0 left-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-gray-900 dark:bg-gray-900/80">
 			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 				<div className="flex h-16 items-center justify-between">
 					{/* Logo */}
@@ -64,7 +64,7 @@ const Header: React.FC = () => {
 								Get Started
 							</button>
 						</Link>
-						<button className="rounded-lg p-2 hover:bg-gray-100 md:hidden dark:hover:bg-gray-800">
+						<button className="rounded-lg p-2 hover:bg-gray-100 md:hidden dark:hover:bg-gray-900">
 							<Menu className="h-5 w-5 text-gray-600 dark:text-gray-400" />
 						</button>
 					</div>

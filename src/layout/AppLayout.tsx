@@ -37,7 +37,7 @@ const LayoutContent: React.FC = () => {
 	}
 
 	return (
-		<div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-black">
+		<div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
             {isExpanded && (
                 <AppSidebar />
             )}

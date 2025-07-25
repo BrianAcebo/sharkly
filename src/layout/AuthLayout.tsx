@@ -15,7 +15,7 @@ export default function AuthLayout() {
 			<div className="relative flex h-screen w-full flex-col justify-center sm:p-0 lg:flex-row dark:bg-gray-900">
 				<Outlet />
 				<div className="dark relative hidden h-full w-full items-center bg-[url('/images/general/laptop-on-desk-with-plants.jpg')] bg-cover bg-center lg:grid lg:w-1/2 dark:bg-white/5">
-					<div className="absolute inset-0 bg-black/50"></div>
+					<div className="absolute inset-0 bg-gray-900/50"></div>
 					<div className="relative z-1 flex items-center justify-center">
 						{/* <!-- ===== Common Grid Shape Start ===== --> */}
 						<GridShape />

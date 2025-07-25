@@ -2,7 +2,7 @@ import * as React from 'react';
 import { ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import type { TooltipPayload, LegendPayload } from 'recharts';
 
-import { cn } from '../../utils';
+import { cn } from '../../utils/common';
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: '', dark: '.dark' } as const;

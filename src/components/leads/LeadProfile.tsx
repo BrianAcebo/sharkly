@@ -5,7 +5,7 @@ import CommunicationHistory from '../communications/CommunicationHistory';
 import CommunicationComposer from '../communications/CommunicationComposer';
 import { useLeads } from '../../hooks/useLeads';
 import { useNavigate } from 'react-router';
-import Button from '../form/button/Button';
+import { Button } from '../ui/button';
 
 const LeadProfile: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'info' | 'communications'>('info');
@@ -29,8 +29,8 @@ const LeadProfile: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50">
-      <div className="bg-white shadow-sm border-b p-6">
+    <div className="h-full flex flex-col">
+      <div className="bg-white dark:bg-gray-800 shadow-sm p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Button
@@ -39,8 +39,8 @@ const LeadProfile: React.FC = () => {
               onClick={handleBack}
             />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{selectedLead?.name}</h1>
-              <p className="text-gray-600">{selectedLead?.company}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedLead?.name}</h1>
+              <p className="text-gray-600 dark:text-gray-400">{selectedLead?.company}</p>
             </div>
           </div>
           

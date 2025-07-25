@@ -88,10 +88,10 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 				value={filters[select.name as keyof Filters] as string}
 				onValueChange={onValueChange}
 			>
-				<SelectTrigger className="h-9 w-[180px] border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-white/[0.03]">
+				<SelectTrigger className="h-9 w-[180px] border border-gray-200 bg-white shadow-sm dark:border-gray-900 dark:bg-white/[0.03]">
 					<SelectValue placeholder={placeholder} />
 				</SelectTrigger>
-				<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
+				<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
 					{select.options.map((option: SelectOption, i: number) => (
 						<SelectItem
 							key={option.value + '-' + i}
@@ -229,7 +229,7 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 			</div>
 
 			{showFilters && (
-				<div className="animate-in slide-in-from-top-2 flex gap-10 rounded-lg bg-white p-4 text-gray-700 ring-1 ring-gray-300 duration-200 ring-inset dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
+				<div className="animate-in slide-in-from-top-2 flex gap-10 rounded-lg bg-white p-4 text-gray-700 ring-1 ring-gray-300 duration-200 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
 					<div className="space-y-4">
 						<label className="mb-3 block text-sm font-medium">Status</label>
 						{renderSelect(statusOptions, 'Select status', handleStatusChange)}
@@ -269,7 +269,7 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 								</Button2>
 							</PopoverTrigger>
 							<PopoverContent
-								className="w-auto border-none bg-white p-3 text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03] dark:hover:text-gray-300"
+								className="w-auto border-none bg-white p-3 text-gray-700 ring-1 ring-gray-300 ring-inset hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/[0.03] dark:hover:text-gray-300"
 								align="start"
 							>
 								<DatePicker

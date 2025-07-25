@@ -12,7 +12,7 @@ export default function NotFound() {
 			<div className="relative z-1 flex min-h-screen flex-col items-center justify-center overflow-hidden p-6">
 				<GridShape />
 				<div className="mx-auto w-full max-w-[242px] text-center sm:max-w-[472px]">
-					<h1 className="text-title-md xl:text-title-2xl mb-8 font-bold text-gray-800 dark:text-white/90">
+					<h1 className="text-title-md xl:text-title-2xl mb-8 font-bold text-gray-900 dark:text-white/90">
 						ERROR
 					</h1>
 
@@ -25,7 +25,7 @@ export default function NotFound() {
 
 					<Link
 						to="/"
-						className="shadow-theme-xs inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
+						className="shadow-theme-xs inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200"
 					>
 						Back to Home Page
 					</Link>

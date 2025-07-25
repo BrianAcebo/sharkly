@@ -117,7 +117,7 @@ const Calendar: React.FC = () => {
 	return (
 		<>
 			<PageMeta title="" description="" />
-			<div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
+			<div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
 				<div className="custom-calendar">
 					<FullCalendar
 						ref={calendarRef}
@@ -144,7 +144,7 @@ const Calendar: React.FC = () => {
 				<Modal isOpen={isOpen} onClose={closeModal} className="max-w-[700px] p-6 lg:p-10">
 					<div className="custom-scrollbar flex flex-col overflow-y-auto px-2">
 						<div>
-							<h5 className="modal-title text-theme-xl mb-2 font-semibold text-gray-800 lg:text-2xl dark:text-white/90">
+							<h5 className="modal-title text-theme-xl mb-2 font-semibold text-gray-900 lg:text-2xl dark:text-white/90">
 								{selectedEvent ? 'Edit Event' : 'Add Event'}
 							</h5>
 							<p className="text-sm text-gray-500 dark:text-gray-400">
@@ -162,7 +162,7 @@ const Calendar: React.FC = () => {
 										type="text"
 										value={eventTitle}
 										onChange={(e) => setEventTitle(e.target.value)}
-										className="dark:bg-dark-900 shadow-theme-xs focus:border-brand-300 focus:ring-brand-500/10 dark:focus:border-brand-800 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 placeholder:text-gray-400 focus:ring-3 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+										className="dark:bg-dark-900 shadow-theme-xs focus:border-brand-300 focus:ring-brand-500/10 dark:focus:border-brand-800 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-3 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
 									/>
 								</div>
 							</div>
@@ -214,7 +214,7 @@ const Calendar: React.FC = () => {
 										type="date"
 										value={eventStartDate}
 										onChange={(e) => setEventStartDate(e.target.value)}
-										className="dark:bg-dark-900 shadow-theme-xs focus:border-brand-300 focus:ring-brand-500/10 dark:focus:border-brand-800 h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none px-4 py-2.5 pr-11 pl-4 text-sm text-gray-800 placeholder:text-gray-400 focus:ring-3 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+										className="dark:bg-dark-900 shadow-theme-xs focus:border-brand-300 focus:ring-brand-500/10 dark:focus:border-brand-800 h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none px-4 py-2.5 pr-11 pl-4 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-3 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
 									/>
 								</div>
 							</div>
@@ -229,7 +229,7 @@ const Calendar: React.FC = () => {
 										type="date"
 										value={eventEndDate}
 										onChange={(e) => setEventEndDate(e.target.value)}
-										className="dark:bg-dark-900 shadow-theme-xs focus:border-brand-300 focus:ring-brand-500/10 dark:focus:border-brand-800 h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none px-4 py-2.5 pr-11 pl-4 text-sm text-gray-800 placeholder:text-gray-400 focus:ring-3 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
+										className="dark:bg-dark-900 shadow-theme-xs focus:border-brand-300 focus:ring-brand-500/10 dark:focus:border-brand-800 h-11 w-full appearance-none rounded-lg border border-gray-300 bg-transparent bg-none px-4 py-2.5 pr-11 pl-4 text-sm text-gray-900 placeholder:text-gray-400 focus:ring-3 focus:outline-hidden dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-white/30"
 									/>
 								</div>
 							</div>
@@ -238,7 +238,7 @@ const Calendar: React.FC = () => {
 							<button
 								onClick={closeModal}
 								type="button"
-								className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03]"
+								className="flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.03]"
 							>
 								Close
 							</button>

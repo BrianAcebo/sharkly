@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAssistant } from '../../hooks/useAssistant';
 import { Plus, Search, FileText, HelpCircle, MessageSquare, Edit, Trash2, Upload } from 'lucide-react';
 import { KnowledgeBaseItem } from '../../contexts/AssistantContext';
-import Button from '../form/button/Button';
+import { Button } from '../ui/button';
 
 const KnowledgeBaseManager: React.FC = () => {
   const { knowledgeBase, addKnowledgeBaseItem, updateKnowledgeBaseItem, deleteKnowledgeBaseItem } = useAssistant();
@@ -64,7 +64,7 @@ const KnowledgeBaseManager: React.FC = () => {
       case 'script':
         return 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400';
       default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
+        return 'bg-gray-100 text-gray-900 dark:bg-gray-900/20 dark:text-gray-400';
     }
   };
 
@@ -99,7 +99,7 @@ const KnowledgeBaseManager: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredItems.map((item) => (
-          <div key={item.id} className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow duration-200">
+          <div key={item.id} className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow duration-200">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-2">
                 <div className={`p-2 rounded-full ${getTypeColor(item.type)}`}>
@@ -128,8 +128,8 @@ const KnowledgeBaseManager: React.FC = () => {
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-2xl w-full p-6">
+        <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-2xl w-full p-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
               {editingItem ? 'Edit Knowledge Item' : 'Add Knowledge Item'}
             </h2>

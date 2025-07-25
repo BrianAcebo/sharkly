@@ -113,7 +113,7 @@ const EmailSequenceBuilder: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {filteredSequences.map((sequence) => (
-          <div key={sequence.id} className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+          <div key={sequence.id} className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-full">
@@ -176,7 +176,7 @@ const EmailSequenceBuilder: React.FC = () => {
                 <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
                   sequence.active
                     ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                    : 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+                    : 'bg-gray-100 text-gray-900 dark:bg-gray-900/20 dark:text-gray-400'
                 }`}>
                   {sequence.active ? 'Active' : 'Inactive'}
                 </span>
@@ -194,8 +194,8 @@ const EmailSequenceBuilder: React.FC = () => {
       </div>
 
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
+        <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
               {editingSequence ? 'Edit Email Sequence' : 'Create Email Sequence'}
             </h2>

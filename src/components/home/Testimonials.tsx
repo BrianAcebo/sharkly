@@ -70,7 +70,7 @@ const Testimonials: React.FC = () => {
 					{testimonials.map((testimonial, index) => (
 						<div
 							key={index}
-							className="hover:shadow-theme-lg rounded-2xl bg-gray-50 p-8 transition-all duration-300 hover:-translate-y-1 dark:bg-gray-800"
+							className="hover:shadow-theme-lg rounded-2xl bg-gray-50 p-8 transition-all duration-300 hover:-translate-y-1 dark:bg-gray-900"
 						>
 							{/* Rating */}
 							<div className="mb-6 flex items-center space-x-1">
@@ -128,7 +128,7 @@ const Testimonials: React.FC = () => {
 							const IconComponent = cert.icon;
 							return (
 								<div key={index} className="text-center">
-									<div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-800">
+									<div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-900">
 										<IconComponent className="h-8 w-8 text-gray-600 dark:text-gray-400" />
 									</div>
 									<div className="font-semibold text-gray-900 dark:text-white">{cert.name}</div>

@@ -1,22 +1,28 @@
 import * as React from 'react';
-import * as SliderPrimitive from '@radix-ui/react-slider';
-import { cn } from '../../utils';
+import { cn } from '../../utils/common';
 
-const Slider = React.forwardRef<
-	React.ElementRef<typeof SliderPrimitive.Root>,
-	React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
->(({ className, ...props }, ref) => (
-	<SliderPrimitive.Root
-		ref={ref}
-		className={cn('relative flex w-full touch-none items-center select-none', className)}
-		{...props}
-	>
-		<SliderPrimitive.Track className="bg-secondary relative h-2 w-full grow overflow-hidden rounded-full">
-			<SliderPrimitive.Range className="bg-primary absolute h-full" />
-		</SliderPrimitive.Track>
-		<SliderPrimitive.Thumb className="border-primary bg-background ring-offset-background focus-visible:ring-ring block h-5 w-5 rounded-full border-2 transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50" />
-	</SliderPrimitive.Root>
-));
-Slider.displayName = SliderPrimitive.Root.displayName;
+export interface SliderProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+const Slider = React.forwardRef<HTMLInputElement, SliderProps>(({ className, min = 0, max = 100, step = 1, ...props }, ref) => {
+  return (
+    <input
+      type="range"
+      ref={ref}
+      min={min}
+      max={max}
+      step={step}
+      className={cn(
+        'w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700',
+        className
+      )}
+      {...props}
+    />
+  );
+});
+Slider.displayName = 'Slider';
 
 export { Slider };

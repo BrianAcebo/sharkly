@@ -38,11 +38,6 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
       const result = await LeadService.createLead(formData);
       console.log('Lead created successfully:', result);
       
-      // Test toast is working
-      console.log('Showing success toast...');
-      toast.success('Lead created successfully!');
-      console.log('Success toast called');
-      
       onLeadCreated?.();
       onClose();
     } catch (error) {
@@ -92,7 +87,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
     setFormData(prev => {
       const newData = {
         ...prev,
-        [name]: name === 'value' ? Number(value) || 0 : value
+        [name]: name === 'value' ? (value === '' ? undefined : Number(value)) : value
       };
       console.log('Updated form data:', newData);
       return newData;
@@ -100,23 +95,11 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-900 rounded-lg max-w-lg max-h-[80vh] overflow-y-auto w-full p-6">
+    <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg max-w-lg max-h-[80vh] overflow-y-auto w-full p-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">Add New Lead</h2>
           <div className="flex items-center space-x-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => {
-                console.log('Testing toast...');
-                toast.success('Test success message!');
-                toast.error('Test error message!');
-              }}
-              disabled={isLoading}
-            >
-              Test Toast
-            </Button>
             <Button variant="ghost" size="icon" onClick={onClose} disabled={isLoading}>
               <X className="h-6 w-6" />
             </Button>
@@ -151,7 +134,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                 placeholder="Enter full name"
                 required
                 disabled={isLoading}
@@ -170,7 +153,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                 placeholder="Enter email address"
                 required
                 disabled={isLoading}
@@ -189,7 +172,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                 placeholder="Enter phone number"
                 disabled={isLoading}
               />
@@ -207,7 +190,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
                 name="company"
                 value={formData.company}
                 onChange={handleInputChange}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                 placeholder="Enter company name"
                 disabled={isLoading}
               />
@@ -226,7 +209,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
                   name="value"
                   value={formData.value}
                   onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                   placeholder="0"
                   min="0"
                   disabled={isLoading}
@@ -242,7 +225,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
                 name="priority"
                 value={formData.priority}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                 disabled={isLoading}
               >
                 <option value="low">Low</option>
@@ -261,7 +244,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
               name="stage"
               value={formData.stage}
               onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
               disabled={isLoading}
             >
               <option value="new">New Lead</option>
@@ -280,7 +263,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
               name="category"
               value={formData.category}
               onChange={handleInputChange}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
               placeholder="e.g., SaaS, Enterprise, Startup"
               disabled={isLoading}
             />
@@ -295,7 +278,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
               value={formData.notes}
               onChange={handleInputChange}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
               placeholder="Add any initial notes..."
               disabled={isLoading}
             />

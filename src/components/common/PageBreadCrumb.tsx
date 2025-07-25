@@ -31,7 +31,7 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle, returnTo }) => {
 						<ArrowLeft className="h-4 w-4" />
 					</a>
 				)}
-				<h2 className="text-xl font-semibold text-gray-800 dark:text-white/90" x-text="pageName">
+				<h2 className="text-xl font-semibold text-gray-900 dark:text-white/90" x-text="pageName">
 					{pageTitle}
 				</h2>
 			</div>
@@ -52,7 +52,7 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle, returnTo }) => {
 							)}
 						</Fragment>
 					))}
-					<li className="text-sm text-gray-800 dark:text-white/90">{pageTitle}</li>
+					<li className="text-sm text-gray-900 dark:text-white/90">{pageTitle}</li>
 				</ul>
 			</nav>
 		</div>
