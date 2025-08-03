@@ -1,7 +1,8 @@
 import React from 'react';
-import { Lead } from '../../contexts/DataContext';
+import { Lead } from '../../types/leads';
 import { Building2, Phone, Mail, Calendar, DollarSign } from 'lucide-react';
 import { getStatusColor } from '../../utils/stages';
+import { Button } from '../ui/button';
 
 interface LeadCardProps {
   lead: Lead;
@@ -29,7 +30,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick }) => {
         <div className="flex items-center space-x-1">
           <DollarSign className="h-3 w-3 text-green-500" />
           <span className="text-xs font-medium text-green-600">
-            ${lead.value.toLocaleString()}
+            ${lead.value?.toLocaleString()}
           </span>
         </div>
       </div>
@@ -46,7 +47,7 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick }) => {
         <div className="flex items-center space-x-2">
           <Calendar className="h-3 w-3 text-gray-400" />
           <span className="text-xs text-gray-600 dark:text-gray-300">
-            Last contact: {formatDate(lead.lastContact)}
+            Last contact: {formatDate(lead.last_contact || '')}
           </span>
         </div>
       </div>
@@ -65,10 +66,18 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick }) => {
       </div>
 
       {lead.notes && (
-        <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-600 rounded text-xs text-gray-600 dark:text-gray-300">
-          {lead.notes.length > 60 ? `${lead.notes.substring(0, 60)}...` : lead.notes}
+        <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+          Notes: <i>{lead.notes.length > 60 ? `${lead.notes.substring(0, 60)}...` : lead.notes}</i>
         </div>
       )}
+
+      <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+        <a href={`/leads/${lead.id}`}>
+          <Button variant="outline" size="xs" className="w-full">
+            View Lead
+          </Button>
+        </a>
+      </div>
     </div>
   );
 };

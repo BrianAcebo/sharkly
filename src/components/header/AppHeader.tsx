@@ -105,7 +105,7 @@ const Header: React.FC = () => {
             </div>
           </div>
 
-          <div ref={searchRef} className="relative w-full max-w-[600px]">
+          <div ref={searchRef} className="relative w-full max-w-[400px] 2xl:max-w-[600px]">
             <button
               onClick={handleSearchClick}
               className="text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors duration-200 w-full justify-start"

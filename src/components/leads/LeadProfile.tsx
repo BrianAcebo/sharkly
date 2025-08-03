@@ -4,18 +4,23 @@ import LeadInfo from './LeadInfo';
 import CommunicationHistory from '../communications/CommunicationHistory';
 import CommunicationComposer from '../communications/CommunicationComposer';
 import { useLeads } from '../../hooks/useLeads';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { Button } from '../ui/button';
 
 const LeadProfile: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'info' | 'communications'>('info');
   const [showComposer, setShowComposer] = useState(false);
   const [composerType, setComposerType] = useState<'email' | 'text' | 'call'>('email');
-  const { selectedLead, setSelectedLead } = useLeads();
+  const { leads } = useLeads();
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  
+  // Find the selected lead by ID from the URL params
+  const selectedLead = leads.find(lead => lead.id === id);
+  
   const tabs = [
     { id: 'info', label: 'Lead Information' },
-    { id: 'communications', label: `Communications (${selectedLead?.communications.length || 0})` }
+    { id: 'communications', label: `Communications (${selectedLead?.communications?.length || 0})` }
   ];
 
   const handleCompose = (type: 'email' | 'text' | 'call') => {
@@ -24,9 +29,16 @@ const LeadProfile: React.FC = () => {
   };
 
   const handleBack = () => {
-    setSelectedLead(null);
     navigate('/pipeline');
   };
+
+  if (!selectedLead) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <p className="text-gray-500">Lead not found</p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col">
@@ -35,9 +47,10 @@ const LeadProfile: React.FC = () => {
           <div className="flex items-center space-x-4">
             <Button
               variant="ghost"
-              startIcon={<ArrowLeft className="h-5 w-5" />}
               onClick={handleBack}
-            />
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedLead?.name}</h1>
               <p className="text-gray-600 dark:text-gray-400">{selectedLead?.company}</p>
@@ -47,27 +60,31 @@ const LeadProfile: React.FC = () => {
           <div className="flex items-center space-x-3">
             <Button
               variant="secondary"
-              startIcon={<Plus className="h-4 w-4" />}
               onClick={() => handleCompose('email')}
             >
+              <Plus className="h-4 w-4 mr-2" />
               Email
             </Button>
             <Button
-              variant="success"
-              startIcon={<Plus className="h-4 w-4" />}
+              variant="secondary"
               onClick={() => handleCompose('text')}
             >
+              <Plus className="h-4 w-4 mr-2" />
               Text
             </Button>
             <Button
-              variant="warning"
-              startIcon={<Plus className="h-4 w-4" />}
+              variant="secondary"
               onClick={() => handleCompose('call')}
             >
+              <Plus className="h-4 w-4 mr-2" />
               Call
             </Button>
-            <Button variant="icon" startIcon={<Edit className="h-4 w-4" />} />
-            <Button variant="danger" startIcon={<Trash2 className="h-4 w-4" />} />
+            <Button variant="outline">
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button variant="destructive">
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
@@ -91,8 +108,8 @@ const LeadProfile: React.FC = () => {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        {activeTab === 'info' && selectedLead &&<LeadInfo lead={selectedLead} />}
-        {activeTab === 'communications' && selectedLead &&<CommunicationHistory lead={selectedLead} />}
+        {activeTab === 'info' && selectedLead && <LeadInfo lead={selectedLead} />}
+        {activeTab === 'communications' && selectedLead && <CommunicationHistory lead={selectedLead} />}
       </div>
 
       {showComposer && (

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, ExpressCheckoutElement } from '@stripe/react-stripe-js';
 import useAuth from '../../hooks/useAuth';
+import { api } from '../../utils/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { HttpError } from '../../utils/error';
@@ -259,23 +260,11 @@ const SubscriptionForm = ({
 				onPaymentSuccess={async () => {
 					try {
 						// Create organization through backend route
-						const response = await fetch('/api/organizations/create', {
-							method: 'POST',
-							headers: {
-								'Content-Type': 'application/json',
-								Authorization: `Bearer ${session?.access_token}`
-							},
-							body: JSON.stringify({
-								name: organizationData.name,
-								maxSeats: parseInt(organizationData.maxSeats),
-								userId: user?.id
-							})
+						await api.post('/api/organizations/create', {
+							name: organizationData.name,
+							maxSeats: parseInt(organizationData.maxSeats),
+							userId: user?.id
 						});
-
-						if (!response.ok) {
-							const error = await response.json();
-							throw new Error(error.message || 'Failed to create organization');
-						}
 
 						// Update user data to reflect the new organization
 						await updateUser();
@@ -391,7 +380,7 @@ export default function OrganizationRequired() {
 			</div>
 
 			<Modal isOpen={isOpen} onClose={closeModal} className="m-4 max-w-[500px]">
-				<div className="no-scrollbar relative max-h-[800px] w-full overflow-y-auto rounded-3xl bg-white p-4 lg:p-11 dark:bg-gray-900">
+				<div className="no-scrollbar relative lg:max-h-[800px] max-h-96 w-full overflow-y-auto rounded-3xl bg-white p-4 lg:p-11 dark:bg-gray-900">
 					<div className="px-2 pr-14">
 						<h4 className="mb-2 text-2xl font-semibold text-gray-900 dark:text-white/90">
 							Let's get started

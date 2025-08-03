@@ -60,7 +60,7 @@ export default function OrganizationPage() {
 					status
 				`
 				)
-				.eq('id', user?.organizationId || '')
+				.eq('id', user?.organization_id || '')
 				.single();
 
 			if (orgError || !org) throw new HttpError('No organization found', 404);

@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { User, Mail, Phone, Building2, DollarSign, X, Loader2, AlertCircle } from 'lucide-react';
-import { toast } from 'sonner';
-import { LeadService } from '../../utils/leadService';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Textarea } from '../ui/textarea';
+import { createLeadService } from '../../utils/leadService';
 import { CreateLeadData } from '../../types/leads';
+import { toast } from 'sonner';
 import { parseSupabaseError } from '../../utils/error';
+import { useTeamMembers } from '../../hooks/useTeamMembers';
+import { User, Mail, Phone, Building2, DollarSign, X, Loader2, AlertCircle, Users } from 'lucide-react';
 
 interface AddLeadModalProps {
   onClose: () => void;
@@ -14,6 +20,7 @@ interface AddLeadModalProps {
 const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { teamMembers, isLoading: isLoadingTeamMembers } = useTeamMembers();
   const [formData, setFormData] = useState<CreateLeadData>({
     name: '',
     email: '',
@@ -23,7 +30,8 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
     priority: 'low',
     stage: 'new',
     category: '',
-    notes: ''
+    notes: '',
+    assigned_to: undefined
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -35,7 +43,7 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
     setErrorMessage(null); // Clear any previous errors
     
     try {
-      const result = await LeadService.createLead(formData);
+      const result = await createLeadService(formData);
       console.log('Lead created successfully:', result);
       
       onLeadCreated?.();
@@ -267,6 +275,35 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
               placeholder="e.g., SaaS, Enterprise, Startup"
               disabled={isLoading}
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Assign To
+            </label>
+            <div className="relative">
+              <Users className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <select
+                name="assigned_to"
+                value={formData.assigned_to?.id || ''}
+                onChange={(e) => {
+                  const selectedMember = teamMembers.find(member => member.id === e.target.value);
+                  setFormData(prev => ({
+                    ...prev,
+                    assigned_to: selectedMember || undefined
+                  }));
+                }}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                disabled={isLoading || isLoadingTeamMembers}
+              >
+                <option value="">Select team member (optional)</option>
+                {teamMembers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.profile.first_name} {member.profile.last_name} ({member.role})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>

@@ -1,8 +1,6 @@
 export type PriorityFilter = 'all' | 'low' | 'medium' | 'high' | 'critical';
 
 export type CaseStatusFilter = 'all' | 'active' | 'closed' | 'in_progress';
-
-// CRM Lead Types
 export interface Lead {
   id: string;
   name: string;
@@ -17,22 +15,18 @@ export interface Lead {
   category?: string;
   tags?: string[];
   notes?: string;
-  assigned_to?: string;
   organization_id: string;
   created_by: string;
   created_at: string;
   updated_at: string;
   last_contact?: string;
-  assigned_to_user?: {
-    id: string;
-    email: string;
-    user_metadata: Record<string, unknown>;
-  };
+  assigned_to: TeamMember;
   created_by_user?: {
     id: string;
     email: string;
     user_metadata: Record<string, unknown>;
   };
+  communications: Communication[];
 }
 
 export interface CreateLeadData {
@@ -49,7 +43,7 @@ export interface CreateLeadData {
   priority?: 'low' | 'medium' | 'high' | 'critical';
   tags?: string[];
   notes?: string;
-  assigned_to?: string;
+  assigned_to?: TeamMember;
 }
 
 export type UpdateLeadData = Partial<CreateLeadData>;
@@ -66,6 +60,7 @@ export interface Communication {
   created_by: string;
   created_at: string;
   updated_at: string;
+  timestamp: string;
   created_by_user?: {
     id: string;
     email: string;
@@ -186,7 +181,7 @@ export interface UserProfile {
 
 export interface TeamMember {
 	id: string;
-	organizationId: string;
+	organization_id: string;
 	role: 'admin' | 'analyst' | 'viewer';
 	profile: UserProfile;
 }

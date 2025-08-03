@@ -7,7 +7,7 @@ export default function PipelinePage() {
 	const { setTitle } = useBreadcrumbs();
 
 	useEffect(() => {
-		setTitle('Pipeline');
+		setTitle('Lead Pipeline');
 	}, [setTitle]);
 
 	return (

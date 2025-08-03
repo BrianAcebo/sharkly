@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useData } from '../../hooks/useData';
+import { useLeads } from '../../hooks/useLeads';
 import { X, Send, Phone, Mail, MessageSquare, Clock } from 'lucide-react';
 import { Button } from '../ui/button';
 
@@ -10,8 +10,8 @@ interface CommunicationComposerProps {
 }
 
 const CommunicationComposer: React.FC<CommunicationComposerProps> = ({ leadId, type, onClose }) => {
-  const { addCommunication, getLeadById } = useData();
-  const lead = getLeadById(leadId);
+  const { leads } = useLeads();
+  const lead = leads.find(l => l.id === leadId);
   const [sending, setSending] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -27,7 +27,10 @@ const CommunicationComposer: React.FC<CommunicationComposerProps> = ({ leadId, t
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    addCommunication(leadId, {
+    // Note: addCommunication is not implemented in the new API yet
+    // This would need to be implemented in the LeadsAPI
+    console.log('Communication would be added:', {
+      leadId,
       type,
       direction: 'outbound',
       subject: type === 'email' ? formData.subject : undefined,
@@ -94,39 +97,28 @@ const CommunicationComposer: React.FC<CommunicationComposerProps> = ({ leadId, t
 
   return (
     <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b">
+      <div className="bg-white dark:bg-gray-900 rounded-lg max-w-lg w-full max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-blue-100 rounded-full text-blue-600">
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
               {getIcon()}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">{getTitle()}</h2>
-              <p className="text-gray-600">{lead?.name} - {lead?.company}</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{getTitle()}</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {lead?.name} • {lead?.email}
+              </p>
             </div>
           </div>
-          <Button variant="icon" startIcon={<X className="h-6 w-6" />} onClick={onClose} />
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <span className="text-gray-500">To:</span>
-              <span className="ml-2 font-medium">
-                {type === 'email' ? lead?.email : lead?.phone}
-              </span>
-            </div>
-            <div>
-              <span className="text-gray-500">From:</span>
-              <span className="ml-2 font-medium">
-                {type === 'email' ? 'you@company.com' : '+1 (555) 123-4567'}
-              </span>
-            </div>
-          </div>
-
           {type === 'email' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Subject
               </label>
               <input
@@ -134,17 +126,32 @@ const CommunicationComposer: React.FC<CommunicationComposerProps> = ({ leadId, t
                 name="subject"
                 value={formData.subject}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter email subject"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                placeholder="Enter subject..."
                 required
               />
             </div>
           )}
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              {type === 'email' ? 'Message' : type === 'text' ? 'Message' : 'Call Notes'}
+            </label>
+            <textarea
+              name="content"
+              value={formData.content}
+              onChange={handleInputChange}
+              rows={6}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              placeholder={getPlaceholder()}
+              required
+            />
+          </div>
+
           {type === 'call' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Call Duration (minutes)
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Duration (minutes)
               </label>
               <div className="relative">
                 <Clock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -153,46 +160,30 @@ const CommunicationComposer: React.FC<CommunicationComposerProps> = ({ leadId, t
                   name="duration"
                   value={formData.duration}
                   onChange={handleInputChange}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter call duration"
-                  min="1"
-                  required
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                  placeholder="0"
+                  min="0"
                 />
               </div>
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              {type === 'call' ? 'Call Notes' : 'Message'}
-            </label>
-            <textarea
-              name="content"
-              value={formData.content}
-              onChange={handleInputChange}
-              rows={type === 'email' ? 12 : 6}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder={getPlaceholder()}
-              required
-            />
-          </div>
-
-          <div className="flex space-x-4 pt-4">
-            <Button
-              variant="outline"
-              onClick={onClose}
-              fullWidth
-            >
+          <div className="flex items-center justify-end space-x-3 pt-4">
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              disabled={sending}
-              startIcon={<Send className="h-4 w-4" />}
-              fullWidth
-            >
-              {getButtonText()}
+            <Button type="submit" disabled={sending}>
+              {sending ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  {getButtonText()}
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  {getButtonText()}
+                </>
+              )}
             </Button>
           </div>
         </form>

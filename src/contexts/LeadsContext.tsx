@@ -1,6 +1,5 @@
 import { createContext } from "react";
-import { Lead } from "./DataContext";
-import { SearchFilter } from "../types/leads";
+import { Lead, SearchFilter, Communication } from "../types/leads";
 
 interface LeadsContextType {
     selectedLead: Lead | null;
@@ -20,6 +19,13 @@ interface LeadsContextType {
     setDateRange: (dateRange: { from: Date | undefined; to: Date | undefined }) => void;
     currentPage: number;
     setCurrentPage: (page: number) => void;
+    leads: Lead[];
+    loading: boolean;
+    addLead: (lead: Omit<Lead, 'id' | 'createdAt' | 'communications'>) => void;
+    updateLead: (id: string, updates: Partial<Lead>) => void;
+    deleteLead: (id: string) => void;
+    getLeadById: (id: string) => Lead | undefined;
+    addCommunication: (leadId: string, communication: Omit<Communication, 'id'>) => void;
 }
 
 export const LeadsContext = createContext<LeadsContextType>({
@@ -39,5 +45,12 @@ export const LeadsContext = createContext<LeadsContextType>({
     },
     setDateRange: () => {},
     currentPage: 1,
-    setCurrentPage: () => {}
+    setCurrentPage: () => {},
+    leads: [],
+    loading: false,
+    addLead: () => {},
+    updateLead: () => {},
+    deleteLead: () => {},
+    getLeadById: () => undefined,
+    addCommunication: () => {}
 });

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import AppHeader from '../components/header/AppHeader';
 import AppSidebar from '../components/header/AppSidebar';
 import { Navigate, Outlet, useLocation } from 'react-router';
@@ -15,26 +15,87 @@ const LayoutContent: React.FC = () => {
 	const { user, loadingState, session } = useAuth();
 	const searchParams = new URLSearchParams(window.location.search);
 	const next = searchParams.get('next');
+	const [lastRedirect, setLastRedirect] = useState<string | null>(null);
 
-	// Show loading state while auth is being checked
+	console.log('AppLayout - loadingState:', loadingState);
+	console.log('AppLayout - session:', !!session);
+	console.log('AppLayout - user:', !!user);
+	console.log('AppLayout - pathname:', pathname);
+	console.log('AppLayout - user organization_id:', user?.organization_id);
+	console.log('AppLayout - user completed_onboarding:', user?.completed_onboarding);
+
+	// Show loading while auth is being checked
 	if (loadingState === AuthLoadingState.LOADING) {
+		console.log('AppLayout - Still loading, showing loading screen');
 		return <AuthLoading state={AuthLoadingState.LOADING} />;
 	}
 
 	// If not authenticated, redirect to home
 	if (!session || !user?.id) {
-		return <Navigate to="/" replace />;
+		const redirectPath = '/';
+		if (lastRedirect !== redirectPath) {
+			console.log('AppLayout - Not authenticated, redirecting to home');
+			setLastRedirect(redirectPath);
+			return <Navigate to={redirectPath} replace />;
+		}
 	}
 
 	// If onboarding is not completed and trying to access a protected route
 	if (!user?.completed_onboarding && pathname !== '/onboarding') {
-		return <Navigate to={`/onboarding${next ? '?next=' + next : ''}`} replace />;
+		const redirectPath = `/onboarding${next ? '?next=' + next : ''}`;
+		if (lastRedirect !== redirectPath) {
+			console.log('AppLayout - Onboarding not completed, redirecting to onboarding');
+			setLastRedirect(redirectPath);
+			return <Navigate to={redirectPath} replace />;
+		}
 	}
 
-	// If user is onboarded and on the organization required page, redirect to cases
+	// If user is onboarded and on the onboarding page, redirect to pipeline
 	if (user?.completed_onboarding && pathname === '/onboarding') {
-		return <Navigate to="/pipeline" />;
+		const redirectPath = '/pipeline';
+		if (lastRedirect !== redirectPath) {
+			console.log('AppLayout - User completed onboarding, redirecting to pipeline');
+			setLastRedirect(redirectPath);
+			return <Navigate to={redirectPath} />;
+		}
 	}
+
+	// If no organization and trying to access a protected route
+	if ((!user?.organization_id || user.organization_id === '') && pathname !== '/organization-required') {
+		const redirectPath = '/organization-required';
+		if (lastRedirect !== redirectPath) {
+			console.log('AppLayout - No organization, redirecting to organization-required');
+			setLastRedirect(redirectPath);
+			return <Navigate to={redirectPath} replace />;
+		}
+	}
+
+	// If user has organization and on the organization required page, redirect to pipeline
+	if (user?.organization_id && user.organization_id !== '' && pathname === '/organization-required') {
+		const redirectPath = '/pipeline';
+		if (lastRedirect !== redirectPath) {
+			console.log('AppLayout - User has organization, redirecting to pipeline');
+			setLastRedirect(redirectPath);
+			return <Navigate to={redirectPath} replace />;
+		}
+	}
+
+	// Temporary fix: if user has completed onboarding and is on organization-required, redirect to pipeline
+	if (user?.completed_onboarding && pathname === '/organization-required') {
+		const redirectPath = '/pipeline';
+		if (lastRedirect !== redirectPath) {
+			console.log('AppLayout - User completed onboarding, redirecting to pipeline (temp fix)');
+			setLastRedirect(redirectPath);
+			return <Navigate to={redirectPath} replace />;
+		}
+	}
+
+	// Clear last redirect if we're rendering normally
+	if (lastRedirect) {
+		setLastRedirect(null);
+	}
+
+	console.log('AppLayout - Rendering main layout');
 
 	return (
 		<div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">

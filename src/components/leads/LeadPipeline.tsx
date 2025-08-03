@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
-import { useData } from '../../hooks/useData';
+import { useNavigate } from 'react-router';
+import { useLeads } from '../../hooks/useLeads';
 import { Plus, Search, Filter, MoreHorizontal } from 'lucide-react';
 import LeadCard from './LeadCard';
 import AddLeadModal from './AddLeadModal';
-import { Lead } from '../../contexts/DataContext';
-import { useLeads } from '../../hooks/useLeads';
+import { Lead } from '../../types/leads';
 import { Button } from '../ui/button';
 import { LeadStage, getStageLabel, getStatusColor, stages } from '../../utils/stages';
 
 const LeadPipeline: React.FC = () => {
-  const { leads, updateLead } = useData();
+  const navigate = useNavigate();
+  const { leads, updateLead } = useLeads();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const { setSelectedLead } = useLeads();
 
   const filteredLeads = leads.filter((lead: Lead) =>
     lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    lead.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    lead.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     lead.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -25,7 +25,7 @@ const LeadPipeline: React.FC = () => {
   };
 
   const getTotalValue = (stage: string) => {
-    return getLeadsByStage(stage).reduce((sum: number, lead: Lead) => sum + lead.value, 0);
+    return getLeadsByStage(stage).reduce((sum: number, lead: Lead) => sum + (lead.value || 0), 0);
   };
 
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
@@ -36,25 +36,24 @@ const LeadPipeline: React.FC = () => {
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, newStage: string) => {
+  const handleDrop = async (e: React.DragEvent, newStage: string) => {
     e.preventDefault();
     const leadId = e.dataTransfer.getData('text/plain');
-    updateLead(leadId, { stage: newStage as Lead['stage'] });
+    await updateLead(leadId, { stage: newStage as Lead['stage'] });
   };
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="bg-white dark:bg-gray-800 shadow-sm p-6">
+    <div className="flex flex-col h-full gap-6">
+      <div className="bg-white dark:bg-gray-800 p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Lead Pipeline</h1>
             <p className="text-gray-600 dark:text-gray-400">Manage your leads and track progress</p>
           </div>
           <Button
-            variant="primary"
-            startIcon={<Plus className="h-4 w-4" />}
             onClick={() => setShowAddModal(true)}
           >
+            <Plus className="h-4 w-4 mr-2" />
             Add Lead
           </Button>
         </div>
@@ -71,15 +70,16 @@ const LeadPipeline: React.FC = () => {
               className="text-gray-900 dark:text-gray-100 w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-gray-500 dark:focus:ring-gray-400 focus:border-transparent"
             />
           </div>
-          <Button variant="outline" startIcon={<Filter className="h-4 w-4" />}>
+          <Button variant="outline">
+            <Filter className="h-4 w-4 mr-2" />
             Filter
           </Button>
         </div>
       </div>
 
       <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
-        <div className="h-full py-6 w-full overflow-auto">
-          <div className="flex gap-4 h-full min-w-max">
+        <div className="h-full w-full overflow-auto">
+          <div className="flex pb-6 gap-4 h-full min-w-max">
             {stages.map((stage: LeadStage) => (
               <div
                 key={stage}
@@ -96,26 +96,29 @@ const LeadPipeline: React.FC = () => {
                       {getLeadsByStage(stage).length}
                     </span>
                   </div>
-                  <Button variant="icon" startIcon={<MoreHorizontal className="h-4 w-4" />} />
+                  <Button variant="outline" size="sm">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
                 </div>
 
-                <div className="mb-3">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    ${getTotalValue(stage).toLocaleString()}
-                  </p>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                  ${getTotalValue(stage).toLocaleString()}
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-3">
+                <div className="flex-1 space-y-2 overflow-y-auto">
                   {getLeadsByStage(stage).map((lead: Lead) => (
                     <div
                       key={lead.id}
                       draggable
-                      onDragStart={(e) => handleDragStart(e, lead.id)}
+                      onDragStart={(e: React.DragEvent) => handleDragStart(e, lead.id)}
                       className="cursor-move"
                     >
                       <LeadCard
                         lead={lead}
-                        onClick={() => setSelectedLead(lead)}
+                        onClick={() => {
+                          // Navigate to lead profile
+                          navigate(`/leads/${lead.id}`);
+                        }}
                       />
                     </div>
                   ))}
@@ -127,7 +130,13 @@ const LeadPipeline: React.FC = () => {
       </div>
 
       {showAddModal && (
-        <AddLeadModal onClose={() => setShowAddModal(false)} />
+        <AddLeadModal
+          onClose={() => setShowAddModal(false)}
+          onLeadCreated={() => {
+            setShowAddModal(false);
+            // The useLeads hook will automatically refresh the data
+          }}
+        />
       )}
     </div>
   );

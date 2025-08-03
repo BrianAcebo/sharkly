@@ -17,6 +17,9 @@ import Email from './pages/Email';
 import Assistant from './pages/Assistant'
 import Leads from './pages/Leads'
 import ErrorBoundary from './components/common/ErrorBoundary';
+import Lead from './pages/Lead';
+import OrganizationRequired from './pages/Organization/OrganizationRequired';
+import Organization from './pages/Organization/Organization';
 
 export default function App() {
 	return (
@@ -37,6 +40,9 @@ export default function App() {
 						<Route path="/assistant" element={<Assistant />} />
             			<Route path="/onboarding" element={<Onboarding />} />
 						<Route path="/leads" element={<Leads />} />
+						<Route path="/leads/:id" element={<Lead />} />
+						<Route path="/organization-required" element={<OrganizationRequired />} />
+						<Route path="/organization" element={<Organization />} />
 					</Route>
 
 					{/* Auth Layout */}

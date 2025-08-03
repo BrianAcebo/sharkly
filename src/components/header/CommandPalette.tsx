@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useData } from '../../hooks/useData';
+import { useLeads } from '../../hooks/useLeads';
 import { Search, User, Mail, MessageSquare, LayoutDashboard } from 'lucide-react';
-import { Lead } from '../../contexts/DataContext';
-import { Link } from 'react-router';
+import { Lead } from '../../types/leads';
 
 interface CommandPaletteProps {
   onClose: () => void;
@@ -20,7 +19,7 @@ interface SearchResult {
 }
 
 const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ onClose }, ref) => {
-  const { leads } = useData();
+  const { leads } = useLeads();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +70,7 @@ const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ 
   const leadResults: SearchResult[] = leads
     .filter((lead: Lead) => 
       lead.name.toLowerCase().includes(query.toLowerCase()) ||
-      lead.company.toLowerCase().includes(query.toLowerCase()) ||
+      lead.company?.toLowerCase().includes(query.toLowerCase()) ||
       lead.email.toLowerCase().includes(query.toLowerCase())
     )
     .slice(0, 5)
@@ -98,10 +97,10 @@ const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedIndex(prev => Math.min(prev + 1, allResults.length - 1));
+      setSelectedIndex(prev => (prev + 1) % allResults.length);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedIndex(prev => Math.max(prev - 1, 0));
+      setSelectedIndex(prev => (prev - 1 + allResults.length) % allResults.length);
     } else if (e.key === 'Enter') {
       e.preventDefault();
       if (allResults[selectedIndex]) {
@@ -112,92 +111,78 @@ const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ 
     }
   };
 
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [query]);
-
   return (
-    <div className="fixed inset-0 bg-gray-900/50 flex items-start justify-center pt-[10vh] z-50">
-      <div ref={ref} className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4">
-        <div className="flex items-center px-4 py-3 border-b border-gray-200 dark:border-gray-900">
-          <Search className="h-5 w-5 text-gray-400 mr-3" />
-                      <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Search or type command..."
-            className="flex-1 bg-transparent text-black dark:text-white placeholder-gray-500 dark:placeholder-gray-400 outline-none"
-          />
-          <kbd className="ml-3 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-900 text-gray-500 dark:text-gray-400 rounded">ESC</kbd>
+    <div
+      ref={ref}
+      className="fixed inset-0 bg-black/50 flex items-start justify-center pt-20 z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[70vh] overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Search leads, pages, or actions..."
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+            />
+          </div>
         </div>
 
-        <div className="max-h-96 overflow-y-auto">
+        <div className="overflow-y-auto max-h-[60vh]">
           {allResults.length === 0 ? (
-            <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+            <div className="p-4 text-center text-gray-500">
               No results found
             </div>
           ) : (
             <div className="py-2">
-              {query && filteredPages.length > 0 && (
-                <div className="px-4 py-2">
-                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Pages</h3>
-                </div>
-              )}
-              
-              {filteredPages.map((result, index) => (
-                <Link to={result.path} key={result.id}>
-                  <button
-                    onClick={result.action}
-                    className={`w-full flex items-center px-4 py-3 hover:bg-brand-50 dark:hover:bg-brand-900/20 ${
-                      selectedIndex === index ? 'bg-brand-50 dark:bg-brand-900/20' : ''
-                    }`}
-                  >
-                    <div className="flex items-center justify-center w-8 h-8 bg-brand-100 dark:bg-brand-900 rounded mr-3">
+              {allResults.map((result, index) => (
+                <div
+                  key={result.id}
+                  className={`px-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 ${
+                    index === selectedIndex ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                  }`}
+                  onClick={result.action}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="flex-shrink-0 text-gray-400">
                       {result.icon}
                     </div>
-                    <div className="flex-1 text-left">
-                      <div className="text-sm font-medium text-black dark:text-white">{result.title}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {result.title}
+                      </p>
                       {result.subtitle && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">{result.subtitle}</div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {result.subtitle}
+                        </p>
                       )}
                     </div>
-                  </button>
-                </Link>
-              ))}
-
-              {query && leadResults.length > 0 && (
-                <div className="px-4 py-2 border-t border-gray-200 dark:border-gray-900">
-                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Leads</h3>
+                  </div>
                 </div>
-              )}
-
-              {leadResults.map((result, index) => (
-                <button
-                  key={result.id}
-                  onClick={result.action}
-                  className={`w-full flex items-center px-4 py-3 hover:bg-brand-50 dark:hover:bg-brand-900/20 ${
-                    selectedIndex === filteredPages.length + index ? 'bg-brand-50 dark:bg-brand-900/20' : ''
-                  }`}
-                >
-                  <div className="flex items-center justify-center w-8 h-8 bg-brand-100 dark:bg-brand-900 rounded mr-3">
-                    {result.icon}
-                  </div>
-                  <div className="flex-1 text-left">
-                    <div className="text-sm font-medium text-black dark:text-white">{result.title}</div>
-                    {result.subtitle && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{result.subtitle}</div>
-                    )}
-                  </div>
-                </button>
               ))}
             </div>
           )}
+        </div>
+
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-400">
+          <div className="flex items-center justify-between">
+            <span>Use ↑↓ to navigate, Enter to select, Esc to close</span>
+            <span>{allResults.length} results</span>
+          </div>
         </div>
       </div>
     </div>
   );
 });
+
+CommandPalette.displayName = 'CommandPalette';
 
 export default CommandPalette;

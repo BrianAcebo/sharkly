@@ -52,6 +52,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				const profileData = profile as ProfileData;
 				let updatedUser = { ...currentSession.user } as UserProfile;
 
+				// Query user_organizations table to get organization and role data
+				const { data: userOrg, error: userOrgError } = await supabase
+					.from('user_organizations')
+					.select('organization_id, role')
+					.eq('user_id', profileData.id)
+					.single();
+
+				if (userOrgError && userOrgError.code !== 'PGRST116') {
+					// PGRST116 is the error code for no rows returned, which is expected if user is not in an organization
+					console.error('Error fetching user organization:', userOrgError);
+				}
 
 				// Handle avatar URL
 				let avatarUrl = '';
@@ -79,6 +90,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 					...updatedUser,
 					...profileData,
 					avatar: avatarUrl,
+					organization_id: userOrg?.organization_id || '',
+					role: userOrg?.role || ''
 				};
 
 				setUser(updatedUser);
@@ -128,6 +141,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 						const profileData = profile as ProfileData;
 						let updatedUser = { ...currentUser } as UserProfile;
 
+						// Query user_organizations table to get organization and role data
+						const { data: userOrg, error: userOrgError } = await supabase
+							.from('user_organizations')
+							.select('organization_id, role')
+							.eq('user_id', profileData.id)
+							.single();
+
+						if (userOrgError && userOrgError.code !== 'PGRST116') {
+							// PGRST116 is the error code for no rows returned, which is expected if user is not in an organization
+							console.error('Error fetching user organization:', userOrgError);
+						}
+
 						// Handle avatar URL
 						let avatarUrl = '';
 						if (profileData.avatar) {
@@ -154,6 +179,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 							...updatedUser,
 							...profileData,
 							avatar: avatarUrl,
+							organization_id: userOrg?.organization_id || '',
+							role: userOrg?.role || ''
 						};
 
 						setUser(updatedUser);
@@ -252,6 +279,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		}
 	}, []);
 
+	const resetAuthState = useCallback(() => {
+		setLoadingState(AuthLoadingState.IDLE);
+		setError(null);
+		setMessage(null);
+	}, []);
+
 	return (
 		<AuthContext.Provider
 			value={{
@@ -264,7 +297,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				signUp,
 				signOut,
 				signInWithGoogle,
-				updateUser
+				updateUser,
+				resetAuthState
 			}}
 		>
 			{children}

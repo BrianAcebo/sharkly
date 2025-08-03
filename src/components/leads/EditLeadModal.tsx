@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { User, Mail, Phone, Building2, DollarSign, X, Loader2, AlertCircle, Trash2 } from 'lucide-react';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Textarea } from '../ui/textarea';
+import { updateLeadService, deleteLeadService } from '../../utils/leadService';
+import { Lead, UpdateLeadData } from '../../types/leads';
 import { toast } from 'sonner';
-import { LeadService } from '../../utils/leadService';
-import { UpdateLeadData } from '../../types/leads';
-import { Lead } from '../../contexts/DataContext';
 import { parseSupabaseError } from '../../utils/error';
+import { useTeamMembers } from '../../hooks/useTeamMembers';
+import { User, Mail, Phone, Building2, DollarSign, X, Loader2, AlertCircle, Users, Trash2 } from 'lucide-react';
 
 interface EditLeadModalProps {
   lead: Lead;
@@ -17,7 +22,9 @@ interface EditLeadModalProps {
 const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpdated, onLeadDeleted }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { teamMembers, isLoading: isLoadingTeamMembers } = useTeamMembers();
   const [formData, setFormData] = useState<UpdateLeadData>({
     name: lead.name,
     email: lead.email,
@@ -27,7 +34,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
     priority: lead.priority,
     stage: lead.stage,
     category: lead.category || '',
-    notes: lead.notes || ''
+    notes: lead.notes || '',
+    assigned_to: lead.assigned_to
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -39,7 +47,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
     setErrorMessage(null); // Clear any previous errors
     
     try {
-      const result = await LeadService.updateLead(lead.id, formData);
+      const result = await updateLeadService(lead.id, formData);
       console.log('Lead updated successfully:', result);
       
       onLeadUpdated?.();
@@ -85,17 +93,15 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
-      return;
-    }
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
 
+  const handleDeleteConfirm = async () => {
     setIsDeleting(true);
-    setErrorMessage(null);
 
     try {
-      await LeadService.deleteLead(lead.id);
-      console.log('Lead deleted successfully');
+      await deleteLeadService(lead.id);
       toast.success('Lead deleted successfully!');
       onLeadDeleted?.();
       onClose();
@@ -110,7 +116,12 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
       toast.error(`${errorTitle}: ${errorMessage}`);
     } finally {
       setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -305,6 +316,35 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Assign To
+            </label>
+            <div className="relative">
+              <Users className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <select
+                name="assigned_to"
+                value={formData.assigned_to?.id || ''}
+                onChange={(e) => {
+                  const selectedMember = teamMembers.find(member => member.id === e.target.value);
+                  setFormData(prev => ({
+                    ...prev,
+                    assigned_to: selectedMember || undefined
+                  }));
+                }}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                disabled={isLoading || isLoadingTeamMembers}
+              >
+                <option value="">Select team member (optional)</option>
+                {teamMembers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.profile.first_name} {member.profile.last_name} ({member.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Notes
             </label>
             <textarea
@@ -321,22 +361,14 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
           <div className="flex space-x-4 pt-4">
             <Button
               type="button"
-              variant="destructive"
-              onClick={handleDelete}
+              variant="ghost"
+              size="icon"
+              onClick={handleDeleteClick}
               disabled={isLoading || isDeleting}
-              className="flex-1"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+              title="Delete Lead"
             >
-              {isDeleting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Deleting...
-                </>
-              ) : (
-                <>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
-                </>
-              )}
+              <Trash2 className="h-5 w-5" />
             </Button>
             <Button
               type="button"
@@ -375,6 +407,61 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
           </div>
         </form>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Delete Lead
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Are you sure you want to delete this lead?
+                </p>
+              </div>
+            </div>
+            
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+              This action cannot be undone. All data associated with this lead will be permanently removed.
+            </p>
+
+            <div className="flex space-x-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleDeleteCancel}
+                disabled={isDeleting}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+                className="flex-1"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Lead'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

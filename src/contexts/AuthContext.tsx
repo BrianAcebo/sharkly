@@ -8,7 +8,7 @@ export interface UserProfile extends User {
 	completed_onboarding: boolean;
 	first_name: string;
 	last_name: string;
-	organizationId: string;
+	organization_id: string;
 	role: string;
 }
 
@@ -28,6 +28,7 @@ interface AuthContextType {
 	signInWithGoogle: () => Promise<void>;
 	message: string | null;
 	updateUser: () => Promise<void>;
+	resetAuthState: () => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
