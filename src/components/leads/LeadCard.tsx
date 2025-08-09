@@ -1,7 +1,7 @@
 import React from 'react';
 import { Lead } from '../../types/leads';
 import { Building2, Phone, Mail, Calendar, DollarSign } from 'lucide-react';
-import { getStatusColor } from '../../utils/stages';
+import { LeadStage, getStageColor, getStageLabel } from '../../utils/stages';
 import { Button } from '../ui/button';
 
 interface LeadCardProps {
@@ -55,8 +55,8 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick }) => {
       <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-600">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <span className={`capitalize px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.stage)}`}>
-              {lead.stage}
+            <span className={`capitalize px-2 py-1 rounded-full text-xs font-medium ${getStageColor(lead.stage as LeadStage)}`}>
+              {getStageLabel(lead.stage)}
             </span>
           </div>
           <span className="text-xs text-gray-500 dark:text-gray-400">

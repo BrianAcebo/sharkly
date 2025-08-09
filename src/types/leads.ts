@@ -1,6 +1,6 @@
-export type PriorityFilter = 'all' | 'low' | 'medium' | 'high' | 'critical';
+import { LEAD_STAGES, LEAD_PRIORITIES, LEAD_STATUSES } from '../utils/constants';
 
-export type CaseStatusFilter = 'all' | 'active' | 'closed' | 'in_progress';
+export type PriorityFilter = 'all' | typeof LEAD_PRIORITIES[keyof typeof LEAD_PRIORITIES];
 export interface Lead {
   id: string;
   name: string;
@@ -8,10 +8,10 @@ export interface Lead {
   phone?: string;
   company?: string;
   title?: string;
-  stage: 'new' | 'contacted' | 'qualified' | 'proposal' | 'closed-won' | 'closed-lost';
+  stage: typeof LEAD_STAGES[keyof typeof LEAD_STAGES];
   value?: number;
-  status: 'active' | 'in_progress' | 'closed';
-  priority: 'low' | 'medium' | 'high' | 'critical';
+  status: typeof LEAD_STATUSES[keyof typeof LEAD_STATUSES];
+  priority: typeof LEAD_PRIORITIES[keyof typeof LEAD_PRIORITIES];
   category?: string;
   tags?: string[];
   notes?: string;
@@ -34,13 +34,13 @@ export interface CreateLeadData {
   email: string;
   phone?: string;
   company?: string;
-  stage: 'new' | 'contacted' | 'qualified' | 'proposal' | 'closed-won' | 'closed-lost';
+  stage: typeof LEAD_STAGES[keyof typeof LEAD_STAGES];
   value?: number;
   title?: string;
   description?: string;
   category?: string;
-  status?: 'active' | 'in_progress' | 'closed';
-  priority?: 'low' | 'medium' | 'high' | 'critical';
+  status?: typeof LEAD_STATUSES[keyof typeof LEAD_STATUSES];
+  priority?: typeof LEAD_PRIORITIES[keyof typeof LEAD_PRIORITIES];
   tags?: string[];
   notes?: string;
   assigned_to?: TeamMember;
@@ -107,7 +107,7 @@ export interface Case {
 }
 
 export interface SearchFilter {
-	status?: 'active' | 'inactive' | 'in progress' | 'all';
+	status?: typeof LEAD_STATUSES[keyof typeof LEAD_STATUSES] | 'inactive' | 'in progress' | 'all';
 	priorityLevel?: PriorityFilter;
 	dateRange?: {
 		from: Date | undefined;
@@ -181,6 +181,7 @@ export interface UserProfile {
 
 export interface TeamMember {
 	id: string;
+	user_id?: string;
 	organization_id: string;
 	role: 'admin' | 'analyst' | 'viewer';
 	profile: UserProfile;

@@ -142,6 +142,48 @@
 
 	--color-theme-purple-500: #7a5af8;
 
+	--color-background: #ffffff;
+	--color-foreground: #0f172a;
+	--color-card: #ffffff;
+	--color-card-foreground: #0f172a;
+	--color-popover: #ffffff;
+	--color-popover-foreground: #0f172a;
+	--color-primary: #0f172a;
+	--color-primary-foreground: #f8fafc;
+	--color-secondary: #f1f5f9;
+	--color-secondary-foreground: #0f172a;
+	--color-muted: #f1f5f9;
+	--color-muted-foreground: #64748b;
+	--color-accent: #f1f5f9;
+	--color-accent-foreground: #0f172a;
+	--color-destructive: #ef4444;
+	--color-destructive-foreground: #f8fafc;
+	--color-border: #e2e8f0;
+	--color-input: #e2e8f0;
+	--color-ring: #0f172a;
+	--color-radius: 0.5rem;
+
+	/* Dark mode color variables */
+	--color-background-dark: #0f172a;
+	--color-foreground-dark: #f8fafc;
+	--color-card-dark: #0f172a;
+	--color-card-foreground-dark: #f8fafc;
+	--color-popover-dark: #0f172a;
+	--color-popover-foreground-dark: #f8fafc;
+	--color-primary-dark: #f8fafc;
+	--color-primary-foreground-dark: #0f172a;
+	--color-secondary-dark: #1e293b;
+	--color-secondary-foreground-dark: #f8fafc;
+	--color-muted-dark: #1e293b;
+	--color-muted-foreground-dark: #94a3b8;
+	--color-accent-dark: #1e293b;
+	--color-accent-foreground-dark: #f8fafc;
+	--color-destructive-dark: #dc2626;
+	--color-destructive-foreground-dark: #f8fafc;
+	--color-border-dark: #1e293b;
+	--color-input-dark: #1e293b;
+	--color-ring-dark: #cbd5e1;
+
 	--shadow-theme-md:
 		0px 4px 8px -2px rgba(16, 24, 40, 0.1), 0px 2px 4px -2px rgba(16, 24, 40, 0.06);
 	--shadow-theme-lg:

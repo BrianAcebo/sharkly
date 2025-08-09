@@ -10,7 +10,8 @@ import { Lead, UpdateLeadData } from '../../types/leads';
 import { toast } from 'sonner';
 import { parseSupabaseError } from '../../utils/error';
 import { useTeamMembers } from '../../hooks/useTeamMembers';
-import { User, Mail, Phone, Building2, DollarSign, X, Loader2, AlertCircle, Users, Trash2 } from 'lucide-react';
+import { TeamMemberSelect } from './TeamMemberSelect';
+import { User, Mail, Phone, Building2, DollarSign, X, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 
 interface EditLeadModalProps {
   lead: Lead;
@@ -318,29 +319,19 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Assign To
             </label>
-            <div className="relative">
-              <Users className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <select
-                name="assigned_to"
-                value={formData.assigned_to?.id || ''}
-                onChange={(e) => {
-                  const selectedMember = teamMembers.find(member => member.id === e.target.value);
-                  setFormData(prev => ({
-                    ...prev,
-                    assigned_to: selectedMember || undefined
-                  }));
-                }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                disabled={isLoading || isLoadingTeamMembers}
-              >
-                <option value="">Select team member (optional)</option>
-                {teamMembers.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.profile.first_name} {member.profile.last_name} ({member.role})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <TeamMemberSelect
+              teamMembers={teamMembers}
+              selectedMember={formData.assigned_to}
+              onMemberSelect={(member) => {
+                setFormData(prev => ({
+                  ...prev,
+                  assigned_to: member
+                }));
+              }}
+              placeholder="Select team member (optional)"
+              disabled={isLoading}
+              isLoading={isLoadingTeamMembers}
+            />
           </div>
 
           <div>

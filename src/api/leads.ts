@@ -261,11 +261,37 @@ export async function getLead(id: string): Promise<Lead> {
  */
 export async function createLead(leadData: CreateLeadData): Promise<Lead> {
   try {
-    // Prepare the data for insertion, extracting assigned_to_id
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    // Get the user's organization
+    const { data: userOrg } = await supabase
+      .from('user_organizations')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!userOrg?.organization_id) {
+      throw new Error('User not associated with any organization');
+    }
+
+    // Prepare the data for insertion, extracting assigned_to_id and adding created_by and organization_id
+    console.log('Creating lead with data:', leadData);
+    console.log('Assigned to object:', leadData.assigned_to);
+    console.log('Assigned to ID:', leadData.assigned_to?.id);
+    
     const insertData = {
       ...leadData,
-      assigned_to: leadData.assigned_to?.id || null
+      assigned_to: leadData.assigned_to?.id || null,
+      created_by: user.id,
+      organization_id: userOrg.organization_id
     };
+    
+    console.log('Insert data:', insertData);
 
     const { data, error } = await supabase
       .from('leads')
@@ -278,9 +304,9 @@ export async function createLead(leadData: CreateLeadData): Promise<Lead> {
     }
 
     // Transform data to match Lead type
-    const assignedTo = {
+    const assignedTo = await fetchTeamMember(data.assigned_to) || {
       id: data.assigned_to || '',
-      organizationId: data.organization_id || '',
+      organization_id: data.organization_id || '',
       role: 'analyst' as const,
       profile: {
         id: data.assigned_to || '',
@@ -309,6 +335,13 @@ export async function createLead(leadData: CreateLeadData): Promise<Lead> {
  */
 export async function updateLead(id: string, leadData: UpdateLeadData): Promise<Lead> {
   try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
     // Prepare the data for update, extracting assigned_to_id
     const updateData = {
       ...leadData,
@@ -327,9 +360,9 @@ export async function updateLead(id: string, leadData: UpdateLeadData): Promise<
     }
 
     // Transform data to match Lead type
-    const assignedTo = {
+    const assignedTo = await fetchTeamMember(data.assigned_to) || {
       id: data.assigned_to || '',
-      organizationId: data.organization_id || '',
+      organization_id: data.organization_id || '',
       role: 'analyst' as const,
       profile: {
         id: data.assigned_to || '',
@@ -421,6 +454,55 @@ export async function getLeadStats(organizationId?: string): Promise<{
     };
   } catch (error) {
     console.error('Error fetching lead stats:', error);
+    throw parseSupabaseError(error);
+  }
+}
+
+/**
+ * Email CSV export of leads
+ */
+export async function emailLeadsExport(
+  email: string,
+  filters: LeadsFilters = {}
+): Promise<void> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    // Get the session for the auth token
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.access_token) {
+      throw new Error('No access token available');
+    }
+
+    // Call the API endpoint
+    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/leads/export-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        email,
+        filters
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || 'Failed to send email export');
+    }
+
+    const result = await response.json();
+    console.log('Email export result:', result);
+
+  } catch (error) {
+    console.error('Error emailing leads export:', error);
     throw parseSupabaseError(error);
   }
 } 

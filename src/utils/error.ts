@@ -82,17 +82,110 @@ export function parseSupabaseError(error: unknown): Error {
 	
 	// Handle foreign key constraint errors
 	if (error.message.includes('foreign key constraint')) {
-		return new DatabaseError('Referenced record does not exist.', 'FOREIGN_KEY_VIOLATION');
+		// Extract the field name from the error message
+		// Example: "insert or update on table "leads" violates foreign key constraint "leads_assigned_to_fkey""
+		const fieldMatch = error.message.match(/constraint "([^"]+)_([^"]+)_fkey"/);
+		const fieldName = fieldMatch ? fieldMatch[2] : 'unknown';
+		
+		const fieldDisplayNames: Record<string, string> = {
+			'assigned_to': 'Assigned To',
+			'organization_id': 'Organization',
+			'created_by': 'Created By',
+			'updated_by': 'Updated By'
+		};
+		
+		const displayName = fieldDisplayNames[fieldName] || fieldName;
+		return new ValidationError(`Invalid ${displayName.toLowerCase()}. Please select a valid option.`, fieldName);
 	}
 	
 	// Handle unique constraint errors
 	if (error.message.includes('duplicate key value')) {
-		return new ValidationError('This record already exists.', 'DUPLICATE');
+		// Extract the field name from the error message
+		// Example: "duplicate key value violates unique constraint "leads_email_key""
+		const fieldMatch = error.message.match(/constraint "([^"]+)_([^"]+)_key"/);
+		const fieldName = fieldMatch ? fieldMatch[2] : 'unknown';
+		
+		const fieldDisplayNames: Record<string, string> = {
+			'email': 'Email',
+			'phone': 'Phone',
+			'name': 'Name'
+		};
+		
+		const displayName = fieldDisplayNames[fieldName] || fieldName;
+		return new ValidationError(`This ${displayName.toLowerCase()} already exists.`, fieldName);
 	}
 	
 	// Handle validation errors
 	if (error.message.includes('null value in column')) {
-		return new ValidationError('Required field is missing.', 'NULL_CONSTRAINT');
+		// Extract the field name from the error message
+		// Example: "null value in column "created_by" of relation "leads" violates not-null constraint"
+		const fieldMatch = error.message.match(/null value in column "([^"]+)"/);
+		const fieldName = fieldMatch ? fieldMatch[1] : 'unknown';
+		
+		// Convert database field names to user-friendly names
+		const fieldDisplayNames: Record<string, string> = {
+			'created_by': 'Created By',
+			'updated_by': 'Updated By',
+			'organization_id': 'Organization',
+			'name': 'Name',
+			'email': 'Email',
+			'phone': 'Phone',
+			'company': 'Company',
+			'title': 'Title',
+			'value': 'Value',
+			'stage': 'Stage',
+			'status': 'Status',
+			'priority': 'Priority',
+			'description': 'Description',
+			'notes': 'Notes',
+			'source': 'Source',
+			'assigned_to': 'Assigned To'
+		};
+		
+		const displayName = fieldDisplayNames[fieldName] || fieldName;
+		return new ValidationError(`Required field "${displayName}" is missing.`, fieldName);
+	}
+	
+	// Handle check constraint errors
+	if (error.message.includes('check constraint')) {
+		// Extract the field name from the error message
+		const fieldMatch = error.message.match(/check constraint "([^"]+)"/);
+		const constraintName = fieldMatch ? fieldMatch[1] : 'unknown';
+		
+		// Map constraint names to user-friendly messages
+		const constraintMessages: Record<string, string> = {
+			'leads_stage_check': 'Invalid stage value. Please select a valid stage.',
+			'leads_status_check': 'Invalid status value. Please select a valid status.',
+			'leads_priority_check': 'Invalid priority value. Please select a valid priority.',
+			'leads_value_check': 'Value must be a positive number.'
+		};
+		
+		const message = constraintMessages[constraintName] || 'Invalid data provided.';
+		return new ValidationError(message, constraintName);
+	}
+	
+	// Handle data type errors
+	if (error.message.includes('invalid input syntax')) {
+		// Extract the field name from the error message
+		// Example: "invalid input syntax for type integer: "abc""
+		const fieldMatch = error.message.match(/for type (\w+): "([^"]+)"/);
+		if (fieldMatch) {
+			const dataType = fieldMatch[1];
+			const invalidValue = fieldMatch[2];
+			
+			const typeDisplayNames: Record<string, string> = {
+				'integer': 'number',
+				'numeric': 'number',
+				'decimal': 'number',
+				'date': 'date',
+				'timestamp': 'date and time',
+				'boolean': 'true/false value'
+			};
+			
+			const displayType = typeDisplayNames[dataType] || dataType;
+			return new ValidationError(`Invalid ${displayType} format. Please enter a valid ${displayType}.`, 'data_type');
+		}
+		return new ValidationError('Invalid data format. Please check your input.', 'data_type');
 	}
 	
 	// Handle network errors

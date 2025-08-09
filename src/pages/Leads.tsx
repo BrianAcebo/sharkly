@@ -2,43 +2,52 @@ import React, { useState, useMemo } from 'react';
 import { SearchBar } from '../components/leads/SearchBar';
 import { SearchFilters } from '../components/leads/SearchFilters';
 import { SearchResults } from '../components/leads/SearchResults';
+import { LeadsSpreadsheet } from '../components/leads/LeadsSpreadsheet';
+import { LeadsImportExport } from '../components/leads/LeadsImportExport';
 import AddLeadModal from '../components/leads/AddLeadModal';
 import EditLeadModal from '../components/leads/EditLeadModal';
 import PageMeta from '../components/common/PageMeta';
 import useDebounce from '../hooks/useDebounce';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { useLeads } from '../hooks/useLeads';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
-import { Plus, Loader2 } from 'lucide-react';
-import { Lead } from '../types/leads';
-import { getAllLeads } from '../api';
+import { Plus, Loader2, Grid3X3, List, Download } from 'lucide-react';
+import { Lead, CreateLeadData } from '../types/leads';
+import { LeadsFilters } from '../api/leads';
+import { bulkUpdateLeadsService, bulkDeleteLeadsService, bulkImportLeadsService, getLeadsService } from '../utils/leadService';
+import { toast } from 'sonner';
 
 const LeadsContent: React.FC = () => {
+  const { user } = useAuth();
   const {
     leads,
     loading,
     error,
     refreshLeads
   } = useLeads();
-  
+
   const [searchQuery, setSearchQuery] = useState('');
-  const [filters, setFilters] = useState({
+  type LocalFilters = {
+    status: string;
+    priority: string;
+    stage: string;
+    dateRange?: { from?: Date; to?: Date };
+  };
+
+  const [filters, setFilters] = useState<LocalFilters>({
     status: 'all',
     priority: 'all',
-    stage: 'all'
+    stage: 'all',
+    dateRange: undefined
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportExportModal, setShowImportExportModal] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'spreadsheet'>('cards');
   const perPage = 10;
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
-
-  // Temporary debug function
-  const debugLeads = async () => {
-    console.log('Debug: Checking all leads in database...');
-    const allLeads = await getAllLeads();
-    console.log('Debug: All leads found:', allLeads);
-  };
 
   // Filter and paginate leads using useMemo for performance
   const { filteredLeads, totalPages: localTotalPages, currentLeads } = useMemo(() => {
@@ -66,6 +75,16 @@ const LeadsContent: React.FC = () => {
     // Apply stage filter
     if (filters.stage !== 'all') {
       filtered = filtered.filter(lead => lead.stage === filters.stage);
+    }
+
+    // Apply date range filter
+    if (filters.dateRange?.from || filters.dateRange?.to) {
+      const from = filters.dateRange.from ? new Date(filters.dateRange.from).getTime() : -Infinity;
+      const to = filters.dateRange.to ? new Date(filters.dateRange.to).getTime() : Infinity;
+      filtered = filtered.filter(lead => {
+        const created = new Date(lead.created_at).getTime();
+        return created >= from && created <= to;
+      });
     }
 
     // Calculate pagination
@@ -100,8 +119,85 @@ const LeadsContent: React.FC = () => {
     setEditingLead(lead);
   };
 
+  const handleViewLead = (lead: Lead) => {
+    // Navigate to the lead detail page
+    window.location.href = `/leads/${lead.id}`;
+  };
+
+
+
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+  };
+
+  const handleBulkUpdate = async (leadIds: string[], updates: Partial<Lead>) => {
+    try {
+      await bulkUpdateLeadsService(leadIds, updates);
+      toast.success(`Updated ${leadIds.length} lead${leadIds.length !== 1 ? 's' : ''}`);
+      refreshLeads();
+    } catch (error) {
+      console.error('Error bulk updating leads:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update leads';
+      toast.error(`Failed to update leads: ${errorMessage}`);
+    }
+  };
+
+  const handleBulkDelete = async (leadIds: string[]) => {
+    try {
+      await bulkDeleteLeadsService(leadIds);
+      toast.success(`Deleted ${leadIds.length} lead${leadIds.length !== 1 ? 's' : ''}`);
+      refreshLeads();
+    } catch (error) {
+      console.error('Error bulk deleting leads:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete leads';
+      toast.error(`Failed to delete leads: ${errorMessage}`);
+    }
+  };
+
+  const handleImportLeads = async (leads: CreateLeadData[]) => {
+    try {
+      await bulkImportLeadsService(leads);
+      refreshLeads();
+    } catch (error) {
+      console.error('Error importing leads:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to import leads';
+      toast.error(`Failed to import leads: ${errorMessage}`);
+      throw error;
+    }
+  };
+
+  const handleExportLeads = async (): Promise<Lead[]> => {
+    try {
+      console.log('handleExportLeads called');
+      console.log('user:', user);
+      console.log('organization_id:', user?.organization_id);
+      
+      if (!user?.organization_id) {
+        throw new Error('No organization ID available');
+      }
+      
+      const leads = await getLeadsService(user.organization_id);
+      console.log('Exported leads:', leads);
+      return leads;
+    } catch (error) {
+      console.error('Error exporting leads:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to export leads';
+      toast.error(`Failed to export leads: ${errorMessage}`);
+      throw error;
+    }
+  };
+
+  const handleEmailExport = async (email: string, filters: LeadsFilters): Promise<void> => {
+    try {
+      // Import the emailLeadsExport function
+      const { emailLeadsExport } = await import('../api/leads');
+      await emailLeadsExport(email, filters);
+    } catch (error) {
+      console.error('Error emailing leads export:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send email export';
+      toast.error(`Failed to send email export: ${errorMessage}`);
+      throw error;
+    }
   };
 
   if (loading) {
@@ -118,7 +214,6 @@ const LeadsContent: React.FC = () => {
       <div className="flex flex-col items-center justify-center h-64">
         <p className="text-red-500 mb-4">Error: {error}</p>
         <Button onClick={refreshLeads}>Retry</Button>
-        <Button onClick={debugLeads} className="mt-2">Debug: Check All Leads</Button>
       </div>
     );
   }
@@ -130,10 +225,39 @@ const LeadsContent: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Leads</h1>
           <p className="text-gray-600 dark:text-gray-400">Manage your leads and prospects</p>
         </div>
-        <Button onClick={() => setShowAddModal(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Lead
-        </Button>
+        <div className="flex items-center space-x-2">
+          <div className="flex items-center border border-gray-300 dark:border-gray-600 rounded-lg">
+            <Button
+              variant={viewMode === 'cards' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('cards')}
+              className="rounded-r-none"
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'spreadsheet' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('spreadsheet')}
+              className="rounded-l-none"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowImportExportModal(true)}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Import/Export
+            </Button>
+            <Button onClick={() => setShowAddModal(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Lead
+            </Button>
+          </div>
+        </div>
       </div>
 
       <SearchBar
@@ -143,23 +267,58 @@ const LeadsContent: React.FC = () => {
 
       <SearchFilters
         filters={filters}
-        onFiltersChange={setFilters}
+        onFiltersChange={(f: LocalFilters) => setFilters(f)}
       />
 
-      <SearchResults
-        leads={currentLeads}
-        totalLeads={filteredLeads.length}
-        currentPage={currentPage}
-        totalPages={localTotalPages}
-        onPageChange={handlePageChange}
-        onEditLead={handleEditLead}
-      />
+      {viewMode === 'cards' ? (
+        <SearchResults
+          leads={currentLeads}
+          totalLeads={filteredLeads.length}
+          currentPage={currentPage}
+          totalPages={localTotalPages}
+          onPageChange={handlePageChange}
+          onEditLead={handleEditLead}
+        />
+      ) : (
+        <LeadsSpreadsheet
+          leads={currentLeads}
+          onEditLead={handleEditLead}
+          onViewLead={handleViewLead}
+          onDeleteLeads={handleBulkDelete}
+          onBulkUpdate={handleBulkUpdate}
+        />
+      )}
 
       {showAddModal && (
         <AddLeadModal
           onClose={() => setShowAddModal(false)}
           onLeadCreated={handleLeadCreated}
         />
+      )}
+
+      {showImportExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Import/Export Leads
+              </h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowImportExportModal(false)}
+              >
+                ×
+              </Button>
+            </div>
+            <LeadsImportExport
+              leads={leads}
+              onImportLeads={handleImportLeads}
+              onExportLeads={handleExportLeads}
+              onEmailExport={handleEmailExport}
+            />
+          </div>
+        </div>
       )}
 
       {editingLead && (

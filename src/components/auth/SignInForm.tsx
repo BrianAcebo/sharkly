@@ -69,8 +69,6 @@ export default function SignInForm() {
 		const sanitizedEmail = sanitizeInput(email);
 		const sanitizedPassword = sanitizeInput(password);
 
-		console.log('Signing in with:', sanitizedEmail, sanitizedPassword);
-
 		try {
 			await signIn(sanitizedEmail, sanitizedPassword);
 		} catch (error) {

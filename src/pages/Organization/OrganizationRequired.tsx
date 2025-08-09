@@ -304,7 +304,7 @@ const PaymentForm = ({
 			toast.success('Payment successful');
 			await onPaymentSuccess();
 			toast.success('Organization created successfully');
-			navigate('/cases');
+			navigate('/pipeline');
 		} catch (error) {
 			console.error('Error:', error);
 			toast.error(error instanceof Error ? error.message : 'Payment failed');

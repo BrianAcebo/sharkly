@@ -26,7 +26,7 @@ export default function DatePicker({
 	useEffect(() => {
 		const flatPickr = flatpickr(`#${id}`, {
 			mode: mode || 'single',
-			static: true,
+			static: true, // keep calendar anchored to the input/popover to avoid jumping
 			monthSelectorType: 'static',
 			dateFormat: 'Y-m-d',
 			defaultDate,

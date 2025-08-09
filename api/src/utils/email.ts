@@ -1,11 +1,20 @@
 import nodemailer from 'nodemailer';
 import { config } from '../config';
 
+interface EmailAttachment {
+	filename: string;
+	content: string;
+	contentType?: string;
+}
+
 interface EmailOptions {
 	to: string;
 	subject: string;
 	text: string;
 	html: string;
+	attachments?: EmailAttachment[];
+	from?: string;
+	replyTo?: string;
 }
 
 type TemplateData = {
@@ -48,26 +57,69 @@ const templates = {
 } as const;
 
 class EmailService {
-	private transporter: nodemailer.Transporter;
+	private transporter: nodemailer.Transporter | null = null;
+	private isDevMode: boolean;
 
 	constructor() {
-		this.transporter = nodemailer.createTransport({
-			host: config.smtp.host,
-			port: config.smtp.port,
-			secure: config.smtp.secure,
-			auth: {
-				user: config.smtp.user,
-				pass: config.smtp.pass
-			}
-		});
+		this.isDevMode = process.env.NODE_ENV === 'development' || !config.smtp.user || !config.smtp.pass;
+		
+		if (!this.isDevMode) {
+			this.transporter = nodemailer.createTransport({
+				host: config.smtp.host,
+				port: config.smtp.port,
+				secure: config.smtp.secure,
+				auth: {
+					user: config.smtp.user,
+					pass: config.smtp.pass
+				}
+			});
+		}
 	}
 
 	async sendEmail(options: EmailOptions): Promise<void> {
 		try {
-			await this.transporter.sendMail({
-				from: config.smtp.from,
-				...options
-			});
+			if (this.isDevMode) {
+				// In development mode, just log the email details
+				console.log('📧 DEV MODE - Email would be sent:');
+				console.log('  From:', options.from || config.smtp.from);
+				console.log('  Reply-To:', options.replyTo || config.smtp.from);
+				console.log('  To:', options.to);
+				console.log('  Subject:', options.subject);
+				if (options.attachments && options.attachments.length > 0) {
+					console.log('  Attachments:', options.attachments.map(a => a.filename));
+				}
+				console.log('  --- End of email log ---');
+				return;
+			}
+
+			if (!this.transporter) {
+				throw new Error('Email transporter not configured');
+			}
+
+			const mailOptions: any = {
+				from: options.from || `Paperboat CRM <${config.smtp.from}>`,
+				sender: config.smtp.user, // actual authenticated sender
+				replyTo: options.replyTo || config.smtp.from,
+				to: options.to,
+				subject: options.subject,
+				text: options.text,
+				html: options.html,
+				envelope: {
+					from: config.smtp.from,
+					to: options.to
+				}
+			};
+
+			// Add attachments if provided
+			if (options.attachments && options.attachments.length > 0) {
+				mailOptions.attachments = options.attachments.map(attachment => ({
+					filename: attachment.filename,
+					content: attachment.content,
+					contentType: attachment.contentType || 'text/plain'
+				}));
+			}
+
+			await this.transporter.sendMail(mailOptions);
 		} catch (error) {
 			console.error('Error sending email:', error);
 			throw new Error('Failed to send email');

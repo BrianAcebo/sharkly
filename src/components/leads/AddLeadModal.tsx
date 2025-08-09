@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Textarea } from '../ui/textarea';
 import { createLeadService } from '../../utils/leadService';
 import { CreateLeadData } from '../../types/leads';
 import { toast } from 'sonner';
 import { parseSupabaseError } from '../../utils/error';
 import { useTeamMembers } from '../../hooks/useTeamMembers';
-import { User, Mail, Phone, Building2, DollarSign, X, Loader2, AlertCircle, Users } from 'lucide-react';
+import { TeamMemberSelect } from './TeamMemberSelect';
+import { User, Mail, Phone, Building2, DollarSign, X, Loader2, AlertCircle } from 'lucide-react';
+import { LEAD_STAGES, LEAD_PRIORITIES } from '../../utils/constants';
 
 interface AddLeadModalProps {
   onClose: () => void;
@@ -27,8 +24,8 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
     phone: '',
     company: '',
     value: 0,
-    priority: 'low',
-    stage: 'new',
+    priority: LEAD_PRIORITIES.LOW,
+    stage: LEAD_STAGES.NEW,
     category: '',
     notes: '',
     assigned_to: undefined
@@ -38,6 +35,8 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
     e.preventDefault();
     console.log('Form submitted!');
     console.log('Form data:', formData);
+    console.log('Assigned to:', formData.assigned_to);
+    console.log('Team members available:', teamMembers);
     
     setIsLoading(true);
     setErrorMessage(null); // Clear any previous errors
@@ -281,29 +280,19 @@ const AddLeadModal: React.FC<AddLeadModalProps> = ({ onClose, onLeadCreated }) =
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Assign To
             </label>
-            <div className="relative">
-              <Users className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <select
-                name="assigned_to"
-                value={formData.assigned_to?.id || ''}
-                onChange={(e) => {
-                  const selectedMember = teamMembers.find(member => member.id === e.target.value);
-                  setFormData(prev => ({
-                    ...prev,
-                    assigned_to: selectedMember || undefined
-                  }));
-                }}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
-                disabled={isLoading || isLoadingTeamMembers}
-              >
-                <option value="">Select team member (optional)</option>
-                {teamMembers.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.profile.first_name} {member.profile.last_name} ({member.role})
-                  </option>
-                ))}
-              </select>
-            </div>
+            <TeamMemberSelect
+              teamMembers={teamMembers}
+              selectedMember={formData.assigned_to}
+              onMemberSelect={(member) => {
+                setFormData(prev => ({
+                  ...prev,
+                  assigned_to: member
+                }));
+              }}
+              placeholder="Select team member (optional)"
+              disabled={isLoading}
+              isLoading={isLoadingTeamMembers}
+            />
           </div>
 
           <div>

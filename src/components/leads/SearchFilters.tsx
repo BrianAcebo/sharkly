@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
 	Select,
 	SelectContent,
@@ -13,11 +13,13 @@ import { Badge } from '../ui/badge';
 import { X, Filter, CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import DatePicker from '../form/date-picker';
+import { FILTER_OPTIONS } from '../../utils/constants';
 
 interface Filters {
 	status: string;
 	priority: string;
 	stage: string;
+	dateRange?: { from?: Date; to?: Date };
 }
 
 interface SearchFiltersProps {
@@ -30,42 +32,47 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 	const [showFilters, setShowFilters] = useState<boolean>(false);
 	const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({});
 
+	// Local, unapplied working copy for the Advanced Filters dialog
+	const [localFilters, setLocalFilters] = useState<Filters>(filters);
+
+	// When opening the panel, sync local state with current applied filters
+	useEffect(() => {
+		if (showFilters) {
+			setLocalFilters(filters);
+			setDateRange(filters.dateRange || {});
+		}
+	}, [showFilters, filters]);
+
 	const handleStatusChange = (value: string) => {
-		onFiltersChange({
-			...filters,
-			status: value
-		});
+		setLocalFilters((prev) => ({ ...prev, status: value }));
 	};
 
 	const handlePriorityChange = (value: string) => {
-		onFiltersChange({
-			...filters,
-			priority: value
-		});
+		setLocalFilters((prev) => ({ ...prev, priority: value }));
 	};
 
 	const handleStageChange = (value: string) => {
-		onFiltersChange({
-			...filters,
-			stage: value
-		});
+		setLocalFilters((prev) => ({ ...prev, stage: value }));
+	};
+
+	const applyFilters = () => {
+		onFiltersChange({ ...localFilters, dateRange });
+		setShowFilters(false);
 	};
 
 	const clearFilters = () => {
-		onFiltersChange({
-			status: 'all',
-			priority: 'all',
-			stage: 'all'
-		});
+		const cleared: Filters = { status: 'all', priority: 'all', stage: 'all', dateRange: undefined };
+		setLocalFilters(cleared);
 		setDateRange({});
+		onFiltersChange(cleared);
 	};
 
-	// Count active filters
+	// Count active filters for badge and summary
 	const activeFilterCount = [
 		filters.status !== 'all',
 		filters.priority !== 'all',
 		filters.stage !== 'all',
-		dateRange.from || dateRange.to
+		filters.dateRange?.from || filters.dateRange?.to
 	].filter(Boolean).length;
 
 	type Select = {
@@ -76,7 +83,7 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 	type SelectOption = {
 		value: string;
 		label: string;
-	};
+	} | Readonly<{ value: string; label: string }>;
 
 	const renderSelect = (
 		select: Select,
@@ -85,7 +92,7 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 	) => {
 		return (
 			<Select
-				value={filters[select.name as keyof Filters] as string}
+				value={localFilters[select.name as keyof Filters] as string}
 				onValueChange={onValueChange}
 			>
 				<SelectTrigger className="h-9 w-[180px] border border-gray-200 bg-white shadow-sm dark:border-gray-900 dark:bg-white/[0.03]">
@@ -94,11 +101,11 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 				<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
 					{select.options.map((option: SelectOption, i: number) => (
 						<SelectItem
-							key={option.value + '-' + i}
+							key={`${(option as { value: string }).value}-${i}`}
 							className="cursor-pointer"
-							value={option.value}
+							value={(option as { value: string }).value}
 						>
-							{option.label}
+							{(option as { label: string }).label}
 						</SelectItem>
 					))}
 				</SelectContent>
@@ -108,84 +115,17 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 
 	const statusOptions: Select = {
 		name: 'status',
-		options: [
-			{
-				value: 'all',
-				label: 'All statuses'
-			},
-			{
-				value: 'active',
-				label: 'Active'
-			},
-			{
-				value: 'in_progress',
-				label: 'In progress'
-			},
-			{
-				value: 'closed',
-				label: 'Closed'
-			}
-		]
+		options: FILTER_OPTIONS.STATUS as unknown as SelectOption[]
 	};
 
 	const priorityOptions: Select = {
 		name: 'priority',
-		options: [
-			{
-				value: 'all',
-				label: 'All priority levels'
-			},
-			{
-				value: 'low',
-				label: 'Low'
-			},
-			{
-				value: 'medium',
-				label: 'Medium'
-			},
-			{
-				value: 'high',
-				label: 'High'
-			},
-			{
-				value: 'critical',
-				label: 'Critical'
-			}
-		]
+		options: FILTER_OPTIONS.PRIORITY as unknown as SelectOption[]
 	};
 
 	const stageOptions: Select = {
 		name: 'stage',
-		options: [
-			{
-				value: 'all',
-				label: 'All stages'
-			},
-			{
-				value: 'new',
-				label: 'New Lead'
-			},
-			{
-				value: 'contacted',
-				label: 'Contacted'
-			},
-			{
-				value: 'qualified',
-				label: 'Qualified'
-			},
-			{
-				value: 'proposal',
-				label: 'Proposal'
-			},
-			{
-				value: 'closed-won',
-				label: 'Closed Won'
-			},
-			{
-				value: 'closed-lost',
-				label: 'Closed Lost'
-			}
-		]
+		options: FILTER_OPTIONS.STAGE as unknown as SelectOption[]
 	};
 
 	return (
@@ -228,8 +168,23 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 				</p>
 			</div>
 
+			{/* Applied filters summary */}
+			{activeFilterCount > 0 && (
+				<div className="flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-400">
+					{filters.status !== 'all' && <Badge variant="secondary">Status: {filters.status}</Badge>}
+					{filters.priority !== 'all' && <Badge variant="secondary">Priority: {filters.priority}</Badge>}
+					{filters.stage !== 'all' && <Badge variant="secondary">Stage: {filters.stage}</Badge>}
+					{(filters.dateRange?.from || filters.dateRange?.to) && (
+						<Badge variant="secondary">
+							Date: {filters.dateRange?.from ? format(filters.dateRange.from, 'LLL dd, y') : '...'}
+							{filters.dateRange?.to ? ` - ${format(filters.dateRange.to, 'LLL dd, y')}` : ''}
+						</Badge>
+					)}
+				</div>
+			)}
+
 			{showFilters && (
-				<div className="animate-in slide-in-from-top-2 flex gap-10 rounded-lg bg-white p-4 text-gray-700 ring-1 ring-gray-300 duration-200 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
+				<div className="animate-in slide-in-from-top-2 flex flex-wrap gap-10 rounded-lg bg-white p-4 text-gray-700 ring-1 ring-gray-300 duration-200 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
 					<div className="space-y-4">
 						<label className="mb-3 block text-sm font-medium">Status</label>
 						{renderSelect(statusOptions, 'Select status', handleStatusChange)}
@@ -280,11 +235,17 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 									onChange={(dates: Date[]) => {
 										if (dates && dates.length === 2) {
 											setDateRange({ from: dates[0], to: dates[1] });
+											setLocalFilters((prev) => ({ ...prev, dateRange: { from: dates[0], to: dates[1] } }));
 										}
 									}}
 								/>
 							</PopoverContent>
 						</Popover>
+					</div>
+
+					<div className="w-full flex flex-col sm:flex-row justify-end gap-2 mt-4">
+						<Button variant="ghost" onClick={() => { setShowFilters(false); setLocalFilters(filters); setDateRange(filters.dateRange || {}); }}>Cancel</Button>
+						<Button onClick={applyFilters}>Save</Button>
 					</div>
 				</div>
 			)}

@@ -3,7 +3,8 @@ import { Lead, CreateLeadData, UpdateLeadData, Communication } from '../types/le
 import { parseSupabaseError } from './error';
 
 // Get all leads for the current user's organization
-export async function getLeadsService(organizationId?: string): Promise<Lead[]> {
+export async function getLeadsService(organizationId: string): Promise<Lead[]> {
+  console.log('getLeadsService', organizationId);
   try {
     const response = await getLeads({}, 1, 100, organizationId);
     return response.leads;
@@ -66,7 +67,7 @@ export async function addCommunicationService(): Promise<Communication> {
 }
 
 // Search leads
-export async function searchLeadsService(query: string, organizationId?: string): Promise<Lead[]> {
+export async function searchLeadsService(query: string, organizationId: string): Promise<Lead[]> {
   try {
     const response = await getLeads({ search: query }, 1, 100, organizationId);
     return response.leads;
@@ -76,10 +77,40 @@ export async function searchLeadsService(query: string, organizationId?: string)
 }
 
 // Get leads by stage
-export async function getLeadsByStageService(stage: string, organizationId?: string): Promise<Lead[]> {
+export async function getLeadsByStageService(stage: string, organizationId: string): Promise<Lead[]> {
   try {
     const response = await getLeads({ stage: stage as 'new' | 'contacted' | 'qualified' | 'proposal' | 'closed-won' | 'closed-lost' }, 1, 100, organizationId);
     return response.leads;
+  } catch (error) {
+    throw parseSupabaseError(error);
+  }
+}
+
+// Bulk update leads
+export async function bulkUpdateLeadsService(leadIds: string[], updates: Partial<Lead>): Promise<void> {
+  try {
+    // Update each lead individually (could be optimized with a batch update API)
+    await Promise.all(leadIds.map(id => updateLead(id, updates)));
+  } catch (error) {
+    throw parseSupabaseError(error);
+  }
+}
+
+// Bulk delete leads
+export async function bulkDeleteLeadsService(leadIds: string[]): Promise<void> {
+  try {
+    // Delete each lead individually (could be optimized with a batch delete API)
+    await Promise.all(leadIds.map(id => deleteLead(id)));
+  } catch (error) {
+    throw parseSupabaseError(error);
+  }
+}
+
+// Bulk import leads
+export async function bulkImportLeadsService(leads: CreateLeadData[]): Promise<void> {
+  try {
+    // Create each lead individually (could be optimized with a batch create API)
+    await Promise.all(leads.map(lead => createLead(lead)));
   } catch (error) {
     throw parseSupabaseError(error);
   }

@@ -6,6 +6,8 @@ import CommunicationComposer from '../communications/CommunicationComposer';
 import { useLeads } from '../../hooks/useLeads';
 import { useNavigate, useParams } from 'react-router';
 import { Button } from '../ui/button';
+import { deleteLeadService } from '../../utils/leadService';
+import { toast } from 'sonner';
 
 const LeadProfile: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'info' | 'communications'>('info');
@@ -29,7 +31,25 @@ const LeadProfile: React.FC = () => {
   };
 
   const handleBack = () => {
-    navigate('/pipeline');
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/pipeline');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!selectedLead) return;
+    
+    try {
+      await deleteLeadService(selectedLead.id);
+      toast.success('Lead deleted successfully!');
+      navigate('/pipeline');
+    } catch (error) {
+      console.error('Error deleting lead:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete lead';
+      toast.error(`Failed to delete lead: ${errorMessage}`);
+    }
   };
 
   if (!selectedLead) {
@@ -82,7 +102,7 @@ const LeadProfile: React.FC = () => {
             <Button variant="outline">
               <Edit className="h-4 w-4" />
             </Button>
-            <Button variant="destructive">
+            <Button variant="destructive" onClick={handleDelete}>
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>

@@ -11,7 +11,7 @@ import {
   Target
 } from 'lucide-react';
 import type { Communication } from '../../types/leads';
-import { getStatusColor, getStageLabel } from '../../utils/stages';
+import { LeadStage, getStageColor, getStageLabel } from '../../utils/stages';
 
 interface LeadInfoProps {
   lead: Lead;
@@ -79,7 +79,7 @@ const LeadInfo: React.FC<LeadInfoProps> = ({ lead }) => {
                 <Target className="h-5 w-5 text-gray-400" />
                 <div>
                   <p className="text-sm text-gray-500 dark:text-gray-400">Stage</p>
-                  <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(lead.stage)}`}>
+                  <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${getStageColor(lead.stage as LeadStage)}`}>
                     {getStageLabel(lead.stage)}
                   </span>
                 </div>

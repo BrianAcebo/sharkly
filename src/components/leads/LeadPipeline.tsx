@@ -6,7 +6,7 @@ import LeadCard from './LeadCard';
 import AddLeadModal from './AddLeadModal';
 import { Lead } from '../../types/leads';
 import { Button } from '../ui/button';
-import { LeadStage, getStageLabel, getStatusColor, stages } from '../../utils/stages';
+import { LeadStage, getStageLabel, getStageColor, stages } from '../../utils/stages';
 
 const LeadPipeline: React.FC = () => {
   const navigate = useNavigate();
@@ -89,7 +89,7 @@ const LeadPipeline: React.FC = () => {
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(stage)}`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStageColor(stage as LeadStage)}`}>
                       {getStageLabel(stage)}
                     </span>
                     <span className="text-sm text-gray-500 dark:text-gray-400">

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Lead, CreateLeadData, UpdateLeadData } from '../types/leads';
 import { getLeads, getLead, createLead, updateLead, deleteLead, LeadsFilters, LeadsResponse } from '../api/leads';
@@ -36,6 +36,10 @@ export const useLeads = (): UseLeadsState & UseLeadsActions => {
     totalPages: 0,
     filters: {}
   });
+  
+  // Use ref to store current state values to avoid dependency issues
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const fetchLeads = useCallback(async (filters?: LeadsFilters, page?: number) => {
     console.log('useLeads - fetchLeads called with user:', user);
@@ -50,10 +54,13 @@ export const useLeads = (): UseLeadsState & UseLeadsActions => {
     
     try {
       console.log('useLeads - Calling getLeads with organization_id:', user.organization_id);
+      
+      // Get current state values for the API call
+      const currentState = stateRef.current;
       const response: LeadsResponse = await getLeads(
-        filters || state.filters,
-        page || state.page,
-        state.perPage,
+        filters || currentState.filters,
+        page || currentState.page,
+        currentState.perPage,
         user.organization_id
       );
       
@@ -77,7 +84,7 @@ export const useLeads = (): UseLeadsState & UseLeadsActions => {
       }));
       toast.error(`Failed to fetch leads: ${errorMessage}`);
     }
-  }, [state.filters, state.page, state.perPage, user?.organization_id]);
+  }, [user?.organization_id]);
 
   // Fetch leads when user or organization changes
   useEffect(() => {
@@ -173,8 +180,10 @@ export const useLeads = (): UseLeadsState & UseLeadsActions => {
 };
 
 // Categories for filtering
-export const priorityLevels = ['all', 'low', 'medium', 'high', 'critical'] as const;
-export const caseStatuses = ['all', 'active', 'closed', 'in_progress'] as const;
+import { LEAD_PRIORITIES, LEAD_STATUSES } from '../utils/constants';
+
+export const priorityLevels = ['all', ...Object.values(LEAD_PRIORITIES)] as const;
+export const caseStatuses = ['all', ...Object.values(LEAD_STATUSES)] as const;
 
 // Legacy function for backward compatibility
 export const getSearchResults = (): { results: Lead[]; total: number } => {

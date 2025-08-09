@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import type { TeamMember } from '../types/leads';
+import type { TeamMember, UserProfile } from '../types/leads';
 import useAuth from './useAuth';
 
 export const useTeamMembers = () => {
@@ -21,21 +21,34 @@ export const useTeamMembers = () => {
       setError(null);
 
       const { data: members, error: membersError } = await supabase
-        .from('team_members')
-        .select('*, profile:profiles(*)')
+        .from('user_organizations')
+        .select(`
+          role,
+          organization_id,
+          profile:user_id (
+            id,
+            first_name,
+            last_name,
+            avatar,
+            completed_onboarding
+          )
+        `)
         .eq('organization_id', user.organization_id);
 
       if (membersError) {
+        console.error("membersError", membersError);
         throw new Error('Failed to fetch team members');
       }
 
-      // Transform the data to include avatar URLs
+      // Transform the data to include avatar URLs and match TeamMember interface
       const transformedMembers = (members || []).map((member) => {
         let avatarUrl = '';
-        if (member.profile.avatar) {
+        const profile = member.profile as unknown as UserProfile; // Direct reference since we're using foreign key
+        
+        if (profile?.avatar) {
           const { data: imageUrl } = supabase.storage
             .from('avatars')
-            .getPublicUrl(member.profile.avatar);
+            .getPublicUrl(profile.avatar);
 
           if (imageUrl?.publicUrl) {
             avatarUrl = imageUrl.publicUrl;
@@ -43,10 +56,15 @@ export const useTeamMembers = () => {
         }
 
         return {
-          ...member,
+          id: member.user_id,
+          organization_id: member.organization_id,
+          role: member.role,
           profile: {
-            ...member.profile,
-            avatar: avatarUrl
+            id: profile?.id || member.user_id,
+            first_name: profile?.first_name || '',
+            last_name: profile?.last_name || '',
+            avatar: avatarUrl,
+            completed_onboarding: profile?.completed_onboarding || false
           }
         };
       });

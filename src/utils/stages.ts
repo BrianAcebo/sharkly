@@ -9,7 +9,7 @@ export const stages: LeadStage[] = [
   'closed-lost'
 ]
 
-export const getStatusColor = (stage: LeadStage): string => {
+export const getStageColor = (stage: LeadStage): string => {
   switch (stage) {
     case 'new':
       return 'bg-gray-100 text-gray-900 dark:bg-gray-700 dark:text-gray-100';

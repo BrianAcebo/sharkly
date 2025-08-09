@@ -1,8 +1,8 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import type { Lead } from '../../contexts/DataContext';
+import type { Lead } from '../../types/leads';
 import { formatDistanceToNow } from 'date-fns';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
+import { Avatar, AvatarFallback } from '../ui/avatar';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
@@ -22,6 +22,8 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger
 } from '../ui/dropdown-menu';
+import { getStageColor, getStageLabel } from '../../utils/stages';
+import { LEAD_PRIORITIES } from '../../utils/constants';
 
 interface SearchResultsProps {
 	leads: Lead[];
@@ -37,7 +39,7 @@ export function SearchResults({
 	currentPage, 
 	totalPages, 
 	onPageChange, 
-	onEditLead 
+	onEditLead
 }: SearchResultsProps) {
 	const [selectedResult, setSelectedResult] = useState<Lead | null>(leads[0] ?? null);
 
@@ -45,33 +47,18 @@ export function SearchResults({
 		setSelectedResult(leads[0] ?? null);
 	}, [leads]);
 
-	const getStatusColor = (status: string) => {
-		switch (status) {
-			case 'active':
-				return 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-900';
-			case 'in_progress':
-				return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-900';
-			case 'closed':
-				return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900';
-			default:
-				return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900';
-		}
-	};
-
 	const getPriorityColor = (status: string) => {
 		switch (status) {
-			case 'low':
+			case LEAD_PRIORITIES.LOW:
 				return 'border-none text-green-700 dark:text-green-400';
-			case 'medium':
+			case LEAD_PRIORITIES.MEDIUM:
 				return 'border-none text-amber-700 dark:text-amber-400';
-			case 'high':
+			case LEAD_PRIORITIES.HIGH:
 				return 'border-none text-red-700 dark:text-red-400';
-			case 'critical':
+			case LEAD_PRIORITIES.CRITICAL:
 				return 'border-none text-red-900 dark:text-red-600';
 		}
 	};
-
-
 
 	// Handle page change
 	const handlePageChange = (page: number) => {
@@ -101,22 +88,18 @@ export function SearchResults({
 					{leads.map((lead) => (
 						<Card
 							key={lead.id}
-							className={`overflow-hidden ${
-								selectedResult?.id === lead.id ? 'ring-1 ring-offset-1' : 'hover:ring-1'
-							}`}
 						>
 							<CardHeader className="p-6">
 								<div className="flex flex-col items-start justify-between gap-3 md:flex-row">
 									<div className="flex items-center space-x-2">
 										<Avatar className="h-8 w-8 border">
-											<AvatarImage src={lead.avatar} alt={lead.name} />
 											<AvatarFallback>{lead.name.charAt(0)}</AvatarFallback>
 										</Avatar>
 										<div>
 											<p className="text-sm font-medium">{lead.name}</p>
 											<p className="text-xs text-gray-600 dark:text-gray-300">
 												Updated:{' '}
-												{formatDistanceToNow(new Date(lead.updatedAt), {
+												{formatDistanceToNow(new Date(lead.updated_at), {
 													addSuffix: true
 												})}
 											</p>
@@ -137,9 +120,9 @@ export function SearchResults({
 										<div className="flex items-center justify-between">
 											<Badge
 												variant="outline"
-												className={`text-xs capitalize ${getStatusColor(lead.status)}`}
+												className={`text-xs capitalize ${getStageColor(lead.stage)}`}
 											>
-												{lead.status.replace('in_progress', 'In Progress')}
+												{getStageLabel(lead.stage)}
 											</Badge>
 											<DropdownMenu>
 												<DropdownMenuTrigger asChild>
@@ -167,12 +150,12 @@ export function SearchResults({
 										{lead.title || `${lead.name} - ${lead.company || 'No Company'}`}
 									</h3>
 									<p className="mb-5 text-gray-600 dark:text-gray-300">
-										{lead.description || `${lead.email} • ${lead.phone || 'No phone'}`}
+										{`${lead.email} • ${lead.phone || 'No phone'}`}
 									</p>
 									<div className="flex items-center gap-2">
 										<Badge
 											variant="outline"
-											className={`text-xs capitalize ${getStatusColor(lead.stage)}`}
+											className={`text-xs capitalize ${getStageColor(lead.stage)}`}
 										>
 											{lead.stage.replace('-', ' ')}
 										</Badge>
@@ -256,9 +239,9 @@ export function SearchResults({
 								<div className="flex flex-col items-end gap-2">
 									<Badge
 										variant="outline"
-										className={`capitalize ${getStatusColor(selectedResult.status)}`}
+										className={`capitalize ${getStageColor(selectedResult.stage)}`}
 									>
-										{selectedResult.status.replace('in_progress', 'In Progress')}
+										{getStageLabel(selectedResult.stage)}
 									</Badge>
 									<span className="flex text-sm">
 										Priority:
@@ -278,17 +261,13 @@ export function SearchResults({
 						<CardContent className="pt-4">
 							<div className="mb-4 flex items-center space-x-3">
 								<Avatar className="h-10 w-10 border">
-									<AvatarImage
-										src={selectedResult.avatar}
-										alt={selectedResult.name}
-									/>
 									<AvatarFallback>{selectedResult.name.charAt(0)}</AvatarFallback>
 								</Avatar>
 								<div>
 									<p className="font-medium">{selectedResult.name}</p>
 									<p className="text-sm text-gray-600 capitalize dark:text-gray-300">
 										Updated:{' '}
-										{formatDistanceToNow(new Date(selectedResult.updatedAt), {
+										{formatDistanceToNow(new Date(selectedResult.updated_at), {
 											addSuffix: true
 										})}
 									</p>
@@ -296,7 +275,7 @@ export function SearchResults({
 							</div>
 
 							<p className="mb-4 text-gray-600 dark:text-gray-300">
-								{selectedResult.description || `${selectedResult.email} • ${selectedResult.phone || 'No phone'}`}
+								{`${selectedResult.email} • ${selectedResult.phone || 'No phone'}`}
 							</p>
 
 							<div className="mb-4 grid grid-cols-2 gap-4">
@@ -308,7 +287,7 @@ export function SearchResults({
 									<span className="text-xs text-gray-600 dark:text-gray-300">Stage</span>
 									<Badge
 										variant="outline"
-										className={`text-xs capitalize ${getStatusColor(selectedResult.stage)}`}
+										className={`text-xs capitalize ${getStageColor(selectedResult.stage)}`}
 									>
 										{selectedResult.stage.replace('-', ' ')}
 									</Badge>
@@ -339,12 +318,19 @@ export function SearchResults({
 								<span className="text-xs text-gray-600 dark:text-gray-300">Last Updated</span>
 								<div className="flex items-center text-sm">
 									<Calendar className="mr-2 h-4 w-4 text-gray-600 dark:text-gray-300" />
-									<span>{new Date(selectedResult.updatedAt).toLocaleString()}</span>
+									<span>{new Date(selectedResult.updated_at).toLocaleString()}</span>
 								</div>
 							</div>
 						</CardContent>
 						<Separator />
-						<CardFooter className="flex justify-end pt-4">
+						<CardFooter className="flex justify-between items-center pt-4">
+							<a
+								href={`/leads/${selectedResult.id}`}
+								onClick={(e) => e.stopPropagation()}
+								className="text-sm text-gray-600 dark:text-gray-300 underline underline-offset-4 hover:text-blue-600 cursor-pointer"
+							>
+								View
+							</a>
 							<Button 
 								variant="outline" 
 								onClick={() => onEditLead(selectedResult)}

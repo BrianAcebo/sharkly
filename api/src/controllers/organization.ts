@@ -79,16 +79,8 @@ export const createOrganization = async (req: Request, res: Response) => {
 			return res.status(500).json({ error: 'Failed to create organization' });
 		}
 
-		// Update the user's profile with the organization ID
-		const { error: profileError } = await supabase
-			.from('profiles')
-			.update({ organization_id: organization.id })
-			.eq('id', userId);
-
-		if (profileError) {
-			console.error('Error updating user profile:', profileError);
-			// Don't fail the whole operation if profile update fails
-		}
+		// Note: We don't update profiles table with organization_id since that column doesn't exist
+		// The relationship is maintained through the user_organizations table
 
 		return res.json({ organizationId: organization.id });
 	} catch (error) {

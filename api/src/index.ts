@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { paymentRoutes } from './routes/payment';
 import organizationRoutes from './routes/organization';
+import leadsRoutes from './routes/leads';
 import { HttpError } from './error/httpError';
 import { requireAuth } from './middleware/auth';
 
@@ -45,6 +46,7 @@ app.get('/api/test-auth', requireAuth, (req, res) => {
 // Routes
 app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
+app.use('/api/leads', leadsRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthContext, UserProfile, AuthLoadingState } from '../contexts/AuthContext';
 import { Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
+import { authDebug } from '../utils/authDebug';
 
 interface ProfileData {
 	id: string;
@@ -18,9 +19,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 	const [error, setError] = useState<AuthError | null>(null);
 	const [message, setMessage] = useState<string | null>(null);
 	const [loadingState, setLoadingState] = useState<AuthLoadingState>(AuthLoadingState.LOADING);
+	const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
 	const updateUser = useCallback(async () => {
 		try {
+			console.log('updateUser called');
 			const {
 				data: { session: currentSession }
 			} = await supabase.auth.getSession();
@@ -94,6 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 					role: userOrg?.role || ''
 				};
 
+				console.log('Setting updated user:', updatedUser);
 				setUser(updatedUser);
 			} else {
 				console.error('No profile found for user:', currentSession.user.id);
@@ -102,6 +106,96 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 			console.error('Error updating user:', err);
 			toast.error('Failed to update user profile');
 		}
+	}, []);
+
+	// Debounced user update to prevent excessive API calls
+	const debouncedUpdateUser = useCallback((session: Session | null) => {
+		// Clear existing timeout
+		if (updateTimeoutRef.current) {
+			clearTimeout(updateTimeoutRef.current);
+		}
+
+		// Set new timeout
+		updateTimeoutRef.current = setTimeout(async () => {
+			if (session?.user) {
+				try {
+					const { data: profile, error: profileError } = await supabase
+						.from('profiles')
+						.select(
+							`
+							id,
+							first_name,
+							last_name,
+							avatar,
+							completed_onboarding
+						`
+						)
+						.eq('id', session.user.id)
+						.single();
+
+					if (profileError) {
+						console.error('Error fetching profile:', profileError);
+						setUser(session.user as UserProfile);
+						return;
+					}
+
+					if (profile) {
+						const profileData = profile as ProfileData;
+						let updatedUser = { ...session.user } as UserProfile;
+
+						// Query user_organizations table to get organization and role data
+						const { data: userOrg, error: userOrgError } = await supabase
+							.from('user_organizations')
+							.select('organization_id, role')
+							.eq('user_id', profileData.id)
+							.single();
+
+						if (userOrgError && userOrgError.code !== 'PGRST116') {
+							console.error('Error fetching user organization:', userOrgError);
+						}
+
+						// Handle avatar URL
+						let avatarUrl = '';
+						if (profileData.avatar) {
+							try {
+								if (!profileData.avatar.startsWith('http')) {
+									const { data: imageUrl } = supabase.storage
+										.from('avatars')
+										.getPublicUrl(profileData.avatar);
+
+									if (imageUrl?.publicUrl) {
+										avatarUrl = imageUrl.publicUrl;
+									}
+								} else {
+									avatarUrl = profileData.avatar;
+								}
+							} catch (error) {
+								console.error('Error getting avatar URL:', error);
+							}
+						}
+
+						// Update user with profile data
+						updatedUser = {
+							...updatedUser,
+							...profileData,
+							avatar: avatarUrl,
+							organization_id: userOrg?.organization_id || '',
+							role: userOrg?.role || ''
+						};
+
+						authDebug.log('Debounced update - setting user:', updatedUser);
+						setUser(updatedUser);
+					} else {
+						setUser(session.user as UserProfile);
+					}
+				} catch (error) {
+					console.error('Error updating user on debounced update:', error);
+					setUser(session.user as UserProfile);
+				}
+			} else {
+				setUser(null);
+			}
+		}, 100); // 100ms debounce
 	}, []);
 
 	useEffect(() => {
@@ -193,16 +287,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		// Listen for auth changes
 		const {
 			data: { subscription }
-		} = supabase.auth.onAuthStateChange((_event, session) => {
+		} = supabase.auth.onAuthStateChange((event, session) => {
+			authDebug.logAuthChange(event, session);
 			setSession(session);
-			setUser((session?.user as UserProfile) ?? null);
+			
+			// Use debounced update to prevent excessive API calls
+			debouncedUpdateUser(session);
+			
 			setError(null);
 		});
 
 		return () => {
 			subscription.unsubscribe();
+			// Clear any pending timeout
+			if (updateTimeoutRef.current) {
+				clearTimeout(updateTimeoutRef.current);
+			}
 		};
-	}, []);
+	}, [debouncedUpdateUser]);
+
+			// Refresh user data when tab becomes visible (but only if we have a session)
+		useEffect(() => {
+			const handleVisibilityChange = () => {
+				if (!document.hidden && session?.user && user) {
+					authDebug.log('Tab became visible, refreshing user data...');
+					updateUser();
+				}
+			};
+
+			document.addEventListener('visibilitychange', handleVisibilityChange);
+			return () => {
+				document.removeEventListener('visibilitychange', handleVisibilityChange);
+			};
+		}, [session, user, updateUser]);
 
 	const signIn = useCallback(async (email: string, password: string) => {
 		try {

@@ -80,7 +80,7 @@ export default function OnboardingForm() {
 			}
 
 			// Update profile
-			const { error: updateError } = await supabase
+			const { data: updateData, error: updateError } = await supabase
 				.from('profiles')
 				.update({
 					first_name: firstName,
@@ -96,11 +96,17 @@ export default function OnboardingForm() {
 				throw updateError;
 			}
 
+			console.log('Profile update successful:', updateData);
+
 			// Update the user state with new profile information
 			await updateUser();
 
 			toast.success('Profile updated successfully!');
-			navigate(next);
+			
+			// Add a small delay to ensure the user state is updated
+			setTimeout(() => {
+				navigate(next);
+			}, 100);
 		} catch (error) {
 			console.error('Error in handleSubmit:', error);
 			setError('An error occurred while updating your profile');
@@ -109,7 +115,11 @@ export default function OnboardingForm() {
 		}
 	};
 
+	console.log('OnboardingForm - user:', user);
+	console.log('OnboardingForm - completed_onboarding:', user?.completed_onboarding);
+	
 	if (user?.completed_onboarding) {
+		console.log('OnboardingForm - User already completed onboarding, redirecting to:', next);
 		return <Navigate to={next} />;
 	}
 
