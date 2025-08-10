@@ -38,11 +38,11 @@ const LeadCard: React.FC<LeadCardProps> = ({ lead, onClick }) => {
       <div className="space-y-2">
         <div className="flex items-center space-x-2">
           <Mail className="h-3 w-3 text-gray-400" />
-          <span className="text-xs text-gray-600 dark:text-gray-300 truncate">{lead.email}</span>
+          <span className="text-xs text-gray-600 dark:text-gray-300 truncate">{lead.email || '-'}</span>
         </div>
         <div className="flex items-center space-x-2">
           <Phone className="h-3 w-3 text-gray-400" />
-          <span className="text-xs text-gray-600 dark:text-gray-300">{lead.phone}</span>
+          <span className="text-xs text-gray-600 dark:text-gray-300">{lead.phone || '-'}</span>
         </div>
         <div className="flex items-center space-x-2">
           <Calendar className="h-3 w-3 text-gray-400" />
