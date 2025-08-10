@@ -10,22 +10,25 @@ interface Config {
 	frontendUrl: string | undefined;
 }
 
-const smtpHost = process.env.SMTP_HOST;
-const smtpPort = process.env.SMTP_PORT;
-const smtpSecure = process.env.SMTP_SECURE;
-const smtpUser = process.env.SMTP_USER;
-const smtpPass = process.env.SMTP_PASS;
-const smtpFrom = process.env.SMTP_FROM;
-const frontendUrl = process.env.FRONTEND_URL;
+// Access environment variables in a way Vercel can handle
+const env = {
+	SMTP_HOST: process.env.SMTP_HOST,
+	SMTP_PORT: process.env.SMTP_PORT,
+	SMTP_SECURE: process.env.SMTP_SECURE,
+	SMTP_USER: process.env.SMTP_USER,
+	SMTP_PASS: process.env.SMTP_PASS,
+	SMTP_FROM: process.env.SMTP_FROM,
+	FRONTEND_URL: process.env.FRONTEND_URL
+};
 
 export const config: Config = {
 	smtp: {
-		host: smtpHost,
-		port: smtpPort ? Number(smtpPort) : undefined,
-		secure: smtpSecure === 'true',
-		user: smtpUser,
-		pass: smtpPass,
-		from: smtpFrom
+		host: env.SMTP_HOST,
+		port: env.SMTP_PORT ? Number(env.SMTP_PORT) : undefined,
+		secure: env.SMTP_SECURE === 'true',
+		user: env.SMTP_USER,
+		pass: env.SMTP_PASS,
+		from: env.SMTP_FROM
 	},
-	frontendUrl: frontendUrl
+	frontendUrl: env.FRONTEND_URL
 };
