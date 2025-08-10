@@ -1,6 +1,6 @@
 import React from 'react';
 import { Monitor, Smartphone, Tablet, Clock } from 'lucide-react';
-import type { Case } from '../../types/case';
+import type { Case } from '../../types/leads';
 import ComponentCard from '../common/ComponentCard';
 
 interface DevicesSectionProps {

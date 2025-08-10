@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { Check, ChevronsUpDown, Search, User } from 'lucide-react';
 import { cn } from '../../utils/common';
 import { Button } from '../ui/button';

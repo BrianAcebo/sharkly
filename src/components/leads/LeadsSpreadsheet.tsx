@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Lead } from '../../types/leads';
 import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';

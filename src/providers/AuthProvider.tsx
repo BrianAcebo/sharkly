@@ -285,7 +285,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		// Listen for auth changes
 		const {
 			data: { subscription }
-		} = supabase.auth.onAuthStateChange((event, session) => {
+		} = supabase.auth.onAuthStateChange((_event, session) => {
 			setSession(session);
 			
 			// Use debounced update to prevent excessive API calls

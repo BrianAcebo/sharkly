@@ -171,7 +171,6 @@ export function parseSupabaseError(error: unknown): Error {
 		const fieldMatch = error.message.match(/for type (\w+): "([^"]+)"/);
 		if (fieldMatch) {
 			const dataType = fieldMatch[1];
-			const invalidValue = fieldMatch[2];
 			
 			const typeDisplayNames: Record<string, string> = {
 				'integer': 'number',

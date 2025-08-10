@@ -1,6 +1,6 @@
 import React from 'react';
 import { ExternalLink, Linkedin, Twitter, Facebook, Instagram, Globe } from 'lucide-react';
-import type { Case } from '../../types/case';
+import type { Case } from '../../types/leads';
 import ComponentCard from '../common/ComponentCard';
 
 interface SocialProfilesProps {

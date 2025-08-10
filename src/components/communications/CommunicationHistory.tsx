@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Lead } from '../../contexts/DataContext';
-import { Communication } from '../../contexts/DataContext';
+import { Lead, Communication } from '../../types/leads';
 import { Mail, Phone, MessageSquare, Calendar, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface CommunicationHistoryProps {

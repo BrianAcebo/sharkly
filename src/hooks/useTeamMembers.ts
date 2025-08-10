@@ -56,11 +56,11 @@ export const useTeamMembers = () => {
         }
 
         return {
-          id: member.user_id,
+          id: profile?.id || 'unknown',
           organization_id: member.organization_id,
           role: member.role,
           profile: {
-            id: profile?.id || member.user_id,
+            id: profile?.id || 'unknown',
             first_name: profile?.first_name || '',
             last_name: profile?.last_name || '',
             avatar: avatarUrl,
