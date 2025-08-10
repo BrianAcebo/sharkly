@@ -514,9 +514,13 @@ export function LeadsImportExport({ onImportLeads, onExportLeads, onEmailExport,
         // Allow either Description or Notes for the notes column
         const allowedHeaderSet = new Set<string>([...expectedHeaders, 'Notes']);
 
-        // Required: first two columns Name, Email
-        if (headers[0] !== 'Name' || headers[1] !== 'Email') {
-          toast.error('CSV must start with "Name,Email" headers');
+        // Required: first column must be Name, Email is optional but must be second column if present
+        if (headers[0] !== 'Name') {
+          toast.error('CSV must start with "Name" header');
+          return;
+        }
+        if (headers[1] && headers[1] !== 'Email') {
+          toast.error('Second column must be "Email" if present');
           return;
         }
         // All headers must be recognized
@@ -546,8 +550,8 @@ export function LeadsImportExport({ onImportLeads, onExportLeads, onEmailExport,
 
           const name = get('Name');
           const email = get('Email');
-          if (!name || !email) {
-            toast.error(`Row ${i + 1}: Name and Email are required`);
+          if (!name) {
+            toast.error(`Row ${i + 1}: Name is required`);
             return;
           }
 
@@ -612,13 +616,11 @@ export function LeadsImportExport({ onImportLeads, onExportLeads, onEmailExport,
     const startVis = Date.now();
     try {
       const total = importPreview.length;
-      const batchSize = 100; // adjust as needed
-      for (let start = 0; start < total; start += batchSize) {
-        const batch = importPreview.slice(start, start + batchSize);
-        await onImportLeads(batch);
-        const progress = Math.round(((start + batch.length) / total) * 100);
-        setImportProgress(progress);
-      }
+      
+      // Import all leads in a single bulk operation
+      await onImportLeads(importPreview);
+      setImportProgress(100);
+      
       setShowPreview(false);
       setImportPreview([]);
       if (fileInputRef.current) {
@@ -1091,11 +1093,11 @@ export function LeadsImportExport({ onImportLeads, onExportLeads, onEmailExport,
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <p className="font-medium">Required fields:</p>
-                  <p>Name, Email</p>
+                  <p>Name</p>
                 </div>
                 <div>
                   <p className="font-medium">Optional fields:</p>
-                  <p>Phone, Company, Title, Stage, Priority, Value, Notes, Tags</p>
+                  <p>Email, Phone, Company, Title, Stage, Priority, Value, Notes, Tags</p>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

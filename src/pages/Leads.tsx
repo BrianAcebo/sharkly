@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SearchBar } from '../components/leads/SearchBar';
 import { SearchFilters } from '../components/leads/SearchFilters';
 import { SearchResults } from '../components/leads/SearchResults';
@@ -15,7 +15,7 @@ import { Button } from '../components/ui/button';
 import { Plus, Loader2, Grid3X3, List, Download } from 'lucide-react';
 import { Lead, CreateLeadData } from '../types/leads';
 import { LeadsFilters } from '../api/leads';
-import { bulkUpdateLeadsService, bulkDeleteLeadsService, bulkImportLeadsService, getLeadsService } from '../utils/leadService';
+import { bulkUpdateLeadsService, bulkDeleteLeadsService, bulkImportLeadsService } from '../utils/leadService';
 import { toast } from 'sonner';
 
 const LeadsContent: React.FC = () => {
@@ -24,10 +24,17 @@ const LeadsContent: React.FC = () => {
     leads,
     loading,
     error,
+    total,
+    page: currentPage,
+    perPage,
+    totalPages,
+    fetchLeads,
+    setPerPage,
     refreshLeads
   } = useLeads();
 
   const [searchQuery, setSearchQuery] = useState('');
+  // Local interface for SearchFilters compatibility
   type LocalFilters = {
     status: string;
     priority: string;
@@ -35,70 +42,48 @@ const LeadsContent: React.FC = () => {
     dateRange?: { from?: Date; to?: Date };
   };
 
-  const [filters, setFilters] = useState<LocalFilters>({
+  const [localFilters, setLocalFilters] = useState<LocalFilters>({
     status: 'all',
     priority: 'all',
     stage: 'all',
     dateRange: undefined
   });
-  const [currentPage, setCurrentPage] = useState(1);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportExportModal, setShowImportExportModal] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [viewMode, setViewMode] = useState<'cards' | 'spreadsheet'>('cards');
-  const perPage = 10;
+  
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
 
-  // Filter and paginate leads using useMemo for performance
-  const { filteredLeads, totalPages: localTotalPages, currentLeads } = useMemo(() => {
-    let filtered = [...leads];
-
-    // Apply search filter
+  // Create combined filters object for API calls
+  const combinedFilters = useCallback(() => {
+    const filters: LeadsFilters = {};
+    
+    if (localFilters.status !== 'all') {
+      filters.status = localFilters.status as 'active' | 'in_progress' | 'closed';
+    }
+    if (localFilters.priority !== 'all') {
+      filters.priority = localFilters.priority as 'low' | 'medium' | 'high' | 'critical';
+    }
+    if (localFilters.stage !== 'all') {
+      filters.stage = localFilters.stage as 'new' | 'contacted' | 'qualified' | 'proposal' | 'closed-won' | 'closed-lost';
+    }
+    if (localFilters.dateRange) {
+      filters.dateRange = localFilters.dateRange;
+    }
     if (debouncedSearchQuery) {
-      filtered = filtered.filter(lead =>
-        lead.name.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        lead.email.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
-        lead.company?.toLowerCase().includes(debouncedSearchQuery.toLowerCase())
-      );
+      filters.search = debouncedSearchQuery;
     }
+    
+    return filters;
+  }, [localFilters, debouncedSearchQuery]);
 
-    // Apply status filter
-    if (filters.status !== 'all') {
-      filtered = filtered.filter(lead => lead.status === filters.status);
+  // Fetch leads when filters or search change
+  useEffect(() => {
+    if (user?.organization_id) {
+      fetchLeads(combinedFilters(), 1); // Reset to page 1 when filters change
     }
-
-    // Apply priority filter
-    if (filters.priority !== 'all') {
-      filtered = filtered.filter(lead => lead.priority === filters.priority);
-    }
-
-    // Apply stage filter
-    if (filters.stage !== 'all') {
-      filtered = filtered.filter(lead => lead.stage === filters.stage);
-    }
-
-    // Apply date range filter
-    if (filters.dateRange?.from || filters.dateRange?.to) {
-      const from = filters.dateRange.from ? new Date(filters.dateRange.from).getTime() : -Infinity;
-      const to = filters.dateRange.to ? new Date(filters.dateRange.to).getTime() : Infinity;
-      filtered = filtered.filter(lead => {
-        const created = new Date(lead.created_at).getTime();
-        return created >= from && created <= to;
-      });
-    }
-
-    // Calculate pagination
-    const total = filtered.length;
-    const totalPages = Math.ceil(total / perPage);
-    const startIndex = (currentPage - 1) * perPage;
-    const paginatedResults = filtered.slice(startIndex, startIndex + perPage);
-
-    return {
-      filteredLeads: filtered,
-      totalPages,
-      currentLeads: paginatedResults
-    };
-  }, [leads, debouncedSearchQuery, filters, currentPage]);
+  }, [combinedFilters, user?.organization_id, fetchLeads]);
 
   const handleLeadCreated = () => {
     setShowAddModal(false);
@@ -124,10 +109,14 @@ const LeadsContent: React.FC = () => {
     window.location.href = `/leads/${lead.id}`;
   };
 
-
-
   const handlePageChange = (page: number) => {
-    setCurrentPage(page);
+    if (user?.organization_id) {
+      fetchLeads(combinedFilters(), page);
+    }
+  };
+
+  const handleFiltersChange = (newFilters: LocalFilters) => {
+    setLocalFilters(newFilters);
   };
 
   const handleBulkUpdate = async (leadIds: string[], updates: Partial<Lead>) => {
@@ -176,7 +165,9 @@ const LeadsContent: React.FC = () => {
         throw new Error('No organization ID available');
       }
       
-      const leads = await getLeadsService(user.organization_id);
+      // Use current filters and fetch all leads for export
+      const { getAllLeadsForExport } = await import('../utils/leadService');
+      const leads = await getAllLeadsForExport(user.organization_id, combinedFilters());
       console.log('Exported leads:', leads);
       return leads;
     } catch (error) {
@@ -191,7 +182,9 @@ const LeadsContent: React.FC = () => {
     try {
       // Import the emailLeadsExport function
       const { emailLeadsExport } = await import('../api/leads');
-      await emailLeadsExport(email, filters);
+      // Use current filters if no specific filters provided
+      const exportFilters = Object.keys(filters).length > 0 ? filters : combinedFilters();
+      await emailLeadsExport(email, exportFilters);
     } catch (error) {
       console.error('Error emailing leads export:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to send email export';
@@ -266,22 +259,29 @@ const LeadsContent: React.FC = () => {
       />
 
       <SearchFilters
-        filters={filters}
-        onFiltersChange={(f: LocalFilters) => setFilters(f)}
+        filters={localFilters}
+        onFiltersChange={handleFiltersChange}
       />
 
       {viewMode === 'cards' ? (
         <SearchResults
-          leads={currentLeads}
-          totalLeads={filteredLeads.length}
+          leads={leads}
+          totalLeads={total}
           currentPage={currentPage}
-          totalPages={localTotalPages}
+          totalPages={totalPages}
+          perPage={perPage}
           onPageChange={handlePageChange}
+          onPerPageChange={setPerPage}
           onEditLead={handleEditLead}
         />
       ) : (
         <LeadsSpreadsheet
-          leads={currentLeads}
+          leads={leads}
+          total={total}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          perPage={perPage}
+          onPageChange={handlePageChange}
           onEditLead={handleEditLead}
           onViewLead={handleViewLead}
           onDeleteLeads={handleBulkDelete}

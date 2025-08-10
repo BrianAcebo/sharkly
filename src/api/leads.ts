@@ -117,10 +117,6 @@ export async function getLeads(
       .select('*', { count: 'exact' })
       .eq('organization_id', organizationId);
 
-    console.log(organizationId, filters, page, perPage)
-
-
-
     // Apply filters
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
@@ -167,8 +163,6 @@ export async function getLeads(
       throw error;
     }
 
-    console.log("here", data, error, count)
-
     const total = count || 0;
     const totalPages = Math.ceil(total / perPage);
 
@@ -194,8 +188,6 @@ export async function getLeads(
         communications: []
       };
     }));
-
-    console.log('leads', leads);
 
     return {
       leads,
@@ -503,6 +495,85 @@ export async function emailLeadsExport(
 
   } catch (error) {
     console.error('Error emailing leads export:', error);
+    throw parseSupabaseError(error);
+  }
+} 
+
+/**
+ * Bulk create multiple leads
+ */
+export async function bulkCreateLeads(leadsData: CreateLeadData[]): Promise<Lead[]> {
+  try {
+    // Get the current user
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
+
+    // Get user's organization
+    const { data: userOrg } = await supabase
+      .from('user_organizations')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!userOrg?.organization_id) {
+      throw new Error('User not associated with any organization');
+    }
+
+    // Prepare all leads for bulk insertion
+    const insertData = leadsData.map(leadData => ({
+      ...leadData,
+      assigned_to: leadData.assigned_to?.id || null,
+      created_by: user.id,
+      organization_id: userOrg.organization_id
+    }));
+
+    console.log(`Bulk creating ${insertData.length} leads`);
+
+    const { data, error } = await supabase
+      .from('leads')
+      .insert(insertData)
+      .select('*');
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error('No leads were created');
+    }
+
+    console.log(`Successfully created ${data.length} leads`);
+
+    // Transform data to match Lead type and fetch team members
+    const leads: Lead[] = await Promise.all(
+      data.map(async (leadData) => {
+        const assignedTo = await fetchTeamMember(leadData.assigned_to) || {
+          id: leadData.assigned_to || '',
+          organization_id: leadData.organization_id || '',
+          role: 'analyst' as const,
+          profile: {
+            id: leadData.assigned_to || '',
+            first_name: '',
+            last_name: '',
+            avatar: '',
+            completed_onboarding: false
+          }
+        };
+
+        return {
+          ...leadData,
+          assigned_to: assignedTo,
+          communications: []
+        };
+      })
+    );
+
+    return leads;
+  } catch (error) {
+    console.error('Error bulk creating leads:', error);
     throw parseSupabaseError(error);
   }
 } 

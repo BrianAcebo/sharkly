@@ -163,9 +163,11 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 					)}
 				</div>
 
-				<p className="text-sm">
-					{totalResults} result{totalResults !== 1 ? 's' : ''} found
-				</p>
+				{activeFilterCount > 0 && (
+					<span className="text-sm text-gray-600 dark:text-gray-400">
+						{totalResults} result{totalResults !== 1 ? 's' : ''} found
+					</span>
+				)}
 			</div>
 
 			{/* Applied filters summary */}

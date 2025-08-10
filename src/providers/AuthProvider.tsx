@@ -3,7 +3,6 @@ import { AuthContext, UserProfile, AuthLoadingState } from '../contexts/AuthCont
 import { Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
-import { authDebug } from '../utils/authDebug';
 
 interface ProfileData {
 	id: string;
@@ -183,7 +182,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 							role: userOrg?.role || ''
 						};
 
-						authDebug.log('Debounced update - setting user:', updatedUser);
 						setUser(updatedUser);
 					} else {
 						setUser(session.user as UserProfile);
@@ -288,7 +286,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		const {
 			data: { subscription }
 		} = supabase.auth.onAuthStateChange((event, session) => {
-			authDebug.logAuthChange(event, session);
 			setSession(session);
 			
 			// Use debounced update to prevent excessive API calls
@@ -310,7 +307,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		useEffect(() => {
 			const handleVisibilityChange = () => {
 				if (!document.hidden && session?.user && user) {
-					authDebug.log('Tab became visible, refreshing user data...');
 					updateUser();
 				}
 			};

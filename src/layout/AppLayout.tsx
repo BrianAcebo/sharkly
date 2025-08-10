@@ -8,15 +8,11 @@ import { SidebarProvider } from '../providers/SidebarProvider';
 import { useAuth } from '../hooks/useAuth';
 import { AuthLoadingState } from '../contexts/AuthContext';
 import { AuthLoading } from '../components/AuthLoading';
-import { authDebug } from '../utils/authDebug';
 
 const LayoutContent: React.FC = () => {
     const { pathname } = useLocation();
 	const { isExpanded } = useSidebar();
 	const { user, loadingState, session } = useAuth();
-
-	// Debug logging
-	authDebug.logUserState(user, session);
 
 	// Show loading while auth is being checked
 	if (loadingState === AuthLoadingState.LOADING) {
@@ -31,13 +27,8 @@ const LayoutContent: React.FC = () => {
 	// Wait for user profile data to be fully loaded before making routing decisions
 	// This prevents redirects when user data is incomplete
 	if (!user?.first_name || !user?.last_name) {
-		authDebug.log('User profile data not fully loaded, showing loading...');
 		return <AuthLoading state={AuthLoadingState.LOADING} />;
 	}
-
-	authDebug.log('AppLayout - user:', user);
-	authDebug.log('AppLayout - completed_onboarding:', user?.completed_onboarding);
-	authDebug.log('AppLayout - pathname:', pathname);
 
 	if (!user?.completed_onboarding && pathname !== '/onboarding') {
 		console.log('AppLayout - Redirecting to onboarding');
@@ -48,9 +39,6 @@ const LayoutContent: React.FC = () => {
 		console.log('AppLayout - Redirecting to pipeline');
 		return <Navigate to="/pipeline" replace />;
 	}
-
-	console.log('AppLayout - organization_id:', user?.organization_id);
-	console.log('AppLayout - pathname:', pathname);
 
 	// Only redirect to organization-required if we're sure the user has no organization
 	// and we're not already on that page

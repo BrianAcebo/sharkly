@@ -1,0 +1,101 @@
+Name,Email,Phone,Company,Title,Stage,Priority,Value,Description,Tags,Created At
+John Smith,john.smith@techcorp.com,+1-555-0101,TechCorp Inc,Software Engineer,qualified,medium,50000,Interested in enterprise solutions,Technology,2024-01-15
+Sarah Johnson,sarah.j@innovateco.com,+1-555-0102,InnovateCo,Marketing Manager,new,medium,25000,Looking for marketing automation tools,Marketing,2024-01-16
+Michael Chen,michael.chen@globaltech.com,+1-555-0103,GlobalTech Solutions,CTO,qualified,high,75000,Enterprise client potential,Technology,2024-01-17
+Emily Davis,emily.davis@startupxyz.com,+1-555-0104,StartupXYZ,Founder,new,medium,15000,Early stage startup needs CRM,Startup,2024-01-18
+David Wilson,david.wilson@megacorp.com,+1-555-0105,MegaCorp,VP Sales,qualified,critical,100000,Large enterprise opportunity,Sales,2024-01-19
+Lisa Anderson,lisa.anderson@smallbiz.com,+1-555-0106,SmallBiz LLC,Owner,new,low,10000,Local business needs help,Retail,2024-01-20
+Robert Taylor,robert.taylor@consulting.com,+1-555-0107,Consulting Partners,Partner,qualified,medium,60000,Professional services firm,Consulting,2024-01-21
+Jennifer Brown,jennifer.brown@healthcare.com,+1-555-0108,Healthcare Plus,Operations Director,new,medium,40000,Healthcare compliance needs,Healthcare,2024-01-22
+Christopher Lee,chris.lee@fintech.com,+1-555-0109,FinTech Solutions,Product Manager,qualified,high,80000,Fintech startup growing fast,Financial Services,2024-01-23
+Amanda Martinez,amanda.m@retailchain.com,+1-555-0110,Retail Chain Inc,Store Manager,new,medium,30000,Multiple location business,Retail,2024-01-24
+James Thompson,james.t@manufacturing.com,+1-555-0111,Manufacturing Co,Plant Manager,qualified,high,70000,Industrial automation needs,Manufacturing,2024-01-25
+Michelle White,michelle.white@realestate.com,+1-555-0112,Real Estate Pro,Agent,new,low,20000,Individual agent needs CRM,Real Estate,2024-01-26
+Daniel Harris,daniel.h@lawfirm.com,+1-555-0113,Law Firm Associates,Attorney,qualified,medium,65000,Legal practice management,Legal,2024-01-27
+Jessica Clark,jessica.clark@restaurant.com,+1-555-0114,Restaurant Group,General Manager,new,medium,25000,Restaurant chain expansion,Food & Beverage,2024-01-28
+Ryan Lewis,ryan.lewis@construction.com,+1-555-0115,Construction Plus,Project Manager,qualified,critical,90000,Large construction projects,Construction,2024-01-29
+Stephanie Rodriguez,stephanie.r@education.com,+1-555-0116,Education First,Principal,new,medium,35000,School district needs,Education,2024-01-30
+Kevin Moore,kevin.moore@logistics.com,+1-555-0117,Logistics Solutions,Operations Manager,qualified,medium,55000,Supply chain optimization,Logistics,2024-02-01
+Ashley Jackson,ashley.j@nonprofit.com,+1-555-0118,NonProfit Org,Executive Director,new,low,15000,Grant management needs,Non-Profit,2024-02-02
+Jason Martin,jason.martin@advertising.com,+1-555-0119,Advertising Agency,Creative Director,qualified,medium,45000,Creative agency growth,Advertising,2024-02-03
+Rachel Lee,rachel.lee@fitness.com,+1-555-0120,Fitness Studio,Owner,new,low,20000,Personal training business,Fitness,2024-02-04
+Andrew Young,andrew.young@automotive.com,+1-555-0121,Automotive Group,Sales Manager,qualified,medium,60000,Dealership management,Automotive,2024-02-05
+Nicole King,nicole.king@beauty.com,+1-555-0122,Beauty Salon,Owner,new,low,18000,Salon appointment system,Beauty,2024-02-06
+Steven Wright,steven.wright@insurance.com,+1-555-0123,Insurance Pro,Agent,qualified,medium,50000,Insurance agency CRM,Insurance,2024-02-07
+Lauren Lopez,lauren.lopez@petcare.com,+1-555-0124,Pet Care Plus,Manager,new,low,22000,Veterinary clinic needs,Pet Care,2024-02-08
+Brian Hill,brian.hill@accounting.com,+1-555-0125,Accounting Services,CPA,qualified,high,70000,Tax preparation firm,Accounting,2024-02-09
+Kimberly Scott,kimberly.scott@dentistry.com,+1-555-0126,Dental Practice,Dentist,new,medium,30000,Dental practice management,Healthcare,2024-02-10
+Thomas Green,thomas.green@landscaping.com,+1-555-0127,Landscaping Co,Owner,qualified,medium,40000,Landscaping business growth,Landscaping,2024-02-11
+Amber Adams,amber.adams@photography.com,+1-555-0128,Photography Studio,Photographer,new,low,25000,Wedding photography business,Photography,2024-02-12
+Jonathan Baker,jonathan.baker@consulting.com,+1-555-0129,Strategy Consulting,Senior Consultant,qualified,high,85000,Management consulting firm,Consulting,2024-02-13
+Melissa Gonzalez,melissa.g@bakery.com,+1-555-0130,Bakery Delights,Owner,new,low,20000,Artisan bakery expansion,Food & Beverage,2024-02-14
+Mark Nelson,mark.nelson@plumbing.com,+1-555-0131,Plumbing Services,Owner,qualified,medium,45000,Plumbing contractor,Plumbing,2024-02-15
+Danielle Carter,danielle.carter@interior.com,+1-555-0132,Interior Design,Designer,new,medium,30000,Interior design studio,Interior Design,2024-02-16
+Timothy Mitchell,timothy.m@electrical.com,+1-555-0133,Electrical Co,Owner,qualified,medium,50000,Electrical contractor,Electrical,2024-02-17
+Vanessa Perez,vanessa.p@cleaning.com,+1-555-0134,Cleaning Services,Manager,new,low,25000,Commercial cleaning company,Cleaning,2024-02-18
+Richard Roberts,richard.r@security.com,+1-555-0135,Security Systems,Owner,qualified,medium,60000,Security system installation,Security,2024-02-19
+Heather Turner,heather.t@printing.com,+1-555-0136,Print Shop,Owner,new,low,28000,Commercial printing services,Printing,2024-02-20
+Patrick Phillips,patrick.p@roofing.com,+1-555-0137,Roofing Solutions,Owner,qualified,medium,55000,Roofing contractor,Roofing,2024-02-21
+Samantha Campbell,samantha.c@carpentry.com,+1-555-0138,Carpentry Works,Owner,new,low,32000,Custom woodworking business,Carpentry,2024-02-22
+Jeffrey Parker,jeffrey.p@painting.com,+1-555-0139,Painting Pro,Owner,qualified,medium,40000,Commercial painting contractor,Painting,2024-02-23
+Christine Evans,christine.e@glass.com,+1-555-0140,Glass Works,Owner,new,low,35000,Glass installation company,Glass,2024-02-24
+Anthony Edwards,anthony.e@flooring.com,+1-555-0141,Flooring Solutions,Owner,qualified,medium,50000,Flooring installation,Flooring,2024-02-25
+Stephanie Collins,stephanie.c@heating.com,+1-555-0142,Heating & Cooling,Owner,new,low,38000,HVAC services company,HVAC,2024-02-26
+Matthew Stewart,matthew.s@pest.com,+1-555-0143,Pest Control,Owner,qualified,medium,42000,Pest control services,Pest Control,2024-02-27
+Laura Sanchez,laura.s@pool.com,+1-555-0144,Pool Services,Owner,new,low,30000,Swimming pool maintenance,Pool Services,2024-02-28
+Christopher Morris,chris.m@garage.com,+1-555-0145,Garage Door Co,Owner,qualified,medium,45000,Garage door installation,Garage Doors,2024-03-01
+Amanda Rogers,amanda.r@fence.com,+1-555-0146,Fence Company,Owner,new,low,35000,Fence installation business,Fencing,2024-03-02
+Joshua Reed,joshua.r@concrete.com,+1-555-0147,Concrete Works,Owner,qualified,medium,60000,Concrete contractor,Concrete,2024-03-03
+Rebecca Cook,rebecca.c@drywall.com,+1-555-0148,Drywall Pro,Owner,new,low,32000,Drywall installation,Drywall,2024-03-04
+Andrew Morgan,andrew.m@masonry.com,+1-555-0149,Masonry Co,Owner,qualified,medium,55000,Masonry contractor,Masonry,2024-03-05
+Jennifer Bell,jennifer.b@welding.com,+1-555-0150,Welding Services,Owner,new,low,40000,Industrial welding company,Welding,2024-03-06
+David Murphy,david.m@machining.com,+1-555-0151,Precision Machining,Owner,qualified,high,75000,CNC machining services,Machining,2024-03-07
+Lisa Bailey,lisa.b@fabrication.com,+1-555-0152,Metal Fabrication,Owner,new,medium,45000,Metal fabrication shop,Metal Fabrication,2024-03-08
+Robert Cooper,robert.c@inspection.com,+1-555-0153,Inspection Services,Owner,qualified,medium,50000,Home inspection company,Inspection,2024-03-09
+Emily Richardson,emily.r@appraisal.com,+1-555-0154,Appraisal Co,Appraiser,new,medium,35000,Property appraisal services,Real Estate,2024-03-10
+Michael Cox,michael.c@surveying.com,+1-555-0155,Surveying Services,Surveyor,qualified,medium,60000,Land surveying company,Surveying,2024-03-11
+Sarah Ward,sarah.w@architect.com,+1-555-0156,Architecture Firm,Architect,new,medium,40000,Architectural design firm,Architecture,2024-03-12
+James Torres,james.t@engineering.com,+1-555-0157,Engineering Co,Engineer,qualified,high,80000,Civil engineering firm,Engineering,2024-03-13
+Stephanie Peterson,stephanie.p@drafting.com,+1-555-0158,Drafting Services,Drafter,new,low,30000,Technical drafting services,Drafting,2024-03-14
+Kevin Gray,kevin.g@testing.com,+1-555-0159,Testing Lab,Lab Manager,qualified,medium,65000,Materials testing laboratory,Testing,2024-03-15
+Ashley Ramirez,ashley.r@calibration.com,+1-555-0160,Calibration Co,Technician,new,low,35000,Equipment calibration services,Calibration,2024-03-16
+Jason James,jason.j@maintenance.com,+1-555-0161,Maintenance Co,Manager,qualified,medium,50000,Industrial maintenance,Maintenance,2024-03-17
+Rachel Watson,rachel.w@repair.com,+1-555-0162,Repair Services,Technician,new,low,32000,Equipment repair company,Repair,2024-03-18
+Andrew Brooks,andrew.b@installation.com,+1-555-0163,Installation Pro,Installer,qualified,medium,45000,Equipment installation,Installation,2024-03-19
+Nicole Kelly,nicole.k@service.com,+1-555-0164,Service Co,Service Manager,new,low,38000,Field service company,Service,2024-03-20
+Steven Sanders,steven.s@support.com,+1-555-0165,Support Services,Support Manager,qualified,medium,55000,Technical support company,Support,2024-03-21
+Lauren Price,lauren.p@training.com,+1-555-0166,Training Institute,Training Director,new,medium,40000,Corporate training company,Training,2024-03-22
+Brian Bennett,brian.b@consulting.com,+1-555-0167,IT Consulting,IT Consultant,qualified,high,70000,IT consulting services,Technology,2024-03-23
+Kimberly Wood,kimberly.w@software.com,+1-555-0168,Software Dev,Developer,new,medium,45000,Software development startup,Software,2024-03-24
+Thomas Barnes,thomas.b@webdesign.com,+1-555-0169,Web Design Co,Web Designer,qualified,medium,50000,Web design agency,Web Design,2024-03-25
+Amber Ross,amber.r@seo.com,+1-555-0170,SEO Services,SEO Specialist,new,low,35000,SEO optimization company,Digital Marketing,2024-03-26
+Jonathan Henderson,jonathan.h@ppc.com,+1-555-0171,PPC Agency,PPC Manager,qualified,medium,60000,Pay-per-click advertising,Digital Marketing,2024-03-27
+Melissa Coleman,melissa.c@socialmedia.com,+1-555-0172,Social Media Co,Social Media Manager,new,medium,40000,Social media management,Digital Marketing,2024-03-28
+Mark Jenkins,mark.j@content.com,+1-555-0173,Content Creation,Content Creator,qualified,medium,55000,Content marketing agency,Content Marketing,2024-03-29
+Danielle Perry,danielle.p@email.com,+1-555-0174,Email Marketing,Email Specialist,new,low,38000,Email marketing services,Email Marketing,2024-03-30
+Timothy Powell,timothy.p@video.com,+1-555-0175,Video Production,Video Producer,qualified,medium,65000,Video production company,Video Production,2024-04-01
+Vanessa Long,vanessa.l@photography.com,+1-555-0176,Photo Studio,Photographer,new,low,42000,Commercial photography,Photography,2024-04-02
+Richard Patterson,richard.p@graphic.com,+1-555-0177,Graphic Design,Graphic Designer,qualified,medium,50000,Graphic design studio,Graphic Design,2024-04-03
+Heather Hughes,heather.h@branding.com,+1-555-0178,Branding Co,Brand Manager,new,medium,45000,Branding agency,Branding,2024-04-04
+Patrick Flores,patrick.f@pr.com,+1-555-0179,PR Agency,PR Manager,qualified,medium,60000,Public relations firm,Public Relations,2024-04-05
+Samantha Washington,samantha.w@events.com,+1-555-0180,Event Planning,Event Planner,new,low,35000,Event planning company,Event Planning,2024-04-06
+Jeffrey Butler,jeffrey.b@catering.com,+1-555-0181,Catering Co,Catering Manager,qualified,medium,50000,Catering services,Catering,2024-04-07
+Christine Simmons,christine.s@florist.com,+1-555-0182,Flower Shop,Florist,new,low,30000,Flower shop business,Florist,2024-04-08
+Anthony Foster,anthony.f@jewelry.com,+1-555-0183,Jewelry Store,Owner,qualified,high,70000,Jewelry retail store,Jewelry,2024-04-09
+Stephanie Gonzales,stephanie.g@clothing.com,+1-555-0184,Clothing Boutique,Owner,new,medium,40000,Clothing boutique,Fashion,2024-04-10
+Matthew Bryant,matthew.b@shoes.com,+1-555-0185,Shoe Store,Manager,qualified,medium,55000,Shoe retail chain,Fashion,2024-04-11
+Laura Alexander,laura.a@accessories.com,+1-555-0186,Accessories Co,Owner,new,low,35000,Fashion accessories store,Fashion,2024-04-12
+Christopher Russell,chris.r@cosmetics.com,+1-555-0187,Cosmetics Store,Manager,qualified,medium,60000,Cosmetics retail,Beauty,2024-04-13
+Amanda Griffin,amanda.g@skincare.com,+1-555-0188,Skincare Co,Owner,new,medium,45000,Skin care products,Beauty,2024-04-14
+Joshua Diaz,joshua.d@fragrance.com,+1-555-0189,Perfume Shop,Owner,qualified,medium,50000,Perfume retail store,Beauty,2024-04-15
+Rebecca Hayes,rebecca.h@wellness.com,+1-555-0190,Wellness Center,Wellness Coach,new,medium,40000,Wellness coaching business,Wellness,2024-04-16
+Andrew Myers,andrew.m@nutrition.com,+1-555-0191,Nutrition Co,Nutritionist,qualified,medium,55000,Nutrition consulting,Nutrition,2024-04-17
+Jennifer Ford,jennifer.f@fitness.com,+1-555-0192,Personal Training,Personal Trainer,new,low,35000,Personal training business,Fitness,2024-04-18
+David Owens,david.o@yoga.com,+1-555-0193,Yoga Studio,Yoga Instructor,qualified,medium,45000,Yoga studio owner,Yoga,2024-04-19
+Lisa Johnston,lisa.j@pilates.com,+1-555-0194,Pilates Studio,Pilates Instructor,new,low,38000,Pilates studio business,Pilates,2024-04-20
+Robert Lane,robert.l@massage.com,+1-555-0195,Massage Therapy,Massage Therapist,qualified,medium,50000,Massage therapy practice,Massage,2024-04-21
+Emily Riley,emily.r@acupuncture.com,+1-555-0196,Acupuncture,Acupuncturist,new,medium,40000,Acupuncture practice,Alternative Medicine,2024-04-22
+Michael Carpenter,michael.c@chiropractic.com,+1-555-0197,Chiropractic Care,Chiropractor,qualified,medium,65000,Chiropractic practice,Healthcare,2024-04-23
+Sarah Griffin,sarah.g@physicaltherapy.com,+1-555-0198,Physical Therapy,Physical Therapist,new,medium,45000,Physical therapy clinic,Healthcare,2024-04-24
+James Wallace,james.w@occupational.com,+1-555-0199,Occupational Therapy,Occupational Therapist,qualified,medium,60000,Occupational therapy practice,Healthcare,2024-04-25
+Stephanie Fisher,stephanie.f@speechtherapy.com,+1-555-0200,Speech Therapy,Speech Therapist,new,low,40000,Speech therapy practice,Healthcare,2024-04-26

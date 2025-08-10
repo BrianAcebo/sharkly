@@ -13,6 +13,7 @@ const LeadProfile: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'info' | 'communications'>('info');
   const [showComposer, setShowComposer] = useState(false);
   const [composerType, setComposerType] = useState<'email' | 'text' | 'call'>('email');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const { leads } = useLeads();
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -38,7 +39,11 @@ const LeadProfile: React.FC = () => {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDelete = async () => {
     if (!selectedLead) return;
     
     try {
@@ -50,6 +55,10 @@ const LeadProfile: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : 'Failed to delete lead';
       toast.error(`Failed to delete lead: ${errorMessage}`);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
   };
 
   if (!selectedLead) {
@@ -138,6 +147,57 @@ const LeadProfile: React.FC = () => {
           type={composerType}
           onClose={() => setShowComposer(false)}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center mb-4">
+              <div className="flex-shrink-0">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900">
+                  <Trash2 className="h-6 w-6 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+              <div className="ml-4">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+                  Delete Lead
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Are you sure you want to delete "{selectedLead?.name}"?
+              </p>
+              {selectedLead?.company && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Company: {selectedLead.company}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={cancelDelete}
+                className="px-4 py-2"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDelete}
+                className="px-4 py-2"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

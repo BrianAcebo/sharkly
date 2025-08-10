@@ -16,7 +16,8 @@ export interface UseLeadsState {
 }
 
 export interface UseLeadsActions {
-  fetchLeads: (filters?: LeadsFilters, page?: number) => Promise<void>;
+  fetchLeads: (filters?: LeadsFilters, page?: number, perPage?: number) => Promise<void>;
+  setPerPage: (perPage: number) => void;
   createLead: (leadData: CreateLeadData) => Promise<Lead | null>;
   updateLead: (id: string, leadData: UpdateLeadData) => Promise<Lead | null>;
   deleteLead: (id: string) => Promise<boolean>;
@@ -41,10 +42,7 @@ export const useLeads = (): UseLeadsState & UseLeadsActions => {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  const fetchLeads = useCallback(async (filters?: LeadsFilters, page?: number) => {
-    console.log('useLeads - fetchLeads called with user:', user);
-    console.log('useLeads - user.organization_id:', user?.organization_id);
-    
+  const fetchLeads = useCallback(async (filters?: LeadsFilters, page?: number, perPage?: number) => {
     if (!user?.organization_id) {
       console.log('useLeads - No organization_id, skipping fetch');
       return;
@@ -53,18 +51,14 @@ export const useLeads = (): UseLeadsState & UseLeadsActions => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     
     try {
-      console.log('useLeads - Calling getLeads with organization_id:', user.organization_id);
-      
       // Get current state values for the API call
       const currentState = stateRef.current;
       const response: LeadsResponse = await getLeads(
         filters || currentState.filters,
         page || currentState.page,
-        currentState.perPage,
+        perPage || currentState.perPage,
         user.organization_id
       );
-      
-      console.log('useLeads - getLeads response:', response);
       
       setState(prev => ({
         ...prev,
@@ -168,9 +162,19 @@ export const useLeads = (): UseLeadsState & UseLeadsActions => {
     await fetchLeads();
   }, [fetchLeads]);
 
+  const setPerPage = useCallback((newPerPage: number) => {
+    setState(prev => ({ ...prev, perPage: newPerPage, page: 1 }));
+    // Refetch leads with new page size
+    if (user?.organization_id) {
+      // Use the new perPage value directly, not from stateRef
+      fetchLeads(stateRef.current.filters, 1, newPerPage);
+    }
+  }, [fetchLeads, user?.organization_id]);
+
   return {
     ...state,
     fetchLeads,
+    setPerPage,
     createLead: createLeadAction,
     updateLead: updateLeadAction,
     deleteLead: deleteLeadAction,

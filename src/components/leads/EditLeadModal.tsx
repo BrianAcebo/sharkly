@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { parseSupabaseError } from '../../utils/error';
 import { useTeamMembers } from '../../hooks/useTeamMembers';
 import { TeamMemberSelect } from './TeamMemberSelect';
+import { TagInput } from '../form/TagInput';
 import { User, Mail, Phone, Building2, DollarSign, X, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 
 interface EditLeadModalProps {
@@ -35,6 +36,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
     priority: lead.priority,
     stage: lead.stage,
     category: lead.category || '',
+    tags: lead.tags || [],
     notes: lead.notes || '',
     assigned_to: lead.assigned_to
   });
@@ -312,6 +314,19 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
               placeholder="e.g., SaaS, Enterprise, Startup"
               disabled={isLoading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Tags
+            </label>
+            <TagInput
+              tags={formData.tags || []}
+              onTagsChange={(tags) => setFormData(prev => ({ ...prev, tags }))}
+              placeholder="Add tags (e.g., hot lead, enterprise, follow-up)"
+              disabled={isLoading}
+              maxTags={10}
             />
           </div>
 

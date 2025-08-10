@@ -8,7 +8,8 @@ import {
   Calendar, 
   DollarSign,
   Clock,
-  Target
+  Target,
+  Tag
 } from 'lucide-react';
 import type { Communication } from '../../types/leads';
 import { LeadStage, getStageColor, getStageLabel } from '../../utils/stages';
@@ -105,6 +106,23 @@ const LeadInfo: React.FC<LeadInfoProps> = ({ lead }) => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Notes</h3>
               <p className="text-gray-700 dark:text-gray-300">{lead.notes}</p>
+            </div>
+          )}
+
+          {lead.tags && lead.tags.length > 0 && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Tags</h3>
+              <div className="flex flex-wrap gap-2">
+                {lead.tags.map((tag, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center gap-1 px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 rounded-full"
+                  >
+                    <Tag className="h-3 w-3" />
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>

@@ -1,12 +1,15 @@
+import { AuthChangeEvent, Session } from "@supabase/supabase-js";
+import { UserProfile } from "../contexts/AuthContext";
+
 // Utility for debugging auth state changes
 export const authDebug = {
-  log: (message: string, data?: any) => {
+  log: (message: string, data?: Record<string, unknown>) => {
     if (process.env.NODE_ENV === 'development') {
       console.log(`[Auth Debug] ${message}`, data || '');
     }
   },
   
-  logUserState: (user: any, session: any) => {
+  logUserState: (user: UserProfile, session: Session | null) => {
     if (process.env.NODE_ENV === 'development') {
       console.log('[Auth Debug] User State:', {
         hasUser: !!user,
@@ -23,7 +26,7 @@ export const authDebug = {
     }
   },
   
-  logAuthChange: (event: string, session: any) => {
+  logAuthChange: (event: AuthChangeEvent, session: Session | null) => {
     if (process.env.NODE_ENV === 'development') {
       console.log(`[Auth Debug] Auth Change Event: ${event}`, {
         hasSession: !!session,
