@@ -10,14 +10,22 @@ interface Config {
 	frontendUrl: string | undefined;
 }
 
+const smtpHost = process.env.SMTP_HOST;
+const smtpPort = process.env.SMTP_PORT;
+const smtpSecure = process.env.SMTP_SECURE;
+const smtpUser = process.env.SMTP_USER;
+const smtpPass = process.env.SMTP_PASS;
+const smtpFrom = process.env.SMTP_FROM;
+const frontendUrl = process.env.FRONTEND_URL;
+
 export const config: Config = {
 	smtp: {
-		host: process.env.SMTP_HOST,
-		port: Number(process.env.SMTP_PORT),
-		secure: process.env.SMTP_SECURE === 'true',
-		user: process.env.SMTP_USER,
-		pass: process.env.SMTP_PASS,
-		from: process.env.SMTP_FROM
+		host: smtpHost,
+		port: smtpPort ? Number(smtpPort) : undefined,
+		secure: smtpSecure === 'true',
+		user: smtpUser,
+		pass: smtpPass,
+		from: smtpFrom
 	},
-	frontendUrl: process.env.FRONTEND_URL
+	frontendUrl: frontendUrl
 };
