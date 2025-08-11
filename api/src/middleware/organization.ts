@@ -16,7 +16,7 @@ export const organizationRequired = async (req: Request, res: Response, next: Ne
 
 		// Check if user is a member of the organization
 		const { data: teamMember, error } = await supabase
-			.from('team_members')
+			.from('user_organizations')
 			.select('*')
 			.eq('user_id', req.user.id)
 			.eq('organization_id', organizationId)

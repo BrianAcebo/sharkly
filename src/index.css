@@ -1,7 +1,104 @@
 @import 'tailwindcss';
 
 @layer base {
+  /* 
+   * UNIVERSAL SCROLLBAR CLASS
+   * 
+   * Usage: Add 'scrollbar-branded' class to any element with overflow
+   * Example: <div className="overflow-auto scrollbar-branded">
+   * 
+   * Features:
+   * - Completely hidden by default (no ugly scrollbars)
+   * - Beautiful soft red theme appears on hover
+   * - Smooth 0.4s animations with cubic-bezier easing
+   * - Works on all browsers (Chrome, Safari, Firefox, Edge, IE)
+   * - Dark mode support included
+   */
+  /* Universal branded scrollbar - Soft Red Theme with smooth animations */
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .scrollbar-branded::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .scrollbar-branded {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Show scrollbars when hovering over the container */
+  .scrollbar-branded:hover::-webkit-scrollbar {
+    display: block;
+    width: 10px;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .scrollbar-branded:hover::-webkit-scrollbar-track {
+    background: linear-gradient(180deg, #fef2f2 0%, #fee2e2 100%);
+    border-radius: 6px;
+    margin: 6px 0;
+    border: 1px solid #fecaca;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .scrollbar-branded:hover::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #fca5a5 0%, #f87171 100%);
+    border-radius: 6px;
+    border: 1px solid #f87171;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .scrollbar-branded:hover::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #f87171 0%, #f97316 100%);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .scrollbar-branded:hover::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(180deg, #f97316 0%, #ea580c 100%);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Dark mode scrollbar - only on hover with smooth transitions */
+  .dark .scrollbar-branded:hover::-webkit-scrollbar-track {
+    background: linear-gradient(180deg, #450a0a 0%, #7f1d1d 100%);
+    border: 1px solid #7f1d1d;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark .scrollbar-branded:hover::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #fecaca 0%, #fca5a5 100%);
+    border-radius: 6px;
+    border: 1px solid #fca5a5;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark .scrollbar-branded:hover::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #fca5a5 0%, #f87171 100%);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark .scrollbar-branded:hover::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Show Firefox scrollbar on hover with smooth transitions */
+  .scrollbar-branded:hover {
+    scrollbar-width: thin;
+    scrollbar-color: #fca5a5 #fef2f2;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark .scrollbar-branded:hover {
+    scrollbar-color: #fecaca #450a0a;
+  }
 }
 
 @custom-variant dark (&:is(.dark *));

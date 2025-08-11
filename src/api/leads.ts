@@ -1,5 +1,6 @@
 import { supabase } from '../utils/supabaseClient';
 import { Lead, CreateLeadData, UpdateLeadData, TeamMember } from '../types/leads';
+import { TEAM_MEMBER_ROLES } from '../utils/constants';
 import { parseSupabaseError } from '../utils/error';
 
 export interface LeadsFilters {
@@ -172,7 +173,7 @@ export async function getLeads(
       const assignedTo = await fetchTeamMember(lead.assigned_to) || {
         id: lead.assigned_to || '',
         organization_id: lead.organization_id || '',
-        role: 'analyst' as const,
+        role: TEAM_MEMBER_ROLES.MEMBER,
         profile: {
           id: lead.assigned_to || '',
           first_name: '',
@@ -225,7 +226,7 @@ export async function getLead(id: string): Promise<Lead> {
     const assignedTo = await fetchTeamMember(data.assigned_to) || {
       id: data.assigned_to || '',
       organization_id: data.organization_id || '',
-      role: 'analyst' as const,
+      role: TEAM_MEMBER_ROLES.MEMBER,
       profile: {
         id: data.assigned_to || '',
         first_name: '',
@@ -299,7 +300,7 @@ export async function createLead(leadData: CreateLeadData): Promise<Lead> {
     const assignedTo = await fetchTeamMember(data.assigned_to) || {
       id: data.assigned_to || '',
       organization_id: data.organization_id || '',
-      role: 'analyst' as const,
+      role: TEAM_MEMBER_ROLES.MEMBER,
       profile: {
         id: data.assigned_to || '',
         first_name: '',
@@ -355,7 +356,7 @@ export async function updateLead(id: string, leadData: UpdateLeadData): Promise<
     const assignedTo = await fetchTeamMember(data.assigned_to) || {
       id: data.assigned_to || '',
       organization_id: data.organization_id || '',
-      role: 'analyst' as const,
+      role: TEAM_MEMBER_ROLES.MEMBER,
       profile: {
         id: data.assigned_to || '',
         first_name: '',
@@ -553,7 +554,7 @@ export async function bulkCreateLeads(leadsData: CreateLeadData[]): Promise<Lead
         const assignedTo = await fetchTeamMember(leadData.assigned_to) || {
           id: leadData.assigned_to || '',
           organization_id: leadData.organization_id || '',
-          role: 'analyst' as const,
+          role: TEAM_MEMBER_ROLES.MEMBER,
           profile: {
             id: leadData.assigned_to || '',
             first_name: '',

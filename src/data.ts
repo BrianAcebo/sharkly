@@ -1,3 +1,4 @@
+import { TEAM_MEMBER_ROLES } from './utils/constants';
 import { Lead } from './types/leads';
 
 export const mockLeads: Lead[] = [
@@ -19,7 +20,7 @@ export const mockLeads: Lead[] = [
 				first_name: 'John',
 				last_name: 'Doe'
 			},
-			role: 'admin',
+			role: TEAM_MEMBER_ROLES.MANAGER,
 			organization_id: '1'
 		},
 		notes: 'Interested in enterprise package. Follow up next week.',
@@ -76,7 +77,7 @@ export const mockLeads: Lead[] = [
 				first_name: 'John',
 				last_name: 'Doe'
 			},
-			role: 'admin',
+			role: TEAM_MEMBER_ROLES.MANAGER,
 			organization_id: '1'
 		},
 		notes: 'New lead from website form',

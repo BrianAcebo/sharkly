@@ -40,6 +40,22 @@ export const DATE_RANGES = {
 
 export type DateRange = typeof DATE_RANGES[keyof typeof DATE_RANGES];
 
+// Team Member Role Options
+export const TEAM_MEMBER_ROLES = {
+	OWNER: 'owner',
+	MANAGER: 'manager',
+	MEMBER: 'member'
+} as const;
+
+// Roles that can be assigned to new team members (excludes owner)
+export const ASSIGNABLE_TEAM_MEMBER_ROLES = {
+	MANAGER: 'manager',
+	MEMBER: 'member'
+} as const;
+
+export type TeamMemberRole = typeof TEAM_MEMBER_ROLES[keyof typeof TEAM_MEMBER_ROLES];
+export type AssignableTeamMemberRole = typeof ASSIGNABLE_TEAM_MEMBER_ROLES[keyof typeof ASSIGNABLE_TEAM_MEMBER_ROLES];
+
 // Filter Options for UI
 export const FILTER_OPTIONS = {
   STAGE: [

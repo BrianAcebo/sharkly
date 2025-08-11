@@ -129,7 +129,7 @@ export function SearchFilters({ filters, onFiltersChange, totalResults = 0 }: Se
 	};
 
 	return (
-		<div className="mb-6 space-y-4">
+		<div className="space-y-4">
 			<div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
 				<div className="flex items-center gap-2">
 					<Button

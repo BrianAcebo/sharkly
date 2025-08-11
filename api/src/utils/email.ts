@@ -37,20 +37,125 @@ const templates = {
 			If you did not expect this invitation, please ignore this email.
 		`,
 		html: (data: TemplateData['teamMemberInvite']) => `
-			<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-				<h1 style="color: #333;">You've been invited to join ${data.orgName}</h1>
-				<p>You have been invited to join ${data.orgName} as an ${data.role}.</p>
-				<p>Click the button below to accept the invitation:</p>
-				<div style="text-align: center; margin: 30px 0;">
-					<a href="${data.inviteLink}" 
-					   style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
-						Accept Invitation
-					</a>
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>Team Member Invitation</title>
+				<style>
+					/* Reset and base styles */
+					* { margin: 0; padding: 0; box-sizing: border-box; }
+					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f9fafb; }
+					
+					/* Container */
+					.email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+					
+					/* Header */
+					.email-header { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); padding: 40px 32px; text-align: center; border-bottom: 1px solid #fecaca; }
+					.email-header h1 { color: #dc2626; font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+					.email-header p { color: #6b7280; font-size: 16px; }
+					
+					/* Content */
+					.email-content { padding: 40px 32px; }
+					.invite-details { background-color: #f9fafb; border-radius: 8px; padding: 24px; margin: 24px 0; border-left: 4px solid #f87171; }
+					.detail-row { display: flex; align-items: center; margin-bottom: 16px; }
+					.detail-row:last-child { margin-bottom: 0; }
+					.detail-icon { width: 20px; height: 20px; margin-right: 12px; color: #f87171; }
+					.detail-label { font-weight: 600; color: #374151; min-width: 80px; }
+					.detail-value { color: #6b7280; }
+					
+					/* Branded Button */
+					.branded-button { 
+						display: inline-block; 
+						background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%); 
+						color: #ffffff !important; 
+						text-decoration: none; 
+						padding: 16px 32px; 
+						border-radius: 8px; 
+						font-weight: 600; 
+						font-size: 16px; 
+						text-align: center; 
+						box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3), 0 2px 4px -1px rgba(239, 68, 68, 0.2);
+						transition: all 0.2s ease-in-out;
+						border: none;
+						cursor: pointer;
+						min-width: 200px;
+					}
+					.branded-button:hover { 
+						background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%); 
+						transform: translateY(-1px);
+						box-shadow: 0 6px 8px -1px rgba(239, 68, 68, 0.4), 0 4px 6px -1px rgba(239, 68, 68, 0.3);
+					}
+					.branded-button:active { 
+						transform: translateY(0);
+						box-shadow: 0 2px 4px -1px rgba(239, 68, 68, 0.3);
+					}
+					
+					/* Button Container */
+					.button-container { text-align: center; margin: 32px 0; }
+					
+					/* Footer */
+					.email-footer { background-color: #f9fafb; padding: 24px 32px; text-align: center; border-top: 1px solid #e5e7eb; }
+					.email-footer p { color: #9ca3af; font-size: 14px; }
+					
+					/* Responsive */
+					@media (max-width: 600px) {
+						.email-container { margin: 16px; border-radius: 8px; }
+						.email-header, .email-content, .email-footer { padding: 24px 20px; }
+						.email-header h1 { font-size: 24px; }
+						.branded-button { padding: 14px 24px; font-size: 15px; min-width: 180px; }
+					}
+				</style>
+			</head>
+			<body>
+				<div class="email-container">
+					<div class="email-header">
+						<h1>🎯 Team Invitation</h1>
+						<p>You've been invited to join a team on Paperboat CRM</p>
+					</div>
+					
+					<div class="email-content">
+						<p style="margin-bottom: 24px; font-size: 16px; color: #374151;">
+							You have been invited to join <strong>${data.orgName}</strong> as a <strong>${data.role}</strong>.
+						</p>
+						
+						<div class="invite-details">
+							<div class="detail-row">
+								<div class="detail-icon">🏢</div>
+								<div class="detail-label">Organization:</div>
+								<div class="detail-value">${data.orgName}</div>
+							</div>
+							<div class="detail-row">
+								<div class="detail-icon">👤</div>
+								<div class="detail-label">Your Role:</div>
+								<div class="detail-value">${data.role}</div>
+							</div>
+							<div class="detail-row">
+								<div class="detail-icon">🔗</div>
+								<div class="detail-label">Invitation:</div>
+								<div class="detail-value">Valid for 7 days</div>
+							</div>
+						</div>
+						
+						<div class="button-container">
+							<a href="${data.inviteLink}" class="branded-button">
+								Accept Invitation
+							</a>
+						</div>
+						
+						<p style="margin-top: 24px; font-size: 14px; color: #6b7280; text-align: center;">
+							Click the button above to accept this invitation and join the team.
+						</p>
+					</div>
+					
+					<div class="email-footer">
+						<p>If you did not expect this invitation, please ignore this email.</p>
+						<p style="margin-top: 8px;">© ${new Date().getFullYear()} Paperboat CRM. All rights reserved.</p>
+					</div>
 				</div>
-				<p style="color: #666; font-size: 12px;">
-					If you did not expect this invitation, please ignore this email.
-				</p>
-			</div>
+			</body>
+			</html>
 		`
 	}
 	// Add more templates here as needed
@@ -96,9 +201,26 @@ class EmailService {
 				throw new Error('Email transporter not configured');
 			}
 
-			const mailOptions: any = {
+			const mailOptions: {
+				from: string;
+				sender: string;
+				replyTo: string;
+				to: string;
+				subject: string;
+				text: string;
+				html: string;
+				attachments?: {
+					filename: string;
+					content: string;
+					contentType?: string;
+				}[];
+				envelope: {
+					from: string;
+					to: string;
+				};
+			} = {
 				from: options.from || `Paperboat CRM <${config.smtp.from}>`,
-				sender: config.smtp.user, // actual authenticated sender
+				sender: config.smtp.user || config.smtp.from, // actual authenticated sender
 				replyTo: options.replyTo || config.smtp.from,
 				to: options.to,
 				subject: options.subject,

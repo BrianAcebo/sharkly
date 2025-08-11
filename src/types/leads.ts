@@ -1,4 +1,4 @@
-import { LEAD_STAGES, LEAD_PRIORITIES, LEAD_STATUSES } from '../utils/constants';
+import { LEAD_STAGES, LEAD_PRIORITIES, LEAD_STATUSES, type TeamMemberRole } from '../utils/constants';
 
 export type PriorityFilter = 'all' | typeof LEAD_PRIORITIES[keyof typeof LEAD_PRIORITIES];
 export interface Lead {
@@ -183,7 +183,7 @@ export interface TeamMember {
 	id: string;
 	user_id?: string;
 	organization_id: string;
-	role: 'admin' | 'analyst' | 'viewer';
+	role: TeamMemberRole;
 	profile: UserProfile;
 }
 

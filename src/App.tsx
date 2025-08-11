@@ -20,6 +20,7 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import Lead from './pages/Lead';
 import OrganizationRequired from './pages/Organization/OrganizationRequired';
 import Organization from './pages/Organization/Organization';
+import InviteAccept from './pages/Organization/InviteAccept';
 
 export default function App() {
 	return (
@@ -50,6 +51,9 @@ export default function App() {
 						<Route path="/signin" element={<SignIn />} />
 						<Route path="/signup" element={<SignUp />} />
 					</Route>
+
+					{/* Invite Route - should be accessible without full auth */}
+					<Route path="/invite/:inviteId" element={<InviteAccept />} />
 
 					<Route path="/oauth/callback" element={<OAuthCallback />} />
 

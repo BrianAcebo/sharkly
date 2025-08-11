@@ -7,11 +7,12 @@ import { Building2, Users, Shield, CheckCircle, XCircle, Loader2 } from 'lucide-
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
 import { api } from '../../utils/api';
+import { type TeamMemberRole } from '../../utils/constants';
 
 interface Invitation {
 	id: string;
 	email: string;
-	role: 'admin' | 'analyst' | 'viewer';
+	role: TeamMemberRole;
 	organization_id: string;
 	invited_by: string;
 	status: 'pending' | 'accepted' | 'expired';
@@ -36,9 +37,10 @@ export default function InviteAccept() {
 	const [isAccepting, setIsAccepting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	if (!user || !session) {
-		navigate('/signin?next=/invite/' + inviteId);
-	}
+	// Remove the early redirect - let users see the invitation first
+	// if (!user || !session) {
+	// 	navigate('/signin?next=/invite/' + inviteId);
+	// }
 
 	const fetchInvitation = useCallback(async () => {
 		if (!inviteId) {
@@ -183,9 +185,9 @@ export default function InviteAccept() {
 
 			toast.success('Successfully joined the organization!');
 
-			// Redirect to the organization page or cases
+			// Redirect to the organization page
 			setTimeout(() => {
-				navigate('/cases');
+				navigate('/organization');
 			}, 1500);
 		} catch (error) {
 			console.error('Error accepting invitation:', error);

@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
 import { HttpError } from '../../utils/error';
 import { api } from '../../utils/api';
+import { TEAM_MEMBER_ROLES, ASSIGNABLE_TEAM_MEMBER_ROLES, type TeamMemberRole, type AssignableTeamMemberRole } from '../../utils/constants';
 import {
 	Select,
 	SelectContent,
@@ -22,7 +23,7 @@ import Input from '../../components/form/input/InputField';
 interface PendingInvitation {
 	id: string;
 	email: string;
-	role: 'admin' | 'analyst' | 'viewer';
+	role: TeamMemberRole;
 	status: 'pending';
 	created_at: string;
 	invited_by: string;
@@ -39,7 +40,7 @@ export default function OrganizationPage() {
 	const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 	const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
 	const [inviteEmail, setInviteEmail] = useState('');
-	const [inviteRole, setInviteRole] = useState('analyst');
+	const [inviteRole, setInviteRole] = useState<AssignableTeamMemberRole>(ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER);
 	const [isInviting, setIsInviting] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 
@@ -66,22 +67,25 @@ export default function OrganizationPage() {
 			if (orgError || !org) throw new HttpError('No organization found', 404);
 			setOrganization(org);
 
-			// Get all team members for the organization
+			// Get all team members for the organization directly from Supabase
 			const { data: members, error: membersError } = await supabase
-				.from('team_members')
+				.from('user_organizations')
 				.select('*, profile:profiles(*)')
 				.eq('organization_id', org.id);
 
 			if (membersError) throw new HttpError('Failed to fetch team members', 500);
+			
 			setTeamMembers(
 				members.map((member) => {
 					let avatarUrl = '';
-					const { data: imageUrl } = supabase.storage
-						.from('avatars')
-						.getPublicUrl(member.profile.avatar);
+					if (member.profile?.avatar) {
+						const { data: imageUrl } = supabase.storage
+							.from('avatars')
+							.getPublicUrl(member.profile.avatar);
 
-					if (imageUrl?.publicUrl) {
-						avatarUrl = imageUrl.publicUrl;
+						if (imageUrl?.publicUrl) {
+							avatarUrl = imageUrl.publicUrl;
+						}
 					}
 					return { ...member, profile: { ...member.profile, avatar: avatarUrl } };
 				}) || []
@@ -125,7 +129,7 @@ export default function OrganizationPage() {
 					}) => ({
 						id: invite.id,
 						email: invite.email,
-						role: invite.role as 'admin' | 'analyst' | 'viewer',
+						role: invite.role as TeamMemberRole,
 						status: invite.status as 'pending',
 						created_at: invite.created_at,
 						invited_by: invite.invited_by,
@@ -152,7 +156,20 @@ export default function OrganizationPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	const isAdmin = teamMembers.find((member) => member.profile.id === user?.id)?.role === 'admin';
+	// Debug logging to understand the data structure
+	console.log('Debug - Current user:', user);
+	console.log('Debug - Team members:', teamMembers);
+	console.log('Debug - Organization:', organization);
+
+	const isAdmin = teamMembers.find((member) => member.profile.id === user?.id)?.role === TEAM_MEMBER_ROLES.MANAGER;
+	
+	// Alternative admin check - also check if user is the organization owner
+	const isOwner = organization?.ownerId === user?.id;
+	const hasAdminAccess = isAdmin || isOwner;
+
+	console.log('Debug - isAdmin:', isAdmin);
+	console.log('Debug - isOwner:', isOwner);
+	console.log('Debug - hasAdminAccess:', hasAdminAccess);
 
 	const handleInviteTeamMember = async () => {
 		if (!inviteEmail) {
@@ -207,11 +224,39 @@ export default function OrganizationPage() {
 	};
 
 	const handleDeleteTeamMember = async (memberId: string) => {
-		if (!confirm('Are you sure you want to remove this team member?')) return;
+		const member = teamMembers.find(m => m.id === memberId);
+		if (!member) return;
+
+		if (!confirm(`Are you sure you want to remove ${member.profile.first_name} ${member.profile.last_name} from the organization? This action cannot be undone.`)) {
+			return;
+		}
 
 		try {
-			const { error } = await supabase.from('team_members').delete().eq('id', memberId);
-			if (error) throw new Error('Failed to remove team member');
+			if (!organization) {
+				toast.error('Organization not found');
+				return;
+			}
+
+			// Check if user is the owner
+			if (organization.ownerId !== user?.id) {
+				toast.error('Only the organization owner can remove team members');
+				return;
+			}
+
+			// Check if trying to remove self
+			if (memberId === user?.id) {
+				toast.error('Cannot remove yourself from the organization');
+				return;
+			}
+
+			const { error } = await supabase
+				.from('user_organizations')
+				.delete()
+				.eq('user_id', memberId)
+				.eq('organization_id', organization.id);
+
+			if (error) throw error;
+			
 			toast.success('Team member removed successfully');
 			fetchOrganizationData();
 		} catch (error) {
@@ -220,13 +265,37 @@ export default function OrganizationPage() {
 		}
 	};
 
-	const handleUpdateRole = async (memberId: string, newRole: string) => {
+	const handleUpdateRole = async (memberId: string, newRole: TeamMemberRole) => {
+		if (!confirm(`Are you sure you want to change this team member's role to ${newRole}?`)) {
+			return;
+		}
+
 		try {
+			if (!organization) {
+				toast.error('Organization not found');
+				return;
+			}
+
+			// Check if user is the owner
+			if (organization.ownerId !== user?.id) {
+				toast.error('Only the organization owner can update team member roles');
+				return;
+			}
+
+			// Check if trying to update self
+			if (memberId === user?.id) {
+				toast.error('Cannot update your own role');
+				return;
+			}
+
 			const { error } = await supabase
-				.from('team_members')
+				.from('user_organizations')
 				.update({ role: newRole })
-				.eq('id', memberId);
-			if (error) throw new Error('Failed to update role');
+				.eq('user_id', memberId)
+				.eq('organization_id', organization.id);
+
+			if (error) throw error;
+			
 			toast.success('Role updated successfully');
 			fetchOrganizationData();
 		} catch (error) {
@@ -250,6 +319,28 @@ export default function OrganizationPage() {
 			} else {
 				toast.error('Failed to cancel invitation');
 			}
+		}
+	};
+
+	const handleUpdateOrganization = async () => {
+		try {
+			if (!organization) {
+				toast.error('Organization not found');
+				return;
+			}
+
+			// Check if user is the owner
+			if (organization.ownerId !== user?.id) {
+				toast.error('Only the organization owner can update organization settings');
+				return;
+			}
+
+			// For now, just show a message that this would update the organization
+			// You can add form fields and actual update logic here
+			toast.success('Organization settings would be updated (functionality to be implemented)');
+		} catch (error) {
+			console.error('Error updating organization:', error);
+			toast.error('Failed to update organization');
 		}
 	};
 
@@ -327,14 +418,14 @@ export default function OrganizationPage() {
 							<CardHeader>
 								<div className="flex items-center gap-2">
 									<Shield className="h-5 w-5 text-gray-500" />
-									<h3 className="font-semibold">Admin Team</h3>
+									<h3 className="font-semibold">Managers</h3>
 								</div>
 							</CardHeader>
 							<CardContent>
 								<p className="mt-2 text-2xl font-bold">
-									{teamMembers.filter((member) => member.role === 'admin').length}
+									{teamMembers.filter((member) => member.role === TEAM_MEMBER_ROLES.MANAGER).length}
 								</p>
-								<p className="text-sm text-gray-500">Administrators</p>
+								<p className="text-sm text-gray-500">Team managers</p>
 							</CardContent>
 						</Card>
 
@@ -359,7 +450,7 @@ export default function OrganizationPage() {
 				</TabsContent>
 
 				<TabsContent value="team-members" className="space-y-4">
-					{isAdmin && (
+					{isOwner && (
 						<Card className="p-4">
 							<CardHeader>
 								<h3 className="mb-4 font-semibold">Invite New Team Member</h3>
@@ -375,15 +466,14 @@ export default function OrganizationPage() {
 									/>
 									<Select
 										value={inviteRole}
-										onValueChange={(value: string) => setInviteRole(value)}
+										onValueChange={(value: string) => setInviteRole(value as AssignableTeamMemberRole)}
 									>
 										<SelectTrigger className="h-11 w-[180px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
 											<SelectValue placeholder="Select role" />
 										</SelectTrigger>
 										<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
-											<SelectItem value="admin">As admin</SelectItem>
-											<SelectItem value="analyst">As analyst</SelectItem>
-											<SelectItem value="viewer">As viewer</SelectItem>
+											<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MANAGER}>Manager</SelectItem>
+											<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER}>Member</SelectItem>
 										</SelectContent>
 									</Select>
 									<Button
@@ -424,7 +514,7 @@ export default function OrganizationPage() {
 														{new Date(invitation.created_at).toLocaleDateString()}
 													</p>
 												</div>
-												{isAdmin && (
+												{isOwner && (
 													<Button
 														variant="outline"
 														size="sm"
@@ -451,14 +541,14 @@ export default function OrganizationPage() {
 						</CardHeader>
 						<CardContent>
 							<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-								{teamMembers.map((member) => (
+								{teamMembers.map((member: TeamMember) => (
 									<Card key={member.id} className="p-4">
 										<div className="flex items-center gap-4">
 											<Avatar>
 												<AvatarImage src={member.profile.avatar} />
 												<AvatarFallback>
-													{member.profile.first_name[0]}
-													{member.profile.last_name[0]}
+													{member.profile.first_name}
+													{member.profile.last_name}
 												</AvatarFallback>
 											</Avatar>
 											<div className="flex-1">
@@ -467,20 +557,20 @@ export default function OrganizationPage() {
 												</h3>
 												<p className="text-sm text-gray-500 capitalize">{member.role}</p>
 											</div>
-											{isAdmin && member.profile.id !== user?.id && (
+											{isOwner && member.profile.id !== user?.id && (
 												<div className="flex gap-2">
 													<Select
 														value={member.role}
 														onValueChange={(value: string) =>
-															handleUpdateRole(member.id, value)
+															handleUpdateRole(member.id, value as TeamMemberRole)
 														}
 													>
 														<SelectTrigger className="h-11 w-[100px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
 															<SelectValue />
 														</SelectTrigger>
 														<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
-															<SelectItem value="analyst">Analyst</SelectItem>
-															<SelectItem value="admin">Admin</SelectItem>
+															<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MANAGER}>Manager</SelectItem>
+															<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER}>Member</SelectItem>
 														</SelectContent>
 													</Select>
 													<Button
@@ -512,7 +602,7 @@ export default function OrganizationPage() {
 									<Input
 										type="text"
 										value={organization.name}
-										disabled={!isAdmin}
+										disabled={!isOwner}
 										className="mt-1"
 									/>
 								</div>
@@ -520,9 +610,9 @@ export default function OrganizationPage() {
 									<label className="text-sm font-medium">Max Seats</label>
 									<div className="mt-1 flex items-center gap-2">{organization.maxSeats}</div>
 								</div>
-								{isAdmin && (
+								{isOwner && (
 									<div className="flex items-center gap-3">
-										<Button size="sm" className="mt-4" variant="outline">
+										<Button size="sm" className="mt-4" variant="outline" onClick={handleUpdateOrganization}>
 											Save Changes
 										</Button>
 										<Button size="sm" className="mt-4">
