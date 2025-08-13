@@ -114,7 +114,7 @@ export default function OrganizationPage() {
 					status,
 					created_at,
 					invited_by,
-					inviter:profiles!organization_invites_invited_by_fkey(
+					inviter:profiles(
 						first_name,
 						last_name
 					)
@@ -489,10 +489,10 @@ export default function OrganizationPage() {
 								</h3>
 							</CardHeader>
 							<CardContent>
-								<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+								<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
 									{pendingInvitations.map((invitation) => (
 										<Card key={invitation.id} className="border-dashed p-4">
-											<div className="flex items-center gap-4">
+											<div className="flex items-center gap-4 flex-wrap">
 												<div className="flex-1">
 													<h3 className="font-semibold">{invitation.email}</h3>
 													<p className="text-sm text-gray-500 capitalize">{invitation.role}</p>
@@ -530,15 +530,14 @@ export default function OrganizationPage() {
 							</h3>
 						</CardHeader>
 						<CardContent>
-							<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+							<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
 								{teamMembers.map((member: TeamMember) => (
 									<Card key={member.id} className="p-4">
-										<div className="flex items-center gap-4">
+										<div className="flex items-center gap-4 flex-wrap">
 											<Avatar>
 												<AvatarImage src={member.profile.avatar} />
 												<AvatarFallback>
-													{member.profile.first_name}
-													{member.profile.last_name}
+													{member.profile.first_name.charAt(0)}
 												</AvatarFallback>
 											</Avatar>
 											<div className="flex-1">
