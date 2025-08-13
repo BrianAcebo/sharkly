@@ -4,7 +4,7 @@ import { emailService } from '../utils/email';
 
 interface InviteTeamMemberRequest {
 	email: string;
-	role: 'manager' | 'member';
+	role: 'admin' | 'member';
 }
 
 interface AcceptInvitationRequest {
@@ -45,7 +45,7 @@ export const createOrganization = async (req: Request, res: Response) => {
 			.insert({
 				user_id: userId,
 				organization_id: organization.id,
-				role: 'manager'
+				role: 'admin'
 			});
 
 		if (userOrgError) {

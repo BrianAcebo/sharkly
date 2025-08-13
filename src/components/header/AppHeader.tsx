@@ -25,15 +25,17 @@ const Header: React.FC = () => {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+
   const headerRef = useRef<HTMLDivElement>(null);
-  const { toggleSidebar } = useSidebar();
-  const { breadcrumbs, title } = useBreadcrumbs();
   const commandPaletteRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const { toggleSidebar } = useSidebar();
+  const { breadcrumbs, title } = useBreadcrumbs();
 
+  // Keyboard shortcuts + header height CSS var
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setShowCommandPalette(true);
       }
@@ -44,30 +46,23 @@ const Header: React.FC = () => {
       }
     };
 
-    // Set CSS variable of header's height
-		const el = headerRef.current;
-		if (!el) {
-			return;
-		}
+    const el = headerRef.current;
+    if (!el) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
 
-		const updateHeight = () => {
-			const height = el.offsetHeight;
-			document.documentElement.style.setProperty('--header-height', `${height}px`);
-		};
+    const updateHeight = () => {
+      const height = el.offsetHeight;
+      document.documentElement.style.setProperty('--header-height', `${height}px`);
+    };
+    updateHeight();
 
-		updateHeight();
-
-		const observer = new ResizeObserver(updateHeight);
-		observer.observe(el);
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(el);
 
     document.addEventListener('keydown', handleKeyDown);
-		window.addEventListener('load', updateHeight);
-    document.addEventListener('click', (e) => {
-      if (e.target instanceof HTMLElement && !searchRef.current?.contains(e.target) && !commandPaletteRef.current?.contains(e.target)) {
-        e.preventDefault();
-        setShowCommandPalette(false);
-      }
-    });
+    window.addEventListener('load', updateHeight);
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
@@ -76,22 +71,52 @@ const Header: React.FC = () => {
     };
   }, []);
 
+  // Close command palette on outside click *without* preventing default.
+  // We attach this listener only while the palette is open.
+  useEffect(() => {
+    if (!showCommandPalette) return;
+
+    const onPointerDownCapture = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      const clickedInsideSearch = !!searchRef.current?.contains(target);
+      const clickedInsidePalette = !!commandPaletteRef.current?.contains(target);
+
+      // If click is outside both search trigger and the palette, close it.
+      if (!clickedInsideSearch && !clickedInsidePalette) {
+        setShowCommandPalette(false);
+      }
+
+      // NOTE: No preventDefault() here — keeps native behaviors (like form submit) intact.
+    };
+
+    document.addEventListener('pointerdown', onPointerDownCapture, true);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDownCapture, true);
+    };
+  }, [showCommandPalette]);
+
   const handleSearchClick = () => {
     setShowCommandPalette(true);
   };
 
   return (
     <>
-      <header ref={headerRef} className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-6 py-4">
+      <header
+        ref={headerRef}
+        className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-600 px-6 py-4"
+      >
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
             <button
               onClick={toggleSidebar}
               className="lg:hidden text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+              type="button"
             >
               <Menu className="h-6 w-6" />
             </button>
-            
+
             <div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
               <span>Home</span>
               {breadcrumbs.map((crumb, index) => (
@@ -107,6 +132,7 @@ const Header: React.FC = () => {
 
           <div ref={searchRef} className="relative w-full max-w-[400px] 2xl:max-w-[600px]">
             <button
+              type="button"
               onClick={handleSearchClick}
               className="text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-600 flex items-center space-x-2 px-4 py-2 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors duration-200 w-full justify-start"
             >
@@ -121,6 +147,7 @@ const Header: React.FC = () => {
 
           <div className="flex items-center space-x-4">
             <button
+              type="button"
               onClick={toggleTheme}
               className="p-2 text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400 transition-colors duration-200"
             >
@@ -129,7 +156,8 @@ const Header: React.FC = () => {
 
             <div className="relative">
               <button
-                onClick={() => setShowNotifications(!showNotifications)}
+                type="button"
+                onClick={() => setShowNotifications((s) => !s)}
                 className="p-2 text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400 transition-colors duration-200 relative"
               >
                 <Bell className="h-5 w-5" />
@@ -139,7 +167,7 @@ const Header: React.FC = () => {
                   </span>
                 )}
               </button>
-              
+
               {showNotifications && (
                 <NotificationPanel onClose={() => setShowNotifications(false)} />
               )}
@@ -147,7 +175,8 @@ const Header: React.FC = () => {
 
             <div className="relative">
               <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
+                type="button"
+                onClick={() => setShowUserMenu((s) => !s)}
                 className="flex items-center space-x-2 p-2 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors duration-200"
               >
                 <div className="w-8 h-8 bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
@@ -163,11 +192,15 @@ const Header: React.FC = () => {
                     <p className="text-sm font-medium text-black dark:text-white">{user?.email}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
                   </div>
-                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center space-x-2">
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center space-x-2"
+                  >
                     <Settings className="h-4 w-4" />
                     <span>Settings</span>
                   </button>
-                  <button 
+                  <button
+                    type="button"
                     onClick={signOut}
                     className="w-full text-left px-4 py-2 text-sm text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center space-x-2"
                   >
@@ -182,7 +215,10 @@ const Header: React.FC = () => {
       </header>
 
       {showCommandPalette && (
-        <CommandPalette ref={commandPaletteRef} onClose={() => setShowCommandPalette(false)} />
+        <CommandPalette
+          ref={commandPaletteRef}
+          onClose={() => setShowCommandPalette(false)}
+        />
       )}
     </>
   );

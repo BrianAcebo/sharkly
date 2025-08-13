@@ -36,8 +36,7 @@ export const useTeamMembers = () => {
         .eq('organization_id', user.organization_id);
 
       if (membersError) {
-        console.error("membersError", membersError);
-        throw new Error('Failed to fetch team members');
+        throw membersError;
       }
 
       // Transform the data to include avatar URLs and match TeamMember interface
@@ -71,8 +70,7 @@ export const useTeamMembers = () => {
 
       setTeamMembers(transformedMembers);
     } catch (err) {
-      console.error('Error fetching team members:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch team members');
+      throw new Error('Failed to fetch team members');
     } finally {
       setIsLoading(false);
     }

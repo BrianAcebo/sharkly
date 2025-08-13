@@ -19,6 +19,7 @@ import {
 	SelectValue
 } from '../../components/ui/select';
 import Input from '../../components/form/input/InputField';
+import { useNavigate } from 'react-router-dom';
 
 interface PendingInvitation {
 	id: string;
@@ -34,7 +35,8 @@ interface PendingInvitation {
 }
 
 export default function OrganizationPage() {
-	const { user } = useAuth();
+	const { user, refreshUser } = useAuth();
+	const navigate = useNavigate();
 	const [activeTab, setActiveTab] = useState('overview');
 	const [organization, setOrganization] = useState<Organization | null>(null);
 	const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
@@ -47,6 +49,16 @@ export default function OrganizationPage() {
 	const fetchOrganizationData = async () => {
 		setIsLoading(true);
 		try {
+			// Check if user has organization_id, if not, refresh user data
+			if (!user?.organization_id) {
+				await refreshUser();
+				if (!user?.organization_id) {
+					setIsLoading(false);
+					navigate('/organization-required');
+					return;
+				}
+			}
+
 			// Get the organization for the current user (owner or member)
 			const { data: org, error: orgError } = await supabase
 				.from('organizations')
@@ -156,20 +168,7 @@ export default function OrganizationPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	// Debug logging to understand the data structure
-	console.log('Debug - Current user:', user);
-	console.log('Debug - Team members:', teamMembers);
-	console.log('Debug - Organization:', organization);
-
-	const isAdmin = teamMembers.find((member) => member.profile.id === user?.id)?.role === TEAM_MEMBER_ROLES.MANAGER;
-	
-	// Alternative admin check - also check if user is the organization owner
 	const isOwner = organization?.ownerId === user?.id;
-	const hasAdminAccess = isAdmin || isOwner;
-
-	console.log('Debug - isAdmin:', isAdmin);
-	console.log('Debug - isOwner:', isOwner);
-	console.log('Debug - hasAdminAccess:', hasAdminAccess);
 
 	const handleInviteTeamMember = async () => {
 		if (!inviteEmail) {
@@ -194,15 +193,6 @@ export default function OrganizationPage() {
 
 		setIsInviting(true);
 		try {
-			console.log(
-				'Sending invitation to:',
-				inviteEmail,
-				'with role:',
-				inviteRole,
-				'for org:',
-				organization?.id
-			);
-
 			await api.post(
 				'/api/organizations/invite',
 				{
@@ -423,7 +413,7 @@ export default function OrganizationPage() {
 							</CardHeader>
 							<CardContent>
 								<p className="mt-2 text-2xl font-bold">
-									{teamMembers.filter((member) => member.role === TEAM_MEMBER_ROLES.MANAGER).length}
+									{teamMembers.filter((member) => member.role === TEAM_MEMBER_ROLES.ADMIN).length}
 								</p>
 								<p className="text-sm text-gray-500">Team managers</p>
 							</CardContent>
@@ -472,7 +462,7 @@ export default function OrganizationPage() {
 											<SelectValue placeholder="Select role" />
 										</SelectTrigger>
 										<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
-											<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MANAGER}>Manager</SelectItem>
+											<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.ADMIN}>Manager</SelectItem>
 											<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER}>Member</SelectItem>
 										</SelectContent>
 									</Select>
@@ -569,7 +559,7 @@ export default function OrganizationPage() {
 															<SelectValue />
 														</SelectTrigger>
 														<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
-															<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MANAGER}>Manager</SelectItem>
+															<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.ADMIN}>Manager</SelectItem>
 															<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER}>Member</SelectItem>
 														</SelectContent>
 													</Select>

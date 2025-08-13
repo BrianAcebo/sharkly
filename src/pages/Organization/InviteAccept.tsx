@@ -49,8 +49,6 @@ export default function InviteAccept() {
 			return;
 		}
 
-		console.log('Fetching invitation with ID:', inviteId);
-
 		try {
 			// First, try to fetch just the basic invitation data
 			const { data: basicData, error: basicError } = await supabase
@@ -58,8 +56,6 @@ export default function InviteAccept() {
 				.select('*')
 				.eq('id', inviteId)
 				.single();
-
-			console.log('Basic invitation data:', { basicData, basicError });
 
 			if (basicError || !basicData) {
 				console.error('Error fetching basic invitation:', basicError);
@@ -93,8 +89,6 @@ export default function InviteAccept() {
 				.eq('id', inviteId)
 				.single();
 
-			console.log('Supabase response:', { data, error });
-
 			if (error) {
 				console.error('Error fetching invitation with joins:', error);
 				// If the join fails, we can still show basic invitation data
@@ -118,14 +112,10 @@ export default function InviteAccept() {
 				return;
 			}
 
-			console.log('Invitation data:', data);
-
 			// Check if invitation is expired (7 days)
 			const createdAt = new Date(data.created_at);
 			const now = new Date();
 			const daysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-
-			console.log('Invitation age:', daysDiff, 'days');
 
 			if (daysDiff > 7) {
 				setError('This invitation has expired');
@@ -150,7 +140,6 @@ export default function InviteAccept() {
 				inviter: Array.isArray(data.inviter) ? data.inviter[0] : data.inviter
 			};
 
-			console.log('Transformed invitation:', invitation);
 			setInvitation(invitation);
 		} catch (error) {
 			console.error('Error fetching invitation:', error);
@@ -302,10 +291,10 @@ export default function InviteAccept() {
 							<p className="text-center text-sm text-gray-600 dark:text-gray-400">
 								You need to sign in to accept this invitation
 							</p>
-							<Button onClick={() => navigate('/signin')} className="w-full">
+							<Button onClick={() => navigate(`/signin?invite=${inviteId}`)} className="w-full">
 								Sign In
 							</Button>
-							<Button onClick={() => navigate('/signup')} variant="outline" className="w-full">
+							<Button onClick={() => navigate(`/signup?invite=${inviteId}`)} variant="outline" className="w-full">
 								Create Account
 							</Button>
 						</div>
@@ -315,7 +304,7 @@ export default function InviteAccept() {
 								This invitation was sent to {invitation.email}, but you're signed in as{' '}
 								{user?.email}
 							</p>
-							<Button onClick={() => navigate('/signin')} variant="outline">
+							<Button onClick={() => navigate(`/signin?invite=${inviteId}`)} variant="outline">
 								Sign in with {invitation.email}
 							</Button>
 						</div>

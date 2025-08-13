@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Upload, X } from 'lucide-react';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
@@ -15,12 +15,41 @@ export default function OnboardingForm() {
 	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 	const [error, setError] = useState<string>('');
 	const [isLoading, setIsLoading] = useState(false);
+	const [hasShownWelcomeToast, setHasShownWelcomeToast] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const { user, updateUser } = useAuth();
 	const navigate = useNavigate();
 
 	const searchParams = new URLSearchParams(window.location.search);
 	const next = searchParams.get('next') ?? '/pipeline';
+
+	// Show welcome toast when user first lands on onboarding
+	useEffect(() => {
+		if (user && !hasShownWelcomeToast) {
+			// Only show welcome toast for newly verified users (not existing users signing in)
+			// Check if user has just completed email verification by looking at URL params
+			const searchParams = new URLSearchParams(window.location.search);
+			const isNewlyVerified = searchParams.get('verified') === 'true' || 
+								   searchParams.get('type') === 'email' ||
+								   window.location.pathname.includes('/auth/confirm');
+			
+			if (isNewlyVerified) {
+				toast.success('🎉 Welcome! Your email has been verified successfully.');
+			}
+			setHasShownWelcomeToast(true);
+		}
+	}, [user, hasShownWelcomeToast]);
+
+	useEffect(() => {
+		const orig = Event.prototype.preventDefault;
+		Event.prototype.preventDefault = function (...args) {
+		  if (this.type === 'click') {
+			console.warn('preventDefault on click:', this, '\n', new Error('stack').stack);
+		  }
+		  return orig.apply(this, args);
+		};
+		return () => { Event.prototype.preventDefault = orig; };
+	  }, []);
 
 	const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -43,21 +72,32 @@ export default function OnboardingForm() {
 	};
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+		console.log('handleSubmit called');
 		e.preventDefault();
-		if (!user) return;
+		console.log('Form submission started');
+		console.log('OnboardingForm - user:', user);
+		console.log('Form data:', { firstName, lastName, avatar: avatar ? 'File selected' : 'No file' });
+		
+		if (!user) {
+			console.log('No user found, returning');
+			return;
+		}
 
 		// Validate required fields
 		if (!firstName.trim() || !lastName.trim()) {
+			console.log('Validation failed:', { firstName: firstName.trim(), lastName: lastName.trim() });
 			setError('Please fill in all required fields');
 			return;
 		}
 
+		console.log('Validation passed, starting profile update...');
 		setIsLoading(true);
 		try {
 			let avatarPath = null;
 
 			// Upload avatar if selected
 			if (avatar) {
+				console.log('Uploading avatar...');
 				// Generate a unique filename with user ID to prevent collisions
 				const fileExt = avatar.name.split('.').pop();
 				const fileName = `${Date.now()}.${fileExt}`;
@@ -75,10 +115,12 @@ export default function OnboardingForm() {
 					throw uploadError;
 				}
 
+				console.log('Avatar uploaded successfully:', fileName);
 				// Store just the file path
 				avatarPath = fileName;
 			}
 
+			console.log('Updating profile in database...');
 			// Update profile
 			const { data: updateData, error: updateError } = await supabase
 				.from('profiles')
@@ -98,33 +140,34 @@ export default function OnboardingForm() {
 
 			console.log('Profile update successful:', updateData);
 
+			console.log('Calling updateUser()...');
 			// Update the user state with new profile information
 			await updateUser();
 
+			console.log('updateUser completed, showing success toast...');
 			toast.success('Profile updated successfully!');
 			
+			console.log('Waiting 100ms before navigation...');
 			// Add a small delay to ensure the user state is updated
 			setTimeout(() => {
+				console.log('Navigating to:', next);
 				navigate(next);
 			}, 100);
 		} catch (error) {
 			console.error('Error in handleSubmit:', error);
 			setError('An error occurred while updating your profile');
 		} finally {
+			console.log('Setting isLoading to false');
 			setIsLoading(false);
 		}
 	};
 
-	console.log('OnboardingForm - user:', user);
-	console.log('OnboardingForm - completed_onboarding:', user?.completed_onboarding);
-	
 	if (user?.completed_onboarding) {
-		console.log('OnboardingForm - User already completed onboarding, redirecting to:', next);
 		return <Navigate to={next} />;
 	}
 
 	return (
-		<div className="no-scrollbar flex w-full flex-1 flex-col overflow-y-auto">
+		<div className="flex w-full flex-1 flex-col">
 			<div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center pt-10">
 				<div>
 					<div className="mb-5 text-center sm:mb-8">
@@ -139,7 +182,13 @@ export default function OnboardingForm() {
 						{error && (
 							<p className="mb-4 text-center text-sm text-red-500 dark:text-red-400">{error}</p>
 						)}
-						<form onSubmit={handleSubmit}>
+						<form onSubmit={handleSubmit} id="onboarding-form" onInvalid={() => console.log('invalid')}
+							 onSubmitCapture={() => console.log('onSubmitCapture fired')}
+							 onClickCapture={(e) => {
+							   if ((e.target as HTMLElement).closest('button[type="submit"]')) {
+								 console.log('submit click captured');
+							   }
+							 }}>
 							<div className="space-y-6">
 								{/* Avatar Upload */}
 								<div className="flex flex-col items-center space-y-4">
@@ -192,6 +241,7 @@ export default function OnboardingForm() {
 											value={firstName}
 											onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFirstName(e.target.value)}
 											placeholder="Enter your first name"
+											required
 										/>
 									</div>
 									<div className="sm:col-span-1">
@@ -203,6 +253,7 @@ export default function OnboardingForm() {
 											value={lastName}
 											onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLastName(e.target.value)}
 											placeholder="Enter your last name"
+											required
 										/>
 									</div>
 								</div>
@@ -214,6 +265,9 @@ export default function OnboardingForm() {
 										type="submit"
 										disabled={isLoading}
 										fullWidth
+										form="onboarding-form"
+										onClickCapture={(e) => console.log('btn capture: defaultPrevented?', e.defaultPrevented)}
+  onClick={(e) => console.log('btn bubble: defaultPrevented?', e.defaultPrevented)}
 									>
 										{isLoading ? 'Updating Profile...' : 'Complete Profile'}
 									</Button>

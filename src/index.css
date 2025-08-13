@@ -333,3 +333,32 @@
 		cursor: pointer;
 	}
 }
+
+@layer utilities {
+	.h-screen-visible {
+		height: var(--spacing-screen-visible);
+	}
+	
+	.min-h-screen-visible {
+		min-height: var(--spacing-screen-visible);
+	}
+}
+
+/* Screen size warning styles */
+.screen-size-warning {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	background-color: rgb(17 24 39); /* bg-gray-900 */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1.5rem;
+}
+
+/* Media query fallback - hide app content on small screens */
+@media (max-width: 1023px) {
+	.app-layout-content {
+		display: none !important;
+	}
+}

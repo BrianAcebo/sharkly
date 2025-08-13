@@ -19,9 +19,97 @@ export default function OAuthCallback() {
 				throw authError;
 			}
 
-			// Get the intended destination from the URL or default to home
+			// Check if this is an invitation flow
+			const inviteId = searchParams.get('invite');
 			const next = searchParams.get('next') ?? '/';
-			navigate(next);
+			
+			// If there's an invitation, complete the invitation process
+			if (inviteId) {
+				try {
+					// Check if user is authenticated
+					const { data: { session } } = await supabase.auth.getSession();
+					if (session?.user) {
+						// User is authenticated, complete the invitation
+						console.log('Completing invitation process for OAuth user:', session.user.email);
+						
+						// Fetch the invitation details
+						const { data: invite, error: inviteError } = await supabase
+							.from('organization_invites')
+							.select(`
+								id,
+								email,
+								role,
+								organization_id,
+								status
+							`)
+							.eq('id', inviteId)
+							.eq('email', session.user.email)
+							.single();
+
+						if (inviteError || !invite) {
+							console.error('Error fetching invitation:', inviteError);
+							throw new Error('Invitation not found or invalid');
+						}
+
+						if (invite.status !== 'pending') {
+							console.log('Invitation already processed:', invite.status);
+							throw new Error('Invitation has already been processed');
+						}
+
+						// Check if user is already in the organization
+						const { data: existingMember } = await supabase
+							.from('user_organizations')
+							.select('id')
+							.eq('user_id', session.user.id)
+							.eq('organization_id', invite.organization_id)
+							.single();
+
+						if (!existingMember) {
+							// Add user to the organization
+							const { error: orgError } = await supabase
+								.from('user_organizations')
+								.insert({
+									user_id: session.user.id,
+									organization_id: invite.organization_id,
+									role: invite.role
+								});
+
+							if (orgError) {
+								console.error('Error adding user to organization:', orgError);
+								throw new Error('Failed to join organization');
+							}
+						}
+
+						// Update invitation status to accepted
+						await supabase
+							.from('organization_invites')
+							.update({ status: 'accepted' })
+							.eq('id', inviteId);
+
+						// Add a small delay to allow user context to update
+						// This prevents race condition with auth state change
+						await new Promise(resolve => setTimeout(resolve, 500));
+
+						// Success - user is now in organization, redirect to organization page
+						console.log('Successfully completed invitation via OAuth');
+						navigate('/organization');
+						return;
+						
+					} else {
+						// User not authenticated, redirect to signin with invitation context
+						navigate(`/signin?invite=${inviteId}&next=${next}`);
+						return;
+					}
+				} catch (inviteError) {
+					console.error('Error completing invitation via OAuth:', inviteError);
+					// If invitation completion fails, redirect to signin with error
+					navigate(`/signin?invite=${inviteId}&error=invite_failed`);
+					return;
+				}
+			} else {
+				// Otherwise, go to the intended destination
+				navigate(next);
+			}
 		} catch (err) {
 			console.error('Error in OAuth callback:', err);
 			const errorMessage = err instanceof Error ? err.message : 'Authentication failed. Please try again.';

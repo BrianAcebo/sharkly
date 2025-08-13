@@ -20,9 +20,100 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 	const [loadingState, setLoadingState] = useState<AuthLoadingState>(AuthLoadingState.LOADING);
 	const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+	const refreshUser = useCallback(async () => {
+		try {
+			if (!user?.id) return;
+
+			// Get the latest user profile
+			const { data: profile, error: profileError } = await supabase
+				.from('profiles')
+				.select(`
+					id,
+					first_name,
+					last_name,
+					avatar,
+					completed_onboarding
+				`)
+				.eq('id', user.id)
+				.single();
+
+			if (profileError) {
+				console.error('Error fetching profile:', profileError);
+				return;
+			}
+
+			if (profile) {
+				const profileData = profile as ProfileData;
+				let updatedUser = { ...user };
+
+				// Only try to get user organization if user has completed onboarding
+				// This prevents 406 errors during onboarding when user hasn't joined org yet
+				let userOrg = null;
+				if (profileData.completed_onboarding) {
+					try {
+						const { data, error } = await supabase
+							.from('user_organizations')
+							.select('organization_id, role')
+							.eq('user_id', profileData.id)
+							.single();
+
+						if (error) {
+							if (error.code === 'PGRST116') {
+								// No rows returned - user not in organization yet (this is normal)
+								console.log('User not in organization yet (normal during onboarding)');
+							} else if (error.code === '406') {
+								// 406 error - table might not be accessible yet, skip organization data
+								console.log('Organization data not accessible yet, skipping');
+							} else {
+								console.error('Error fetching user organization:', error);
+							}
+						} else {
+							userOrg = data;
+						}
+					} catch (err) {
+						console.error('Error in organization query:', err);
+					}
+				}
+
+				// Handle avatar URL
+				let avatarUrl = '';
+				if (profileData.avatar) {
+					try {
+						// Only generate URL if the avatar is a file path (not a full URL)
+						if (!profileData.avatar.startsWith('http')) {
+							const { data: imageUrl } = supabase.storage
+								.from('avatars')
+								.getPublicUrl(profileData.avatar);
+
+							if (imageUrl?.publicUrl) {
+								avatarUrl = imageUrl.publicUrl;
+							}
+						} else {
+							avatarUrl = profileData.avatar;
+						}
+					} catch (error) {
+						console.error('Error getting avatar URL:', error);
+					}
+				}
+
+				// Update user with profile data
+				updatedUser = {
+					...updatedUser,
+					...profileData,
+					avatar: avatarUrl,
+					organization_id: userOrg?.organization_id || '',
+					role: userOrg?.role || ''
+				};
+
+				setUser(updatedUser);
+			}
+		} catch (error) {
+			console.error('Error refreshing user:', error);
+		}
+	}, [user?.id]);
+
 	const updateUser = useCallback(async () => {
 		try {
-			console.log('updateUser called');
 			const {
 				data: { session: currentSession }
 			} = await supabase.auth.getSession();
@@ -54,16 +145,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				const profileData = profile as ProfileData;
 				let updatedUser = { ...currentSession.user } as UserProfile;
 
-				// Query user_organizations table to get organization and role data
-				const { data: userOrg, error: userOrgError } = await supabase
-					.from('user_organizations')
-					.select('organization_id, role')
-					.eq('user_id', profileData.id)
-					.single();
+				// Only query user_organizations if user has completed onboarding
+				// This prevents 406 errors during onboarding when user hasn't joined org yet
+				let userOrg = null;
+				if (profileData.completed_onboarding) {
+					try {
+						const { data, error: userOrgError } = await supabase
+							.from('user_organizations')
+							.select('organization_id, role')
+							.eq('user_id', profileData.id)
+							.single();
 
-				if (userOrgError && userOrgError.code !== 'PGRST116') {
-					// PGRST116 is the error code for no rows returned, which is expected if user is not in an organization
-					console.error('Error fetching user organization:', userOrgError);
+						if (userOrgError) {
+							if (userOrgError.code === 'PGRST116') {
+								// No rows returned - user not in organization yet (normal during onboarding)
+								console.log('User not in organization yet (normal during onboarding)');
+							} else if (userOrgError.code === '406') {
+								// 406 error - table might not be accessible yet, skip organization data
+								console.log('Organization data not accessible yet, skipping');
+							} else {
+								console.error('Error fetching user organization:', userOrgError);
+							}
+						} else {
+							userOrg = data;
+						}
+					} catch (err) {
+						console.error('Error in organization query:', err);
+					}
+				} else {
+					console.log('User has not completed onboarding, skipping organization query');
 				}
 
 				// Handle avatar URL
@@ -96,7 +206,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 					role: userOrg?.role || ''
 				};
 
-				console.log('Setting updated user:', updatedUser);
 				setUser(updatedUser);
 			} else {
 				console.error('No profile found for user:', currentSession.user.id);
@@ -143,14 +252,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 						let updatedUser = { ...session.user } as UserProfile;
 
 						// Query user_organizations table to get organization and role data
-						const { data: userOrg, error: userOrgError } = await supabase
-							.from('user_organizations')
-							.select('organization_id, role')
-							.eq('user_id', profileData.id)
-							.single();
+						// Only query if user has completed onboarding to prevent 406 errors
+						let userOrg = null;
+						if (profileData.completed_onboarding) {
+							const { data, error: userOrgError } = await supabase
+								.from('user_organizations')
+								.select('organization_id, role')
+								.eq('user_id', profileData.id)
+								.single();
 
-						if (userOrgError && userOrgError.code !== 'PGRST116') {
-							console.error('Error fetching user organization:', userOrgError);
+							if (userOrgError && userOrgError.code !== 'PGRST116') {
+								console.error('Error fetching user organization:', userOrgError);
+							} else if (userOrgError?.code === 'PGRST116') {
+								// No rows returned - user not in organization yet (normal during onboarding)
+								console.log('User not in organization yet (normal during onboarding)');
+							} else {
+								userOrg = data;
+							}
 						}
 
 						// Handle avatar URL
@@ -226,6 +344,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 					if (profileError) {
 						console.error('Error fetching profile:', profileError);
+						
+						// If profile doesn't exist, create it (fallback for new users)
+						if (profileError.code === 'PGRST116') {
+							try {
+								const { error: createError } = await supabase
+									.from('profiles')
+									.insert({
+										id: currentUser.id,
+										email: currentUser.email,
+										first_name: '',
+										last_name: '',
+										completed_onboarding: false
+									});
+								
+								if (createError) {
+									console.error('Error creating profile:', createError);
+									return;
+								}
+								
+								// Set basic user with default profile
+								const basicUser = {
+									...currentUser,
+									first_name: '',
+									last_name: '',
+									avatar: '',
+									completed_onboarding: false,
+									organization_id: '',
+									role: ''
+								} as UserProfile;
+								
+								setUser(basicUser);
+								return;
+							} catch (err) {
+								console.error('Error in profile creation fallback:', err);
+								return;
+							}
+						}
+						
 						return;
 					}
 
@@ -234,15 +390,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 						let updatedUser = { ...currentUser } as UserProfile;
 
 						// Query user_organizations table to get organization and role data
-						const { data: userOrg, error: userOrgError } = await supabase
-							.from('user_organizations')
-							.select('organization_id, role')
-							.eq('user_id', profileData.id)
-							.single();
+						// Only query if user has completed onboarding to prevent 406 errors
+						let userOrg = null;
+						if (profileData.completed_onboarding) {
+							const { data, error: userOrgError } = await supabase
+								.from('user_organizations')
+								.select('organization_id, role')
+								.eq('user_id', profileData.id)
+								.single();
 
-						if (userOrgError && userOrgError.code !== 'PGRST116') {
-							// PGRST116 is the error code for no rows returned, which is expected if user is not in an organization
-							console.error('Error fetching user organization:', userOrgError);
+							if (userOrgError && userOrgError.code !== 'PGRST116') {
+								// PGRST116 is the error code for no rows returned, which is expected if user is not in an organization
+								console.error('Error fetching user organization:', userOrgError);
+							} else if (userOrgError?.code === 'PGRST116') {
+								// No rows returned - user not in organization yet (normal during onboarding)
+								console.log('User not in organization yet (normal during onboarding)');
+							} else {
+								userOrg = data;
+							}
 						}
 
 						// Handle avatar URL
@@ -319,14 +484,111 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 	const signIn = useCallback(async (email: string, password: string) => {
 		try {
+			// Capture invitation context before sign in
+			const searchParams = new URLSearchParams(window.location.search);
+			const inviteId = searchParams.get('invite');
+			
 			setLoadingState(AuthLoadingState.LOADING);
 			const { error } = await supabase.auth.signInWithPassword({ email, password });
 			if (error) throw error;
+			
+			// If this is an invitation sign-in, complete the invitation process
+			if (inviteId) {
+				try {
+					console.log('Completing invitation process for user:', email);
+					
+					// Fetch the invitation details
+					const { data: invite, error: inviteError } = await supabase
+						.from('organization_invites')
+						.select(`
+							id,
+							email,
+							role,
+							organization_id,
+							status
+						`)
+						.eq('id', inviteId)
+						.eq('email', email)
+						.single();
+
+					if (inviteError || !invite) {
+						console.error('Error fetching invitation:', inviteError);
+						toast.error('Invitation not found or invalid');
+						setLoadingState(AuthLoadingState.IDLE);
+						return;
+					}
+
+					if (invite.status !== 'pending') {
+						console.log('Invitation already processed:', invite.status);
+						toast.error('Invitation has already been processed');
+						setLoadingState(AuthLoadingState.IDLE);
+						return;
+					}
+
+					// Get the current user ID from the session
+					const { data: { session: currentSession } } = await supabase.auth.getSession();
+					if (!currentSession?.user) {
+						console.error('No session found after sign in');
+						setLoadingState(AuthLoadingState.IDLE);
+						return;
+					}
+
+					// Check if user is already in the organization
+					const { data: existingMember } = await supabase
+						.from('user_organizations')
+						.select('id')
+						.eq('user_id', currentSession.user.id)
+						.eq('organization_id', invite.organization_id)
+						.single();
+
+					if (!existingMember) {
+						// Add user to the organization
+						const { error: orgError } = await supabase
+							.from('user_organizations')
+							.insert({
+								user_id: currentSession.user.id,
+								organization_id: invite.organization_id,
+								role: invite.role
+							});
+
+						if (orgError) {
+							console.error('Error adding user to organization:', orgError);
+							toast.error('Failed to join organization');
+							setLoadingState(AuthLoadingState.IDLE);
+							return;
+						}
+					}
+
+					// Update invitation status to accepted
+					await supabase
+						.from('organization_invites')
+						.update({ status: 'accepted' })
+						.eq('id', inviteId);
+
+					// Immediately refresh user context to include organization data
+					// This prevents race condition with auth state change
+					await updateUser();
+
+					// Success - user is now in organization
+					toast.success('Successfully joined organization!');
+					setMessage('Sign in successful! You have been added to the organization.');
+					
+				} catch (inviteError) {
+					console.error('Error completing invitation:', inviteError);
+					toast.error('Failed to complete invitation');
+					setLoadingState(AuthLoadingState.IDLE);
+					return;
+				}
+			} else {
+				setMessage('Sign in successful!');
+			}
+			
 			setLoadingState(AuthLoadingState.IDLE);
 		} catch (err) {
 			setLoadingState(AuthLoadingState.IDLE);
 			setError(err as AuthError);
 			toast.error((err as AuthError).message);
+			console.error('Sign in error:', err);
 			throw err;
 		}
 	}, []);
@@ -334,20 +596,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 	const signUp = useCallback(async (email: string, password: string) => {
 		try {
 			const searchParams = new URLSearchParams(window.location.search);
-			const next = searchParams.get('next');
+			const inviteId = searchParams.get('invite');
 
 			setLoadingState(AuthLoadingState.LOADING);
 			const { error } = await supabase.auth.signUp({
 				email,
 				password,
 				options: {
-					emailRedirectTo: `${window.location.origin}/onboarding${next ? '?next=' + next : ''}`
+					emailRedirectTo: `${window.location.origin}/auth/confirm`,
+					data: {
+						base_url: window.location.origin,
+						invite_id: inviteId || null
+					}
 				}
 			});
 			if (error) throw error;
 			setLoadingState(AuthLoadingState.IDLE);
-			toast.success('Successfully signed up!');
-			setMessage('Sign up successful! Please check your email for verification.');
+			
+			if (inviteId) {
+				toast.success('Account created! Please check your email to verify your account, then complete your invitation.');
+				setMessage('Account created successfully! Please check your email for verification, then return to complete your invitation.');
+			} else {
+				toast.success('Successfully signed up!');
+				setMessage('Sign up successful! Please check your email for verification.');
+			}
 		} catch (err) {
 			setLoadingState(AuthLoadingState.IDLE);
 			setError(err as AuthError);
@@ -366,6 +638,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 			setLoadingState(AuthLoadingState.IDLE);
 			setError(err as AuthError);
 			toast.error((err as AuthError).message);
+			console.error('Sign out error:', err);
 			throw err;
 		}
 	}, []);
@@ -374,12 +647,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		try {
 			const searchParams = new URLSearchParams(window.location.search);
 			const next = searchParams.get('next') ?? '/pipeline';
+			const inviteId = searchParams.get('invite');
 
 			setLoadingState(AuthLoadingState.LOADING);
 			const { error } = await supabase.auth.signInWithOAuth({
 				provider: 'google',
 				options: {
-					redirectTo: `${window.location.origin}/oauth/callback?next=${next}`
+					redirectTo: inviteId 
+						? `${window.location.origin}/oauth/callback?invite=${inviteId}&next=${next}`
+						: `${window.location.origin}/oauth/callback?next=${next}`
 				}
 			});
 			if (error) throw error;
@@ -411,7 +687,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				signOut,
 				signInWithGoogle,
 				updateUser,
-				resetAuthState
+				resetAuthState,
+				refreshUser
 			}}
 		>
 			{children}

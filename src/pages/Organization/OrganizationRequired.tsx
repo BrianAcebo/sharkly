@@ -352,12 +352,12 @@ export default function OrganizationRequired() {
 					</h1>
 					<p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
 						You need to be part of an organization to use this feature. Either create a new
-						organization or try out{' '}
+						organization or try it out for free{' '}
 						<button
 							className="font-medium text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
-							onClick={() => navigate('/search')}
+							onClick={() => navigate('/')}
 						>
-							search
+							here
 						</button>
 						.
 					</p>
@@ -386,7 +386,7 @@ export default function OrganizationRequired() {
 							Let's get started
 						</h4>
 						<p className="mb-6 text-sm text-gray-500 lg:mb-7 dark:text-gray-400">
-							Create an organization to get started with True Sight.
+							Create an organization to get started with Paperboat CRM.
 						</p>
 					</div>
 

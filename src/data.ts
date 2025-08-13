@@ -12,15 +12,15 @@ export const mockLeads: Lead[] = [
 		value: 25000,
 		last_contact: '2024-01-15',
 		assigned_to: {
-			id: '1',
+			id: '2',
 			profile: {
-				id: '1',
-				avatar: 'https://via.placeholder.com/150',
+				id: '2',
+				avatar: '/images/avatars/avatar-2.jpg',
 				completed_onboarding: true,
-				first_name: 'John',
-				last_name: 'Doe'
+				first_name: 'Sarah',
+				last_name: 'Johnson'
 			},
-			role: TEAM_MEMBER_ROLES.MANAGER,
+			role: TEAM_MEMBER_ROLES.ADMIN,
 			organization_id: '1'
 		},
 		notes: 'Interested in enterprise package. Follow up next week.',
@@ -74,10 +74,10 @@ export const mockLeads: Lead[] = [
 				id: '2',
 				avatar: 'https://via.placeholder.com/150',
 				completed_onboarding: true,
-				first_name: 'John',
-				last_name: 'Doe'
+				first_name: 'Sarah',
+				last_name: 'Johnson'
 			},
-			role: TEAM_MEMBER_ROLES.MANAGER,
+			role: TEAM_MEMBER_ROLES.ADMIN,
 			organization_id: '1'
 		},
 		notes: 'New lead from website form',

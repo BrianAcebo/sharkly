@@ -109,6 +109,8 @@ const LeadPipeline: React.FC = () => {
 
   const handlePerPageChange = (newPerPage: number) => {
     setPerPage(newPerPage);
+    // Reset to page 1 when changing items per page
+    fetchLeads(combinedFilters(), 1);
   };
 
   if (loading) {
@@ -167,9 +169,9 @@ const LeadPipeline: React.FC = () => {
         />
       </div>
 
-      <div className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900">
-        <div className="h-full w-full overflow-auto scrollbar-branded">
-          <div className="flex pb-6 gap-6 h-full min-w-max">
+      <div className="flex-1 overflow-hidden h-full max-h-110 bg-gray-50 dark:bg-gray-900">
+        <div className="h-full w-full overflow-y-hidden overflow-x-auto scrollbar-branded">
+          <div className="flex gap-6 h-full min-w-max pb-2">
             {stages.map((stage: LeadStage) => (
               <div
                 key={stage}
@@ -195,7 +197,7 @@ const LeadPipeline: React.FC = () => {
                   ${getTotalValue(stage).toLocaleString()}
                 </div>
 
-                <div className="flex-1 space-y-3 overflow-auto min-h-[700px] max-h-[calc(100vh-150px)] scrollbar-branded">
+                <div className="flex-1 space-y-3 pb-3">
                   {getLeadsByStage(stage).map((lead: Lead) => (
                     <div
                       key={lead.id}
@@ -229,13 +231,16 @@ const LeadPipeline: React.FC = () => {
       </div>
 
       {/* Pagination Controls */}
-      {totalPages > 1 && (
+      {total > 0 && (
         <div className="bg-white dark:bg-gray-800 p-6 border border-gray-200 dark:border-gray-700 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
               <span>
                 Showing {((currentPage - 1) * perPage) + 1} to {Math.min(currentPage * perPage, total)} of {total} leads
               </span>
+              {totalPages > 1 && (
+                <span className="text-xs text-gray-500">(Page {currentPage} of {totalPages})</span>
+              )}
             </div>
             
             <div className="flex items-center space-x-4">
@@ -256,70 +261,72 @@ const LeadPipeline: React.FC = () => {
                 </select>
               </div>
               
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => handlePageChange(pageNum)}
-                        className="w-8 h-8 p-0"
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
+              {totalPages > 1 && (
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(pageNum)}
+                          className="w-8 h-8 p-0"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
                 </div>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePageChange(totalPages)}
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronsRight className="h-4 w-4" />
-                </Button>
-              </div>
+              )}
             </div>
           </div>
         </div>

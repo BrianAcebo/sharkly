@@ -4,25 +4,22 @@ import { parseSupabaseError } from './error';
 
 // Get all leads for the current user's organization
 export async function getLeadsService(organizationId: string): Promise<Lead[]> {
-  console.log('getLeadsService', organizationId);
-  try {
-    const response = await getLeads({}, 1, 1000, organizationId);
-    return response.leads;
-  } catch (error) {
-    throw parseSupabaseError(error);
-  }
+	try {
+		const response = await getLeads({}, 1, 1000, organizationId);
+		return response.leads;
+	} catch (error) {
+		throw parseSupabaseError(error);
+	}
 }
 
 // Get all leads for export (with filters applied)
-export async function getAllLeadsForExport(organizationId: string, filters: LeadsFilters = {}): Promise<Lead[]> {
-  console.log('getAllLeadsForExport', organizationId, filters);
-  try {
-    // Use a very large page size to get all leads in one request
-    const response = await getLeads(filters, 1, 10000, organizationId);
-    return response.leads;
-  } catch (error) {
-    throw parseSupabaseError(error);
-  }
+export async function getAllLeadsForExport(organizationId: string, filters: LeadsFilters): Promise<Lead[]> {
+	try {
+		const response = await getLeads(filters, 1, 1000, organizationId);
+		return response.leads;
+	} catch (error) {
+		throw parseSupabaseError(error);
+	}
 }
 
 // Get a single lead by ID

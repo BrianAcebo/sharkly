@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { ChevronLeft, EyeOff, Eye } from 'lucide-react';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
@@ -13,16 +13,66 @@ import {
 	checkRateLimit,
 	resetRateLimit
 } from '../../utils/validation';
+import { toast } from 'sonner';
 
 export default function SignUpForm() {
+	const [searchParams] = useSearchParams();
+	const inviteId = searchParams.get('invite');
 	const [showPassword, setShowPassword] = useState<boolean>(false);
+	const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 	const [isChecked, setIsChecked] = useState<boolean>(false);
 	const [email, setEmail] = useState<string>('');
 	const [password, setPassword] = useState<string>('');
+	const [confirmPassword, setConfirmPassword] = useState<string>('');
 	const [emailError, setEmailError] = useState<string>('');
 	const [passwordError, setPasswordError] = useState<string>('');
+	const [confirmPasswordError, setConfirmPasswordError] = useState<string>('');
 	const [isRateLimited, setIsRateLimited] = useState(false);
 	const { signInWithGoogle, signUp, message } = useAuth();
+
+	// Handle invitation completion after successful signup
+	useEffect(() => {
+		if (inviteId && message && message.includes('Account created successfully')) {
+			// Show additional message about invitation completion
+			toast.info('After email verification, you will automatically join the organization');
+		}
+	}, [inviteId, message]);
+
+	// Handle error messages from URL parameters
+	useEffect(() => {
+		const errorParam = searchParams.get('error');
+		if (errorParam) {
+			let errorMessage = '';
+			switch (errorParam) {
+				case 'otp_failed':
+					errorMessage = 'Email verification failed. Please try again or contact support.';
+					break;
+				case 'invalid_invite':
+					errorMessage = 'The invitation link is invalid or has expired. Please request a new invitation.';
+					break;
+				case 'expired_invite':
+					errorMessage = 'This invitation has expired. Please request a new invitation.';
+					break;
+				case 'invalid_role':
+					errorMessage = 'The invitation has an invalid role. Please contact support.';
+					break;
+				case 'join_failed':
+					errorMessage = 'Failed to join the organization. Please try again or contact support.';
+					break;
+				case 'processing_failed':
+					errorMessage = 'Failed to process the invitation. Please try again or contact support.';
+					break;
+				case 'unexpected_error':
+					errorMessage = 'An unexpected error occurred. Please try again or contact support.';
+					break;
+				default:
+					errorMessage = 'An error occurred. Please try again.';
+			}
+			
+			// Set the error message in the password field to show it prominently
+			setPasswordError(errorMessage);
+		}
+	}, [searchParams]);
 
 	// Reset rate limit when component unmounts
 	useEffect(() => {
@@ -30,6 +80,14 @@ export default function SignUpForm() {
 			resetRateLimit('signup');
 		};
 	}, []);
+
+	// Clear confirm password when main password is cleared
+	useEffect(() => {
+		if (!password) {
+			setConfirmPassword('');
+			setConfirmPasswordError('');
+		}
+	}, [password]);
 
 	const validateForm = (): boolean => {
 		let isValid = true;
@@ -57,6 +115,17 @@ export default function SignUpForm() {
 			} else {
 				setPasswordError('');
 			}
+		}
+
+		// Validate confirm password
+		if (!confirmPassword.trim()) {
+			setConfirmPasswordError('Please confirm your password');
+			isValid = false;
+		} else if (password !== confirmPassword) {
+			setConfirmPasswordError('Passwords do not match');
+			isValid = false;
+		} else {
+			setConfirmPasswordError('');
 		}
 
 		return isValid;
@@ -88,9 +157,8 @@ export default function SignUpForm() {
 
 		try {
 			await signUp(sanitizedEmail, sanitizedPassword);
-		} catch (error) {
+		} catch {
 			// Error handling is done in AuthProvider
-			console.error('Sign up error:', error);
 		}
 	};
 
@@ -157,7 +225,7 @@ export default function SignUpForm() {
 										fill="#EB4335"
 									/>
 								</svg>
-								Sign up with Google
+								<span className="ml-2">Sign up with Google</span>
 							</Button>
 						</div>
 						<div className="relative py-3 sm:py-5">
@@ -211,7 +279,84 @@ export default function SignUpForm() {
 											)}
 										</span>
 									</div>
+									{password && (
+										<div className="mt-2">
+											{(() => {
+												const passwordValidation = validatePassword(password);
+												return (
+													<>
+														<div className="flex space-x-1">
+															{['weak', 'fair', 'good', 'strong'].map((strength, index) => {
+																const isActive = passwordValidation.errors.length <= 3 - index;
+																return (
+																	<div
+																		key={strength}
+																		className={`h-1 flex-1 rounded-full transition-colors ${
+																			isActive
+																				? passwordValidation.errors.length === 4
+																					? 'bg-red-500'
+																					: passwordValidation.errors.length === 3
+																					? 'bg-yellow-500'
+																					: passwordValidation.errors.length === 2
+																					? 'bg-blue-500'
+																					: 'bg-green-500'
+																				: 'bg-gray-200 dark:bg-gray-700'
+																		}`}
+																	/>
+																);
+															})}
+														</div>
+														<p className={`mt-1 text-xs ${
+															passwordValidation.errors.length === 4
+																? 'text-red-500'
+																: passwordValidation.errors.length === 3
+																? 'text-yellow-500'
+																: passwordValidation.errors.length === 2
+																? 'text-blue-500'
+																: 'text-green-500'
+														}`}>
+															{passwordValidation.errors.length === 4
+																? 'Weak password'
+																: passwordValidation.errors.length === 3
+																? 'Fair password'
+																: passwordValidation.errors.length === 2
+																? 'Good password'
+																: 'Strong password'}
+														</p>
+													</>
+												);
+											})()}
+										</div>
+									)}
 								</div>
+								{password && (
+									<div className="transition-all duration-300 ease-in-out">
+										<Label>
+											Confirm Password<span className="text-error-500">*</span>
+										</Label>
+										<div className="relative">
+											<Input
+												value={confirmPassword}
+												onChange={(e) => setConfirmPassword(e.target.value)}
+												placeholder="Confirm your password"
+												type={showConfirmPassword ? 'text' : 'password'}
+												disabled={isRateLimited}
+												error={!!confirmPasswordError}
+												hint={confirmPasswordError}
+											/>
+											<span
+												onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+												className="absolute top-1/2 right-4 z-30 -translate-y-1/2 cursor-pointer"
+											>
+												{showConfirmPassword ? (
+													<Eye className="size-5 stroke-gray-500 dark:stroke-gray-400" />
+												) : (
+													<EyeOff className="size-5 stroke-gray-500 dark:stroke-gray-400" />
+												)}
+											</span>
+										</div>
+									</div>
+								)}
 								<div className="flex items-center gap-3">
 									<Checkbox
 										className="h-5 w-5"

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams, useNavigate } from 'react-router';
 import { ChevronLeft, EyeOff, Eye } from 'lucide-react';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
@@ -17,7 +17,10 @@ export default function SignInForm() {
 	const [emailError, setEmailError] = useState<string>('');
 	const [passwordError, setPasswordError] = useState<string>('');
 	const [isRateLimited, setIsRateLimited] = useState(false);
-	const { signInWithGoogle, signIn, message, loadingState } = useAuth();
+	const { signInWithGoogle, signIn, message, loadingState, session } = useAuth();
+	const [searchParams] = useSearchParams();
+	const inviteId = searchParams.get('invite');
+	const navigate = useNavigate();
 
 	// Reset rate limit when component unmounts
 	useEffect(() => {
@@ -25,6 +28,18 @@ export default function SignInForm() {
 			resetRateLimit('signin');
 		};
 	}, []);
+
+	// Handle invitation redirect after successful sign in
+	useEffect(() => {
+		if (inviteId && !loadingState && session?.user) {
+			// User is authenticated and has an invite, the invitation should already be completed
+			// by the AuthProvider signIn function, so we can redirect to organization page
+			const timer = setTimeout(() => {
+				navigate('/organization');
+			}, 1000);
+			return () => clearTimeout(timer);
+		}
+	}, [inviteId, loadingState, session, navigate]);
 
 	const validateForm = (): boolean => {
 		let isValid = true;
@@ -113,7 +128,7 @@ export default function SignInForm() {
 						)}
 						<div className="grid grid-cols-1">
 							<button
-								onClick={signInWithGoogle}
+								onClick={() => signInWithGoogle()}
 								disabled={isLoading || isRateLimited}
 								className="inline-flex items-center justify-center gap-3 rounded-lg bg-gray-100 px-7 py-3 text-sm font-normal text-gray-700 transition-colors hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
 							>

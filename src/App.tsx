@@ -21,6 +21,7 @@ import Lead from './pages/Lead';
 import OrganizationRequired from './pages/Organization/OrganizationRequired';
 import Organization from './pages/Organization/Organization';
 import InviteAccept from './pages/Organization/InviteAccept';
+import Confirm from './pages/Auth/Confirm';
 
 export default function App() {
 	return (
@@ -51,6 +52,9 @@ export default function App() {
 						<Route path="/signin" element={<SignIn />} />
 						<Route path="/signup" element={<SignUp />} />
 					</Route>
+
+					{/* Auth Confirm Route - accessible without full auth */}
+					<Route path="/auth/confirm" element={<Confirm />} />
 
 					{/* Invite Route - should be accessible without full auth */}
 					<Route path="/invite/:inviteId" element={<InviteAccept />} />

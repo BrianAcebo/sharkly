@@ -157,10 +157,6 @@ const LeadsContent: React.FC = () => {
 
   const handleExportLeads = async (): Promise<Lead[]> => {
     try {
-      console.log('handleExportLeads called');
-      console.log('user:', user);
-      console.log('organization_id:', user?.organization_id);
-      
       if (!user?.organization_id) {
         throw new Error('No organization ID available');
       }
@@ -168,7 +164,6 @@ const LeadsContent: React.FC = () => {
       // Use current filters and fetch all leads for export
       const { getAllLeadsForExport } = await import('../utils/leadService');
       const leads = await getAllLeadsForExport(user.organization_id, combinedFilters());
-      console.log('Exported leads:', leads);
       return leads;
     } catch (error) {
       console.error('Error exporting leads:', error);

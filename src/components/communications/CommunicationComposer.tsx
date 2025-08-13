@@ -29,17 +29,6 @@ const CommunicationComposer: React.FC<CommunicationComposerProps> = ({ leadId, t
 
     // Note: addCommunication is not implemented in the new API yet
     // This would need to be implemented in the LeadsAPI
-    console.log('Communication would be added:', {
-      leadId,
-      type,
-      direction: 'outbound',
-      subject: type === 'email' ? formData.subject : undefined,
-      content: formData.content,
-      timestamp: new Date().toISOString(),
-      duration: type === 'call' && formData.duration ? parseInt(formData.duration) * 60 : undefined,
-      status: 'sent'
-    });
-
     setSending(false);
     onClose();
   };

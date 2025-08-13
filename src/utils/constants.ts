@@ -43,13 +43,13 @@ export type DateRange = typeof DATE_RANGES[keyof typeof DATE_RANGES];
 // Team Member Role Options
 export const TEAM_MEMBER_ROLES = {
 	OWNER: 'owner',
-	MANAGER: 'manager',
+	ADMIN: 'admin',
 	MEMBER: 'member'
 } as const;
 
 // Roles that can be assigned to new team members (excludes owner)
 export const ASSIGNABLE_TEAM_MEMBER_ROLES = {
-	MANAGER: 'manager',
+	ADMIN: 'admin',
 	MEMBER: 'member'
 } as const;
 

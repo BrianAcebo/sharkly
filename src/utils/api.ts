@@ -42,18 +42,7 @@ export const api = {
 					}
 				: undefined;
 
-			const apiUrl = window.location.origin;
-			if (!apiUrl) {
-				throw new ApiError('API URL not configured', 500);
-			}
-
 			const fullUrl = buildApiUrl(endpoint);
-			console.log('Making API request:', {
-				method,
-				url: fullUrl,
-				body,
-				hasToken: !!session.access_token
-			});
 
 			const response = await fetch(fullUrl, {
 				method,
@@ -64,8 +53,6 @@ export const api = {
 				body: body ? JSON.stringify(body) : undefined
 			});
 
-			console.log('Response status:', response.status, response.statusText);
-
 			let responseData;
 			try {
 				responseData = await response.json();
@@ -73,8 +60,6 @@ export const api = {
 				console.error('Failed to parse response:', parseError);
 				throw new ApiError('Invalid response format', response.status);
 			}
-
-			console.log('Response data:', responseData);
 
 			if (!response.ok) {
 				const errorMessage =
