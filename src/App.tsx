@@ -22,6 +22,9 @@ import OrganizationRequired from './pages/Organization/OrganizationRequired';
 import Organization from './pages/Organization/Organization';
 import InviteAccept from './pages/Organization/InviteAccept';
 import Confirm from './pages/Auth/Confirm';
+import Settings from './pages/Settings';
+import Notifications from './pages/Notifications';
+import Tasks from './pages/Tasks';
 
 export default function App() {
 	return (
@@ -37,6 +40,9 @@ export default function App() {
 					<Route element={<AppLayout />}>
 						<Route index path="/pipeline" element={<Pipeline />} />
 						<Route path="/profile" element={<Profile />} />
+						<Route path="/settings" element={<Settings />} />
+						<Route path="/notifications" element={<Notifications />} />
+						<Route path="/tasks" element={<Tasks />} />
 						<Route path="/inbox" element={<Email />} />
 						<Route path="/chat" element={<Chat />} />
 						<Route path="/assistant" element={<Assistant />} />

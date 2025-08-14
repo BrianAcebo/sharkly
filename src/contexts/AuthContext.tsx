@@ -8,8 +8,15 @@ export interface UserProfile extends User {
 	completed_onboarding: boolean;
 	first_name: string;
 	last_name: string;
+	title?: string;
+	bio?: string;
+	phone?: string;
+	location?: string;
 	organization_id: string;
 	role: string;
+	organization?: {
+		name: string;
+	};
 }
 
 export enum AuthLoadingState {

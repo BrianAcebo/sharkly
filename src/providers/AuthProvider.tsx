@@ -9,6 +9,10 @@ interface ProfileData {
 	first_name: string;
 	last_name: string;
 	avatar: string | null;
+	title?: string;
+	bio?: string;
+	phone?: string;
+	location?: string;
 	completed_onboarding: boolean;
 }
 
@@ -32,6 +36,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 					first_name,
 					last_name,
 					avatar,
+					title,
+					bio,
+					phone,
+					location,
 					completed_onboarding
 				`)
 				.eq('id', user.id)
@@ -328,19 +336,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				setUser(currentUser as UserProfile);
 
 				if (currentUser) {
-					const { data: profile, error: profileError } = await supabase
-						.from('profiles')
-						.select(
-							`
-							id,
-							first_name,
-							last_name,
-							avatar,
-							completed_onboarding
+									const { data: profile, error: profileError } = await supabase
+					.from('profiles')
+					.select(
 						`
-						)
-						.eq('id', currentUser.id)
-						.single();
+						id,
+						first_name,
+						last_name,
+						avatar,
+						title,
+						bio,
+						phone,
+						location,
+						completed_onboarding
+					`
+					)
+					.eq('id', currentUser.id)
+					.single();
 
 					if (profileError) {
 						console.error('Error fetching profile:', profileError);
@@ -355,6 +367,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 										email: currentUser.email,
 										first_name: '',
 										last_name: '',
+										title: '',
+										bio: '',
+										phone: '',
+										location: '',
 										completed_onboarding: false
 									});
 								
@@ -369,6 +385,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 									first_name: '',
 									last_name: '',
 									avatar: '',
+									title: '',
+									bio: '',
+									phone: '',
+									location: '',
 									completed_onboarding: false,
 									organization_id: '',
 									role: ''

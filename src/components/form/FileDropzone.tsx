@@ -31,7 +31,9 @@ export function FileDropzone({
         maybePicker.showPicker();
         return;
       }
-    } catch {}
+    } catch {
+      // Fallback to default file picker behavior
+    }
     input.click();
   };
 

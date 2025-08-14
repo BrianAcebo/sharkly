@@ -9,7 +9,9 @@ import {
   Building2, 
   Settings, 
   LogOut,
-  User
+  User,
+  Bell,
+  Calendar
 } from 'lucide-react';
 import { Link } from 'react-router';
 
@@ -23,6 +25,8 @@ const Sidebar: React.FC = () => {
     { icon: Bot, label: 'AI Assistant', path: '/assistant' },
     { icon: Users, label: 'All Leads', path: '/leads' },
     { icon: Building2, label: 'Organization', path: '/organization' },
+    { icon: Bell, label: 'Notifications', path: '/notifications' },
+    { icon: Calendar, label: 'Tasks', path: '/tasks' },
     { icon: Settings, label: 'Settings', path: '/settings' },
   ];
 

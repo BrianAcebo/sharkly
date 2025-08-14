@@ -6,7 +6,7 @@ import { cn } from '../../utils/common';
 const primaryClass = 'bg-gradient-to-r from-red-400 via-red-500 to-pink-500 text-white shadow-md hover:from-red-500 hover:via-red-600 hover:to-pink-600 disabled:from-red-300 disabled:via-red-400 disabled:to-pink-400 hover:scale-105 transition-all duration-200'
 
 const buttonVariants = cva(
-	'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+	'flex gap-2 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
 	{
 		variants: {
 			variant: {
@@ -49,6 +49,7 @@ export interface ButtonProps
 	endIcon?: React.ReactNode;
 	loading?: boolean;
 	fullWidth?: boolean;
+	type?: 'button' | 'submit' | 'reset';
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -63,6 +64,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 		loading = false,
 		fullWidth = false,
 		disabled,
+		type = 'button',
 		...props 
 	}, ref) => {
 		const Comp = asChild ? Slot : 'button';
@@ -101,6 +103,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 				className={buttonClasses} 
 				ref={ref} 
 				disabled={disabled || loading}
+				type={type}
 				{...props}
 			>
 				{loading && <LoadingSpinner />}

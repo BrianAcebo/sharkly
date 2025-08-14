@@ -6,10 +6,12 @@ interface InputProps {
 	type?: 'text' | 'number' | 'email' | 'password' | 'date' | 'time' | string;
 	id?: string;
 	name?: string;
+	label?: string;
 	placeholder?: string;
 	value?: string | number;
 	onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 	onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+	onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
 	className?: string;
 	min?: string;
 	max?: string;
@@ -27,10 +29,12 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 			type = 'text',
 			id,
 			name,
+			label,
 			placeholder,
 			value,
 			onChange,
 			onFocus,
+			onBlur,
 			className = '',
 			min,
 			max,
@@ -39,7 +43,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 			success = false,
 			error = false,
 			hint,
-			required = false
+			required = false,
+			...props
 		},
 		ref
 	) => {
@@ -57,6 +62,15 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 
 		return (
 			<div className="relative">
+				{label && (
+					<label 
+						htmlFor={id || name} 
+						className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+					>
+						{label}
+						{required && <span className="text-red-500 ml-1">*</span>}
+					</label>
+				)}
 				<input
 					ref={ref}
 					type={type}
@@ -66,12 +80,14 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 					value={value}
 					onChange={onChange}
 					onFocus={onFocus}
+					onBlur={onBlur}
 					min={min}
 					max={max}
 					step={step}
 					disabled={disabled}
 					className={cn(inputClasses, className)}
 					required={required}
+					{...props}
 				/>
 
 				{hint && (

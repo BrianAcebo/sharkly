@@ -69,7 +69,7 @@ export const useTeamMembers = () => {
       });
 
       setTeamMembers(transformedMembers);
-    } catch (err) {
+    } catch {
       throw new Error('Failed to fetch team members');
     } finally {
       setIsLoading(false);

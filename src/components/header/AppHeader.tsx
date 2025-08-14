@@ -17,6 +17,7 @@ import CommandPalette from './CommandPalette';
 import NotificationPanel from './NotificationPanel';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { Link } from 'react-router';
 
 const Header: React.FC = () => {
   const { user, signOut } = useAuth();
@@ -189,16 +190,33 @@ const Header: React.FC = () => {
               {showUserMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-900 py-1 z-50">
                   <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-900">
-                    <p className="text-sm font-medium text-black dark:text-white">{user?.email}</p>
+                    <p className="text-sm font-medium text-black dark:text-white">{user?.first_name} {user?.last_name}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
                   </div>
-                  <button
-                    type="button"
+                  <Link
+                    to="/profile"
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center space-x-2"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <User className="h-4 w-4" />
+                    <span>Profile</span>
+                  </Link>
+                  <Link
+                    to="/notifications"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center space-x-2"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <Bell className="h-4 w-4" />
+                    <span>Notifications</span>
+                  </Link>
+                  <Link
+                    to="/settings"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center space-x-2"
+                    onClick={() => setShowUserMenu(false)}
                   >
                     <Settings className="h-4 w-4" />
                     <span>Settings</span>
-                  </button>
+                  </Link>
                   <button
                     type="button"
                     onClick={signOut}
