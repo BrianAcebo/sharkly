@@ -21,6 +21,7 @@ interface InputProps {
 	error?: boolean;
 	hint?: string;
 	required?: boolean;
+	autoFocus?: boolean;
 }
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
@@ -44,6 +45,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 			error = false,
 			hint,
 			required = false,
+			autoFocus = false,
 			...props
 		},
 		ref
@@ -87,6 +89,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 					disabled={disabled}
 					className={cn(inputClasses, className)}
 					required={required}
+					autoFocus={autoFocus}
 					{...props}
 				/>
 

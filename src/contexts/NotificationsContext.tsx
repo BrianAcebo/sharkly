@@ -26,6 +26,7 @@ interface NotificationsContextType {
   notifications: Notification[];
   unreadCount: number;
   loading: boolean;
+  wsStatus: { isConnected: boolean; lastMessage: string; connectionTime: string };
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => Promise<void>;
   addLeadNotification: (title: string, message: string, leadId?: string, priority?: 'low' | 'medium' | 'high', userName?: string, userAvatar?: string) => Promise<void>;
   addAINotification: (title: string, message: string, actionUrl?: string, priority?: 'low' | 'medium' | 'high') => Promise<void>;
@@ -33,6 +34,11 @@ interface NotificationsContextType {
   addTeamNotification: (title: string, message: string, actionUrl?: string, priority?: 'low' | 'medium' | 'high', userName?: string, userAvatar?: string) => Promise<void>;
   markAsRead: (id: string) => Promise<void>;
   markAllAsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
+  deleteMultipleNotifications: (ids: string[]) => Promise<void>;
+  deleteAllNotifications: () => Promise<void>;
+  testWebSocketConnection: () => Promise<void>;
+  testWebSocketDataReception: () => Promise<void>;
 }
 
 export const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined); 

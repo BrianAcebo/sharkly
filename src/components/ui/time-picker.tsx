@@ -523,13 +523,12 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 						{/* Search Input and Format Toggle */}
 						<div className="p-3 border-b border-gray-200 dark:border-gray-700">
 							<div className="mb-2">
-								<input
+								<Input
 									type="text"
 									placeholder="Type time (e.g., 2:30 PM)..."
 									value={searchQuery}
 									onChange={(e) => setSearchQuery(e.target.value)}
-									className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-									autoFocus
+									autoFocus={true}
 								/>
 							</div>
 							<div className="text-xs text-gray-500 dark:text-gray-400">

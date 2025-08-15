@@ -67,6 +67,14 @@ export class NotificationService {
 
 			this.isInitialized = true;
 			console.log('✅ Notification service initialized successfully');
+			
+			// Test audio context is working
+			try {
+				await this.playNotificationSound();
+				console.log('🎵 Test sound played successfully');
+			} catch (error) {
+				console.warn('⚠️ Test sound failed, but service is initialized:', error);
+			}
 		} catch (error: unknown) {
 			console.error('❌ Failed to initialize notification service:', error);
 			// Still mark as initialized to avoid blocking the app
@@ -96,8 +104,8 @@ export class NotificationService {
 	}
 
 	async playNotificationSound() {
-		if (!this.audioContext || !this.soundEnabled) {
-			console.log('🔇 Sound disabled or audio context not ready, skipping sound');
+		if (!this.audioContext) {
+			console.log('🔇 Audio context not ready, skipping sound');
 			return;
 		}
 
@@ -126,17 +134,18 @@ export class NotificationService {
 		if (!this.isInitialized) return;
 
 		try {
-			// Enable sounds for this notification
-			this.soundEnabled = true;
+			// Get user notification preferences
+			const userSettings = await this.getNotificationSettings();
 			
-			// Play notification sound
-			await this.playNotificationSound();
-			
-			// Disable sounds after playing to prevent future unwanted sounds
-			this.soundEnabled = false;
+			// Play notification sound if user has browser notifications enabled
+			if (userSettings?.browser_notifications) {
+				this.soundEnabled = true;
+				await this.playNotificationSound();
+				this.soundEnabled = false;
+			}
 
-			// Show browser notification
-			if ('Notification' in window && Notification.permission === 'granted') {
+			// Show browser notification if user has browser notifications enabled
+			if (userSettings?.browser_notifications && 'Notification' in window && Notification.permission === 'granted') {
 				const notification = new Notification(data.title, {
 					body: data.message,
 					icon: '/favicon.ico',
@@ -149,6 +158,11 @@ export class NotificationService {
 					window.focus();
 					notification.close();
 				};
+			}
+
+			// Send email notification if user has email notifications enabled
+			if (userSettings?.email_notifications && data.type === 'reminder') {
+				await this.sendEmailNotification(data);
 			}
 
 			// Dispatch custom event for real-time UI updates
@@ -188,6 +202,86 @@ export class NotificationService {
 
 		} catch (error) {
 			console.error('Failed to store notification:', error);
+		}
+	}
+
+	private async sendEmailNotification(data: NotificationData) {
+		try {
+			const { data: userData } = await supabase.auth.getUser();
+			if (!userData.user) return;
+
+			// Get user's email from auth
+			const userEmail = userData.user.email;
+			if (!userEmail) return;
+
+			// For now, log the email that would be sent
+			// In production, you'd integrate with an email service like SendGrid, Mailgun, etc.
+			console.log('📧 Email notification would be sent to:', userEmail);
+			console.log('📧 Subject:', data.title);
+			console.log('📧 Body:', data.message);
+			
+			// TODO: Integrate with email service
+			// Example: await emailService.sendEmail(userEmail, data.title, data.message);
+			
+		} catch (error) {
+			console.error('Failed to send email notification:', error);
+		}
+	}
+
+	// Delete a notification by ID
+	async deleteNotification(notificationId: string): Promise<boolean> {
+		try {
+			const { error } = await supabase
+				.from('notifications')
+				.delete()
+				.eq('id', notificationId);
+
+			if (error) throw error;
+			
+			console.log(`🗑️ Deleted notification: ${notificationId}`);
+			return true;
+		} catch (error) {
+			console.error('Failed to delete notification:', error);
+			return false;
+		}
+	}
+
+	// Delete multiple notifications by IDs
+	async deleteMultipleNotifications(notificationIds: string[]): Promise<boolean> {
+		try {
+			const { error } = await supabase
+				.from('notifications')
+				.delete()
+				.in('id', notificationIds);
+
+			if (error) throw error;
+			
+			console.log(`🗑️ Deleted ${notificationIds.length} notifications`);
+			return true;
+		} catch (error) {
+			console.error('Failed to delete multiple notifications:', error);
+			return false;
+		}
+	}
+
+	// Delete all notifications for the current user
+	async deleteAllNotifications(): Promise<boolean> {
+		try {
+			const { data: userData } = await supabase.auth.getUser();
+			if (!userData.user) return false;
+
+			const { error } = await supabase
+				.from('notifications')
+				.delete()
+				.eq('user_id', userData.user.id);
+
+			if (error) throw error;
+			
+			console.log(`🗑️ Deleted all notifications for user: ${userData.user.id}`);
+			return true;
+		} catch (error) {
+			console.error('Failed to delete all notifications:', error);
+			return false;
 		}
 	}
 
@@ -293,11 +387,30 @@ export class NotificationService {
 
 			if (!orgData) throw new Error('User not associated with any organization');
 
-			// Determine if task is overdue
+			// Check if notification already exists for this task and reminder time
+			const { data: existingNotification } = await supabase
+				.from('notifications')
+				.select('id')
+				.eq('user_id', user.id)
+				.eq('metadata->task_id', reminder.task_id)
+				.eq('metadata->reminder_time', reminder.reminder_time)
+				.eq('type', 'reminder')
+				.single();
+
+			if (existingNotification) {
+				console.log(`⚠️ Notification already exists for task ${reminder.task_id}, skipping...`);
+				return;
+			}
+
+			// Calculate time until due and determine notification type
 			const now = new Date();
 			const dueDate = new Date(reminder.due_date);
+			const reminderTime = new Date(reminder.reminder_time);
 			const isOverdue = dueDate < now;
-			const dueTimeText = this.getDueTimeText(reminder.due_date);
+			
+			// Calculate how much advance notice this reminder provides
+			const advanceMinutes = Math.round((dueDate.getTime() - reminderTime.getTime()) / (1000 * 60));
+			const dueTimeText = this.getBetterDueTimeText(reminder.due_date, advanceMinutes);
 
 			// Create the notification record
 			const { error: notificationError } = await supabase
@@ -305,102 +418,86 @@ export class NotificationService {
 				.insert({
 					user_id: user.id,
 					organization_id: orgData.organization_id,
-					title: isOverdue ? 'Task Overdue!' : 'Task Due Soon',
-					message: `"${reminder.task_title}" is ${isOverdue ? 'overdue' : `due ${dueTimeText}`}`,
+					title: isOverdue ? 'Task Overdue!' : 'Reminder',
+					message: isOverdue 
+						? `"${reminder.task_title}" is overdue` 
+						: `"${reminder.task_title}" ${dueTimeText}`,
 					type: 'reminder', // Use 'reminder' type to match frontend
 					priority: isOverdue ? 'high' : 'medium',
 					metadata: {
 						task_id: reminder.task_id,
 						due_date: reminder.due_date,
 						reminder_time: reminder.reminder_time,
-						is_overdue: isOverdue
+						is_overdue: isOverdue,
+						advance_minutes: advanceMinutes
 					}
 				});
 
 			if (notificationError) throw notificationError;
 			
-			console.log(`📝 Created ${isOverdue ? 'OVERDUE' : 'due'} notification for task: ${reminder.task_title}`);
+			console.log(`📝 Created ${isOverdue ? 'OVERDUE' : 'reminder'} notification for task: ${reminder.task_title}`);
 		} catch (error) {
 			console.error('Failed to create task reminder notification:', error);
 			throw error;
 		}
 	}
 
-	// Create immediate notification for task actions
-	async createTaskNotification(
-		action: 'created' | 'updated' | 'completed',
-		taskTitle: string,
-		taskId: string,
-		dueDate?: string
-	) {
-		try {
-			// Get user and organization info
-			const { data: { user } } = await supabase.auth.getUser();
-			if (!user) throw new Error('User not authenticated');
-
-			// Get user's organization
-			const { data: orgData } = await supabase
-				.from('user_organizations')
-				.select('organization_id')
-				.eq('user_id', user.id)
-				.single();
-
-			if (!orgData) throw new Error('User not associated with any organization');
-
-			// Create the notification record
-			const { error: notificationError } = await supabase
-				.from('notifications')
-				.insert({
-					user_id: user.id,
-					organization_id: orgData.organization_id,
-					title: `Task ${action.charAt(0).toUpperCase() + action.slice(1)}`,
-					message: `Task "${taskTitle}" was ${action}${dueDate ? ` and is due ${dueDate}` : ''}`,
-					type: 'task_reminder',
-					priority: 'medium',
-					metadata: {
-						task_id: taskId,
-						action: action,
-						due_date: dueDate
-					}
-				});
-
-			if (notificationError) throw notificationError;
-			
-			console.log(`📝 Created task ${action} notification for: ${taskTitle}`);
-		} catch (error) {
-			console.error('Failed to create task notification:', error);
-		}
-	}
-
 	async showTaskReminderNotification(reminder: TaskReminder) {
-		const dueTimeText = this.getDueTimeText(reminder.due_date);
 		const now = new Date();
 		const dueDate = new Date(reminder.due_date);
+		const reminderTime = new Date(reminder.reminder_time);
 		const isOverdue = dueDate < now;
+		
+		// Calculate how much advance notice this reminder provides
+		const advanceMinutes = Math.round((dueDate.getTime() - reminderTime.getTime()) / (1000 * 60));
+		const dueTimeText = this.getBetterDueTimeText(reminder.due_date, advanceMinutes);
 		
 		await this.showNotification({
 			title: isOverdue ? 'Task Overdue!' : 'Task Reminder',
-			message: `"${reminder.task_title}" is ${isOverdue ? 'overdue' : `due ${dueTimeText}`}`,
+			message: `"${reminder.task_title}" is ${isOverdue ? 'overdue' : dueTimeText}`,
 			type: 'reminder', // Use 'reminder' type to match frontend
 			metadata: {
 				task_id: reminder.task_id,
 				due_date: reminder.due_date,
 				reminder_time: reminder.reminder_time,
-				is_overdue: isOverdue
+				is_overdue: isOverdue,
+				advance_minutes: advanceMinutes
 			}
 		});
 	}
 
-	private getDueTimeText(dueDate: string): string {
+
+
+	private getBetterDueTimeText(dueDate: string, advanceMinutes: number): string {
+		// This is a reminder notification, so show the specific reminder time
+		if (advanceMinutes > 0) {
+			if (advanceMinutes < 60) {
+				return `due in ${advanceMinutes} minutes`;
+			} else if (advanceMinutes < 1440) { // less than 24 hours
+				const hours = Math.floor(advanceMinutes / 60);
+				const minutes = advanceMinutes % 60;
+				if (minutes === 0) {
+					return `due in ${hours} hour${hours > 1 ? 's' : ''}`;
+				} else {
+					return `due in ${hours} hour${hours > 1 ? 's' : ''} and ${minutes} minute${minutes > 1 ? 's' : ''}`;
+				}
+			} else {
+				const days = Math.floor(advanceMinutes / 1440);
+				return `due in ${days} day${days > 1 ? 's' : ''}`;
+			}
+		}
+		
+		// If no advance time specified, calculate from due date
 		const due = new Date(dueDate);
 		const now = new Date();
 		const diffMs = due.getTime() - now.getTime();
-		const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
+		
 		if (diffMs < 0) return 'overdue';
-		if (diffDays === 0) return 'today';
-		if (diffDays === 1) return 'tomorrow';
-		return `in ${diffDays} days`;
+		
+		const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+		if (diffDays === 0) return 'due today';
+		if (diffDays === 1) return 'due tomorrow';
+		return `due in ${diffDays} days`;
 	}
 
 	startReminderCheck() {

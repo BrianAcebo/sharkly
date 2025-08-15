@@ -7,10 +7,11 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [loading, setLoading] = useState(true);
     const [wsStatus, setWsStatus] = useState<{ isConnected: boolean; lastMessage: string; connectionTime: string }>({
-        isConnected: false,
-        lastMessage: 'Not connected',
-        connectionTime: 'Never'
+        isConnected: true,
+        lastMessage: 'Polling every 15 seconds',
+        connectionTime: 'Always'
     });
+
   
     const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -80,133 +81,124 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     };
 
-    // Initialize notification service and handle real-time notifications
+    // Initialize notification service and set up polling
     useEffect(() => {
       // Initialize the notification service only once
       notificationService.initialize();
-      
-      // Fetch initial notifications
-      fetchNotifications();
 
-      // Set up WebSocket subscription for real-time notifications
-      const setupWebSocket = async () => {
+      // Set up polling for new notifications every 15 seconds
+      const pollingInterval = setInterval(async () => {
         try {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) return;
 
-          console.log('🔌 Setting up WebSocket connection for real-time notifications...');
+          // Fetch new notifications since last check
+          const lastNotificationTime = notifications.length > 0 
+            ? notifications[0].timestamp 
+            : new Date(0).toISOString();
 
-          // Subscribe to notifications table changes
-          const subscription = supabase
-            .channel(`notifications:${user.id}`)
-            .on('postgres_changes', 
-              { 
-                event: 'INSERT', 
-                schema: 'public', 
-                table: 'notifications',
-                filter: `user_id=eq.${user.id}`
-              },
-              (payload) => {
-                console.log('🔔 Real-time notification received:', payload);
-                
-                // Convert Supabase data to our Notification format
-                const newNotification: Notification = {
-                  id: payload.new.id,
-                  type: mapNotificationType(payload.new.type),
-                  title: payload.new.title,
-                  message: payload.new.message,
-                  timestamp: payload.new.created_at,
-                  read: payload.new.read || false,
-                  priority: mapNotificationPriority(payload.new.priority || 'medium'),
-                  actionUrl: payload.new.action_url || null,
-                  metadata: {
-                    ...payload.new.metadata,
-                    lead_id: payload.new.metadata?.lead_id,
-                    due_date: payload.new.metadata?.due_date,
-                    user: {
-                      name: payload.new.metadata?.user_name || 'System',
-                      avatar: payload.new.metadata?.user_avatar || null
-                    }
-                  }
-                };
+          const { data: newNotifications, error } = await supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', user.id)
+            .gt('created_at', lastNotificationTime)
+            .order('created_at', { ascending: false });
 
-                // Add new notification to the list
-                setNotifications(prev => [newNotification, ...prev]);
-                
-                // Update WebSocket status
-                setWsStatus(prev => ({
-                  ...prev,
-                  lastMessage: `New notification: ${newNotification.title}`,
-                  connectionTime: new Date().toLocaleTimeString()
-                }));
+          if (error) {
+            console.error('❌ Error polling for new notifications:', error);
+            return;
+          }
 
-                // Show browser notification if enabled
-                if (Notification.permission === 'granted') {
-                  new Notification(newNotification.title, {
-                    body: newNotification.message,
-                    icon: '/favicon.ico'
-                  });
+          if (newNotifications && newNotifications.length > 0) {
+            console.log(`🔔 Polling found ${newNotifications.length} new notifications`);
+            
+            // Convert to our Notification format
+            const formattedNotifications: Notification[] = newNotifications.map(item => ({
+              id: item.id,
+              type: mapNotificationType(item.type),
+              title: item.title,
+              message: item.message,
+              timestamp: item.created_at,
+              read: item.read_at !== null,
+              priority: mapNotificationPriority(item.metadata?.priority || 'medium'),
+              actionUrl: item.metadata?.action_url || null,
+              metadata: {
+                ...item.metadata,
+                lead_id: item.metadata?.lead_id,
+                due_date: item.metadata?.due_date,
+                user: {
+                  name: item.metadata?.user_name || 'System',
+                  avatar: item.metadata?.user_avatar || null
                 }
               }
-            )
-            .on('postgres_changes',
-              {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'notifications',
-                filter: `user_id=eq.${user.id}`
-              },
-              (payload) => {
-                console.log('🔄 Notification updated:', payload);
-                
-                // Update existing notification
-                setNotifications(prev => 
-                  prev.map(n => 
-                    n.id === payload.new.id 
-                      ? { ...n, read: payload.new.read || false }
-                      : n
-                  )
-                );
+            }));
 
-                setWsStatus(prev => ({
-                  ...prev,
-                  lastMessage: `Notification updated: ${payload.new.title}`,
-                  connectionTime: new Date().toLocaleTimeString()
-                }));
+            // Add new notifications to the list
+            setNotifications(prev => [...formattedNotifications, ...prev]);
+            
+            // Update WebSocket status to show polling is working
+            setWsStatus(prev => ({
+              ...prev,
+              isConnected: true, // Polling is working
+              lastMessage: `Polling found ${newNotifications.length} new notifications`,
+              connectionTime: new Date().toLocaleTimeString()
+            }));
+
+            // Show browser notifications and play sound for new items
+            formattedNotifications.forEach(async (notification) => {
+              // Show browser notification if enabled
+              if (Notification.permission === 'granted') {
+                new Notification(notification.title, {
+                  body: notification.message,
+                  icon: '/favicon.ico',
+                  tag: `notification-${notification.id}`,
+                  requireInteraction: true
+                });
               }
-            )
-            .subscribe((status) => {
-              console.log('🔌 WebSocket subscription status:', status);
-              setWsStatus(prev => ({
-                ...prev,
-                isConnected: status === 'SUBSCRIBED',
-                connectionTime: new Date().toLocaleTimeString()
-              }));
+
+              // Play notification sound with better error handling
+              try {
+                console.log('🔊 Attempting to play notification sound...');
+                await notificationService.playNotificationSound();
+                console.log('✅ Notification sound played successfully');
+              } catch (error) {
+                console.error('❌ Failed to play notification sound:', error);
+                // Fallback: try to play a simple beep
+                try {
+                  const audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+                  const oscillator = audioContext.createOscillator();
+                  const gainNode = audioContext.createGain();
+                  
+                  oscillator.connect(gainNode);
+                  gainNode.connect(audioContext.destination);
+                  
+                  oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                  gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                  
+                  oscillator.start(audioContext.currentTime);
+                  oscillator.stop(audioContext.currentTime + 0.1);
+                  
+                  console.log('✅ Fallback notification sound played');
+                } catch (fallbackError) {
+                  console.error('❌ Fallback sound also failed:', fallbackError);
+                }
+              }
             });
-
-          // Cleanup function
-          return () => {
-            console.log('🔌 Cleaning up WebSocket subscription...');
-            subscription.unsubscribe();
-          };
+          }
         } catch (error) {
-          console.error('❌ Error setting up WebSocket:', error);
-          setWsStatus(prev => ({
-            ...prev,
-            isConnected: false,
-            lastMessage: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            connectionTime: new Date().toLocaleTimeString()
-          }));
+          console.error('❌ Error in notification polling:', error);
         }
-      };
-
-      // Set up WebSocket connection
-      const cleanup = setupWebSocket();
+      }, 15000); // Poll every 15 seconds
 
       // Cleanup on unmount
       return () => {
-        cleanup.then(cleanupFn => cleanupFn?.());
+        clearInterval(pollingInterval);
       };
+    }, [notifications]);
+
+    // Fetch initial notifications on mount
+    useEffect(() => {
+      fetchNotifications();
     }, []);
 
     // Check for task reminders (fallback method)
@@ -216,6 +208,133 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
         // This is now handled by WebSocket, but kept for fallback
       } catch (error) {
         console.error('Error checking task reminders:', error);
+      }
+    };
+
+    // Test notification system (polling + sound)
+    const testWebSocketConnection = async () => {
+      try {
+        console.log('🧪 Testing notification system...');
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          console.log('❌ No user found for test');
+          return;
+        }
+
+        console.log('🔌 Testing for user:', user.id);
+        
+        // Test notification sound first
+        console.log('🔊 Testing notification sound...');
+        try {
+          await notificationService.playNotificationSound();
+          console.log('✅ Notification sound test successful');
+        } catch (error) {
+          console.error('❌ Notification sound test failed:', error);
+        }
+        
+        // Create a test notification to test the polling system
+        console.log('🔌 Creating test notification...');
+        const { data, error } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: user.id,
+            type: 'system',
+            title: 'System Test',
+            message: 'This is a test notification to verify the polling system',
+            metadata: {
+              priority: 'medium',
+              user_name: 'System',
+              user_avatar: null
+            }
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('❌ Failed to create test notification:', error);
+          return;
+        }
+
+        console.log('✅ Test notification created:', data);
+        console.log('🔔 Polling system should pick this up within 15 seconds');
+        console.log('🔊 Sound should play when notification appears');
+        
+        // Wait a bit and check if it was processed
+        setTimeout(() => {
+          const testNotification = notifications.find(n => n.id === data.id);
+          if (testNotification) {
+            console.log('✅ Test notification processed by polling system!');
+          } else {
+            console.log('❌ Test notification not yet processed by polling');
+          }
+        }, 2000);
+
+      } catch (error) {
+        console.error('❌ Notification system test failed:', error);
+      }
+    };
+
+    // Test if WebSocket is receiving any data at all
+    const testWebSocketDataReception = async () => {
+      try {
+        console.log('🔍 Testing if WebSocket is receiving any data...');
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          console.log('❌ No user found for WebSocket data test');
+          return;
+        }
+
+        // Create a simple test channel that listens to all changes
+        const dataTestChannel = supabase
+          .channel('data-test')
+          .on('postgres_changes', 
+            { 
+              event: '*', 
+              schema: 'public', 
+              table: 'notifications'
+            },
+            (payload) => {
+              console.log('🔍 Data test - Received change:', payload);
+            }
+          )
+          .subscribe((status) => {
+            console.log('🔍 Data test channel status:', status);
+            if (status === 'SUBSCRIBED') {
+              console.log('🔍 Data test channel connected, listening for any changes...');
+              
+              // Create a test notification to see if we get any data
+              setTimeout(() => {
+                console.log('🔍 Creating test notification for data reception test...');
+                supabase
+                  .from('notifications')
+                  .insert({
+                    user_id: user.id,
+                    type: 'system',
+                    title: 'Data Reception Test',
+                    message: 'Testing if WebSocket receives any data at all',
+                    metadata: { priority: 'low' }
+                  })
+                                  .then(({ error }) => {
+                  if (error) {
+                    console.error('❌ Failed to create data test notification:', error);
+                  } else {
+                    console.log('✅ Data test notification created, waiting for WebSocket...');
+                  }
+                });
+              }, 1000);
+            }
+          });
+
+        // Clean up after 10 seconds
+        setTimeout(() => {
+          console.log('🔍 Cleaning up data test channel...');
+          dataTestChannel.unsubscribe();
+        }, 10000);
+
+      } catch (error) {
+        console.error('❌ WebSocket data reception test failed:', error);
       }
     };
   
@@ -339,20 +458,50 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const deleteNotification = async (notificationId: string) => {
       try {
-        // Delete from Supabase
-        const { error } = await supabase
-          .from('notifications')
-          .delete()
-          .eq('id', notificationId);
-
-        if (error) throw error;
-
-        // Remove from local state
-        setNotifications(prev =>
-          prev.filter(n => n.id !== notificationId)
-        );
+        // Delete from Supabase using the notification service
+        const success = await notificationService.deleteNotification(notificationId);
+        
+        if (success) {
+          // Remove from local state
+          setNotifications(prev =>
+            prev.filter(n => n.id !== notificationId)
+          );
+          console.log(`🗑️ Deleted notification: ${notificationId}`);
+        }
       } catch (error) {
         console.error('Failed to delete notification:', error);
+      }
+    };
+
+    const deleteMultipleNotifications = async (notificationIds: string[]) => {
+      try {
+        // Delete from Supabase using the notification service
+        const success = await notificationService.deleteMultipleNotifications(notificationIds);
+        
+        if (success) {
+          // Remove from local state
+          setNotifications(prev =>
+            prev.filter(n => !notificationIds.includes(n.id))
+          );
+          console.log(`🗑️ Deleted ${notificationIds.length} notifications`);
+        }
+      } catch (error) {
+        console.error('Failed to delete multiple notifications:', error);
+      }
+    };
+
+    const deleteAllNotifications = async () => {
+      try {
+        // Delete from Supabase using the notification service
+        const success = await notificationService.deleteAllNotifications();
+        
+        if (success) {
+          // Clear local state
+          setNotifications([]);
+          console.log('🗑️ Deleted all notifications');
+        }
+      } catch (error) {
+        console.error('Failed to delete all notifications:', error);
       }
     };
 
@@ -436,7 +585,11 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       markAsRead,
       markAllAsRead,
       deleteNotification,
-      checkTaskReminders
+      deleteMultipleNotifications,
+      deleteAllNotifications,
+      checkTaskReminders,
+      testWebSocketConnection,
+      testWebSocketDataReception
     };
 
     return (

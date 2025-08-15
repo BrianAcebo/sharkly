@@ -1,16 +1,22 @@
 import React, { useState } from 'react';
 import { useNotifications } from '../../hooks/useNotifications';
-import { X, Check, Target, Bot, MessageSquare, Info, Clock, ArrowRight, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Check, Target, Bot, MessageSquare, Info, Clock, ArrowRight, ChevronDown, ChevronRight, Trash2, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
+import { Button } from '../ui/button';
 
 interface NotificationPanelProps {
   onClose: () => void;
 }
 
 const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
-  const { notifications, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, markAsRead, markAllAsRead, deleteNotification, deleteAllNotifications } = useNotifications();
   const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const toggleNotification = (notificationId: string) => {
     const newExpanded = new Set(expandedNotifications);
@@ -20,6 +26,47 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
       newExpanded.add(notificationId);
     }
     setExpandedNotifications(newExpanded);
+  };
+
+  const handleDeleteNotification = (notificationId: string) => {
+    setNotificationToDelete(notificationId);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteNotification = async () => {
+    if (!notificationToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteNotification(notificationToDelete);
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+      setNotificationToDelete(null);
+    }
+  };
+
+  const cancelDeleteNotification = () => {
+    setShowDeleteConfirm(false);
+    setNotificationToDelete(null);
+  };
+
+  const confirmDeleteAllNotifications = async () => {
+    setIsDeletingAll(true);
+    try {
+      await deleteAllNotifications();
+    } catch (error) {
+      console.error('Error deleting all notifications:', error);
+    } finally {
+      setIsDeletingAll(false);
+      setShowDeleteAllConfirm(false);
+    }
+  };
+
+  const cancelDeleteAllNotifications = () => {
+    setShowDeleteAllConfirm(false);
   };
 
   // Get notification icon based on type
@@ -72,7 +119,15 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
   return (
     <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-900 z-50">
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-900">
-        <h3 className="text-lg font-semibold text-black dark:text-white">Recent Notifications</h3>
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold text-black dark:text-white">Recent Notifications</h3>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="text-xs text-green-600 dark:text-green-400">
+              Connected
+            </span>
+          </div>
+        </div>
         <button
           onClick={onClose}
           className="text-gray-400 hover:text-brand-500 dark:hover:text-brand-400"
@@ -80,6 +135,8 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
           <X className="h-5 w-5" />
         </button>
       </div>
+
+
 
       <div className="max-h-96 overflow-y-auto">
         {unreadNotifications.length === 0 ? (
@@ -95,7 +152,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
             {unreadNotifications.slice(0, 5).map((notification) => (
               <div
                 key={notification.id}
-                className="transition-colors bg-blue-50/50 dark:bg-blue-900/10 border-l-2 border-l-blue-500"
+                className="transition-colors bg-blue-50/50 dark:bg-blue-900/10 border-l-2 border-l-blue-500 border-b border-t border-gray-100 dark:border-gray-900"
               >
                 {/* Notification Header - Clickable to expand */}
                 <div
@@ -152,6 +209,17 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
                               title="Mark as read"
                             >
                               <Check className="h-3 w-3" />
+                            </button>
+                            
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteNotification(notification.id);
+                              }}
+                              className="p-1 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                              title="Delete notification"
+                            >
+                              <Trash2 className="h-3 w-3" />
                             </button>
                           </div>
                         </div>
@@ -249,17 +317,19 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
 
       <div className="p-4 border-t border-gray-200 dark:border-gray-900">
         <div className="flex items-center justify-between">
-          <button
-            onClick={markAllAsRead}
-            disabled={unreadNotifications.length === 0}
-            className={`text-sm font-medium ${
-              unreadNotifications.length === 0
-                ? 'text-gray-400 cursor-not-allowed'
-                : 'text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300'
-            }`}
-          >
-            Mark all as read
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={markAllAsRead}
+              disabled={unreadNotifications.length === 0}
+              className={`text-sm font-medium ${
+                unreadNotifications.length === 0
+                  ? 'text-gray-400 cursor-not-allowed'
+                  : 'text-brand-600 dark:text-brand-400 hover:text-brand-800 dark:hover:text-brand-300'
+              }`}
+            >
+              Mark all as read
+            </button>
+          </div>
           
           <Link
             to="/notifications"
@@ -271,6 +341,120 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
           </Link>
         </div>
       </div>
+
+      {/* Delete Single Notification Confirmation Modal */}
+      {showDeleteConfirm && notificationToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Delete Notification
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Are you sure you want to delete this notification?
+                </p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                This action cannot be undone. The notification will be permanently removed.
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={cancelDeleteNotification}
+                disabled={isDeleting}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={confirmDeleteNotification}
+                disabled={isDeleting}
+                className="flex-1"
+              >
+                {isDeleting ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete Notification'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete All Notifications Confirmation Modal */}
+      {showDeleteAllConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+                  <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Delete All Notifications
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Are you sure you want to delete all {unreadNotifications.length} notifications?
+                </p>
+              </div>
+            </div>
+            
+            <div className="mb-6">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                This action cannot be undone. All {unreadNotifications.length} notifications will be permanently removed.
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={cancelDeleteAllNotifications}
+                disabled={isDeletingAll}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={confirmDeleteAllNotifications}
+                disabled={isDeletingAll}
+                className="flex-1"
+              >
+                {isDeletingAll ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete All Notifications'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -26,5 +26,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 		headers: {
 			'X-Client-Info': 'paperboat-crm'
 		}
+	},
+	// Enable realtime subscriptions
+	realtime: {
+		params: {
+			eventsPerSecond: 10
+		}
 	}
 });

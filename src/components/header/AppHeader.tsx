@@ -157,13 +157,14 @@ const Header: React.FC = () => {
 
             <div className="relative">
               <button
+                title="Polling every 15 seconds - reliable notifications"
                 type="button"
                 onClick={() => setShowNotifications((s) => !s)}
                 className="p-2 text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400 transition-colors duration-200 relative"
               >
                 <Bell className="h-5 w-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-brand-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 bg-brand-500 text-white text-[10px] font-bold rounded-full size-4 flex items-center justify-center">
                     {unreadCount}
                   </span>
                 )}

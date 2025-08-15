@@ -2,12 +2,19 @@ import { useEffect, useState } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Bell, CheckCircle, AlertTriangle, Info, Bug, TestTube, ChevronDown, ChevronRight } from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 import { notificationService } from '../utils/notificationService';
 import { toast } from 'sonner';
 import UserAvatar from '../components/common/UserAvatar';
 import { 
+	Bell,
+	CheckCircle,
+	Info,
+	Bug,
+	TestTube,
+	ChevronDown,
+	ChevronRight,
+	Trash2,
 	RefreshCw,
 	MessageSquare,
 	Target,
@@ -29,12 +36,21 @@ export default function NotificationsPage() {
 		notifications, 
 		loading: isLoading, 
 		markAsRead, 
-		markAllAsRead 
+		markAllAsRead,
+		deleteNotification: deleteNotificationFromContext,
+		deleteAllNotifications: deleteAllNotificationsFromContext,
+		testWebSocketConnection,
+		testWebSocketDataReception
 	} = useNotifications();
 	const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([]);
 	const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
 	const [searchQuery, setSearchQuery] = useState('');
 	const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
+	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+	const [notificationToDelete, setNotificationToDelete] = useState<string | null>(null);
+	const [isDeleting, setIsDeleting] = useState(false);
+	const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+	const [isDeletingAll, setIsDeletingAll] = useState(false);
 
 	const toggleNotification = (notificationId: string) => {
 		const newExpanded = new Set(expandedNotifications);
@@ -117,14 +133,53 @@ export default function NotificationsPage() {
 
 
 
-	const deleteNotification = async () => {
+	const handleDeleteNotification = (notificationId: string) => {
+		setNotificationToDelete(notificationId);
+		setShowDeleteConfirm(true);
+	};
+
+	const confirmDeleteNotification = async () => {
+		if (!notificationToDelete) return;
+		
+		setIsDeleting(true);
 		try {
-			// TODO: Delete from Supabase
+			await deleteNotificationFromContext(notificationToDelete);
 			toast.success('Notification deleted');
 		} catch (error) {
 			console.error('Error deleting notification:', error);
 			toast.error('Failed to delete notification');
+		} finally {
+			setIsDeleting(false);
+			setShowDeleteConfirm(false);
+			setNotificationToDelete(null);
 		}
+	};
+
+	const cancelDeleteNotification = () => {
+		setShowDeleteConfirm(false);
+		setNotificationToDelete(null);
+	};
+
+	const handleDeleteAllNotifications = () => {
+		setShowDeleteAllConfirm(true);
+	};
+
+	const confirmDeleteAllNotifications = async () => {
+		setIsDeletingAll(true);
+		try {
+			await deleteAllNotificationsFromContext();
+			toast.success('All notifications deleted');
+		} catch (error) {
+			console.error('Error deleting all notifications:', error);
+			toast.error('Failed to delete all notifications');
+		} finally {
+			setIsDeletingAll(false);
+			setShowDeleteAllConfirm(false);
+		}
+	};
+
+	const cancelDeleteAllNotifications = () => {
+		setShowDeleteAllConfirm(false);
 	};
 
 
@@ -167,6 +222,12 @@ export default function NotificationsPage() {
 							<span className="text-blue-600 dark:text-blue-400 font-medium">
 								Unread: {notifications.filter(n => !n.read).length}
 							</span>
+							<div className="flex items-center gap-2">
+								<div className="w-2 h-2 rounded-full bg-green-500" />
+								<span className="text-xs text-green-600 dark:text-green-400">
+									Polling every 15s
+								</span>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -192,6 +253,14 @@ export default function NotificationsPage() {
 							startIcon={<CheckCircle className="h-4 w-4" />}
 						>
 							Mark All Read
+						</Button>
+						<Button
+							onClick={handleDeleteAllNotifications}
+							disabled={notifications.length === 0}
+							variant="outline"
+							className="text-red-600 border-red-300 hover:bg-red-50 hover:border-red-400 dark:text-red-400 dark:border-red-600 dark:hover:bg-red-900/20"
+						>
+							Delete All
 						</Button>
 						<Button
 							onClick={() => window.location.reload()}
@@ -278,6 +347,24 @@ export default function NotificationsPage() {
 											className="w-full"
 										>
 											Debug Task Reminders Table
+										</Button>
+										<Button
+											onClick={testWebSocketConnection}
+											variant="outline"
+											size="sm"
+											startIcon={<TestTube className="h-4 w-4" />}
+											className="w-full"
+										>
+											Test Notification Sound
+										</Button>
+										<Button
+											onClick={testWebSocketDataReception}
+											variant="outline"
+											size="sm"
+											startIcon={<TestTube className="h-4 w-4" />}
+											className="w-full"
+										>
+											Test Notification Creation
 										</Button>
 										<Button
 											onClick={() => {
@@ -418,13 +505,14 @@ export default function NotificationsPage() {
 													<Button
 														onClick={(e) => {
 															e.stopPropagation();
-															deleteNotification();
+															handleDeleteNotification(notification.id);
 														}}
 														variant="ghost"
 														size="sm"
 														className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+														title="Delete notification"
 													>
-														<AlertTriangle className="h-4 w-4" />
+														<Trash2 className="h-4 w-4" />
 													</Button>
 												</div>
 											</div>
@@ -552,6 +640,120 @@ export default function NotificationsPage() {
 					</div>
 				)}
 			</div>
+
+			{/* Delete Single Notification Confirmation Modal */}
+			{showDeleteConfirm && notificationToDelete && (
+				<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+					<div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6">
+						<div className="flex items-center space-x-3 mb-4">
+							<div className="flex-shrink-0">
+								<div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+									<Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+									Delete Notification
+								</h3>
+								<p className="text-sm text-gray-500 dark:text-gray-400">
+									Are you sure you want to delete this notification?
+								</p>
+							</div>
+						</div>
+						
+						<div className="mb-6">
+							<p className="text-sm text-gray-600 dark:text-gray-300">
+								This action cannot be undone. The notification will be permanently removed.
+							</p>
+						</div>
+
+						<div className="flex space-x-3">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={cancelDeleteNotification}
+								disabled={isDeleting}
+								className="flex-1"
+							>
+								Cancel
+							</Button>
+							<Button
+								type="button"
+								variant="destructive"
+								onClick={confirmDeleteNotification}
+								disabled={isDeleting}
+								className="flex-1"
+							>
+								{isDeleting ? (
+									<>
+										<RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+										Deleting...
+									</>
+								) : (
+									'Delete Notification'
+								)}
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Delete All Notifications Confirmation Modal */}
+			{showDeleteAllConfirm && (
+				<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+					<div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6">
+						<div className="flex items-center space-x-3 mb-4">
+							<div className="flex-shrink-0">
+								<div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+									<Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+									Delete All Notifications
+								</h3>
+								<p className="text-sm text-gray-500 dark:text-gray-400">
+									Are you sure you want to delete all {notifications.length} notifications?
+								</p>
+							</div>
+						</div>
+						
+						<div className="mb-6">
+							<p className="text-sm text-gray-600 dark:text-gray-300">
+								This action cannot be undone. All {notifications.length} notifications will be permanently removed.
+							</p>
+						</div>
+
+						<div className="flex space-x-3">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={cancelDeleteAllNotifications}
+								disabled={isDeletingAll}
+								className="flex-1"
+							>
+								Cancel
+							</Button>
+							<Button
+								type="button"
+								variant="destructive"
+								onClick={confirmDeleteAllNotifications}
+								disabled={isDeletingAll}
+								className="flex-1"
+							>
+								{isDeletingAll ? (
+									<>
+										<RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+										Deleting...
+									</>
+								) : (
+									'Delete All Notifications'
+								)}
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
 		</>
 	);
 }

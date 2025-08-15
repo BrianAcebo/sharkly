@@ -223,10 +223,38 @@ class ReminderService {
 
 	private async sendReminderNotification(reminder: TaskReminder & { tasks: { title: string; due_date: string } }) {
 		try {
+			// Calculate time until due for clearer messaging
+			const now = new Date();
+			const dueDate = new Date(reminder.tasks.due_date);
+			const isOverdue = dueDate < now;
+			
+			let title: string;
+			let body: string;
+			
+			if (isOverdue) {
+				title = 'Task Overdue!';
+				body = `"${reminder.tasks.title}" is overdue`;
+			} else {
+				// Calculate time until due
+				const diffMs = dueDate.getTime() - now.getTime();
+				const diffMinutes = Math.round(diffMs / (1000 * 60));
+				
+				if (diffMinutes < 60) {
+					body = `"${reminder.tasks.title}" due in ${diffMinutes} minutes`;
+				} else if (diffMinutes < 1440) {
+					const hours = Math.floor(diffMinutes / 60);
+					body = `"${reminder.tasks.title}" due in ${hours} hour${hours > 1 ? 's' : ''}`;
+				} else {
+					const days = Math.floor(diffMinutes / 1440);
+					body = `"${reminder.tasks.title}" due in ${days} day${days > 1 ? 's' : ''}`;
+				}
+				title = 'Reminder';
+			}
+
 			// Send browser notification
 			await notificationService.sendNotification({
-				title: 'Task Reminder',
-				body: `${reminder.tasks.title} is due soon!`,
+				title: title,
+				body: body,
 				icon: '/images/logos/logo.svg',
 				tag: `task-${reminder.task_id}`,
 				data: {

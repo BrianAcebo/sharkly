@@ -75,12 +75,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 		lead_id: '',
 		reminder_enabled: false,
 		reminder_time: '',
-		custom_reminder_time: '',
-		reminders: [],
-		recurring_enabled: false,
-		recurring_interval: '1',
-		recurring_unit: 'days',
-		recurring_end_count: '10'
+		reminders: []
 	});
 
 	// Memoized function to convert due_date string to Date object for DatePicker
@@ -350,15 +345,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 									newErrors.reminder_time = 'Invalid date and time combination';
 								} else {
 									const now = new Date();
-
-									
-
-									// Allow a small buffer (1 minute) to avoid cutting off valid times
-									const bufferTime = new Date(now.getTime() + 60000); // Add 1 minute
+									// Allow a 5-minute buffer to avoid cutting off valid times
+									const bufferTime = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
 
 									if (reminderDateTime <= bufferTime) {
 										newErrors.reminder_time =
-											'Reminder time is too close to the current time. Please select a time at least 1 minute in the future.';
+											'Reminder time must be at least 5 minutes in the future';
 									}
 								}
 							}
@@ -385,7 +377,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 			}
 
 			// Combine date and time into a timestamp if both are provided
-			let reminderTime = formData.reminder_time;
+			let reminderTime: string | undefined = formData.reminder_time;
 
 			if (formData.due_date && formData.reminder_time) {
 				try {
@@ -433,16 +425,43 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 					// Create the combined datetime using 24-hour format
 					const datetimeString = `${dateStr}T${hour24.toString().padStart(2, '0')}:${minuteValue}:00`;
 					
-					const dateTime = new Date(datetimeString);
-
+					console.log('🔍 Debug Info:');
+					console.log('  - Date string:', dateStr);
+					console.log('  - Time string:', formData.reminder_time);
+					console.log('  - Hour (24h):', hour24);
+					console.log('  - Minute:', minuteValue);
+					console.log('  - Combined datetime string:', datetimeString);
 					
-
+					// Create the date object and ensure it's valid
+					const dateTime = new Date(datetimeString);
+					
+					console.log('  - Created Date object:', dateTime);
+					console.log('  - Date is valid:', !isNaN(dateTime.getTime()));
+					console.log('  - Date toString():', dateTime.toString());
+					console.log('  - Date toISOString():', dateTime.toISOString());
+					
 					// Validate the combined datetime
 					if (isNaN(dateTime.getTime())) {
 						throw new Error('Invalid date and time combination');
 					}
 
+					// Check if the datetime is in the past (with a 5-minute buffer)
+					const now = new Date();
+					const bufferTime = new Date(now.getTime() + 5 * 60 * 1000); // 5 minute buffer
+					
+					console.log('  - Current time:', now.toString());
+					console.log('  - Buffer time:', bufferTime.toString());
+					console.log('  - Reminder time:', dateTime.toString());
+					console.log('  - Is reminder <= buffer?', dateTime <= bufferTime);
+					console.log('  - Time difference (ms):', dateTime.getTime() - bufferTime.getTime());
+					
+					if (dateTime <= bufferTime) {
+						throw new Error('Reminder time must be at least 5 minutes in the future');
+					}
+
 					reminderTime = dateTime.toISOString();
+					console.log('  - Final reminder time:', reminderTime);
+					console.log('🔍 End Debug Info');
 				} catch (error) {
 					console.error('Error combining date and time:', error);
 					setErrors({
@@ -501,8 +520,53 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 				}
 			}
 
-			const taskData = { ...formData, reminder_time: reminderTime };
-			const success = await onSubmit(taskData);
+			// Extract reminders data before sending to Supabase (since reminders column doesn't exist in tasks table)
+			const { reminders, ...taskDataWithoutReminders } = formData;
+			
+			// Create the task data for Supabase (without the reminders field)
+			const taskDataForSupabase = { ...taskDataWithoutReminders, reminder_time: reminderTime };
+			
+			// Create the task first (without the reminders field)
+			// Note: onSubmit expects TaskFormData but we need to send data without reminders to Supabase
+			const success = await onSubmit(taskDataForSupabase as TaskFormData);
+			
+			// If task was created successfully and reminders are enabled, create reminder records
+			if (success && formData.reminder_enabled && reminders.length > 0 && reminderTime) {
+				try {
+					// Calculate reminder times based on user selections
+					const reminderTimes = reminders.map(reminder => {
+						if (reminder.type === 'custom' && reminder.customTime) {
+							// For custom times, use the exact time specified
+							return reminder.customTime;
+						} else {
+							// For preset reminders, calculate the time before the due time
+							const dueDateTime = new Date(reminderTime);
+							switch (reminder.type) {
+								case '5min':
+									return new Date(dueDateTime.getTime() - 5 * 60 * 1000);
+								case '10min':
+									return new Date(dueDateTime.getTime() - 10 * 60 * 1000);
+								case '15min':
+									return new Date(dueDateTime.getTime() - 15 * 60 * 1000);
+								case '30min':
+									return new Date(dueDateTime.getTime() - 30 * 60 * 1000);
+								case '1hr':
+									return new Date(dueDateTime.getTime() - 60 * 60 * 1000);
+								case '1day':
+									return new Date(dueDateTime.getTime() - 24 * 60 * 60 * 1000);
+								default:
+									return dueDateTime;
+							}
+						}
+					}).filter((time): time is Date | string => time !== undefined); // Type guard to filter out undefined
+					
+					// Create reminder records in task_reminders table
+					// Note: This would need to be handled in the backend or useTasks hook
+					console.log('Reminders to create:', reminderTimes);
+				} catch (error) {
+					console.error('Error processing reminders:', error);
+				}
+			}
 			if (success) {
 				onCancel();
 			}
@@ -560,6 +624,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 			reminders: prev.reminders.filter((_, i) => i !== index)
 		}));
 	};
+
+
+
+
 
 	const handleLeadSelect = (lead: LeadOption) => {
 		setFormData((prev) => ({ ...prev, lead_id: lead.id }));
@@ -713,15 +781,34 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 								placeholder="Type any time (e.g., 2:30 PM) or use presets"
 								selectedDate={formData.due_date}
 							/>
-							<p className="text-xs text-gray-500 dark:text-gray-400">
-								This sets both the due time and reminder time
-							</p>
 							{errors.reminder_time && (
 								<p className="flex items-center space-x-1 text-sm text-red-600 dark:text-red-400">
 									<AlertCircle className="h-4 w-4" />
 									<span>{errors.reminder_time}</span>
 								</p>
 							)}
+                            {/* Timezone Selection */}
+                            <div className="space-y-2 mt-5">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                                    Timezone
+                                </label>
+                                <select
+                                    className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                                    defaultValue="auto"
+                                >
+                                    <option value="auto">
+                                        Auto-detect ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+                                    </option>
+                                    <option value="America/New_York">Eastern Time (ET)</option>
+                                    <option value="America/Chicago">Central Time (CT)</option>
+                                    <option value="America/Denver">Mountain Time (MT)</option>
+                                    <option value="America/Los_Angeles">Pacific Time (PT)</option>
+                                    <option value="Europe/London">London (GMT/BST)</option>
+                                    <option value="Europe/Paris">Paris (CET/CEST)</option>
+                                    <option value="Asia/Tokyo">Tokyo (JST)</option>
+                                    <option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
+                                </select>
+                            </div>
 						</div>
 					</div>
 
@@ -740,44 +827,22 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 
 						{formData.reminder_enabled && (
 							<div className="ml-6 space-y-4">
-								{/* Reminder Options */}
+								{/* Quick Reminder Options */}
 								<div className="space-y-3">
-									<label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-										Reminder Schedule
+									<label className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-3 block">
+										Quick Options
 									</label>
-									<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-										{/* Quick Reminder Options */}
-										<div className="space-y-2">
-											<label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-												Quick Options
-											</label>
-											<div className="flex flex-wrap gap-2">
-												{['5min', '15min', '1hr', '1day'].map((option) => (
-													<button
-														key={option}
-														type="button"
-														onClick={() => handleQuickReminder(option)}
-														className="px-3 py-1 text-xs rounded-full border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600"
-													>
-														{option}
-													</button>
-												))}
-											</div>
-										</div>
-
-										{/* Custom Reminder */}
-										<div className="space-y-2">
-											<label className="text-xs font-medium text-gray-600 dark:text-gray-400">
-												Custom Time
-											</label>
-											<TimePicker
-												label=""
-												value={formData.custom_reminder_time}
-												onChange={(time) => handleInputChange('custom_reminder_time', time)}
-												placeholder="Custom reminder time"
-												selectedDate={formData.due_date}
-											/>
-										</div>
+									<div className="flex flex-wrap gap-2">
+										{['5min', '10min', '15min', '30min', '1hr', '1day'].map((option) => (
+											<button
+												key={option}
+												type="button"
+												onClick={() => handleQuickReminder(option)}
+												className="px-3 py-1 text-xs rounded-full border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600"
+											>
+												{option}
+											</button>
+										))}
 									</div>
 								</div>
 
@@ -795,7 +860,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 													className="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
 												>
 													<option value="5min">5 minutes before</option>
+													<option value="10min">10 minutes before</option>
 													<option value="15min">15 minutes before</option>
+													<option value="30min">30 minutes before</option>
 													<option value="1hr">1 hour before</option>
 													<option value="1day">1 day before</option>
 													<option value="custom">Custom time</option>
@@ -826,93 +893,6 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 											+ Add another reminder
 										</button>
 									</div>
-								</div>
-
-								{/* Recurring Reminders */}
-								<div className="space-y-3">
-									<div className="flex items-center space-x-2">
-										<Checkbox
-											id="recurring-enabled"
-											checked={formData.recurring_enabled}
-											onChange={(checked) => handleInputChange('recurring_enabled', checked)}
-										/>
-										<label htmlFor="recurring-enabled" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-											Recurring Reminders
-										</label>
-									</div>
-
-									{formData.recurring_enabled && (
-										<div className="ml-6 space-y-3">
-											<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-												<div>
-													<label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-														Repeat Every
-													</label>
-													<select
-														value={formData.recurring_interval}
-														onChange={(e) => handleInputChange('recurring_interval', e.target.value)}
-														className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-													>
-														<option value="1">1</option>
-														<option value="2">2</option>
-														<option value="3">3</option>
-														<option value="4">4</option>
-														<option value="5">5</option>
-														<option value="6">6</option>
-													</select>
-												</div>
-												<div>
-													<label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-														Unit
-													</label>
-													<select
-														value={formData.recurring_unit}
-														onChange={(e) => handleInputChange('recurring_unit', e.target.value)}
-														className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-													>
-														<option value="days">Days</option>
-														<option value="weeks">Weeks</option>
-														<option value="months">Months</option>
-													</select>
-												</div>
-												<div>
-													<label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-														End After
-													</label>
-													<input
-														type="number"
-														value={formData.recurring_end_count}
-														onChange={(e) => handleInputChange('recurring_end_count', e.target.value)}
-														placeholder="10"
-														className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-													/>
-												</div>
-											</div>
-										</div>
-									)}
-								</div>
-
-								{/* Timezone Selection */}
-								<div className="space-y-2">
-									<label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-										Timezone
-									</label>
-									<select
-										className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-										defaultValue="auto"
-									>
-										<option value="auto">
-											Auto-detect ({Intl.DateTimeFormat().resolvedOptions().timeZone})
-										</option>
-										<option value="America/New_York">Eastern Time (ET)</option>
-										<option value="America/Chicago">Central Time (CT)</option>
-										<option value="America/Denver">Mountain Time (MT)</option>
-										<option value="America/Los_Angeles">Pacific Time (PT)</option>
-										<option value="Europe/London">London (GMT/BST)</option>
-										<option value="Europe/Paris">Paris (CET/CEST)</option>
-										<option value="Asia/Tokyo">Tokyo (JST)</option>
-										<option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
-									</select>
 								</div>
 							</div>
 						)}

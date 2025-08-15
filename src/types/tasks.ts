@@ -25,18 +25,15 @@ export interface TaskFormData {
 	lead_id?: string;
 	reminder_enabled: boolean;
 	reminder_time?: string; // This sets both due time and reminder time
-	custom_reminder_time?: string;
 	reminders: ReminderOption[];
-	recurring_enabled: boolean;
-	recurring_interval: string;
-	recurring_unit: 'days' | 'weeks' | 'months';
-	recurring_end_count: string;
 }
 
 export interface ReminderOption {
-	type: '5min' | '15min' | '1hr' | '1day' | 'custom';
+	type: '5min' | '10min' | '15min' | '30min' | '1hr' | '1day' | 'custom';
 	customTime?: string;
 }
+
+
 
 export interface TaskReminder {
 	id: string;

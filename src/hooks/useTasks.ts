@@ -98,7 +98,7 @@ export const useTasks = () => {
 				}
 			}
 
-			const { data, error } = await supabase
+			const { error } = await supabase
 				.from('tasks')
 				.insert({
 					...taskData,
@@ -106,9 +106,7 @@ export const useTasks = () => {
 					organization_id: user.organization_id,
 					owner_id: user.id,
 					status: 'pending'
-				})
-				.select()
-				.single();
+				});
 
 			if (error) throw error;
 
@@ -200,9 +198,8 @@ export const useTasks = () => {
 			const [year, month, day] = dueDate.split('-').map(Number);
 			const [hours, minutes] = reminderTime.split(':').map(Number);
 			
-			// Create reminder time (15 minutes before the actual due time)
-			const reminderDateTime = new Date(year, month - 1, day, hours, minutes);
-			reminderDateTime.setMinutes(reminderDateTime.getMinutes() - 15);
+					// Create reminder time at the exact time the user specified
+		const reminderDateTime = new Date(year, month - 1, day, hours, minutes);
 			
 			// Only create reminder if the reminder time is in the future
 			const now = new Date();
@@ -213,15 +210,13 @@ export const useTasks = () => {
 			}
 			
 			// Create the reminder record
-			const { data: reminderData, error: reminderError } = await supabase
+			const { error: reminderError } = await supabase
 				.from('task_reminders')
 				.insert({
 					task_id: taskId,
 					reminder_time: reminderDateTime.toISOString(),
 					status: 'pending'
-				})
-				.select()
-				.single();
+				});
 
 			if (reminderError) throw reminderError;
 			
