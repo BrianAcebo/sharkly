@@ -1,188 +1,364 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { type Notification, NotificationsContext } from "../contexts/NotificationsContext";
-import { notificationService } from "../utils/notifications";
-
-
-const mockNotifications: Notification[] = [
-    {
-      id: '1',
-      type: 'lead',
-      title: 'New Lead Assigned',
-      message: 'John Smith from TechCorp has been assigned to you. This is a high-value prospect with 95% match score.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
-      read: false,
-      priority: 'high',
-      actionUrl: '/leads/123',
-      metadata: {
-        lead_id: '123',
-        user: {
-          name: 'John Smith',
-          avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1'
-        }
-      }
-    },
-    {
-      id: '2',
-      type: 'ai',
-      title: 'AI Insights Ready',
-      message: 'Your AI assistant has analyzed recent conversations and identified 3 follow-up opportunities.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-      read: false,
-      priority: 'medium',
-      actionUrl: '/assistant',
-      metadata: {
-        user: {
-          name: 'AI Assistant',
-          avatar: null
-        }
-      }
-    },
-    {
-      id: '3',
-      type: 'reminder',
-      title: 'Follow-up Due',
-      message: 'Follow up with Sarah Johnson from InnovateTech is due today. AI suggests discussing their Q4 budget.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(), // 4 hours ago
-      read: true,
-      priority: 'high',
-      actionUrl: '/leads/456',
-      metadata: {
-        lead_id: '456',
-        due_date: new Date().toISOString(),
-        user: {
-          name: 'Sarah Johnson',
-          avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1'
-        }
-      }
-    },
-    {
-      id: '4',
-      type: 'communication',
-      title: 'Team Mention',
-      message: 'Mike Chen mentioned you in a conversation about the Enterprise deal strategy.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), // 6 hours ago
-      read: false,
-      priority: 'medium',
-      actionUrl: '/chat',
-      metadata: {
-        user: {
-          name: 'Mike Chen',
-          avatar: 'https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1'
-        }
-      }
-    },
-    {
-      id: '5',
-      type: 'system',
-      title: 'Weekly Report Available',
-      message: 'Your weekly sales performance report is ready. You\'ve exceeded your quota by 15%.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-      read: true,
-      priority: 'low',
-      actionUrl: '/reports',
-      metadata: {
-        user: {
-          name: 'System',
-          avatar: null
-        }
-      }
-    },
-    {
-      id: '6',
-      type: 'lead',
-      title: 'Lead Status Updated',
-      message: 'Sarah Johnson from InnovateTech moved to "Qualified" stage. Ready for proposal.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(), // 8 hours ago
-      read: false,
-      priority: 'medium',
-      actionUrl: '/leads/789',
-      metadata: {
-        lead_id: '789',
-        user: {
-          name: 'Sarah Johnson',
-          avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1'
-        }
-      }
-    },
-    {
-      id: '7',
-      type: 'ai',
-      title: 'Follow-up Suggestion',
-      message: 'AI suggests calling John Smith today. Last contact was 3 days ago, high engagement score.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(), // 12 hours ago
-      read: false,
-      priority: 'medium',
-      actionUrl: '/leads/123',
-      metadata: {
-        lead_id: '123',
-        user: {
-          name: 'AI Assistant',
-          avatar: null
-        }
-      }
-    },
-    {
-      id: '8',
-      type: 'communication',
-      title: 'New Team Message',
-      message: 'Alex Rodriguez sent a message in #enterprise-deals: "Anyone available for a client call tomorrow?"',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(), // 18 hours ago
-      read: true,
-      priority: 'low',
-      actionUrl: '/chat',
-      metadata: {
-        user: {
-          name: 'Alex Rodriguez',
-          avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=100&h=100&dpr=1'
-        }
-      }
-    }
-  ];
+import { notificationService } from "../utils/notificationService";
+import { supabase } from "../utils/supabaseClient";
   
 export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [notifications, setNotifications] = useState<Notification[]>(mockNotifications);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [wsStatus, setWsStatus] = useState<{ isConnected: boolean; lastMessage: string; connectionTime: string }>({
+        isConnected: false,
+        lastMessage: 'Not connected',
+        connectionTime: 'Never'
+    });
   
     const unreadCount = notifications.filter(n => !n.read).length;
-  
-    const addNotification = async (notificationData: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
-      const newNotification: Notification = {
-        ...notificationData,
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
-        read: false
-      };
-      setNotifications(prev => [newNotification, ...prev]);
 
-      // Send push notification if enabled
+    // Fetch notifications from Supabase
+    const fetchNotifications = async () => {
       try {
-        await notificationService.sendNotification({
-          title: newNotification.title,
-          body: newNotification.message,
-          tag: `notification-${newNotification.id}`,
-          data: { 
-            actionUrl: newNotification.actionUrl,
-            type: newNotification.type,
-            priority: newNotification.priority
+        setLoading(true);
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) return;
+
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', userData.user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Convert Supabase data to our Notification format
+        const formattedNotifications: Notification[] = (data || []).map(item => ({
+          id: item.id,
+          type: mapNotificationType(item.type),
+          title: item.title,
+          message: item.message,
+          timestamp: item.created_at,
+          read: item.read_at !== null,
+          priority: mapNotificationPriority(item.metadata?.priority || 'medium'),
+          actionUrl: item.metadata?.action_url || null,
+          metadata: {
+            ...item.metadata,
+            lead_id: item.metadata?.lead_id,
+            due_date: item.metadata?.due_date,
+            user: {
+              name: item.metadata?.user_name || 'System',
+              avatar: item.metadata?.user_avatar || null
+            }
           }
-        });
+        }));
+
+        setNotifications(formattedNotifications);
       } catch (error) {
-        console.error('Failed to send push notification:', error);
+        console.error('Error fetching notifications:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Helper function to map Supabase notification types to our types
+    const mapNotificationType = (type: string): Notification['type'] => {
+      switch (type) {
+        case 'task_reminder': return 'reminder';
+        case 'lead_update': return 'lead';
+        case 'ai': return 'ai';
+        case 'system': return 'system';
+        case 'communication': return 'communication';
+        default: return 'system';
+      }
+    };
+
+    // Helper function to map priority levels
+    const mapNotificationPriority = (priority: string): 'low' | 'medium' | 'high' => {
+      switch (priority) {
+        case 'low': return 'low';
+        case 'high': return 'high';
+        case 'urgent': return 'high';
+        default: return 'medium';
+      }
+    };
+
+    // Initialize notification service and handle real-time notifications
+    useEffect(() => {
+      // Initialize the notification service only once
+      notificationService.initialize();
+      
+      // Fetch initial notifications
+      fetchNotifications();
+
+      // Set up WebSocket subscription for real-time notifications
+      const setupWebSocket = async () => {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          console.log('🔌 Setting up WebSocket connection for real-time notifications...');
+
+          // Subscribe to notifications table changes
+          const subscription = supabase
+            .channel(`notifications:${user.id}`)
+            .on('postgres_changes', 
+              { 
+                event: 'INSERT', 
+                schema: 'public', 
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+              },
+              (payload) => {
+                console.log('🔔 Real-time notification received:', payload);
+                
+                // Convert Supabase data to our Notification format
+                const newNotification: Notification = {
+                  id: payload.new.id,
+                  type: mapNotificationType(payload.new.type),
+                  title: payload.new.title,
+                  message: payload.new.message,
+                  timestamp: payload.new.created_at,
+                  read: payload.new.read || false,
+                  priority: mapNotificationPriority(payload.new.priority || 'medium'),
+                  actionUrl: payload.new.action_url || null,
+                  metadata: {
+                    ...payload.new.metadata,
+                    lead_id: payload.new.metadata?.lead_id,
+                    due_date: payload.new.metadata?.due_date,
+                    user: {
+                      name: payload.new.metadata?.user_name || 'System',
+                      avatar: payload.new.metadata?.user_avatar || null
+                    }
+                  }
+                };
+
+                // Add new notification to the list
+                setNotifications(prev => [newNotification, ...prev]);
+                
+                // Update WebSocket status
+                setWsStatus(prev => ({
+                  ...prev,
+                  lastMessage: `New notification: ${newNotification.title}`,
+                  connectionTime: new Date().toLocaleTimeString()
+                }));
+
+                // Show browser notification if enabled
+                if (Notification.permission === 'granted') {
+                  new Notification(newNotification.title, {
+                    body: newNotification.message,
+                    icon: '/favicon.ico'
+                  });
+                }
+              }
+            )
+            .on('postgres_changes',
+              {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'notifications',
+                filter: `user_id=eq.${user.id}`
+              },
+              (payload) => {
+                console.log('🔄 Notification updated:', payload);
+                
+                // Update existing notification
+                setNotifications(prev => 
+                  prev.map(n => 
+                    n.id === payload.new.id 
+                      ? { ...n, read: payload.new.read || false }
+                      : n
+                  )
+                );
+
+                setWsStatus(prev => ({
+                  ...prev,
+                  lastMessage: `Notification updated: ${payload.new.title}`,
+                  connectionTime: new Date().toLocaleTimeString()
+                }));
+              }
+            )
+            .subscribe((status) => {
+              console.log('🔌 WebSocket subscription status:', status);
+              setWsStatus(prev => ({
+                ...prev,
+                isConnected: status === 'SUBSCRIBED',
+                connectionTime: new Date().toLocaleTimeString()
+              }));
+            });
+
+          // Cleanup function
+          return () => {
+            console.log('🔌 Cleaning up WebSocket subscription...');
+            subscription.unsubscribe();
+          };
+        } catch (error) {
+          console.error('❌ Error setting up WebSocket:', error);
+          setWsStatus(prev => ({
+            ...prev,
+            isConnected: false,
+            lastMessage: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            connectionTime: new Date().toLocaleTimeString()
+          }));
+        }
+      };
+
+      // Set up WebSocket connection
+      const cleanup = setupWebSocket();
+
+      // Cleanup on unmount
+      return () => {
+        cleanup.then(cleanupFn => cleanupFn?.());
+      };
+    }, []);
+
+    // Check for task reminders (fallback method)
+    const checkTaskReminders = async () => {
+      try {
+        console.log('Checking for task reminders...');
+        // This is now handled by WebSocket, but kept for fallback
+      } catch (error) {
+        console.error('Error checking task reminders:', error);
       }
     };
   
-    const markAsRead = (id: string) => {
-      setNotifications(prev => prev.map(n => 
-        n.id === id ? { ...n, read: true } : n
-      ));
+    const addNotification = async (notificationData: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) return;
+
+        // Get user's organization
+        const { data: orgData } = await supabase
+          .from('user_organizations')
+          .select('organization_id')
+          .eq('user_id', userData.user.id)
+          .single();
+
+        if (!orgData) return;
+
+        // Save notification to Supabase
+        const { data, error } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: userData.user.id,
+            organization_id: orgData.organization_id,
+            title: notificationData.title,
+            message: notificationData.message,
+            type: mapNotificationTypeToSupabase(notificationData.type),
+            metadata: {
+              priority: notificationData.priority,
+              action_url: notificationData.actionUrl,
+              lead_id: notificationData.metadata?.lead_id,
+              due_date: notificationData.metadata?.due_date,
+              user_name: notificationData.metadata?.user?.name,
+              user_avatar: notificationData.metadata?.user?.avatar
+            }
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        // Create local notification object
+        const newNotification: Notification = {
+          ...notificationData,
+          id: data.id,
+          timestamp: data.created_at,
+          read: false
+        };
+
+        // Add to local state
+        setNotifications(prev => [newNotification, ...prev]);
+
+        // Show browser notification
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification(newNotification.title, {
+            body: newNotification.message,
+            icon: '/favicon.ico',
+            tag: `notification-${newNotification.id}`
+          });
+        }
+
+      } catch (error) {
+        console.error('Failed to add notification:', error);
+      }
     };
-  
-    const markAllAsRead = () => {
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+
+    // Helper function to map our notification types to Supabase types
+    const mapNotificationTypeToSupabase = (type: Notification['type']): string => {
+      switch (type) {
+        case 'reminder': return 'task_reminder';
+        case 'lead': return 'lead_update';
+        case 'ai': return 'ai';
+        case 'system': return 'system';
+        case 'communication': return 'communication';
+        default: return 'general';
+      }
+    };
+
+    const markAsRead = async (notificationId: string) => {
+      try {
+        // Update in Supabase
+        const { error } = await supabase
+          .from('notifications')
+          .update({ read: true })
+          .eq('id', notificationId);
+
+        if (error) throw error;
+
+        // Update local state
+        setNotifications(prev =>
+          prev.map(n =>
+            n.id === notificationId ? { ...n, read: true } : n
+          )
+        );
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    };
+
+    const markAllAsRead = async () => {
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        if (!userData.user) return;
+
+        // Update all notifications in Supabase
+        const { error } = await supabase
+          .from('notifications')
+          .update({ read: true })
+          .eq('user_id', userData.user.id)
+          .eq('read', false);
+
+        if (error) throw error;
+
+        // Update local state
+        setNotifications(prev =>
+          prev.map(n => ({ ...n, read: true }))
+        );
+      } catch (error) {
+        console.error('Failed to mark all notifications as read:', error);
+      }
+    };
+
+    const deleteNotification = async (notificationId: string) => {
+      try {
+        // Delete from Supabase
+        const { error } = await supabase
+          .from('notifications')
+          .delete()
+          .eq('id', notificationId);
+
+        if (error) throw error;
+
+        // Remove from local state
+        setNotifications(prev =>
+          prev.filter(n => n.id !== notificationId)
+        );
+      } catch (error) {
+        console.error('Failed to delete notification:', error);
+      }
     };
 
     // Convenience methods for specific notification types
-    const addLeadNotification = (title: string, message: string, leadId?: string, priority: 'low' | 'medium' | 'high' = 'medium', userName?: string, userAvatar?: string) => {
-      addNotification({
+    const addLeadNotification = async (title: string, message: string, leadId?: string, priority: 'low' | 'medium' | 'high' = 'medium', userName?: string, userAvatar?: string) => {
+      await addNotification({
         type: 'lead',
         title,
         message,
@@ -198,8 +374,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       });
     };
 
-    const addAINotification = (title: string, message: string, actionUrl?: string, priority: 'low' | 'medium' | 'high' = 'medium') => {
-      addNotification({
+    const addAINotification = async (title: string, message: string, actionUrl?: string, priority: 'low' | 'medium' | 'high' = 'medium') => {
+      await addNotification({
         type: 'ai',
         title,
         message,
@@ -214,8 +390,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       });
     };
 
-    const addReminderNotification = (title: string, message: string, dueDate?: string, actionUrl?: string, priority: 'low' | 'medium' | 'high' = 'medium', userName?: string, userAvatar?: string) => {
-      addNotification({
+    const addReminderNotification = async (title: string, message: string, dueDate?: string, actionUrl?: string, priority: 'low' | 'medium' | 'high' = 'medium', userName?: string, userAvatar?: string) => {
+      await addNotification({
         type: 'reminder',
         title,
         message,
@@ -231,8 +407,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       });
     };
 
-    const addTeamNotification = (title: string, message: string, actionUrl?: string, priority: 'low' | 'medium' | 'high' = 'medium', userName?: string, userAvatar?: string) => {
-      addNotification({
+    const addTeamNotification = async (title: string, message: string, actionUrl?: string, priority: 'low' | 'medium' | 'high' = 'medium', userName?: string, userAvatar?: string) => {
+      await addNotification({
         type: 'communication',
         title,
         message,
@@ -246,19 +422,25 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       });
     };
-  
+
+    const value = {
+      notifications,
+      loading,
+      unreadCount,
+      wsStatus,
+      addNotification,
+      addLeadNotification,
+      addAINotification,
+      addReminderNotification,
+      addTeamNotification,
+      markAsRead,
+      markAllAsRead,
+      deleteNotification,
+      checkTaskReminders
+    };
+
     return (
-      <NotificationsContext.Provider value={{
-        notifications,
-        unreadCount,
-        addNotification,
-        addLeadNotification,
-        addAINotification,
-        addReminderNotification,
-        addTeamNotification,
-        markAsRead,
-        markAllAsRead
-      }}>
+      <NotificationsContext.Provider value={value}>
         {children}
       </NotificationsContext.Provider>
     );

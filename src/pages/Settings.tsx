@@ -19,7 +19,8 @@ import {
 	Eye,
 	EyeOff,
 	AlertTriangle,
-	Upload
+	Upload,
+	RefreshCw
 } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
@@ -1017,39 +1018,13 @@ export default function SettingsPage() {
 									<p className="text-sm text-red-600 dark:text-red-400 mb-4">
 										Once you delete your account, there is no going back. Please be certain.
 									</p>
-									{!showDeleteConfirm ? (
-										<Button
-											variant="destructive"
-											onClick={() => setShowDeleteConfirm(true)}
-											startIcon={<Trash2 className="h-4 w-4" />}
-										>
-											Delete Account
-										</Button>
-									) : (
-										<div className="space-y-3">
-											<p className="text-sm text-red-600 dark:text-red-400 font-medium">
-												Are you absolutely sure? This action cannot be undone.
-											</p>
-											<div className="flex gap-3">
-												<Button
-													variant="destructive"
-													onClick={handleDeleteAccount}
-													disabled={isDeleting}
-													loading={isDeleting}
-													startIcon={<Trash2 className="h-4 w-4" />}
-												>
-													{isDeleting ? 'Deleting...' : 'Yes, Delete My Account'}
-												</Button>
-												<Button
-													variant="outline"
-													onClick={() => setShowDeleteConfirm(false)}
-													startIcon={<X className="h-4 w-4" />}
-												>
-													Cancel
-												</Button>
-											</div>
-										</div>
-									)}
+									<Button
+										variant="destructive"
+										onClick={() => setShowDeleteConfirm(true)}
+										startIcon={<Trash2 className="h-4 w-4" />}
+									>
+										Delete Account
+									</Button>
 								</div>
 							</div>
 						</CardContent>
@@ -1112,6 +1087,66 @@ export default function SettingsPage() {
 					</div>
 				</div>
 			</div>
+
+			{/* Delete Account Confirmation Modal */}
+			{showDeleteConfirm && (
+				<div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
+					<div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6">
+						<div className="flex items-center space-x-3 mb-4">
+							<div className="flex-shrink-0">
+								<div className="w-10 h-10 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center">
+									<Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+								</div>
+							</div>
+							<div>
+								<h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+									Delete Account
+								</h3>
+								<p className="text-sm text-gray-500 dark:text-gray-400">
+									Are you absolutely sure you want to delete your account?
+								</p>
+							</div>
+						</div>
+						
+						<div className="mb-6">
+							<p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+								<strong>Warning:</strong> This action cannot be undone.
+							</p>
+							<p className="text-sm text-gray-600 dark:text-gray-300">
+								All your data, including leads, tasks, and account information will be permanently deleted. You will lose access to all organizations and data associated with this account.
+							</p>
+						</div>
+
+						<div className="flex space-x-3">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setShowDeleteConfirm(false)}
+								disabled={isDeleting}
+								className="flex-1"
+							>
+								Cancel
+							</Button>
+							<Button
+								type="button"
+								variant="destructive"
+								onClick={handleDeleteAccount}
+								disabled={isDeleting}
+								className="flex-1"
+							>
+								{isDeleting ? (
+									<>
+										<RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+										Deleting...
+									</>
+								) : (
+									'Yes, Delete My Account'
+								)}
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
 		</>
 	);
 }

@@ -11,6 +11,7 @@ export interface Notification {
   actionUrl?: string;
   metadata?: {
     lead_id?: string;
+    task_id?: string;
     conversation_id?: string;
     organization_id?: string;
     due_date?: string;
@@ -24,13 +25,14 @@ export interface Notification {
 interface NotificationsContextType {
   notifications: Notification[];
   unreadCount: number;
-  addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
-  addLeadNotification: (title: string, message: string, leadId?: string, priority?: 'low' | 'medium' | 'high', userName?: string, userAvatar?: string) => void;
-  addAINotification: (title: string, message: string, actionUrl?: string, priority?: 'low' | 'medium' | 'high') => void;
-  addReminderNotification: (title: string, message: string, dueDate?: string, actionUrl?: string, priority?: 'low' | 'medium' | 'high', userName?: string, userAvatar?: string) => void;
-  addTeamNotification: (title: string, message: string, actionUrl?: string, priority?: 'low' | 'medium' | 'high', userName?: string, userAvatar?: string) => void;
-  markAsRead: (id: string) => void;
-  markAllAsRead: () => void;
+  loading: boolean;
+  addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => Promise<void>;
+  addLeadNotification: (title: string, message: string, leadId?: string, priority?: 'low' | 'medium' | 'high', userName?: string, userAvatar?: string) => Promise<void>;
+  addAINotification: (title: string, message: string, actionUrl?: string, priority?: 'low' | 'medium' | 'high') => Promise<void>;
+  addReminderNotification: (title: string, message: string, dueDate?: string, actionUrl?: string, priority?: 'low' | 'medium' | 'high', userName?: string, userAvatar?: string) => Promise<void>;
+  addTeamNotification: (title: string, message: string, actionUrl?: string, priority?: 'low' | 'medium' | 'high', userName?: string, userAvatar?: string) => Promise<void>;
+  markAsRead: (id: string) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
 }
 
 export const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined); 

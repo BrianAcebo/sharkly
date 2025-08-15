@@ -3,12 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Task, TASK_TYPES } from '../../types/tasks';
 import { Edit, Trash2, Plus, Calendar, Clock, AlertTriangle } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateSafe } from '../../utils/dateUtils';
 
 interface KanbanBoardProps {
 	tasks: Task[];
 	onEdit: (task: Task) => void;
-	onDelete: (taskId: string) => void;
+	onDelete: (task: Task) => void;
 	onStatusChange: (taskId: string, newStatus: Task['status']) => void;
 	onCreateTask: () => void;
 	onLeadClick?: (leadId: string) => void;
@@ -111,7 +111,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 	};
 
 	// SortableTaskItem component
-	const TaskItem: React.FC<{ task: Task; onEdit: (task: Task) => void; onDelete: (taskId: string) => void }> = ({ task, onEdit, onDelete }) => {
+	const TaskItem: React.FC<{ task: Task; onEdit: (task: Task) => void; onDelete: (task: Task) => void }> = ({ task, onEdit, onDelete }) => {
 
 
 		// Calculate task status for styling
@@ -160,7 +160,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 					{/* Due Date */}
 					<div className="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
 						<Calendar className="h-3 w-3" />
-						<span>Due: {format(new Date(task.due_date), 'MMM dd')}</span>
+						<span>Due: {formatDateSafe(task.due_date, 'month-day')}</span>
 					</div>
 
 					{/* Related Lead */}
@@ -194,7 +194,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 						<Button
 							variant="ghost"
 							size="sm"
-							onClick={() => onDelete(task.id)}
+							onClick={() => onDelete(task)}
 							className="h-6 w-6 p-0 text-red-400 hover:text-red-600"
 						>
 							<Trash2 className="h-3 w-3" />

@@ -5,10 +5,10 @@ import TextArea from '../form/input/TextArea';
 import Select from '../form/Select';
 import Checkbox from '../form/input/Checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Task, TaskFormData, TASK_TYPES, PRIORITY_COLORS } from '../../types/tasks';
+import { Task, TaskFormData, TASK_TYPES, PRIORITY_COLORS, ReminderOption } from '../../types/tasks';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabaseClient';
-import { Bell, X, Search, ChevronDown, AlertCircle } from 'lucide-react';
+import { X, Search, ChevronDown, AlertCircle } from 'lucide-react';
 import { TimePicker } from '../ui/time-picker';
 import DatePicker from '../form/date-picker';
 
@@ -34,12 +34,7 @@ interface FormErrors {
 	general?: string;
 }
 
-export const TaskForm: React.FC<TaskFormProps> = ({
-	onSubmit,
-	onCancel,
-	initialData,
-	mode
-}) => {
+export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, mode }) => {
 	const { user } = useAuth();
 	const [loading, setLoading] = useState(false);
 	const [leads, setLeads] = useState<LeadOption[]>([]);
@@ -64,7 +59,6 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
 			if (data) {
 				const leadName = `${data.name} - ${data.company || 'No Company'}`;
-				console.log('Fetched lead name from database:', leadName);
 				setSelectedLeadName(leadName);
 				setLeadSearchQuery(leadName);
 			}
@@ -80,8 +74,45 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 		type: 'follow_up',
 		lead_id: '',
 		reminder_enabled: false,
-		reminder_time: ''
+		reminder_time: '',
+		custom_reminder_time: '',
+		reminders: [],
+		recurring_enabled: false,
+		recurring_interval: '1',
+		recurring_unit: 'days',
+		recurring_end_count: '10'
 	});
+
+	// Memoized function to convert due_date string to Date object for DatePicker
+	const defaultDateForPicker = React.useMemo(() => {
+		if (!formData.due_date || formData.due_date.trim() === '') return undefined;
+
+		try {
+			// Create date in local timezone to avoid off-by-one errors
+			const [year, month, day] = formData.due_date.split('-').map(Number);
+
+			// Validate that we have valid numbers
+			if (isNaN(year) || isNaN(month) || isNaN(day)) {
+				console.warn('defaultDateForPicker: Invalid date format:', formData.due_date);
+				return undefined;
+			}
+
+			// Create date using the user's local timezone to avoid any timezone conversion issues
+			// We'll use the Date constructor with local time components to ensure it stays in local timezone
+			const date = new Date(year, month - 1, day, 12, 0, 0, 0); // month is 0-indexed, noon local time
+
+			// Check if the date is valid
+			if (isNaN(date.getTime())) {
+				console.error('defaultDateForPicker: Invalid date object created:', date);
+				return undefined;
+			}
+
+			return date;
+		} catch (error) {
+			console.error('defaultDateForPicker: Error processing date:', error);
+			return undefined;
+		}
+	}, [formData.due_date]);
 
 	// Fetch leads for selection
 	useEffect(() => {
@@ -117,9 +148,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 		if (!leadSearchQuery.trim()) {
 			setFilteredLeads(leads);
 		} else {
-			const filtered = leads.filter(lead => 
-				lead.name.toLowerCase().includes(leadSearchQuery.toLowerCase()) ||
-				(lead.company && lead.company.toLowerCase().includes(leadSearchQuery.toLowerCase()))
+			const filtered = leads.filter(
+				(lead) =>
+					lead.name.toLowerCase().includes(leadSearchQuery.toLowerCase()) ||
+					(lead.company && lead.company.toLowerCase().includes(leadSearchQuery.toLowerCase()))
 			);
 			setFilteredLeads(filtered);
 		}
@@ -142,30 +174,28 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 	// Set initial data if editing
 	useEffect(() => {
 		if (initialData) {
-			console.log('Setting initial data:', initialData); // Debug log
-			
 			// Format the reminder_time properly for editing
 			let reminderTime = initialData.reminder_time || '';
-			
+
 			if (reminderTime && reminderTime.includes('T')) {
 				// If reminder_time is a full timestamp, extract just the time part and convert to 12-hour format
 				try {
 					const date = new Date(reminderTime);
 					if (isNaN(date.getTime())) {
-						console.warn('Invalid reminder time in initial data:', reminderTime);
+						console.error('Invalid reminder time in initial data:', reminderTime);
 						reminderTime = '';
 					} else {
 						let hours = date.getHours();
 						const minutes = date.getMinutes();
 						const ampm = hours >= 12 ? 'PM' : 'AM';
-						
+
 						// Convert to 12-hour format
 						if (hours === 0) {
 							hours = 12; // 12 AM
 						} else if (hours > 12) {
 							hours = hours - 12; // PM times
 						}
-						
+
 						reminderTime = `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 					}
 				} catch (error) {
@@ -173,32 +203,80 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 					reminderTime = '';
 				}
 			}
-			
-			setFormData(prev => ({ 
-				...prev, 
+
+			// Validate and clean the due_date if it exists
+			let dueDate = initialData.due_date || '';
+			if (dueDate) {
+				try {
+					// If it's already in YYYY-MM-DD format, use it directly
+					if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+						console.log('due_date already in correct format:', dueDate);
+					} else {
+						// Check if it's a valid date string and convert to YYYY-MM-DD
+						// CRITICAL: Parse the date string directly to avoid ANY timezone conversion
+						if (dueDate.includes('T')) {
+							// It's a timestamp like "2025-08-15T18:22:00.000Z"
+							// Extract the date part BEFORE creating a Date object
+							const datePart = dueDate.split('T')[0]; // "2025-08-15"
+							const [year, month, day] = datePart.split('-').map(Number);
+
+							if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+								// Validate the date components
+								const testDate = new Date(year, month - 1, day);
+								if (!isNaN(testDate.getTime())) {
+									dueDate = datePart; // Use the extracted date string directly
+									console.log('due_date extracted from timestamp:', {
+										original: initialData.due_date,
+										extracted: datePart,
+										year,
+										month,
+										day,
+										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+									});
+								} else {
+									console.warn('Invalid date components extracted:', { year, month, day });
+									dueDate = '';
+								}
+							} else {
+								console.warn('Failed to parse date components from timestamp:', dueDate);
+								dueDate = '';
+							}
+						} else {
+							// It's already in YYYY-MM-DD format, validate it
+							const testDate = new Date(dueDate);
+							if (isNaN(testDate.getTime())) {
+								console.warn('Invalid due_date format:', dueDate);
+								dueDate = '';
+							} else {
+								console.log('due_date already in correct format:', dueDate);
+							}
+						}
+					}
+				} catch (error) {
+					console.error('Error parsing due_date:', error);
+					dueDate = '';
+				}
+			}
+
+			setFormData((prev) => ({
+				...prev,
 				...initialData,
-				reminder_time: reminderTime
+				reminder_time: reminderTime,
+				due_date: dueDate
 			}));
+
 
 			// Set the selected lead name if editing a task with a lead
 			if (initialData.lead_id) {
-				console.log('Found lead_id in initialData:', initialData.lead_id);
-				
 				// If lead_name exists, use it directly
 				if ((initialData as Partial<Task>).lead_name) {
-					console.log('Using existing lead_name:', (initialData as Partial<Task>).lead_name);
 					setSelectedLeadName((initialData as Partial<Task>).lead_name!);
 					setLeadSearchQuery((initialData as Partial<Task>).lead_name!);
 				} else {
 					// If lead_name is missing, fetch it from the database
-					console.log('lead_name is missing, fetching from database...');
 					fetchLeadName(initialData.lead_id);
 				}
-			} else {
-				console.log('No lead_id found in initialData');
 			}
-			
-
 		}
 	}, [initialData]);
 
@@ -219,40 +297,72 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 			if (isNaN(dueDate.getTime())) {
 				newErrors.due_date = 'Invalid due date format';
 			} else {
-				// Simple date comparison - just compare the date strings
-				const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-				if (formData.due_date < today) {
+				// Get today's date in local timezone without timezone conversion
+				const today = new Date();
+				const todayLocalString = today.toLocaleDateString('en-CA'); // YYYY-MM-DD format in local timezone
+
+
+
+				if (formData.due_date < todayLocalString) {
 					newErrors.due_date = 'Due date cannot be in the past';
 				}
 			}
 		}
 
 		// Reminder time validation
-		if (formData.reminder_enabled && formData.reminder_time) {
-			// Check if the combined date and time is in the past
-			if (formData.due_date) {
-				// The reminder_time should be in 12-hour format (e.g., "2:30 PM")
-				// We need to parse it and convert to 24-hour for comparison
-				const timeMatch = formData.reminder_time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-				if (!timeMatch) {
-					newErrors.reminder_time = 'Invalid time format. Use 12-hour format (e.g., 2:30 PM)';
-				} else {
-					const [, hours, minutes, ampm] = timeMatch;
-					let hour24 = parseInt(hours);
-					
-					// Convert to 24-hour format
-					if (ampm.toUpperCase() === 'PM' && hour24 < 12) {
-						hour24 += 12; // Convert PM to 24-hour (e.g., 2:30 PM -> 14:30)
-					} else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
-						hour24 = 0; // Convert 12 AM to 00:00
-					}
-					
-					// Create the full datetime for comparison
-					const reminderDateTime = new Date(`${formData.due_date}T${hour24.toString().padStart(2, '0')}:${minutes}`);
-					const now = new Date();
-					
-					if (reminderDateTime <= now) {
-						newErrors.reminder_time = 'Reminder time cannot be in the past. Please select a future time.';
+		if (formData.reminder_enabled) {
+			if (!formData.reminder_time || formData.reminder_time.trim() === '') {
+				newErrors.reminder_time = 'Reminder time is required when reminders are enabled';
+			} else {
+				// Check if the combined date and time is in the past
+				if (formData.due_date) {
+					// The reminder_time should be in 12-hour format (e.g., "2:30 PM")
+					// We need to parse it and convert to 24-hour for comparison
+					const timeMatch = formData.reminder_time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+					if (!timeMatch) {
+						newErrors.reminder_time = 'Invalid time format. Use 12-hour format (e.g., 2:30 PM)';
+					} else {
+						const [, hours, minutes, ampm] = timeMatch;
+						let hour24 = parseInt(hours);
+
+						// Validate hours and minutes
+						if (isNaN(hour24) || hour24 < 0 || hour24 > 12) {
+							newErrors.reminder_time = 'Invalid hour value';
+						} else {
+							const minuteValue = parseInt(minutes);
+							if (isNaN(minuteValue) || minuteValue < 0 || minuteValue > 59) {
+								newErrors.reminder_time = 'Invalid minute value';
+							} else {
+								// Convert to 24-hour format
+								if (ampm.toUpperCase() === 'PM' && hour24 < 12) {
+									hour24 += 12; // PM times
+								} else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
+									hour24 = 0; // 12 AM to 00:00
+								}
+
+								// Create the full datetime for comparison
+								const reminderDateTime = new Date(
+									`${formData.due_date}T${hour24.toString().padStart(2, '0')}:${minuteValue}:00`
+								);
+
+								// Check if the datetime is valid
+								if (isNaN(reminderDateTime.getTime())) {
+									newErrors.reminder_time = 'Invalid date and time combination';
+								} else {
+									const now = new Date();
+
+									
+
+									// Allow a small buffer (1 minute) to avoid cutting off valid times
+									const bufferTime = new Date(now.getTime() + 60000); // Add 1 minute
+
+									if (reminderDateTime <= bufferTime) {
+										newErrors.reminder_time =
+											'Reminder time is too close to the current time. Please select a time at least 1 minute in the future.';
+									}
+								}
+							}
+						}
 					}
 				}
 			}
@@ -276,7 +386,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
 			// Combine date and time into a timestamp if both are provided
 			let reminderTime = formData.reminder_time;
-			
+
 			if (formData.due_date && formData.reminder_time) {
 				try {
 					// Validate the date string first
@@ -294,14 +404,24 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 					// Parse the 12-hour time and convert to 24-hour for the datetime
 					const [, hours, minutes, ampm] = timeMatch;
 					let hour24 = parseInt(hours);
-					
+
+					// Validate hours and minutes (1-12 is valid for 12-hour format)
+					if (isNaN(hour24) || hour24 < 1 || hour24 > 12) {
+						throw new Error('Invalid hour value. Hours must be 1-12');
+					}
+
+					const minuteValue = parseInt(minutes);
+					if (isNaN(minuteValue) || minuteValue < 0 || minuteValue > 59) {
+						throw new Error('Invalid minute value');
+					}
+
 					// Convert to 24-hour format
 					if (ampm.toUpperCase() === 'PM' && hour24 < 12) {
 						hour24 += 12; // Convert PM to 24-hour (e.g., 2:30 PM -> 14:30)
 					} else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
 						hour24 = 0; // Convert 12 AM to 00:00
 					}
-					
+
 					// Extract just the date part (YYYY-MM-DD) from the due_date
 					// The due_date might be a full ISO timestamp, so we need to get just the date portion
 					let dateStr = formData.due_date;
@@ -309,19 +429,16 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 						// If it's a full timestamp, extract just the date part
 						dateStr = dateStr.split('T')[0];
 					}
-					
+
 					// Create the combined datetime using 24-hour format
-					const dateTime = new Date(`${dateStr}T${hour24.toString().padStart(2, '0')}:${minutes}:00`);
+					const datetimeString = `${dateStr}T${hour24.toString().padStart(2, '0')}:${minuteValue}:00`;
 					
+					const dateTime = new Date(datetimeString);
+
+					
+
 					// Validate the combined datetime
 					if (isNaN(dateTime.getTime())) {
-						console.error('Date combination failed:', {
-							due_date: formData.due_date,
-							dateStr,
-							hour24,
-							minutes,
-							combined: `${dateStr}T${hour24.toString().padStart(2, '0')}:${minutes}:00`
-						});
 						throw new Error('Invalid date and time combination');
 					}
 
@@ -346,21 +463,33 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 					// Parse the 12-hour time and convert to 24-hour for the datetime
 					const [, hours, minutes, ampm] = timeMatch;
 					let hour24 = parseInt(hours);
-					
+
+					// Validate hours and minutes (1-12 is valid for 12-hour format)
+					if (isNaN(hour24) || hour24 < 1 || hour24 > 12) {
+						throw new Error('Invalid hour value. Hours must be 1-12');
+					}
+
+					const minuteValue = parseInt(minutes);
+					if (isNaN(minuteValue) || minuteValue < 0 || minuteValue > 59) {
+						throw new Error('Invalid minute value');
+					}
+
 					// Convert to 24-hour format
 					if (ampm.toUpperCase() === 'PM' && hour24 < 12) {
 						hour24 += 12; // Convert PM to 24-hour (e.g., 2:30 PM -> 14:30)
 					} else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
 						hour24 = 0; // Convert 12 AM to 00:00
 					}
-					
+
 					const today = new Date().toISOString().split('T')[0];
-					const dateTime = new Date(`${today}T${hour24.toString().padStart(2, '0')}:${minutes}`);
-					
+					const dateTime = new Date(
+						`${today}T${hour24.toString().padStart(2, '0')}:${minuteValue}`
+					);
+
 					if (isNaN(dateTime.getTime())) {
 						throw new Error('Invalid time format');
 					}
-					
+
 					reminderTime = dateTime.toISOString();
 				} catch (error) {
 					console.error('Error processing time:', error);
@@ -388,16 +517,52 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 	};
 
 	const handleInputChange = (field: keyof TaskFormData, value: string | boolean) => {
-		setFormData(prev => ({ ...prev, [field]: value }));
-		
+		setFormData((prev) => ({ ...prev, [field]: value }));
+
 		// Clear field-specific error when user starts typing
 		if (errors[field as keyof FormErrors]) {
-			setErrors(prev => ({ ...prev, [field]: undefined }));
+			setErrors((prev) => ({ ...prev, [field]: undefined }));
 		}
 	};
 
+	// Handle quick reminder selection
+	const handleQuickReminder = (option: string) => {
+		const newReminder: ReminderOption = { type: option as ReminderOption['type'] };
+		setFormData(prev => ({
+			...prev,
+			reminders: [...prev.reminders, newReminder]
+		}));
+	};
+
+	// Handle reminder changes
+	const handleReminderChange = (index: number, field: keyof ReminderOption, value: string) => {
+		setFormData(prev => ({
+			...prev,
+			reminders: prev.reminders.map((reminder, i) => 
+				i === index ? { ...reminder, [field]: value } : reminder
+			)
+		}));
+	};
+
+	// Add new reminder
+	const addReminder = () => {
+		const newReminder: ReminderOption = { type: '15min' };
+		setFormData(prev => ({
+			...prev,
+			reminders: [...prev.reminders, newReminder]
+		}));
+	};
+
+	// Remove reminder
+	const removeReminder = (index: number) => {
+		setFormData(prev => ({
+			...prev,
+			reminders: prev.reminders.filter((_, i) => i !== index)
+		}));
+	};
+
 	const handleLeadSelect = (lead: LeadOption) => {
-		setFormData(prev => ({ ...prev, lead_id: lead.id }));
+		setFormData((prev) => ({ ...prev, lead_id: lead.id }));
 		setSelectedLeadName(`${lead.name} - ${lead.company || 'No Company'} (${lead.stage})`);
 		setShowLeadDropdown(false);
 		setLeadSearchQuery('');
@@ -406,12 +571,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 	const handleLeadSearchChange = (query: string) => {
 		setLeadSearchQuery(query);
 		setShowLeadDropdown(true);
-		
+
 		// Only clear selected lead when user is actively searching for a new lead
 		// Don't clear if this is just the initial load of existing lead data
 		if (query && selectedLeadName && query !== selectedLeadName) {
 			setSelectedLeadName('');
-			setFormData(prev => ({ ...prev, lead_id: '' }));
+			setFormData((prev) => ({ ...prev, lead_id: '' }));
 		}
 	};
 
@@ -426,16 +591,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 	};
 
 	return (
-		<Card className="w-full max-w-4xl mx-auto">
+		<Card className="mx-auto w-full max-w-4xl">
 			<CardHeader>
 				<CardTitle className="flex items-center justify-between">
 					<span>{mode === 'create' ? 'Create New Task' : 'Edit Task'}</span>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={onCancel}
-						className="h-8 w-8 p-0"
-					>
+					<Button variant="ghost" size="sm" onClick={onCancel} className="h-8 w-8 p-0">
 						<X className="h-4 w-4" />
 					</Button>
 				</CardTitle>
@@ -443,7 +603,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 			<CardContent>
 				{/* General Error Display */}
 				{errors.general && (
-					<div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+					<div className="mb-6 rounded-md border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
 						<div className="flex items-center space-x-2">
 							<AlertCircle className="h-5 w-5 text-red-500" />
 							<span className="text-sm font-medium text-red-800 dark:text-red-200">
@@ -481,7 +641,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 					</div>
 
 					{/* Task Type and Priority */}
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 						<div className="space-y-2">
 							<label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
 								Task Type
@@ -514,28 +674,31 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 					</div>
 
 					{/* Due Date and Time */}
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 						<div className="space-y-2">
 							<DatePicker
 								id="task-due-date"
 								label="Due Date"
 								placeholder="Select due date"
-								defaultDate={formData.due_date ? new Date(formData.due_date) : undefined}
+								defaultDate={defaultDateForPicker}
 								onChange={(selectedDates) => {
 									if (selectedDates && selectedDates.length > 0) {
 										const date = selectedDates[0];
-										// Use local date formatting to avoid timezone issues
-										const year = date.getFullYear();
-										const month = String(date.getMonth() + 1).padStart(2, '0');
-										const day = String(date.getDate()).padStart(2, '0');
-										const formattedDate = `${year}-${month}-${day}`;
-										console.log('DatePicker onChange:', { date, formattedDate, localDate: date.toLocaleDateString() });
-										handleInputChange('due_date', formattedDate);
+
+										// Create date string using the user's local timezone
+										// This ensures we get the exact date they selected in their timezone
+										const localYear = date.getFullYear();
+										const localMonth = date.getMonth() + 1; // getMonth() is 0-indexed
+										const localDay = date.getDate();
+										const manualDateString = `${localYear}-${String(localMonth).padStart(2, '0')}-${String(localDay).padStart(2, '0')}`;
+
+										// Use the manual date string to ensure correct timezone handling
+										handleInputChange('due_date', manualDateString);
 									}
 								}}
 							/>
 							{errors.due_date && (
-								<p className="text-sm text-red-600 dark:text-red-400 flex items-center space-x-1">
+								<p className="flex items-center space-x-1 text-sm text-red-600 dark:text-red-400">
 									<AlertCircle className="h-4 w-4" />
 									<span>{errors.due_date}</span>
 								</p>
@@ -543,31 +706,216 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 						</div>
 
 						<div className="space-y-2">
-							<div className="space-y-2">
-								<TimePicker
-									label="Due Time (Optional)"
-									value={formData.reminder_time}
-									onChange={(time) => handleInputChange('reminder_time', time)}
-									placeholder="Type any time (e.g., 2:30 PM) or use presets"
-									selectedDate={formData.due_date}
-								/>
-								{/* Debug: Show what date is being passed to TimePicker */}
-								{process.env.NODE_ENV === 'development' && (
-									<div className="text-xs text-gray-400 mt-1">
-										Debug: TimePicker selectedDate = {formData.due_date || 'undefined'}
-									</div>
-								)}
-							</div>
+							<TimePicker
+								label="Due Time (Optional)"
+								value={formData.reminder_time}
+								onChange={(time) => handleInputChange('reminder_time', time)}
+								placeholder="Type any time (e.g., 2:30 PM) or use presets"
+								selectedDate={formData.due_date}
+							/>
 							<p className="text-xs text-gray-500 dark:text-gray-400">
-								💡 Type any time in 12-hour format (e.g., 2:30 PM, 11:00 AM) or use presets.
+								This sets both the due time and reminder time
 							</p>
 							{errors.reminder_time && (
-								<p className="text-sm text-red-600 dark:text-red-400 flex items-center space-x-1">
+								<p className="flex items-center space-x-1 text-sm text-red-600 dark:text-red-400">
 									<AlertCircle className="h-4 w-4" />
 									<span>{errors.reminder_time}</span>
 								</p>
 							)}
 						</div>
+					</div>
+
+					{/* Enhanced Reminder Settings */}
+					<div className="space-y-4">
+						<div className="flex items-center space-x-2">
+							<Checkbox
+								id="reminder-enabled"
+								checked={formData.reminder_enabled}
+								onChange={(checked) => handleInputChange('reminder_enabled', checked)}
+							/>
+							<label htmlFor="reminder-enabled" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+								Enable Smart Reminders
+							</label>
+						</div>
+
+						{formData.reminder_enabled && (
+							<div className="ml-6 space-y-4">
+								{/* Reminder Options */}
+								<div className="space-y-3">
+									<label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										Reminder Schedule
+									</label>
+									<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+										{/* Quick Reminder Options */}
+										<div className="space-y-2">
+											<label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+												Quick Options
+											</label>
+											<div className="flex flex-wrap gap-2">
+												{['5min', '15min', '1hr', '1day'].map((option) => (
+													<button
+														key={option}
+														type="button"
+														onClick={() => handleQuickReminder(option)}
+														className="px-3 py-1 text-xs rounded-full border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600"
+													>
+														{option}
+													</button>
+												))}
+											</div>
+										</div>
+
+										{/* Custom Reminder */}
+										<div className="space-y-2">
+											<label className="text-xs font-medium text-gray-600 dark:text-gray-400">
+												Custom Time
+											</label>
+											<TimePicker
+												label=""
+												value={formData.custom_reminder_time}
+												onChange={(time) => handleInputChange('custom_reminder_time', time)}
+												placeholder="Custom reminder time"
+												selectedDate={formData.due_date}
+											/>
+										</div>
+									</div>
+								</div>
+
+								{/* Multiple Reminders */}
+								<div className="space-y-3">
+									<label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										Multiple Reminders
+									</label>
+									<div className="space-y-2">
+										{formData.reminders.map((reminder, index) => (
+											<div key={index} className="flex items-center space-x-2">
+												<select
+													value={reminder.type}
+													onChange={(e) => handleReminderChange(index, 'type', e.target.value)}
+													className="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+												>
+													<option value="5min">5 minutes before</option>
+													<option value="15min">15 minutes before</option>
+													<option value="1hr">1 hour before</option>
+													<option value="1day">1 day before</option>
+													<option value="custom">Custom time</option>
+												</select>
+												{reminder.type === 'custom' && (
+													<TimePicker
+														label=""
+														value={reminder.customTime}
+														onChange={(time) => handleReminderChange(index, 'customTime', time)}
+														placeholder="Custom time"
+														selectedDate={formData.due_date}
+													/>
+												)}
+												<button
+													type="button"
+													onClick={() => removeReminder(index)}
+													className="text-red-500 hover:text-red-700"
+												>
+													<X className="h-4 w-4" />
+												</button>
+											</div>
+										))}
+										<button
+											type="button"
+											onClick={addReminder}
+											className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+										>
+											+ Add another reminder
+										</button>
+									</div>
+								</div>
+
+								{/* Recurring Reminders */}
+								<div className="space-y-3">
+									<div className="flex items-center space-x-2">
+										<Checkbox
+											id="recurring-enabled"
+											checked={formData.recurring_enabled}
+											onChange={(checked) => handleInputChange('recurring_enabled', checked)}
+										/>
+										<label htmlFor="recurring-enabled" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+											Recurring Reminders
+										</label>
+									</div>
+
+									{formData.recurring_enabled && (
+										<div className="ml-6 space-y-3">
+											<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+												<div>
+													<label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+														Repeat Every
+													</label>
+													<select
+														value={formData.recurring_interval}
+														onChange={(e) => handleInputChange('recurring_interval', e.target.value)}
+														className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+													>
+														<option value="1">1</option>
+														<option value="2">2</option>
+														<option value="3">3</option>
+														<option value="4">4</option>
+														<option value="5">5</option>
+														<option value="6">6</option>
+													</select>
+												</div>
+												<div>
+													<label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+														Unit
+													</label>
+													<select
+														value={formData.recurring_unit}
+														onChange={(e) => handleInputChange('recurring_unit', e.target.value)}
+														className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+													>
+														<option value="days">Days</option>
+														<option value="weeks">Weeks</option>
+														<option value="months">Months</option>
+													</select>
+												</div>
+												<div>
+													<label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+														End After
+													</label>
+													<input
+														type="number"
+														value={formData.recurring_end_count}
+														onChange={(e) => handleInputChange('recurring_end_count', e.target.value)}
+														placeholder="10"
+														className="w-full rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+													/>
+												</div>
+											</div>
+										</div>
+									)}
+								</div>
+
+								{/* Timezone Selection */}
+								<div className="space-y-2">
+									<label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+										Timezone
+									</label>
+									<select
+										className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
+										defaultValue="auto"
+									>
+										<option value="auto">
+											Auto-detect ({Intl.DateTimeFormat().resolvedOptions().timeZone})
+										</option>
+										<option value="America/New_York">Eastern Time (ET)</option>
+										<option value="America/Chicago">Central Time (CT)</option>
+										<option value="America/Denver">Mountain Time (MT)</option>
+										<option value="America/Los_Angeles">Pacific Time (PT)</option>
+										<option value="Europe/London">London (GMT/BST)</option>
+										<option value="Europe/Paris">Paris (CET/CEST)</option>
+										<option value="Asia/Tokyo">Tokyo (JST)</option>
+										<option value="Australia/Sydney">Sydney (AEST/AEDT)</option>
+									</select>
+								</div>
+							</div>
+						)}
 					</div>
 
 					{/* Lead Selection */}
@@ -578,7 +926,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 						<div className="relative" ref={dropdownRef}>
 							{/* Lead Search Input */}
 							<div className="relative">
-								<Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+								<Search className="absolute top-2.5 left-3 h-4 w-4 text-gray-400" />
 								<input
 									type="text"
 									placeholder="Search for a lead..."
@@ -591,20 +939,22 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 											setLeadSearchQuery(selectedLeadName);
 										}
 									}}
-									className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-700 dark:text-white"
+									className="focus:ring-brand-500 focus:border-brand-500 w-full rounded-md border border-gray-300 py-2 pr-10 pl-10 shadow-sm focus:ring-2 focus:outline-none dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 								/>
-								<ChevronDown className="absolute right-3 top-2.5 h-4 w-4 text-gray-400" />
+								<ChevronDown className="absolute top-2.5 right-3 h-4 w-4 text-gray-400" />
 							</div>
 
 							{/* Selected Lead Display */}
 							{selectedLeadName && (
-								<div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
+								<div className="mt-2 rounded-md border border-blue-200 bg-blue-50 p-2 dark:border-blue-800 dark:bg-blue-900/20">
 									<div className="flex items-center justify-between">
-										<span className="text-sm text-blue-800 dark:text-blue-200">{selectedLeadName}</span>
+										<span className="text-sm text-blue-800 dark:text-blue-200">
+											{selectedLeadName}
+										</span>
 										<button
 											type="button"
 											onClick={() => {
-												setFormData(prev => ({ ...prev, lead_id: '' }));
+												setFormData((prev) => ({ ...prev, lead_id: '' }));
 												setSelectedLeadName('');
 											}}
 											className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
@@ -617,13 +967,13 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
 							{/* Lead Dropdown */}
 							{showLeadDropdown && filteredLeads.length > 0 && (
-								<div className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto">
+								<div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-300 bg-white shadow-lg dark:border-gray-600 dark:bg-gray-800">
 									{filteredLeads.map((lead) => (
 										<button
 											key={lead.id}
 											type="button"
 											onClick={() => handleLeadSelect(lead)}
-											className="w-full px-3 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+											className="w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-700"
 										>
 											<div className="font-medium text-gray-900 dark:text-white">{lead.name}</div>
 											<div className="text-sm text-gray-500 dark:text-gray-400">
@@ -636,41 +986,14 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 						</div>
 					</div>
 
-					{/* Reminder Settings */}
-					<div className="space-y-3">
-						<div className="flex items-center space-x-3">
-							<Checkbox
-								id="reminder_enabled"
-								checked={formData.reminder_enabled}
-								onChange={(checked) => handleInputChange('reminder_enabled', checked)}
-							/>
-							<label htmlFor="reminder_enabled" className="flex items-center space-x-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-								<Bell className="h-4 w-4" />
-								<span>Enable reminder notification</span>
-							</label>
-						</div>
-						
-						{formData.reminder_enabled && (
-							<div className="ml-7 text-sm text-gray-600 dark:text-gray-400">
-								You'll receive a notification when this task is due.
-							</div>
-						)}
-					</div>
+
 
 					{/* Form Actions */}
 					<div className="flex justify-end space-x-3 pt-4">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={onCancel}
-							disabled={loading}
-						>
+						<Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
 							Cancel
 						</Button>
-						<Button
-							type="submit"
-							disabled={loading || !formData.title || !formData.due_date}
-						>
+						<Button type="submit" disabled={loading || !formData.title || !formData.due_date}>
 							{loading ? 'Saving...' : mode === 'create' ? 'Create Task' : 'Update Task'}
 						</Button>
 					</div>

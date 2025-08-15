@@ -62,77 +62,55 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 		return `${displayHour}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 	};
 
+
+
 	// Filter times based on search query and ensure they're not in the past
 	const filteredTimes = React.useMemo(() => {
-		const now = new Date();
-		const currentHour = now.getHours();
-		const currentMinute = now.getMinutes();
-		
-		let times = timeOptions;
-		
-		// Check if the selected date is today or a future date
-		let isToday = true;
-		let isFutureDate = false;
-		
-		if (selectedDate) {
-			console.log('TimePicker selectedDate:', { selectedDate, type: typeof selectedDate });
-			
-			// Parse the date string as local time to avoid timezone issues
-			const [year, month, day] = selectedDate.split('-').map(Number);
-			const selectedDateObj = new Date(year, month - 1, day); // month is 0-indexed
-			const today = new Date();
-			today.setHours(0, 0, 0, 0);
-			selectedDateObj.setHours(0, 0, 0, 0);
-			
-			console.log('TimePicker date comparison:', {
-				selectedDateObj: selectedDateObj.toISOString(),
-				selectedDateObjLocal: selectedDateObj.toLocaleDateString(),
-				today: today.toISOString(),
-				todayLocal: today.toLocaleDateString(),
-				isToday,
-				isFutureDate: selectedDateObj > today
-			});
-			
-			isToday = selectedDateObj.getTime() === today.getTime();
-			isFutureDate = selectedDateObj > today;
+		// If no date selected, show all times
+		if (!selectedDate || selectedDate.trim() === '') {
+			return timeOptions;
 		}
 		
-		// Filter times based on the selected date
-		times = times.filter(time => {
-			// Parse 12-hour format time (e.g., "2:30 PM")
-			const timeMatch = time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-			if (!timeMatch) return false;
-			
-			const [, hours, minutes, ampm] = timeMatch;
-			let hour = parseInt(hours);
-			const minute = parseInt(minutes);
-			
-			// Convert to 24-hour for comparison
-			if (ampm.toUpperCase() === 'PM' && hour < 12) {
-				hour += 12;
-			} else if (ampm.toUpperCase() === 'AM' && hour === 12) {
-				hour = 0;
-			}
-			
-			if (isFutureDate) {
-				// For future dates, all times are valid
-				return true;
-			} else if (isToday) {
-				// For today, only show future times (with a small buffer to avoid cutting off valid times)
-				// Allow times that are within 15 minutes of the current time
-				const currentTimeInMinutes = currentHour * 60 + currentMinute;
-				const timeInMinutes = hour * 60 + minute;
-				const timeDifference = timeInMinutes - currentTimeInMinutes;
+		// Filter times based on the selected date using simple datetime comparison
+		const times = timeOptions.filter(time => {
+			try {
+				// Parse the selected date
+				const [year, month, day] = selectedDate.split('-').map(Number);
+				if (isNaN(year) || isNaN(month) || isNaN(day)) {
+					return true; // If date parsing fails, show all times
+				}
 				
-				// Show times that are at least 15 minutes in the future
-				return timeDifference >= 15;
+				// Parse 12-hour format time (e.g., "2:30 PM")
+				const timeMatch = time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+				if (!timeMatch) return false;
+				
+				const [, hours, minutes, ampm] = timeMatch;
+				let hour = parseInt(hours);
+				const minute = parseInt(minutes);
+				
+				// Convert to 24-hour for comparison
+				if (ampm.toUpperCase() === 'PM' && hour < 12) {
+					hour += 12;
+				} else if (ampm.toUpperCase() === 'AM' && hour === 12) {
+					hour = 0;
+				}
+				
+				// Create the selected datetime
+				const selectedDateTime = new Date(year, month - 1, day, hour, minute);
+				const now = new Date();
+				
+				// Simple logic: if date is in future, any time is valid
+				// If date is today, time must be in future (with 1 minute buffer for user input)
+				// If date is in past, nothing is valid
+				const oneMinuteFromNow = new Date(now.getTime() + 60000); // Add 1 minute buffer
+				return selectedDateTime > oneMinuteFromNow;
+			} catch (error) {
+				console.error('TimePicker: Error filtering time:', error);
+				return true; // If error, show the time
 			}
-			
-			return true;
 		});
 		
-
-		
+		// If no search query, return filtered times
 		if (!searchQuery) return times;
 		
 		// If search query looks like a time, show both AM and PM options if it's valid
@@ -148,9 +126,28 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 				const amTime = `${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:${minute.toString().padStart(2, '0')} AM`;
 				const pmTime = `${hour === 0 ? 12 : hour > 12 ? hour - 12 : hour}:${minute.toString().padStart(2, '0')} PM`;
 				
-				// Check if these times are valid for the selected date
-				const amValid = isFutureDate || (isToday && (hour > currentHour || (hour === currentHour && minute >= currentMinute)));
-				const pmValid = isFutureDate || (isToday && ((hour + 12) > currentHour || ((hour + 12) === currentHour && minute >= currentMinute)));
+				// Check if these times are valid for the selected date using simple datetime comparison
+				let amValid = false;
+				let pmValid = false;
+				
+				try {
+					if (selectedDate && selectedDate.trim() !== '') {
+						const [year, month, day] = selectedDate.split('-').map(Number);
+						if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+							const now = new Date();
+							
+							// Check AM time
+							const amDateTime = new Date(year, month - 1, day, hour, minute);
+							amValid = amDateTime > now; // Remove 5-minute buffer for custom input
+							
+							// Check PM time
+							const pmDateTime = new Date(year, month - 1, day, hour + 12, minute);
+							pmValid = pmDateTime > now; // Remove 5-minute buffer for custom input
+						}
+					}
+				} catch (error) {
+					console.error('TimePicker: Error validating custom times:', error);
+				}
 				
 				const customOptions = [];
 				if (amValid) customOptions.push(amTime);
@@ -172,52 +169,47 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 	}, [timeOptions, searchQuery, selectedDate]);
 
 	// Get available quick select times (only future times)
-	const availableQuickSelectTimes = React.useMemo(() => {
-		const now = new Date();
-		const currentHour = now.getHours();
-		const currentMinute = now.getMinutes();
-		
-		// Use the same date logic as filteredTimes
-		let isToday = true;
-		let isFutureDate = false;
-		
-		if (selectedDate) {
-			// Parse the date string as local time to avoid timezone issues
-			const [year, month, day] = selectedDate.split('-').map(Number);
-			const selectedDateObj = new Date(year, month - 1, day); // month is 0-indexed
-			const today = new Date();
-			today.setHours(0, 0, 0, 0);
-			selectedDateObj.setHours(0, 0, 0, 0);
-			
-			isToday = selectedDateObj.getTime() === today.getTime();
-			isFutureDate = selectedDateObj > today;
+	const availableQuickSelectTimes = React.useMemo(() => {		
+		// If no date selected, show all preset times
+		if (!selectedDate || selectedDate.trim() === '') {
+			return ['9:00 AM', '12:00 PM', '3:00 PM', '5:00 PM'];
 		}
 		
 		return ['9:00 AM', '12:00 PM', '3:00 PM', '5:00 PM'].filter(preset => {
-			// Extract hour and AM/PM from 12-hour format
-			const timeMatch = preset.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-			if (!timeMatch) return false;
-			
-			const [, hours, minutes, ampm] = timeMatch;
-			let hour = parseInt(hours);
-			const minute = parseInt(minutes);
-			
-			// Convert to 24-hour for comparison
-			if (ampm.toUpperCase() === 'PM' && hour < 12) {
-				hour += 12;
-			} else if (ampm.toUpperCase() === 'AM' && hour === 12) {
-				hour = 0;
+			try {
+				// Parse the selected date
+				const [year, month, day] = selectedDate.split('-').map(Number);
+				if (isNaN(year) || isNaN(month) || isNaN(day)) {
+					return true; // If date parsing fails, show all times
+				}
+				
+				// Extract hour and AM/PM from 12-hour format
+				const timeMatch = preset.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+				if (!timeMatch) return false;
+				
+				const [, hours, minutes, ampm] = timeMatch;
+				let hour = parseInt(hours);
+				const minute = parseInt(minutes);
+				
+				// Convert to 24-hour for comparison
+				if (ampm.toUpperCase() === 'PM' && hour < 12) {
+					hour += 12;
+				} else if (ampm.toUpperCase() === 'AM' && hour === 12) {
+					hour = 0;
+				}
+				
+				// Create the selected datetime
+				const selectedDateTime = new Date(year, month - 1, day, hour, minute);
+				const now = new Date();
+				
+				// Simple logic: if date is in future, any time is valid
+				// If date is today, time must be in future
+				// If date is in past, nothing is valid
+				return selectedDateTime > now;
+			} catch (error) {
+				console.error('TimePicker: Error filtering preset time:', error);
+				return true; // If error, show the time
 			}
-			
-			if (isFutureDate) {
-				// For future dates, all times are valid
-				return true;
-			} else if (isToday) {
-				// For today, only show future times
-				return hour > currentHour || (hour === currentHour && minute >= currentMinute);
-			}
-			
-			return true;
 		});
 	}, [selectedDate]);
 
@@ -242,52 +234,76 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 		setSelectedTime(value);
 	}, [value]);
 
-	// Debug: Log when selectedDate prop changes
-	useEffect(() => {
-		console.log('TimePicker selectedDate prop changed:', { selectedDate, type: typeof selectedDate });
-	}, [selectedDate]);
-
 	const validateTime = (time: string): { isValid: boolean; error: string } => {
-		const now = new Date();
-		const currentHour = now.getHours();
-		const currentMinute = now.getMinutes();
-		
-		// Use the same date logic as filteredTimes
-		let isToday = true;
-		
-		if (selectedDate) {
-			const selectedDateObj = new Date(selectedDate);
-			const today = new Date();
-			today.setHours(0, 0, 0, 0);
-			selectedDateObj.setHours(0, 0, 0, 0);
-			
-			isToday = selectedDateObj.getTime() === today.getTime();
+		// Simple validation: just check if it's a valid 12-hour time format
+		const timeMatch = time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+		if (!timeMatch) {
+			return { isValid: false, error: 'Invalid time format. Use 12-hour format (e.g., 6:04 PM)' };
 		}
 		
-		const [hours, minutes] = time.split(':');
-		const hour = parseInt(hours);
-		const minute = parseInt(minutes);
-		
-		// Only validate against current time if it's today
-		if (isToday && (hour < currentHour || (hour === currentHour && minute < currentMinute))) {
-			return {
-				isValid: false,
-				error: `Time ${time} is in the past. Current time is ${getCurrentTime()}`
-			};
+		// If we have a selected date, do the actual date/time comparison
+		if (selectedDate && selectedDate.trim() !== '') {
+			try {
+				// Parse the selected date
+				const [year, month, day] = selectedDate.split('-').map(Number);
+				if (isNaN(year) || isNaN(month) || isNaN(day)) {
+					return { isValid: false, error: 'Invalid date format' };
+				}
+				
+				// Parse the time
+				const [, hours, minutes, ampm] = timeMatch;
+				let hour24 = parseInt(hours);
+				const minute = parseInt(minutes);
+				
+				if (ampm.toUpperCase() === 'PM' && hour24 < 12) {
+					hour24 += 12;
+				} else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
+					hour24 = 0;
+				}
+				
+				// Create the selected datetime
+				const selectedDateTime = new Date(year, month - 1, day, hour24, minute);
+				const now = new Date();
+				
+				// Simple logic: if date is in future, any time is valid
+				// If date is today, time must be in future (with 1 minute buffer for user input)
+				// If date is in past, nothing is valid
+				const oneMinuteFromNow = new Date(now.getTime() + 60000); // Add 1 minute buffer
+				
+				console.log('TimePicker validation:', {
+					selectedDateTime: selectedDateTime.toLocaleString(),
+					now: now.toLocaleString(),
+					oneMinuteFromNow: oneMinuteFromNow.toLocaleString(),
+					isValid: selectedDateTime > oneMinuteFromNow
+				});
+				
+				if (selectedDateTime <= oneMinuteFromNow) {
+					return {
+						isValid: false,
+						error: `Time must be at least 1 minute in the future`
+					};
+				}
+				
+				return { isValid: true, error: '' };
+			} catch (error) {
+				console.error('TimePicker: Error in validateTime:', error);
+				return { isValid: false, error: 'Error validating time' };
+			}
 		}
 		
+		// If no date selected, just validate format
 		return { isValid: true, error: '' };
 	};
 
 	const handleTimeSelect = (time: string) => {
 		const validation = validateTime(time);
+		
 		if (!validation.isValid) {
 			setTimeError(validation.error);
 			return;
 		}
 		
 		setSelectedTime(time);
-		
 		setIsOpen(false);
 		setSearchQuery('');
 		setTimeError('');
@@ -321,11 +337,50 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 				const minutes = parseInt(timeMatch[2]);
 				
 				if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
-					const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+					// Convert to 12-hour format with AM/PM
+					let ampm = 'AM';
+					let displayHours = hours;
+					
+					if (hours === 0) {
+						displayHours = 12;
+						ampm = 'AM';
+					} else if (hours === 12) {
+						ampm = 'PM';
+					} else if (hours > 12) {
+						displayHours = hours - 12;
+						ampm = 'PM';
+					}
+					
+					const formattedTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 					
 					// Validate the formatted time
 					const validation = validateTime(formattedTime);
 					if (!validation.isValid) {
+						// Try to suggest a valid time by adding 5 minutes
+						if (selectedDate && selectedDate.trim() !== '') {
+							try {
+								const [year, month, day] = selectedDate.split('-').map(Number);
+								if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+									const now = new Date();
+									const oneMinuteFromNow = new Date(now.getTime() + 60000);
+									
+									// Create a time 1 minute from now
+									const suggestedTime = new Date(oneMinuteFromNow);
+									const suggestedHours = suggestedTime.getHours();
+									const suggestedMinutes = suggestedTime.getMinutes();
+									
+									const suggestedDisplayHour = suggestedHours === 0 ? 12 : suggestedHours > 12 ? suggestedHours - 12 : suggestedHours;
+									const suggestedAmpm = suggestedHours >= 12 ? 'PM' : 'AM';
+									const suggestedTimeString = `${suggestedDisplayHour}:${suggestedMinutes.toString().padStart(2, '0')} ${suggestedAmpm}`;
+									
+									setTimeError(`Time must be at least 1 minute in the future. Try ${suggestedTimeString}`);
+									return;
+								}
+							} catch (error) {
+								console.error('Error suggesting time:', error);
+							}
+						}
+						
 						setTimeError(validation.error);
 						return;
 					}
@@ -350,6 +405,57 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 		// All times are already in 12-hour format, just return as is
 		return time;
 	};
+
+	// Memoized function to render the selected date information
+	const renderSelectedDateInfo = React.useMemo(() => {
+		
+		
+		if (!selectedDate || selectedDate.trim() === '') {
+			return null;
+		}
+
+		try {
+			// Parse the date string as local time to avoid timezone issues
+			const [year, month, day] = selectedDate.split('-').map(Number);
+			
+			// Validate that we have valid numbers
+			if (isNaN(year) || isNaN(month) || isNaN(day)) {
+				console.error('renderSelectedDateInfo: Invalid date format:', selectedDate);
+				return null;
+			}
+			
+			const selectedDateObj = new Date(year, month - 1, day); // month is 0-indexed
+			
+			// Check if the date is valid
+			if (isNaN(selectedDateObj.getTime())) {
+				console.error('renderSelectedDateInfo: Invalid date object created:', selectedDateObj);
+				return null;
+			}
+			
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			selectedDateObj.setHours(0, 0, 0, 0);
+			
+			let dateStatus = '';
+			if (selectedDateObj.getTime() === today.getTime()) {
+				dateStatus = ' (today - only future times)';
+			} else if (selectedDateObj > today) {
+				dateStatus = ' (future date - all times available)';
+			} else {
+				dateStatus = ' (past date - no times available)';
+			}
+			
+			return (
+				<span>
+					• Selected date: {selectedDateObj.toLocaleDateString()}
+					{dateStatus}
+				</span>
+			);
+		} catch (error) {
+			console.error('TimePicker: Error displaying selectedDate:', error);
+			return null;
+		}
+	}, [selectedDate]);
 
 	return (
 		<div className={cn('w-full', className)}>
@@ -428,25 +534,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 							</div>
 							<div className="text-xs text-gray-500 dark:text-gray-400">
 								⏰ Current time: {getCurrentTime()}
-								{selectedDate && (
-									<span>
-										• Selected date: {new Date(selectedDate).toLocaleDateString()}
-										{(() => {
-											const selectedDateObj = new Date(selectedDate);
-											const today = new Date();
-											today.setHours(0, 0, 0, 0);
-											selectedDateObj.setHours(0, 0, 0, 0);
-											
-											if (selectedDateObj.getTime() === today.getTime()) {
-												return ' (today - only future times)';
-											} else if (selectedDateObj > today) {
-												return ' (future date - all times available)';
-											} else {
-												return ' (past date - all times available)';
-											}
-										})()}
-									</span>
-								)}
+								{renderSelectedDateInfo}
 							</div>
 						</div>
 

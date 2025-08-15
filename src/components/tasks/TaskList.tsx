@@ -3,13 +3,14 @@ import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { Task, TASK_TYPES, PRIORITY_COLORS, STATUS_COLORS } from '../../types/tasks';
 import { Edit, Trash2, CheckCircle, Clock, AlertTriangle, Calendar } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateSafe } from '../../utils/dateUtils';
 
 interface TaskListProps {
 	tasks: Task[];
 	onEdit: (task: Task) => void;
-	onDelete: (taskId: string) => void;
+	onDelete: (task: Task) => void;
 	onComplete: (taskId: string) => void;
+	onView?: (task: Task) => void;
 	onLeadClick?: (leadId: string) => void;
 	loading?: boolean;
 }
@@ -22,6 +23,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 	onEdit,
 	onDelete,
 	onComplete,
+	onView,
 	onLeadClick,
 	loading = false
 }) => {
@@ -239,7 +241,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 
 											{/* Due Date */}
 											<span className="text-gray-600 dark:text-gray-400">
-												Due: {format(new Date(task.due_date), 'MMM dd, yyyy')}
+												Due: {formatDateSafe(task.due_date, 'long')}
 											</span>
 
 											{/* Related Lead */}
@@ -257,6 +259,17 @@ export const TaskList: React.FC<TaskListProps> = ({
 
 									{/* Action Buttons */}
 									<div className="flex items-center space-x-2 ml-4">
+										{onView && (
+											<Button
+												variant="ghost"
+												size="sm"
+												onClick={() => onView(task)}
+												className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700"
+												title="View task details"
+											>
+												<Calendar className="h-4 w-4" />
+											</Button>
+										)}
 										{task.status !== 'completed' && (
 											<>
 												<Button
@@ -280,7 +293,7 @@ export const TaskList: React.FC<TaskListProps> = ({
 										<Button
 											variant="ghost"
 											size="sm"
-											onClick={() => onDelete(task.id)}
+											onClick={() => onDelete(task)}
 											className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
 										>
 											<Trash2 className="h-4 w-4" />

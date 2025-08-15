@@ -73,7 +73,7 @@ export const useTasks = () => {
 		};
 
 		setStats(stats);
-	}, []);
+	}, []); // No dependencies needed since it's called with explicit parameter
 
 	// Create new task
 	const createTask = useCallback(async (taskData: TaskFormData): Promise<boolean> => {
@@ -112,10 +112,8 @@ export const useTasks = () => {
 
 			if (error) throw error;
 
-			// Create reminder if enabled
-			if (taskData.reminder_enabled && taskData.reminder_time) {
-				await createReminder(data.id, taskData.title, taskData.due_date, taskData.reminder_time);
-			}
+			// Reminder creation is now handled in the parent component
+			// to ensure proper timing and error handling
 
 			toast.success('Task created successfully');
 			await fetchTasks();
@@ -198,18 +196,72 @@ export const useTasks = () => {
 		reminderTime: string
 	) => {
 		try {
-			await supabase
+			// Calculate the actual reminder time by combining due date and reminder time
+			const [year, month, day] = dueDate.split('-').map(Number);
+			const [hours, minutes] = reminderTime.split(':').map(Number);
+			
+			// Create reminder time (15 minutes before the actual due time)
+			const reminderDateTime = new Date(year, month - 1, day, hours, minutes);
+			reminderDateTime.setMinutes(reminderDateTime.getMinutes() - 15);
+			
+			// Only create reminder if the reminder time is in the future
+			const now = new Date();
+			if (reminderDateTime <= now) {
+				console.log('⚠️ Reminder time is in the past, skipping reminder creation for task:', taskId);
+				console.log('📅 Reminder time:', reminderDateTime.toISOString(), 'Current time:', now.toISOString());
+				return;
+			}
+			
+			// Create the reminder record
+			const { data: reminderData, error: reminderError } = await supabase
 				.from('task_reminders')
 				.insert({
 					task_id: taskId,
-					reminder_time: reminderTime,
-					status: 'pending',
-					notification_type: 'browser'
-				});
+					reminder_time: reminderDateTime.toISOString(),
+					status: 'pending'
+				})
+				.select()
+				.single();
+
+			if (reminderError) throw reminderError;
+			
+			console.log('✅ Reminder created for task:', taskId, 'at:', reminderDateTime.toISOString());
+			console.log('📅 Task due date:', dueDate, 'Reminder time:', reminderTime);
+			console.log('⏰ Reminder will trigger at:', reminderDateTime.toLocaleString());
 		} catch (error) {
-			console.error('Error creating reminder:', error);
+			console.error('Error creating reminder and notification:', error);
 		}
 	}, []);
+
+	// Update reminder when task is updated
+	const updateReminder = useCallback(async (
+		taskId: string,
+		dueDate: string,
+		reminderTime: string
+	) => {
+		try {
+			// Delete existing reminders for this task
+			await supabase
+				.from('task_reminders')
+				.delete()
+				.eq('task_id', taskId);
+
+			// Create new reminder if reminder time is provided
+			if (reminderTime) {
+				// Get the task title for the notification
+				const { data: taskData } = await supabase
+					.from('tasks')
+					.select('title')
+					.eq('id', taskId)
+					.single();
+				
+				const taskTitle = taskData?.title || 'Untitled Task';
+				await createReminder(taskId, taskTitle, dueDate, reminderTime);
+			}
+		} catch (error) {
+			console.error('Error updating reminder:', error);
+		}
+	}, [createReminder]);
 
 	// Mark task as complete
 	const completeTask = useCallback(async (taskId: string) => {
@@ -231,6 +283,8 @@ export const useTasks = () => {
 		);
 	}, [tasks]);
 
+
+
 	// Get tasks due today
 	const getTasksDueToday = useCallback(() => {
 		const today = new Date();
@@ -245,6 +299,13 @@ export const useTasks = () => {
 		fetchTasks();
 	}, [fetchTasks]);
 
+	// Recalculate stats whenever tasks change
+	useEffect(() => {
+		if (tasks.length > 0) {
+			calculateStats(tasks);
+		}
+	}, [tasks, calculateStats]);
+
 	return {
 		tasks,
 		loading,
@@ -256,6 +317,8 @@ export const useTasks = () => {
 		getTasksByStatus,
 		getOverdueTasks,
 		getTasksDueToday,
-		refreshTasks: fetchTasks
+		refreshTasks: fetchTasks,
+		createReminder,
+		updateReminder
 	};
 };

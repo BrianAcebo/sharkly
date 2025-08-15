@@ -4,7 +4,7 @@ import Chat from '../components/chat/Chat';
 export default function ChatPage() {
 	return (
 		<>
-			<PageMeta title="" description="" />
+			<PageMeta title="Chat Messages" description="Manage your chat messages" />
 			<Chat />
 		</>
 	);

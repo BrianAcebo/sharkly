@@ -10,7 +10,12 @@ import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
 import { HttpError } from '../../utils/error';
 import { api } from '../../utils/api';
-import { TEAM_MEMBER_ROLES, ASSIGNABLE_TEAM_MEMBER_ROLES, type TeamMemberRole, type AssignableTeamMemberRole } from '../../utils/constants';
+import {
+	TEAM_MEMBER_ROLES,
+	ASSIGNABLE_TEAM_MEMBER_ROLES,
+	type TeamMemberRole,
+	type AssignableTeamMemberRole
+} from '../../utils/constants';
 import {
 	Select,
 	SelectContent,
@@ -20,6 +25,7 @@ import {
 } from '../../components/ui/select';
 import Input from '../../components/form/input/InputField';
 import { useNavigate } from 'react-router-dom';
+import PageMeta from '../../components/common/PageMeta';
 
 interface PendingInvitation {
 	id: string;
@@ -42,7 +48,9 @@ export default function OrganizationPage() {
 	const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 	const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
 	const [inviteEmail, setInviteEmail] = useState('');
-	const [inviteRole, setInviteRole] = useState<AssignableTeamMemberRole>(ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER);
+	const [inviteRole, setInviteRole] = useState<AssignableTeamMemberRole>(
+		ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER
+	);
 	const [isInviting, setIsInviting] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 
@@ -86,7 +94,7 @@ export default function OrganizationPage() {
 				.eq('organization_id', org.id);
 
 			if (membersError) throw new HttpError('Failed to fetch team members', 500);
-			
+
 			setTeamMembers(
 				members.map((member) => {
 					let avatarUrl = '';
@@ -214,10 +222,14 @@ export default function OrganizationPage() {
 	};
 
 	const handleDeleteTeamMember = async (memberId: string) => {
-		const member = teamMembers.find(m => m.id === memberId);
+		const member = teamMembers.find((m) => m.id === memberId);
 		if (!member) return;
 
-		if (!confirm(`Are you sure you want to remove ${member.profile.first_name} ${member.profile.last_name} from the organization? This action cannot be undone.`)) {
+		if (
+			!confirm(
+				`Are you sure you want to remove ${member.profile.first_name} ${member.profile.last_name} from the organization? This action cannot be undone.`
+			)
+		) {
 			return;
 		}
 
@@ -246,7 +258,7 @@ export default function OrganizationPage() {
 				.eq('organization_id', organization.id);
 
 			if (error) throw error;
-			
+
 			toast.success('Team member removed successfully');
 			fetchOrganizationData();
 		} catch (error) {
@@ -285,7 +297,7 @@ export default function OrganizationPage() {
 				.eq('organization_id', organization.id);
 
 			if (error) throw error;
-			
+
 			toast.success('Role updated successfully');
 			fetchOrganizationData();
 		} catch (error) {
@@ -343,175 +355,241 @@ export default function OrganizationPage() {
 	}
 
 	return (
-		<div className="container mx-auto px-4 py-8">
-			<div className="mb-8">
-				<h1 className="text-3xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
-				<div className="mt-2 flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-					<div className="flex items-center gap-1">
-						<Building2 className="h-4 w-4" />
-						<span>Organization ID: {organization.id}</span>
-					</div>
-					<div className="flex items-center gap-1">
-						<Users className="h-4 w-4" />
-						<span>
-							{teamMembers.length} of {organization.maxSeats} seats used
-						</span>
-					</div>
-					<div className="flex items-center gap-1">
-						<Calendar className="h-4 w-4" />
-						<span>Created {new Date(organization.createdAt).toLocaleDateString()}</span>
+		<>
+			<PageMeta title={organization.name} description="Manage your organization and team members" />
+			<div className="container mx-auto px-4 py-8">
+				<div className="mb-8">
+					<h1 className="text-3xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
+					<div className="mt-2 flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+						<div className="flex items-center gap-1">
+							<Building2 className="h-4 w-4" />
+							<span>Organization ID: {organization.id}</span>
+						</div>
+						<div className="flex items-center gap-1">
+							<Users className="h-4 w-4" />
+							<span>
+								{teamMembers.length} of {organization.maxSeats} seats used
+							</span>
+						</div>
+						<div className="flex items-center gap-1">
+							<Calendar className="h-4 w-4" />
+							<span>Created {new Date(organization.createdAt).toLocaleDateString()}</span>
+						</div>
 					</div>
 				</div>
-			</div>
 
-			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-				<TabsList className="flex items-center justify-start gap-3 p-0">
-					<Button
-						onClick={() => setActiveTab('overview')}
-						variant={activeTab === 'overview' ? 'default' : 'outline'}
-						size="sm"
-					>
-						Overview
-					</Button>
-					<Button
-						onClick={() => setActiveTab('team-members')}
-						variant={activeTab === 'team-members' ? 'default' : 'outline'}
-						size="sm"
-					>
-						Team Members
-					</Button>
-					<Button
-						onClick={() => setActiveTab('settings')}
-						variant={activeTab === 'settings' ? 'default' : 'outline'}
-						size="sm"
-					>
-						Settings
-					</Button>
-				</TabsList>
+				<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+					<TabsList className="flex items-center justify-start gap-3 p-0">
+						<Button
+							onClick={() => setActiveTab('overview')}
+							variant={activeTab === 'overview' ? 'default' : 'outline'}
+							size="sm"
+						>
+							Overview
+						</Button>
+						<Button
+							onClick={() => setActiveTab('team-members')}
+							variant={activeTab === 'team-members' ? 'default' : 'outline'}
+							size="sm"
+						>
+							Team Members
+						</Button>
+						<Button
+							onClick={() => setActiveTab('settings')}
+							variant={activeTab === 'settings' ? 'default' : 'outline'}
+							size="sm"
+						>
+							Settings
+						</Button>
+					</TabsList>
 
-				<TabsContent value="overview" className="space-y-4">
-					<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-						<Card className="p-4">
-							<CardHeader>
-								<div className="flex items-center gap-2">
-									<Users className="h-5 w-5 text-gray-500" />
-									<h3 className="font-semibold">Team Members</h3>
-								</div>
-							</CardHeader>
-							<CardContent>
-								<p className="mt-2 text-2xl font-bold">{teamMembers.length}</p>
-								<p className="text-sm text-gray-500">Active team members</p>
-							</CardContent>
-						</Card>
+					<TabsContent value="overview" className="space-y-4">
+						<div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+							<Card className="p-4">
+								<CardHeader>
+									<div className="flex items-center gap-2">
+										<Users className="h-5 w-5 text-gray-500" />
+										<h3 className="font-semibold">Team Members</h3>
+									</div>
+								</CardHeader>
+								<CardContent>
+									<p className="mt-2 text-2xl font-bold">{teamMembers.length}</p>
+									<p className="text-sm text-gray-500">Active team members</p>
+								</CardContent>
+							</Card>
 
-						<Card className="p-4">
-							<CardHeader>
-								<div className="flex items-center gap-2">
-									<Shield className="h-5 w-5 text-gray-500" />
-									<h3 className="font-semibold">Managers</h3>
-								</div>
-							</CardHeader>
-							<CardContent>
-								<p className="mt-2 text-2xl font-bold">
-									{teamMembers.filter((member) => member.role === TEAM_MEMBER_ROLES.ADMIN).length}
-								</p>
-								<p className="text-sm text-gray-500">Team managers</p>
-							</CardContent>
-						</Card>
+							<Card className="p-4">
+								<CardHeader>
+									<div className="flex items-center gap-2">
+										<Shield className="h-5 w-5 text-gray-500" />
+										<h3 className="font-semibold">Managers</h3>
+									</div>
+								</CardHeader>
+								<CardContent>
+									<p className="mt-2 text-2xl font-bold">
+										{teamMembers.filter((member) => member.role === TEAM_MEMBER_ROLES.ADMIN).length}
+									</p>
+									<p className="text-sm text-gray-500">Team managers</p>
+								</CardContent>
+							</Card>
 
-						<Card className="p-4">
-							<CardHeader>
-								<div className="flex items-center gap-2">
-									<Calendar className="h-5 w-5 text-gray-500" />
-									<h3 className="font-semibold">Organization Age</h3>
-								</div>
-							</CardHeader>
-							<CardContent>
-								<p className="mt-2 text-2xl font-bold">
-									{Math.floor(
-										(new Date().getTime() - new Date(organization.createdAt).getTime()) /
-											(1000 * 60 * 60 * 24 * 30)
-									)}
-								</p>
-								<p className="text-sm text-gray-500">Months since creation</p>
-							</CardContent>
-						</Card>
-					</div>
-				</TabsContent>
+							<Card className="p-4">
+								<CardHeader>
+									<div className="flex items-center gap-2">
+										<Calendar className="h-5 w-5 text-gray-500" />
+										<h3 className="font-semibold">Organization Age</h3>
+									</div>
+								</CardHeader>
+								<CardContent>
+									<p className="mt-2 text-2xl font-bold">
+										{Math.floor(
+											(new Date().getTime() - new Date(organization.createdAt).getTime()) /
+												(1000 * 60 * 60 * 24 * 30)
+										)}
+									</p>
+									<p className="text-sm text-gray-500">Months since creation</p>
+								</CardContent>
+							</Card>
+						</div>
+					</TabsContent>
 
-				<TabsContent value="team-members" className="space-y-4">
-					{isOwner && (
-						<Card className="p-4">
-							<CardHeader>
-								<h3 className="mb-4 font-semibold">Invite New Team Member</h3>
-							</CardHeader>
-							<CardContent>
-								<div className="flex gap-4">
-									<Input
-										type="email"
-										placeholder="Enter email address"
-										value={inviteEmail}
-										onChange={(e: ChangeEvent<HTMLInputElement>) => setInviteEmail(e.target.value)}
-										className="flex-1"
-									/>
-									<Select
-										value={inviteRole}
-										onValueChange={(value: string) => setInviteRole(value as AssignableTeamMemberRole)}
-									>
-										<SelectTrigger className="h-11 w-[180px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
-											<SelectValue placeholder="Select role" />
-										</SelectTrigger>
-										<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
-											<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.ADMIN}>Manager</SelectItem>
-											<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER}>Member</SelectItem>
-										</SelectContent>
-									</Select>
-									<Button
-										onClick={handleInviteTeamMember}
-										disabled={isInviting}
-										className="flex items-center gap-2"
-									>
-										<UserPlus className="h-4 w-4" />
-										{isInviting ? 'Sending...' : 'Send Invite'}
-									</Button>
-								</div>
-							</CardContent>
-						</Card>
-					)}
+					<TabsContent value="team-members" className="space-y-4">
+						{isOwner && (
+							<Card className="p-4">
+								<CardHeader>
+									<h3 className="mb-4 font-semibold">Invite New Team Member</h3>
+								</CardHeader>
+								<CardContent>
+									<div className="flex gap-4">
+										<Input
+											type="email"
+											placeholder="Enter email address"
+											value={inviteEmail}
+											onChange={(e: ChangeEvent<HTMLInputElement>) =>
+												setInviteEmail(e.target.value)
+											}
+											className="flex-1"
+										/>
+										<Select
+											value={inviteRole}
+											onValueChange={(value: string) =>
+												setInviteRole(value as AssignableTeamMemberRole)
+											}
+										>
+											<SelectTrigger className="h-11 w-[180px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
+												<SelectValue placeholder="Select role" />
+											</SelectTrigger>
+											<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
+												<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.ADMIN}>Manager</SelectItem>
+												<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER}>Member</SelectItem>
+											</SelectContent>
+										</Select>
+										<Button
+											onClick={handleInviteTeamMember}
+											disabled={isInviting}
+											className="flex items-center gap-2"
+										>
+											<UserPlus className="h-4 w-4" />
+											{isInviting ? 'Sending...' : 'Send Invite'}
+										</Button>
+									</div>
+								</CardContent>
+							</Card>
+						)}
 
-					{/* Pending Invitations Section */}
-					{pendingInvitations.length > 0 && (
+						{/* Pending Invitations Section */}
+						{pendingInvitations.length > 0 && (
+							<Card className="p-4">
+								<CardHeader>
+									<h3 className="mb-4 flex items-center gap-2 font-semibold">
+										<Calendar className="h-4 w-4" />
+										Pending Invitations ({pendingInvitations.length})
+									</h3>
+								</CardHeader>
+								<CardContent>
+									<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+										{pendingInvitations.map((invitation) => (
+											<Card key={invitation.id} className="border-dashed p-4">
+												<div className="flex flex-wrap items-center gap-4">
+													<div className="flex-1">
+														<h3 className="font-semibold">{invitation.email}</h3>
+														<p className="text-sm text-gray-500 capitalize">{invitation.role}</p>
+														<p className="mt-1 text-xs text-gray-400">
+															Invited by {invitation.inviter.first_name}{' '}
+															{invitation.inviter.last_name}
+														</p>
+														<p className="text-xs text-gray-400">
+															{new Date(invitation.created_at).toLocaleDateString()}
+														</p>
+													</div>
+													{isOwner && (
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => handleCancelInvitation(invitation.id)}
+														>
+															Cancel
+														</Button>
+													)}
+												</div>
+											</Card>
+										))}
+									</div>
+								</CardContent>
+							</Card>
+						)}
+
+						{/* Current Members Section */}
 						<Card className="p-4">
 							<CardHeader>
 								<h3 className="mb-4 flex items-center gap-2 font-semibold">
-									<Calendar className="h-4 w-4" />
-									Pending Invitations ({pendingInvitations.length})
+									<Users className="h-4 w-4" />
+									Current Members ({teamMembers.length})
 								</h3>
 							</CardHeader>
 							<CardContent>
 								<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-									{pendingInvitations.map((invitation) => (
-										<Card key={invitation.id} className="border-dashed p-4">
-											<div className="flex items-center gap-4 flex-wrap">
+									{teamMembers.map((member: TeamMember) => (
+										<Card key={member.id} className="p-4">
+											<div className="flex flex-wrap items-center gap-4">
+												<Avatar>
+													<AvatarImage src={member.profile.avatar} />
+													<AvatarFallback>{member.profile.first_name.charAt(0)}</AvatarFallback>
+												</Avatar>
 												<div className="flex-1">
-													<h3 className="font-semibold">{invitation.email}</h3>
-													<p className="text-sm text-gray-500 capitalize">{invitation.role}</p>
-													<p className="mt-1 text-xs text-gray-400">
-														Invited by {invitation.inviter.first_name}{' '}
-														{invitation.inviter.last_name}
-													</p>
-													<p className="text-xs text-gray-400">
-														{new Date(invitation.created_at).toLocaleDateString()}
-													</p>
+													<h3 className="font-semibold">
+														{member.profile.first_name} {member.profile.last_name}
+													</h3>
+													<p className="text-sm text-gray-500 capitalize">{member.role}</p>
 												</div>
-												{isOwner && (
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() => handleCancelInvitation(invitation.id)}
-													>
-														Cancel
-													</Button>
+												{isOwner && member.profile.id !== user?.id && (
+													<div className="flex gap-2">
+														<Select
+															value={member.role}
+															onValueChange={(value: string) =>
+																handleUpdateRole(member.id, value as TeamMemberRole)
+															}
+														>
+															<SelectTrigger className="h-11 w-[100px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
+																<SelectValue />
+															</SelectTrigger>
+															<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
+																<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.ADMIN}>
+																	Manager
+																</SelectItem>
+																<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER}>
+																	Member
+																</SelectItem>
+															</SelectContent>
+														</Select>
+														<Button
+															variant="destructive"
+															size="sm"
+															onClick={() => handleDeleteTeamMember(member.id)}
+														>
+															<Trash2 className="h-4 w-4" />
+														</Button>
+													</div>
 												)}
 											</div>
 										</Card>
@@ -519,101 +597,49 @@ export default function OrganizationPage() {
 								</div>
 							</CardContent>
 						</Card>
-					)}
+					</TabsContent>
 
-					{/* Current Members Section */}
-					<Card className="p-4">
-						<CardHeader>
-							<h3 className="mb-4 flex items-center gap-2 font-semibold">
-								<Users className="h-4 w-4" />
-								Current Members ({teamMembers.length})
-							</h3>
-						</CardHeader>
-						<CardContent>
-							<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-								{teamMembers.map((member: TeamMember) => (
-									<Card key={member.id} className="p-4">
-										<div className="flex items-center gap-4 flex-wrap">
-											<Avatar>
-												<AvatarImage src={member.profile.avatar} />
-												<AvatarFallback>
-													{member.profile.first_name.charAt(0)}
-												</AvatarFallback>
-											</Avatar>
-											<div className="flex-1">
-												<h3 className="font-semibold">
-													{member.profile.first_name} {member.profile.last_name}
-												</h3>
-												<p className="text-sm text-gray-500 capitalize">{member.role}</p>
-											</div>
-											{isOwner && member.profile.id !== user?.id && (
-												<div className="flex gap-2">
-													<Select
-														value={member.role}
-														onValueChange={(value: string) =>
-															handleUpdateRole(member.id, value as TeamMemberRole)
-														}
-													>
-														<SelectTrigger className="h-11 w-[100px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
-															<SelectValue />
-														</SelectTrigger>
-														<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
-															<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.ADMIN}>Manager</SelectItem>
-															<SelectItem value={ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER}>Member</SelectItem>
-														</SelectContent>
-													</Select>
-													<Button
-														variant="destructive"
-														size="sm"
-														onClick={() => handleDeleteTeamMember(member.id)}
-													>
-														<Trash2 className="h-4 w-4" />
-													</Button>
-												</div>
-											)}
-										</div>
-									</Card>
-								))}
-							</div>
-						</CardContent>
-					</Card>
-				</TabsContent>
-
-				<TabsContent value="settings" className="space-y-4">
-					<Card className="p-4">
-						<CardHeader>
-							<h3 className="mb-4 font-semibold">Organization Settings</h3>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-4">
-								<div>
-									<label className="text-sm font-medium">Organization Name</label>
-									<Input
-										type="text"
-										value={organization.name}
-										disabled={!isOwner}
-										className="mt-1"
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Max Seats</label>
-									<div className="mt-1 flex items-center gap-2">{organization.maxSeats}</div>
-								</div>
-								{isOwner && (
-									<div className="flex items-center gap-3">
-										<Button size="sm" className="mt-4" variant="outline" onClick={handleUpdateOrganization}>
-											Save Changes
-										</Button>
-										<Button size="sm" className="mt-4">
-											Upgrade
-										</Button>
+					<TabsContent value="settings" className="space-y-4">
+						<Card className="p-4">
+							<CardHeader>
+								<h3 className="mb-4 font-semibold">Organization Settings</h3>
+							</CardHeader>
+							<CardContent>
+								<div className="space-y-4">
+									<div>
+										<label className="text-sm font-medium">Organization Name</label>
+										<Input
+											type="text"
+											value={organization.name}
+											disabled={!isOwner}
+											className="mt-1"
+										/>
 									</div>
-								)}
-							</div>
-						</CardContent>
-					</Card>
-				</TabsContent>
-			</Tabs>
-		</div>
+									<div>
+										<label className="text-sm font-medium">Max Seats</label>
+										<div className="mt-1 flex items-center gap-2">{organization.maxSeats}</div>
+									</div>
+									{isOwner && (
+										<div className="flex items-center gap-3">
+											<Button
+												size="sm"
+												className="mt-4"
+												variant="outline"
+												onClick={handleUpdateOrganization}
+											>
+												Save Changes
+											</Button>
+											<Button size="sm" className="mt-4">
+												Upgrade
+											</Button>
+										</div>
+									)}
+								</div>
+							</CardContent>
+						</Card>
+					</TabsContent>
+				</Tabs>
+			</div>
+		</>
 	);
 }

@@ -72,11 +72,7 @@ export default function OnboardingForm() {
 	};
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-		console.log('handleSubmit called');
 		e.preventDefault();
-		console.log('Form submission started');
-		console.log('OnboardingForm - user:', user);
-		console.log('Form data:', { firstName, lastName, avatar: avatar ? 'File selected' : 'No file' });
 		
 		if (!user) {
 			console.log('No user found, returning');

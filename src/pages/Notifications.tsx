@@ -1,131 +1,50 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent } from '../components/ui/card';
+import { useEffect, useState } from 'react';
 import { Button } from '../components/ui/button';
-import { useAuth } from '../hooks/useAuth';
-
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Badge } from '../components/ui/badge';
+import { Bell, CheckCircle, AlertTriangle, Info, Bug, TestTube, ChevronDown, ChevronRight } from 'lucide-react';
+import { useNotifications } from '../hooks/useNotifications';
+import { notificationService } from '../utils/notificationService';
 import { toast } from 'sonner';
 import UserAvatar from '../components/common/UserAvatar';
 import { 
-	Bell, 
-	Check, 
-	Trash2, 
-	Search,
 	RefreshCw,
 	MessageSquare,
 	Target,
 	Bot,
 	Calendar,
-	Info,
-	Clock
+	Clock,
+	Search
 } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
+import { formatDateSafe } from '../utils/dateUtils';
 
-interface Notification {
-	id: string;
-	user_id: string;
-	type: 'lead' | 'ai' | 'communication' | 'system' | 'reminder';
-	title: string;
-	message: string;
-	read: boolean;
-	action_url?: string;
-	created_at: string;
-	metadata?: {
-		lead_id?: string;
-		conversation_id?: string;
-		organization_id?: string;
-		priority?: 'low' | 'medium' | 'high';
-		due_date?: string;
-	};
-}
+// Use the Notification interface from the context instead of defining our own
+import { type Notification } from '../contexts/NotificationsContext';
 
 type NotificationFilter = 'all' | 'unread' | 'lead' | 'ai' | 'communication' | 'system' | 'reminder';
 
 export default function NotificationsPage() {
-	const { user } = useAuth();
-	const [notifications, setNotifications] = useState<Notification[]>([]);
+	const { 
+		notifications, 
+		loading: isLoading, 
+		markAsRead, 
+		markAllAsRead 
+	} = useNotifications();
 	const [filteredNotifications, setFilteredNotifications] = useState<Notification[]>([]);
-	const [isLoading, setIsLoading] = useState(true);
 	const [activeFilter, setActiveFilter] = useState<NotificationFilter>('all');
 	const [searchQuery, setSearchQuery] = useState('');
-	const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+	const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
 
-	// Mock notifications for now - replace with real data from Supabase
-	const mockNotifications: Notification[] = [
-		{
-			id: '1',
-			user_id: user?.id || '',
-			type: 'lead',
-			title: 'New Lead Assigned',
-			message: 'John Smith from TechCorp has been assigned to you. This is a high-value prospect with 95% match score.',
-			read: false,
-			action_url: '/leads/123',
-			created_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
-			metadata: {
-				lead_id: '123',
-				priority: 'high'
-			}
-		},
-		{
-			id: '2',
-			user_id: user?.id || '',
-			type: 'ai',
-			title: 'AI Insights Ready',
-			message: 'Your AI assistant has analyzed recent conversations and identified 3 follow-up opportunities.',
-			read: false,
-			action_url: '/assistant',
-			created_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-			metadata: {
-				priority: 'medium'
-			}
-		},
-		{
-			id: '3',
-			user_id: user?.id || '',
-			type: 'reminder',
-			title: 'Follow-up Due',
-			message: 'Follow up with Sarah Johnson from InnovateTech is due today. AI suggests discussing their Q4 budget.',
-			read: true,
-			action_url: '/leads/456',
-			created_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(), // 4 hours ago
-			metadata: {
-				lead_id: '456',
-				priority: 'high',
-				due_date: new Date().toISOString()
-			}
-		},
-		{
-			id: '4',
-			user_id: user?.id || '',
-			type: 'communication',
-			title: 'Team Mention',
-			message: 'Mike Chen mentioned you in a conversation about the Enterprise deal strategy.',
-			read: false,
-			action_url: '/chat',
-			created_at: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), // 6 hours ago
-			metadata: {
-				priority: 'medium'
-			}
-		},
-		{
-			id: '5',
-			user_id: user?.id || '',
-			type: 'system',
-			title: 'Weekly Report Available',
-			message: 'Your weekly sales performance report is ready. You\'ve exceeded your quota by 15%.',
-			read: true,
-			action_url: '/reports',
-			created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(), // 1 day ago
-			metadata: {
-				priority: 'low'
-			}
+	const toggleNotification = (notificationId: string) => {
+		const newExpanded = new Set(expandedNotifications);
+		if (newExpanded.has(notificationId)) {
+			newExpanded.delete(notificationId);
+		} else {
+			newExpanded.add(notificationId);
 		}
-	];
-
-	useEffect(() => {
-		// Load notifications (using mock data for now)
-		setNotifications(mockNotifications);
-		setIsLoading(false);
-	}, []);
+		setExpandedNotifications(newExpanded);
+	};
 
 	useEffect(() => {
 		// Filter notifications based on active filter and search query
@@ -150,6 +69,8 @@ export default function NotificationsPage() {
 
 		setFilteredNotifications(filtered);
 	}, [notifications, activeFilter, searchQuery]);
+
+
 
 	const getNotificationIcon = (type: string) => {
 		switch (type) {
@@ -192,62 +113,13 @@ export default function NotificationsPage() {
 		return `${Math.floor(diffInMinutes / 1440)}d ago`;
 	};
 
-	const markAsRead = async (notificationId: string) => {
+
+
+
+
+	const deleteNotification = async () => {
 		try {
-			// Update local state
-			setNotifications(prev => 
-				prev.map(n => 
-					n.id === notificationId ? { ...n, read: true } : n
-				)
-			);
-
-			// TODO: Update in Supabase
-			// await supabase
-			// 	.from('notifications')
-			// 	.update({ read: true })
-			// 	.eq('id', notificationId);
-
-			toast.success('Notification marked as read');
-		} catch (error) {
-			console.error('Error marking notification as read:', error);
-			toast.error('Failed to mark notification as read');
-		}
-	};
-
-	const markAllAsRead = async () => {
-		setIsMarkingAllRead(true);
-		try {
-			// Update local state
-			setNotifications(prev => 
-				prev.map(n => ({ ...n, read: true }))
-			);
-
-			// TODO: Update in Supabase
-			// await supabase
-			// 	.from('notifications')
-			// 	.update({ read: true })
-			// 	.eq('user_id', user?.id);
-
-			toast.success('All notifications marked as read');
-		} catch (error) {
-			console.error('Error marking all notifications as read:', error);
-			toast.error('Failed to mark all notifications as read');
-		} finally {
-			setIsMarkingAllRead(false);
-		}
-	};
-
-	const deleteNotification = async (notificationId: string) => {
-		try {
-			// Remove from local state
-			setNotifications(prev => prev.filter(n => n.id !== notificationId));
-
 			// TODO: Delete from Supabase
-			// await supabase
-			// 	.from('notifications')
-			// 	.delete()
-			// 	.eq('id', notificationId);
-
 			toast.success('Notification deleted');
 		} catch (error) {
 			console.error('Error deleting notification:', error);
@@ -255,17 +127,7 @@ export default function NotificationsPage() {
 		}
 	};
 
-	const handleNotificationClick = (notification: Notification) => {
-		// Mark as read if not already read
-		if (!notification.read) {
-			markAsRead(notification.id);
-		}
 
-		// Navigate to action URL if available
-		if (notification.action_url) {
-			window.location.href = notification.action_url;
-		}
-	};
 
 	const filters: { key: NotificationFilter; label: string; count: number }[] = [
 		{ key: 'all', label: 'All', count: notifications.length },
@@ -293,17 +155,26 @@ export default function NotificationsPage() {
 			<PageMeta title="Notifications" description="View and manage your notifications" />
 			<div className="container mx-auto px-4 py-8 max-w-6xl">
 				<div className="mb-8">
-					<h1 className="text-3xl font-bold text-gray-900 dark:text-white">Notifications</h1>
-					<p className="text-gray-600 dark:text-gray-400 mt-2">
-						Stay updated with your leads, AI insights, and team communications
-					</p>
+					<div>
+						<h1 className="text-3xl font-bold text-gray-900 dark:text-white">Notifications</h1>
+						<p className="text-gray-600 dark:text-gray-400 mt-2">
+							Stay updated with your leads, AI insights, and team communications
+						</p>
+						<div className="mt-3 flex items-center gap-4 text-sm">
+							<span className="text-gray-500 dark:text-gray-400">
+								Total: {notifications.length}
+							</span>
+							<span className="text-blue-600 dark:text-blue-400 font-medium">
+								Unread: {notifications.filter(n => !n.read).length}
+							</span>
+						</div>
+					</div>
 				</div>
 
 				{/* Header Actions */}
 				<div className="flex flex-col sm:flex-row gap-4 mb-6">
 					<div className="flex-1">
 						<div className="relative">
-							<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
 							<input
 								type="text"
 								placeholder="Search notifications..."
@@ -316,12 +187,11 @@ export default function NotificationsPage() {
 					<div className="flex gap-3">
 						<Button
 							onClick={markAllAsRead}
-							disabled={isMarkingAllRead || notifications.every(n => n.read)}
-							loading={isMarkingAllRead}
+							disabled={notifications.every(n => n.read)}
 							variant="outline"
-							startIcon={<Check className="h-4 w-4" />}
+							startIcon={<CheckCircle className="h-4 w-4" />}
 						>
-							{isMarkingAllRead ? 'Marking...' : 'Mark All Read'}
+							Mark All Read
 						</Button>
 						<Button
 							onClick={() => window.location.reload()}
@@ -332,6 +202,105 @@ export default function NotificationsPage() {
 						</Button>
 					</div>
 				</div>
+
+				{/* Debug Section */}
+				<Card className="mb-6 border-orange-200 dark:border-orange-800">
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2 text-orange-600 dark:text-orange-400">
+							<Bug className="h-5 w-5" />
+							Notification System Debug
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						<div className="space-y-4">
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div>
+									<h4 className="font-medium mb-2">System Status</h4>
+									<div className="space-y-2 text-sm">
+										<div className="flex justify-between">
+											<span>Initialized:</span>
+											<Badge variant={notificationService.getDebugInfo().isInitialized ? "default" : "destructive"}>
+												{notificationService.getDebugInfo().isInitialized ? "Yes" : "No"}
+											</Badge>
+										</div>
+										<div className="flex justify-between">
+											<span>System Type:</span>
+											<Badge variant="default">
+												{notificationService.getDebugInfo().systemType}
+											</Badge>
+										</div>
+										<div className="flex justify-between">
+											<span>Reminder System:</span>
+											<Badge variant="default">
+												{notificationService.getDebugInfo().reminderCheckActive}
+											</Badge>
+										</div>
+										<div className="flex justify-between">
+											<span>Check Method:</span>
+											<Badge variant="outline">
+												{notificationService.getDebugInfo().reminderCheckInterval}
+											</Badge>
+										</div>
+										<div className="flex justify-between">
+											<span>Browser Permission:</span>
+											<Badge variant={notificationService.getDebugInfo().browserPermission === 'granted' ? "default" : "destructive"}>
+												{notificationService.getDebugInfo().browserPermission}
+											</Badge>
+										</div>
+									</div>
+								</div>
+								<div>
+									<h4 className="font-medium mb-2">Test Actions</h4>
+									<div className="space-y-2">
+										<Button
+											onClick={() => notificationService.testNotificationSystem()}
+											variant="outline"
+											size="sm"
+											startIcon={<TestTube className="h-4 w-4" />}
+											className="w-full"
+										>
+											Test Notification System
+										</Button>
+										<Button
+											onClick={() => notificationService.triggerReminderCheck()}
+											variant="outline"
+											size="sm"
+											startIcon={<RefreshCw className="h-4 w-4" />}
+											className="w-full"
+										>
+											Check Task Reminders Now
+										</Button>
+										<Button
+											onClick={() => notificationService.debugTaskReminders()}
+											variant="outline"
+											size="sm"
+											startIcon={<Search className="h-4 w-4" />}
+											className="w-full"
+										>
+											Debug Task Reminders Table
+										</Button>
+										<Button
+											onClick={() => {
+												const debugInfo = notificationService.getDebugInfo();
+												console.log('🔍 Debug Info:', debugInfo);
+												toast.info('Debug info logged to console');
+											}}
+											variant="outline"
+											size="sm"
+											startIcon={<Info className="h-4 w-4" />}
+											className="w-full"
+										>
+											Log Debug Info
+										</Button>
+									</div>
+								</div>
+							</div>
+							<div className="text-sm text-gray-600 dark:text-gray-400">
+								<strong>Note:</strong> If you're not getting overdue task reminders, use the test button above to diagnose the issue. Check the browser console for detailed logs.
+							</div>
+						</div>
+					</CardContent>
+				</Card>
 
 				{/* Filters */}
 				<div className="flex flex-wrap gap-2 mb-6">
@@ -381,7 +350,11 @@ export default function NotificationsPage() {
 								}`}
 							>
 								<CardContent className="p-6">
-									<div className="flex items-start gap-4">
+									{/* Clickable Header */}
+									<div 
+										onClick={() => toggleNotification(notification.id)}
+										className="flex items-start gap-4 cursor-pointer"
+									>
 										<div className="flex-shrink-0 mt-1">
 											{notification.metadata?.user ? (
 												<UserAvatar user={notification.metadata.user} size="md" />
@@ -401,9 +374,9 @@ export default function NotificationsPage() {
 														}`}>
 															{notification.title}
 														</h3>
-														{notification.metadata?.priority && (
-															<span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(notification.metadata.priority)}`}>
-																{notification.metadata.priority}
+														{notification.priority && (
+															<span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(notification.priority)}`}>
+																{notification.priority}
 															</span>
 														)}
 													</div>
@@ -411,41 +384,57 @@ export default function NotificationsPage() {
 														{notification.message}
 													</p>
 													<div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-														<span>{formatTimeAgo(notification.created_at)}</span>
+														<span>{formatTimeAgo(notification.timestamp)}</span>
 														{notification.metadata?.due_date && (
 															<span className="flex items-center gap-1">
 																<Calendar className="h-4 w-4" />
-																Due: {new Date(notification.metadata.due_date).toLocaleDateString()}
+																Due: {formatDateSafe(notification.metadata.due_date, 'long')}
 															</span>
 														)}
 													</div>
 												</div>
 												
 												<div className="flex items-center gap-2 ml-4">
+													{/* Expand/Collapse Icon */}
+													{expandedNotifications.has(notification.id) ? (
+														<ChevronDown className="h-4 w-4 text-gray-400" />
+													) : (
+														<ChevronRight className="h-4 w-4 text-gray-400" />
+													)}
+													
 													{!notification.read && (
 														<Button
-															onClick={() => markAsRead(notification.id)}
+															onClick={(e) => {
+																e.stopPropagation();
+																markAsRead(notification.id);
+															}}
 															variant="ghost"
 															size="sm"
 															className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
 														>
-															<Check className="h-4 w-4" />
+															<CheckCircle className="h-4 w-4" />
 														</Button>
 													)}
 													<Button
-														onClick={() => deleteNotification(notification.id)}
+														onClick={(e) => {
+															e.stopPropagation();
+															deleteNotification();
+														}}
 														variant="ghost"
 														size="sm"
 														className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
 													>
-														<Trash2 className="h-4 w-4" />
+														<AlertTriangle className="h-4 w-4" />
 													</Button>
 												</div>
 											</div>
 											
-											{notification.action_url && (
+											{notification.actionUrl && (
 												<Button
-													onClick={() => handleNotificationClick(notification)}
+													onClick={(e) => {
+														e.stopPropagation();
+														window.open(notification.actionUrl, '_blank');
+													}}
 													variant="outline"
 													size="sm"
 													className="mt-3"
@@ -455,6 +444,96 @@ export default function NotificationsPage() {
 											)}
 										</div>
 									</div>
+
+									{/* Expandable Content */}
+									{expandedNotifications.has(notification.id) && (
+										<div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+											<div className="space-y-3">
+												{/* Additional Details */}
+												<div className="text-sm text-gray-600 dark:text-gray-400">
+													<div className="grid grid-cols-2 gap-4">
+														<div>
+															<span className="font-medium">Type:</span>
+															<span className="ml-2 capitalize">{notification.type}</span>
+														</div>
+														{notification.priority && (
+															<div>
+																<span className="font-medium">Priority:</span>
+																<span className="ml-2 capitalize">{notification.priority}</span>
+															</div>
+														)}
+														<div>
+															<span className="font-medium">Status:</span>
+															<span className="ml-2 capitalize">{notification.read ? 'Read' : 'Unread'}</span>
+														</div>
+													</div>
+												</div>
+												
+												{/* Action Buttons */}
+												<div className="text-sm">
+													<div className="font-medium mb-2">Actions</div>
+													<div className="flex gap-2">
+														{(notification.metadata?.lead_id || notification.type === 'lead') && (
+															<Button
+																onClick={(e) => {
+																	e.stopPropagation();
+																	if (notification.metadata?.lead_id) {
+																		window.location.href = `/leads/${notification.metadata?.lead_id}`;
+																	} else {
+																		window.location.href = `/leads`;
+																	}
+																}}
+																variant="outline"
+																size="sm"
+																className="text-blue-600 hover:text-blue-700"
+															>
+																{notification.metadata?.lead_id ? 'View Lead' : 'View All Leads'}
+															</Button>
+														)}
+														{(notification.metadata?.task_id || notification.type === 'reminder') && (
+															<Button
+																onClick={(e) => {
+																	e.stopPropagation();
+																	window.location.href = `/tasks`;
+																}}
+																variant="outline"
+																size="sm"
+																className="text-green-600 hover:text-green-700"
+															>
+																{notification.metadata?.task_id ? 'View Task' : 'View All Tasks'}
+															</Button>
+														)}
+														{notification.type === 'ai' && (
+															<Button
+																onClick={(e) => {
+																	e.stopPropagation();
+																	window.location.href = `/assistant`;
+																}}
+																variant="outline"
+																size="sm"
+																className="text-purple-600 hover:text-purple-700"
+															>
+																View Assistant
+															</Button>
+														)}
+														{notification.actionUrl && (
+															<Button
+																onClick={(e) => {
+																	e.stopPropagation();
+																	window.open(notification.actionUrl, '_blank');
+																}}
+																variant="outline"
+																size="sm"
+																className="text-gray-600 hover:text-gray-700"
+															>
+																View Details
+															</Button>
+														)}
+													</div>
+												</div>
+											</div>
+										</div>
+									)}
 								</CardContent>
 							</Card>
 						))
