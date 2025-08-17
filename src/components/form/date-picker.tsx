@@ -31,7 +31,8 @@ export default function DatePicker({
 			dateFormat: 'Y-m-d',
 			defaultDate,
 			onChange,
-			minDate: 'today' // Prevent selecting past dates - Flatpickr handles this automatically
+			// Allow past dates when editing, but prevent selecting past dates for new tasks
+			minDate: defaultDate ? undefined : 'today'
 		});
 
 		return () => {

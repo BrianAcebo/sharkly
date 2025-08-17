@@ -11,6 +11,9 @@ import { supabase } from '../../utils/supabaseClient';
 import { X, Search, ChevronDown, AlertCircle } from 'lucide-react';
 import { TimePicker } from '../ui/time-picker';
 import DatePicker from '../form/date-picker';
+import { toast } from 'sonner';
+
+import { createTaskWithReminders } from '../../api/tasks';
 
 // Simple interface for leads dropdown
 interface LeadOption {
@@ -21,7 +24,6 @@ interface LeadOption {
 }
 
 interface TaskFormProps {
-	onSubmit: (taskData: TaskFormData) => Promise<boolean>;
 	onCancel: () => void;
 	initialData?: Partial<TaskFormData> | Partial<Task>; // Allow Task objects for editing
 	mode: 'create' | 'edit';
@@ -34,7 +36,7 @@ interface FormErrors {
 	general?: string;
 }
 
-export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialData, mode }) => {
+export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode }) => {
 	const { user } = useAuth();
 	const [loading, setLoading] = useState(false);
 	const [leads, setLeads] = useState<LeadOption[]>([]);
@@ -78,6 +80,24 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 		reminders: []
 	});
 
+	// Check if the selected date is in the past
+	const isDateInPast = React.useMemo(() => {
+		if (!formData.due_date || formData.due_date.trim() === '') return false;
+		
+		try {
+			const [year, month, day] = formData.due_date.split('-').map(Number);
+			if (isNaN(year) || isNaN(month) || isNaN(day)) return false;
+			
+			const selectedDate = new Date(year, month - 1, day);
+			const today = new Date();
+			const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+			
+			return selectedDate < todayStart;
+		} catch {
+			return false;
+		}
+	}, [formData.due_date]);
+
 	// Memoized function to convert due_date string to Date object for DatePicker
 	const defaultDateForPicker = React.useMemo(() => {
 		if (!formData.due_date || formData.due_date.trim() === '') return undefined;
@@ -101,6 +121,15 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 				console.error('defaultDateForPicker: Invalid date object created:', date);
 				return undefined;
 			}
+
+			console.log('defaultDateForPicker: Created date object:', {
+				input: formData.due_date,
+				year,
+				month: month - 1,
+				day,
+				result: date,
+				resultString: date.toString()
+			});
 
 			return date;
 		} catch (error) {
@@ -168,110 +197,202 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 
 	// Set initial data if editing
 	useEffect(() => {
-		if (initialData) {
-			// Format the reminder_time properly for editing
-			let reminderTime = initialData.reminder_time || '';
+		const setupInitialData = async () => {
+			if (initialData) {
+			    console.log('🔄 Setting initial data for editing:', initialData);
+                // Format the reminder_time properly for editing
+                let reminderTime = initialData.reminder_time || '';
 
-			if (reminderTime && reminderTime.includes('T')) {
-				// If reminder_time is a full timestamp, extract just the time part and convert to 12-hour format
+                if (reminderTime && reminderTime.includes('T')) {
+                    // If reminder_time is a full timestamp, extract just the time part and convert to 12-hour format
+                    try {
+                        const date = new Date(reminderTime);
+                        if (isNaN(date.getTime())) {
+                            console.error('Invalid reminder time in initial data:', reminderTime);
+                            reminderTime = '';
+                        } else {
+                            let hours = date.getHours();
+                            const minutes = date.getMinutes();
+                            const ampm = hours >= 12 ? 'PM' : 'AM';
+
+                            // Convert to 12-hour format
+                            if (hours === 0) {
+                                hours = 12; // 12 AM
+                            } else if (hours > 12) {
+                                hours = hours - 12; // PM times
+                            }
+
+                            reminderTime = `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                        }
+                    } catch (error) {
+                        console.error('Error parsing reminder time:', error);
+                        reminderTime = '';
+                    }
+                }
+
+                // Validate and clean the due_date if it exists
+                let dueDate = initialData.due_date || '';
+                if (dueDate) {
+                    try {
+                        // If it's already in YYYY-MM-DD format, use it directly
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+                            console.log('due_date already in correct format:', dueDate);
+                        } else {
+                            // Check if it's a valid date string and convert to YYYY-MM-DD
+                            // CRITICAL: Parse the date string directly to avoid ANY timezone conversion
+                            if (dueDate.includes('T')) {
+                                // It's a timestamp like "2025-08-15T18:22:00.000Z"
+                                // Extract the date part BEFORE creating a Date object
+                                const datePart = dueDate.split('T')[0]; // "2025-08-15"
+                                const [year, month, day] = datePart.split('-').map(Number);
+
+                                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                                    // Validate the date components
+                                    const testDate = new Date(year, month - 1, day);
+                                    if (!isNaN(testDate.getTime())) {
+                                        dueDate = datePart; // Use the extracted date string directly
+                                        console.log('due_date extracted from timestamp:', {
+                                            original: initialData.due_date,
+                                            extracted: datePart,
+                                            year,
+                                            month,
+                                            day,
+                                            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                                        });
+                                    } else {
+                                        console.warn('Invalid date components extracted:', { year, month, day });
+                                        dueDate = '';
+                                    }
+                                } else {
+                                    console.warn('Failed to parse date components from timestamp:', dueDate);
+                                    dueDate = '';
+                                }
+                            } else {
+                                // It's already in YYYY-MM-DD format, validate it
+                                const testDate = new Date(dueDate);
+                                if (isNaN(testDate.getTime())) {
+                                    console.warn('Invalid due_date format:', dueDate);
+                                    dueDate = '';
+                                } else {
+                                    console.log('due_date already in correct format:', dueDate);
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error parsing due_date:', error);
+                        dueDate = '';
+                    }
+                }
+
+                console.log('Setting form data for editing:', {
+                    originalInitialData: initialData,
+                    processedDueDate: dueDate,
+                    processedReminderTime: reminderTime
+                });
+
+                // Set the form data
+                setFormData((prev) => ({
+                    ...prev,
+                    ...initialData,
+                    reminder_time: reminderTime,
+                    due_date: dueDate
+                }));
+            }
+		};
+		
+		setupInitialData();
+	}, [initialData]);
+
+	// Set the selected lead name if editing a task with a lead
+	useEffect(() => {
+		if (initialData && 'lead_id' in initialData && initialData.lead_id) {
+			// If lead_name exists, use it directly
+			if ((initialData as Partial<Task>).lead_name) {
+				setSelectedLeadName((initialData as Partial<Task>).lead_name!);
+				setLeadSearchQuery((initialData as Partial<Task>).lead_name!);
+			} else {
+				// If lead_name is missing, fetch it from the database
+				fetchLeadName(initialData.lead_id);
+			}
+		}
+	}, [initialData]);
+
+	// Fetch existing reminders when editing a task
+	useEffect(() => {
+		if (initialData && 'id' in initialData && initialData.id) {
+			const fetchExistingReminders = async () => {
 				try {
-					const date = new Date(reminderTime);
-					if (isNaN(date.getTime())) {
-						console.error('Invalid reminder time in initial data:', reminderTime);
-						reminderTime = '';
-					} else {
-						let hours = date.getHours();
-						const minutes = date.getMinutes();
-						const ampm = hours >= 12 ? 'PM' : 'AM';
+					console.log('🔍 Fetching existing reminders for task:', initialData.id);
+					
+					const { data: reminders, error } = await supabase
+						.from('task_reminders')
+						.select('*')
+						.eq('task_id', initialData.id)
+						.eq('status', 'pending')
+						.order('reminder_time', { ascending: true });
 
-						// Convert to 12-hour format
-						if (hours === 0) {
-							hours = 12; // 12 AM
-						} else if (hours > 12) {
-							hours = hours - 12; // PM times
+					if (error) {
+						console.error('Error fetching existing reminders:', error);
+						return;
+					}
+
+					if (reminders && reminders.length > 0) {
+						console.log('📋 Found existing reminders:', reminders);
+						
+						// Convert database reminders to form format
+						const formReminders: ReminderOption[] = [];
+						
+						for (const reminder of reminders) {
+							const reminderTime = new Date(reminder.reminder_time);
+							const dueTime = new Date(initialData.due_date + 'T' + initialData.reminder_time);
+							
+							// Calculate the difference to determine reminder type
+							const diffMs = dueTime.getTime() - reminderTime.getTime();
+							const diffMinutes = Math.round(diffMs / (1000 * 60));
+							
+							let reminderType: ReminderOption['type'];
+							switch (diffMinutes) {
+								case 5: reminderType = '5min'; break;
+								case 10: reminderType = '10min'; break;
+								case 15: reminderType = '15min'; break;
+								case 30: reminderType = '30min'; break;
+								case 60: reminderType = '1hr'; break;
+								case 1440: reminderType = '1day'; break;
+								default: reminderType = 'custom'; break;
+							}
+							
+							if (reminderType === 'custom') {
+								// For custom times, extract the time in 12-hour format
+								const hours = reminderTime.getHours();
+								const minutes = reminderTime.getMinutes();
+								const ampm = hours >= 12 ? 'PM' : 'AM';
+								const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+								const customTime = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+								
+								formReminders.push({
+									type: 'custom',
+									customTime: customTime
+								});
+							} else {
+								formReminders.push({ type: reminderType });
+							}
 						}
-
-						reminderTime = `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+						
+						// Update form data with existing reminders
+						setFormData(prev => ({
+							...prev,
+							reminder_enabled: true,
+							reminders: formReminders
+						}));
+						
+						console.log('✅ Updated form with existing reminders:', formReminders);
 					}
 				} catch (error) {
-					console.error('Error parsing reminder time:', error);
-					reminderTime = '';
+					console.error('Error processing existing reminders:', error);
 				}
-			}
-
-			// Validate and clean the due_date if it exists
-			let dueDate = initialData.due_date || '';
-			if (dueDate) {
-				try {
-					// If it's already in YYYY-MM-DD format, use it directly
-					if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
-						console.log('due_date already in correct format:', dueDate);
-					} else {
-						// Check if it's a valid date string and convert to YYYY-MM-DD
-						// CRITICAL: Parse the date string directly to avoid ANY timezone conversion
-						if (dueDate.includes('T')) {
-							// It's a timestamp like "2025-08-15T18:22:00.000Z"
-							// Extract the date part BEFORE creating a Date object
-							const datePart = dueDate.split('T')[0]; // "2025-08-15"
-							const [year, month, day] = datePart.split('-').map(Number);
-
-							if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
-								// Validate the date components
-								const testDate = new Date(year, month - 1, day);
-								if (!isNaN(testDate.getTime())) {
-									dueDate = datePart; // Use the extracted date string directly
-									console.log('due_date extracted from timestamp:', {
-										original: initialData.due_date,
-										extracted: datePart,
-										year,
-										month,
-										day,
-										timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-									});
-								} else {
-									console.warn('Invalid date components extracted:', { year, month, day });
-									dueDate = '';
-								}
-							} else {
-								console.warn('Failed to parse date components from timestamp:', dueDate);
-								dueDate = '';
-							}
-						} else {
-							// It's already in YYYY-MM-DD format, validate it
-							const testDate = new Date(dueDate);
-							if (isNaN(testDate.getTime())) {
-								console.warn('Invalid due_date format:', dueDate);
-								dueDate = '';
-							} else {
-								console.log('due_date already in correct format:', dueDate);
-							}
-						}
-					}
-				} catch (error) {
-					console.error('Error parsing due_date:', error);
-					dueDate = '';
-				}
-			}
-
-			setFormData((prev) => ({
-				...prev,
-				...initialData,
-				reminder_time: reminderTime,
-				due_date: dueDate
-			}));
-
-
-			// Set the selected lead name if editing a task with a lead
-			if (initialData.lead_id) {
-				// If lead_name exists, use it directly
-				if ((initialData as Partial<Task>).lead_name) {
-					setSelectedLeadName((initialData as Partial<Task>).lead_name!);
-					setLeadSearchQuery((initialData as Partial<Task>).lead_name!);
-				} else {
-					// If lead_name is missing, fetch it from the database
-					fetchLeadName(initialData.lead_id);
-				}
-			}
+			};
+			
+			fetchExistingReminders();
 		}
 	}, [initialData]);
 
@@ -348,7 +469,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 									// Allow a 5-minute buffer to avoid cutting off valid times
 									const bufferTime = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
 
-									if (reminderDateTime <= bufferTime) {
+									// Only validate future times for new tasks, not when editing
+									if (!initialData && reminderDateTime <= bufferTime) {
 										newErrors.reminder_time =
 											'Reminder time must be at least 5 minutes in the future';
 									}
@@ -377,7 +499,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 			}
 
 			// Combine date and time into a timestamp if both are provided
-			let reminderTime: string | undefined = formData.reminder_time;
+			let dueAtUtc: string | undefined;
 
 			if (formData.due_date && formData.reminder_time) {
 				try {
@@ -415,53 +537,32 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 					}
 
 					// Extract just the date part (YYYY-MM-DD) from the due_date
-					// The due_date might be a full ISO timestamp, so we need to get just the date portion
 					let dateStr = formData.due_date;
 					if (dateStr.includes('T')) {
-						// If it's a full timestamp, extract just the date part
 						dateStr = dateStr.split('T')[0];
 					}
 
 					// Create the combined datetime using 24-hour format
 					const datetimeString = `${dateStr}T${hour24.toString().padStart(2, '0')}:${minuteValue}:00`;
 					
-					console.log('🔍 Debug Info:');
-					console.log('  - Date string:', dateStr);
-					console.log('  - Time string:', formData.reminder_time);
-					console.log('  - Hour (24h):', hour24);
-					console.log('  - Minute:', minuteValue);
-					console.log('  - Combined datetime string:', datetimeString);
-					
 					// Create the date object and ensure it's valid
 					const dateTime = new Date(datetimeString);
 					
-					console.log('  - Created Date object:', dateTime);
-					console.log('  - Date is valid:', !isNaN(dateTime.getTime()));
-					console.log('  - Date toString():', dateTime.toString());
-					console.log('  - Date toISOString():', dateTime.toISOString());
-					
-					// Validate the combined datetime
 					if (isNaN(dateTime.getTime())) {
-						throw new Error('Invalid date and time combination');
+						throw new Error('Invalid date and time combination. Please check your selection.');
 					}
 
 					// Check if the datetime is in the past (with a 5-minute buffer)
 					const now = new Date();
 					const bufferTime = new Date(now.getTime() + 5 * 60 * 1000); // 5 minute buffer
 					
-					console.log('  - Current time:', now.toString());
-					console.log('  - Buffer time:', bufferTime.toString());
-					console.log('  - Reminder time:', dateTime.toString());
-					console.log('  - Is reminder <= buffer?', dateTime <= bufferTime);
-					console.log('  - Time difference (ms):', dateTime.getTime() - bufferTime.getTime());
-					
-					if (dateTime <= bufferTime) {
-						throw new Error('Reminder time must be at least 5 minutes in the future');
+					// Only validate future times for new tasks, not when editing
+					if (!initialData && dateTime <= bufferTime) {
+						throw new Error('Due time must be at least 5 minutes in the future');
 					}
 
-					reminderTime = dateTime.toISOString();
-					console.log('  - Final reminder time:', reminderTime);
-					console.log('🔍 End Debug Info');
+					dueAtUtc = dateTime.toISOString();
+					console.log('✅ Due time set to:', dueAtUtc);
 				} catch (error) {
 					console.error('Error combining date and time:', error);
 					setErrors({
@@ -470,105 +571,87 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 					setLoading(false);
 					return;
 				}
-			} else if (formData.reminder_time) {
-				// If only time is provided, use today's date
-				try {
-					// Validate the time string (12-hour format with AM/PM)
-					const timeMatch = formData.reminder_time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-					if (!timeMatch) {
-						throw new Error('Invalid time format. Use 12-hour format (e.g., 2:30 PM)');
-					}
-
-					// Parse the 12-hour time and convert to 24-hour for the datetime
-					const [, hours, minutes, ampm] = timeMatch;
-					let hour24 = parseInt(hours);
-
-					// Validate hours and minutes (1-12 is valid for 12-hour format)
-					if (isNaN(hour24) || hour24 < 1 || hour24 > 12) {
-						throw new Error('Invalid hour value. Hours must be 1-12');
-					}
-
-					const minuteValue = parseInt(minutes);
-					if (isNaN(minuteValue) || minuteValue < 0 || minuteValue > 59) {
-						throw new Error('Invalid minute value');
-					}
-
-					// Convert to 24-hour format
-					if (ampm.toUpperCase() === 'PM' && hour24 < 12) {
-						hour24 += 12; // Convert PM to 24-hour (e.g., 2:30 PM -> 14:30)
-					} else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
-						hour24 = 0; // Convert 12 AM to 00:00
-					}
-
-					const today = new Date().toISOString().split('T')[0];
-					const dateTime = new Date(
-						`${today}T${hour24.toString().padStart(2, '0')}:${minuteValue}`
-					);
-
-					if (isNaN(dateTime.getTime())) {
-						throw new Error('Invalid time format');
-					}
-
-					reminderTime = dateTime.toISOString();
-				} catch (error) {
-					console.error('Error processing time:', error);
-					setErrors({
-						reminder_time: `Error processing time: ${error instanceof Error ? error.message : 'Unknown error'}`
-					});
-					setLoading(false);
-					return;
-				}
+			} else if (formData.due_date) {
+				// If only date is provided, use end of day
+				const dueDate = new Date(formData.due_date);
+				dueDate.setHours(23, 59, 59, 999);
+				dueAtUtc = dueDate.toISOString();
+				console.log('✅ Due time set to end of day:', dueAtUtc);
 			}
 
-			// Extract reminders data before sending to Supabase (since reminders column doesn't exist in tasks table)
-			const { reminders, ...taskDataWithoutReminders } = formData;
-			
-			// Create the task data for Supabase (without the reminders field)
-			const taskDataForSupabase = { ...taskDataWithoutReminders, reminder_time: reminderTime };
-			
-			// Create the task first (without the reminders field)
-			// Note: onSubmit expects TaskFormData but we need to send data without reminders to Supabase
-			const success = await onSubmit(taskDataForSupabase as TaskFormData);
-			
-			// If task was created successfully and reminders are enabled, create reminder records
-			if (success && formData.reminder_enabled && reminders.length > 0 && reminderTime) {
-				try {
-					// Calculate reminder times based on user selections
-					const reminderTimes = reminders.map(reminder => {
-						if (reminder.type === 'custom' && reminder.customTime) {
-							// For custom times, use the exact time specified
-							return reminder.customTime;
-						} else {
-							// For preset reminders, calculate the time before the due time
-							const dueDateTime = new Date(reminderTime);
-							switch (reminder.type) {
-								case '5min':
-									return new Date(dueDateTime.getTime() - 5 * 60 * 1000);
-								case '10min':
-									return new Date(dueDateTime.getTime() - 10 * 60 * 1000);
-								case '15min':
-									return new Date(dueDateTime.getTime() - 15 * 60 * 1000);
-								case '30min':
-									return new Date(dueDateTime.getTime() - 30 * 60 * 1000);
-								case '1hr':
-									return new Date(dueDateTime.getTime() - 60 * 60 * 1000);
-								case '1day':
-									return new Date(dueDateTime.getTime() - 24 * 60 * 60 * 1000);
-								default:
-									return dueDateTime;
+			if (!dueAtUtc) {
+				setErrors({
+					due_date: 'Please select a due date'
+				});
+				setLoading(false);
+				return;
+			}
+
+			// Convert reminders to offset minutes
+			const offsetsMinutes: number[] = [];
+			if (formData.reminder_enabled && formData.reminders.length > 0) {
+				formData.reminders.forEach(reminder => {
+					switch (reminder.type) {
+						case '5min': offsetsMinutes.push(5); break;
+						case '10min': offsetsMinutes.push(10); break;
+						case '15min': offsetsMinutes.push(15); break;
+						case '30min': offsetsMinutes.push(30); break;
+						case '1hr': offsetsMinutes.push(60); break;
+						case '1day': offsetsMinutes.push(1440); break;
+						case 'custom':
+							if (reminder.customTime) {
+								// For custom times, calculate the offset
+								const customTime = new Date(reminder.customTime);
+								const dueTime = new Date(dueAtUtc);
+								const offsetMs = dueTime.getTime() - customTime.getTime();
+								const offsetMinutes = Math.round(offsetMs / (1000 * 60));
+								if (offsetMinutes > 0) {
+									offsetsMinutes.push(offsetMinutes);
+								}
 							}
-						}
-					}).filter((time): time is Date | string => time !== undefined); // Type guard to filter out undefined
-					
-					// Create reminder records in task_reminders table
-					// Note: This would need to be handled in the backend or useTasks hook
-					console.log('Reminders to create:', reminderTimes);
-				} catch (error) {
-					console.error('Error processing reminders:', error);
-				}
+							break;
+					}
+				});
 			}
-			if (success) {
-				onCancel();
+
+			// Clean up the data for the task
+			const { ...taskDataWithoutReminders } = formData;
+			
+			const cleanedTaskData = {
+				...taskDataWithoutReminders,
+				lead_id: taskDataWithoutReminders.lead_id && taskDataWithoutReminders.lead_id.trim() !== '' 
+					? taskDataWithoutReminders.lead_id 
+					: null
+			};
+
+			console.log('🚀 Creating task with reminders:', {
+				taskData: cleanedTaskData,
+				dueAtUtc,
+				offsetsMinutes
+			});
+
+			// Use the new API to create task with reminders
+			const result = await createTaskWithReminders({
+				ownerId: user?.id || '',
+				organizationId: user?.organization_id || '',
+				title: cleanedTaskData.title,
+				description: cleanedTaskData.description,
+				dueAtUtc,
+				offsetsMinutes,
+				priority: cleanedTaskData.priority,
+				type: cleanedTaskData.type
+			});
+
+			if (result.success) {
+				console.log('✅ Task created successfully with ID:', result.taskId);
+				toast.success('Task created successfully');
+				
+				// Close the modal
+				setTimeout(() => {
+					onCancel();
+				}, 100);
+			} else {
+				throw new Error(result.error || 'Failed to create task');
 			}
 		} catch (error) {
 			console.error('Error submitting task:', error);
@@ -749,6 +832,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 								label="Due Date"
 								placeholder="Select due date"
 								defaultDate={defaultDateForPicker}
+								key={`date-picker-${initialData ? 'edit' : 'new'}-${formData.due_date || 'empty'}`}
 								onChange={(selectedDates) => {
 									if (selectedDates && selectedDates.length > 0) {
 										const date = selectedDates[0];
@@ -762,6 +846,15 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 
 										// Use the manual date string to ensure correct timezone handling
 										handleInputChange('due_date', manualDateString);
+										
+										// Clear reminder time if the new date is in the past
+										const newDate = new Date(manualDateString);
+										const today = new Date();
+										const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+										
+										if (newDate < todayStart && formData.reminder_time) {
+											handleInputChange('reminder_time', '');
+										}
 									}
 								}}
 							/>
@@ -778,10 +871,17 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 								label="Due Time (Optional)"
 								value={formData.reminder_time}
 								onChange={(time) => handleInputChange('reminder_time', time)}
-								placeholder="Type any time (e.g., 2:30 PM) or use presets"
+								placeholder={isDateInPast ? "Cannot set time for past dates" : "Type any time (e.g., 2:30 PM) or use presets"}
 								selectedDate={formData.due_date}
+								disabled={isDateInPast}
 							/>
-							{errors.reminder_time && (
+							{isDateInPast && (
+								<p className="flex items-center space-x-1 text-sm text-red-600 dark:text-red-400">
+									<AlertCircle className="h-4 w-4" />
+									<span>Cannot set time for past dates</span>
+								</p>
+							)}
+							{!isDateInPast && errors.reminder_time && (
 								<p className="flex items-center space-x-1 text-sm text-red-600 dark:text-red-400">
 									<AlertCircle className="h-4 w-4" />
 									<span>{errors.reminder_time}</span>
@@ -819,8 +919,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onSubmit, onCancel, initialD
 								id="reminder-enabled"
 								checked={formData.reminder_enabled}
 								onChange={(checked) => handleInputChange('reminder_enabled', checked)}
+								disabled={isDateInPast}
 							/>
-							<label htmlFor="reminder-enabled" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+							<label htmlFor="reminder-enabled" className={`text-sm font-medium ${isDateInPast ? 'text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}`}>
 								Enable Smart Reminders
 							</label>
 						</div>

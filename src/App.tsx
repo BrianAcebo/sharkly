@@ -23,7 +23,7 @@ import Organization from './pages/Organization/Organization';
 import InviteAccept from './pages/Organization/InviteAccept';
 import Confirm from './pages/Auth/Confirm';
 import Settings from './pages/Settings';
-import Notifications from './pages/Notifications';
+
 import Tasks from './pages/Tasks';
 import CalendarPage from './pages/Calendar';
 
@@ -42,7 +42,7 @@ export default function App() {
 						<Route index path="/pipeline" element={<Pipeline />} />
 						<Route path="/profile" element={<Profile />} />
 						<Route path="/settings" element={<Settings />} />
-						<Route path="/notifications" element={<Notifications />} />
+
 						<Route path="/tasks" element={<Tasks />} />
 						<Route path="/tasks/:id" element={<Tasks />} />
 						<Route path="/calendar" element={<CalendarPage />} />

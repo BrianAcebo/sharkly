@@ -10,6 +10,7 @@ import { AuthLoadingState } from '../contexts/AuthContext';
 import { AuthLoading } from '../components/AuthLoading';
 import { useScreenSize } from '../hooks/useScreenSize';
 import ScreenSizeWarning from '../components/common/ScreenSizeWarning';
+import { useNotifications } from '../hooks/useNotifications';
 
 const LayoutContent: React.FC = () => {
     const { pathname } = useLocation();
@@ -17,6 +18,9 @@ const LayoutContent: React.FC = () => {
 	const { user, loadingState, session } = useAuth();
 	const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
 	const { isScreenTooSmall } = useScreenSize();
+	
+	// Initialize notifications system
+	useNotifications(session?.user?.id);
 
 	// Show loading while auth is being checked
 	if (loadingState === AuthLoadingState.LOADING) {

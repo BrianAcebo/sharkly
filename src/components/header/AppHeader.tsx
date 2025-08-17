@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
-import { useNotifications } from '../../hooks/useNotifications';
+
 import { 
   Search, 
-  Bell, 
+
   Moon, 
   Sun, 
   Menu,
@@ -14,7 +14,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import CommandPalette from './CommandPalette';
-import NotificationPanel from './NotificationPanel';
+
 import { useSidebar } from '../../hooks/useSidebar';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { Link } from 'react-router';
@@ -22,9 +22,9 @@ import { Link } from 'react-router';
 const Header: React.FC = () => {
   const { user, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { unreadCount } = useNotifications();
+
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
+
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const headerRef = useRef<HTMLDivElement>(null);
@@ -42,7 +42,7 @@ const Header: React.FC = () => {
       }
       if (e.key === 'Escape') {
         setShowCommandPalette(false);
-        setShowNotifications(false);
+
         setShowUserMenu(false);
       }
     };
@@ -155,25 +155,7 @@ const Header: React.FC = () => {
               {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
 
-            <div className="relative">
-              <button
-                title="Polling every 15 seconds - reliable notifications"
-                type="button"
-                onClick={() => setShowNotifications((s) => !s)}
-                className="p-2 text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400 transition-colors duration-200 relative"
-              >
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-brand-500 text-white text-[10px] font-bold rounded-full size-4 flex items-center justify-center">
-                    {unreadCount}
-                  </span>
-                )}
-              </button>
 
-              {showNotifications && (
-                <NotificationPanel onClose={() => setShowNotifications(false)} />
-              )}
-            </div>
 
             <div className="relative">
               <button
@@ -202,14 +184,7 @@ const Header: React.FC = () => {
                     <User className="h-4 w-4" />
                     <span>Profile</span>
                   </Link>
-                  <Link
-                    to="/notifications"
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center space-x-2"
-                    onClick={() => setShowUserMenu(false)}
-                  >
-                    <Bell className="h-4 w-4" />
-                    <span>Notifications</span>
-                  </Link>
+
                   <Link
                     to="/settings"
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center space-x-2"

@@ -3,7 +3,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { TaskFormData, TASK_TYPES, PRIORITY_COLORS } from '../../types/tasks';
 import { useAuth } from '../../contexts/AuthContext';
-import { supabase } from '../../utils/supabaseClient';
+import { createTaskWithReminders } from '../../api/tasks';
 import { Plus, Bell, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { TimePicker } from '../ui/time-picker';
@@ -23,7 +23,6 @@ interface CreateTaskForLeadProps {
 export const CreateTaskForLead: React.FC<CreateTaskForLeadProps> = ({
 	leadId,
 	leadName,
-	leadCompany,
 	onTaskCreated
 }) => {
 	const { user } = useAuth();
@@ -37,7 +36,8 @@ export const CreateTaskForLead: React.FC<CreateTaskForLeadProps> = ({
 		type: 'follow_up',
 		lead_id: leadId,
 		reminder_enabled: false,
-		reminder_time: ''
+		reminder_time: '',
+		reminders: []
 	});
 
 	const handleSubmit = async (e: React.FormEvent) => {
@@ -47,58 +47,77 @@ export const CreateTaskForLead: React.FC<CreateTaskForLeadProps> = ({
 		setLoading(true);
 		try {
 			// Combine date and time into a timestamp if both are provided
-			let reminderTime = formData.reminder_time;
+			let dueAtUtc: string;
 			
 			if (formData.due_date && formData.reminder_time) {
 				const dateTime = new Date(`${formData.due_date}T${formData.reminder_time}`);
-				reminderTime = dateTime.toISOString();
-			} else if (formData.reminder_time) {
-				// If only time is provided, use today's date
-				const today = new Date().toISOString().split('T')[0];
-				const dateTime = new Date(`${today}T${formData.reminder_time}`);
-				reminderTime = dateTime.toISOString();
+				dueAtUtc = dateTime.toISOString();
+			} else if (formData.due_date) {
+				// If only date is provided, use end of day
+				const dueDate = new Date(formData.due_date);
+				dueDate.setHours(23, 59, 59, 999);
+				dueAtUtc = dueDate.toISOString();
+			} else {
+				throw new Error('Please select a due date');
 			}
 
-			const { data, error } = await supabase
-				.from('tasks')
-				.insert({
-					...formData,
-					reminder_time: reminderTime,
-					organization_id: user.organization_id,
-					owner_id: user.id,
-					status: 'pending',
-					lead_name: `${leadName} - ${leadCompany || 'No Company'}`
-				})
-				.select()
-				.single();
-
-			if (error) throw error;
-
-			// Create reminder if enabled
-			if (formData.reminder_enabled && reminderTime) {
-				await supabase
-					.from('task_reminders')
-					.insert({
-						task_id: data.id,
-						reminder_time: reminderTime,
-						status: 'pending',
-						notification_type: 'browser'
-					});
+			// Convert reminders to offset minutes
+			const offsetsMinutes: number[] = [];
+			if (formData.reminder_enabled && formData.reminders.length > 0) {
+				formData.reminders.forEach(reminder => {
+					switch (reminder.type) {
+						case '5min': offsetsMinutes.push(5); break;
+						case '10min': offsetsMinutes.push(10); break;
+						case '15min': offsetsMinutes.push(15); break;
+						case '30min': offsetsMinutes.push(30); break;
+						case '1hr': offsetsMinutes.push(60); break;
+						case '1day': offsetsMinutes.push(1440); break;
+						case 'custom':
+							if (reminder.customTime) {
+								// For custom times, calculate the offset
+								const customTime = new Date(reminder.customTime);
+								const dueTime = new Date(dueAtUtc);
+								const offsetMs = dueTime.getTime() - customTime.getTime();
+								const offsetMinutes = Math.round(offsetMs / (1000 * 60));
+								if (offsetMinutes > 0) {
+									offsetsMinutes.push(offsetMinutes);
+								}
+							}
+							break;
+					}
+				});
 			}
 
-			toast.success('Task created successfully!');
-			setShowForm(false);
-			setFormData({
-				title: '',
-				description: '',
-				due_date: '',
-				priority: 'medium',
-				type: 'follow_up',
-				lead_id: leadId,
-				reminder_enabled: false,
-				reminder_time: ''
+			// Use the new API to create task with reminders
+			const result = await createTaskWithReminders({
+				ownerId: user.id,
+				organizationId: user.organization_id,
+				title: formData.title,
+				description: formData.description,
+				dueAtUtc,
+				offsetsMinutes,
+				priority: formData.priority,
+				type: formData.type
 			});
-			onTaskCreated?.();
+
+			if (result.success) {
+				toast.success('Task created successfully!');
+				setShowForm(false);
+				setFormData({
+					title: '',
+					description: '',
+					due_date: '',
+					priority: 'medium',
+					type: 'follow_up',
+					lead_id: leadId,
+					reminder_enabled: false,
+					reminder_time: '',
+					reminders: []
+				});
+				onTaskCreated?.();
+			} else {
+				throw new Error(result.error || 'Failed to create task');
+			}
 		} catch (error) {
 			console.error('Error creating task:', error);
 			toast.error('Failed to create task');

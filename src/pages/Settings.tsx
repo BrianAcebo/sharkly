@@ -5,7 +5,7 @@ import InputField from '../components/form/input/InputField';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
-import { notificationService } from '../utils/notifications';
+
 import { 
 	User, 
 	Mail, 
@@ -318,7 +318,7 @@ export default function SettingsPage() {
 	const requestPushPermission = async () => {
 		setIsRequestingPermission(true);
 		try {
-			const permission = await notificationService.requestPermission();
+			const permission = await Notification.requestPermission();
 			setPushPermission(permission);
 			
 			if (permission === 'granted') {
@@ -343,20 +343,23 @@ export default function SettingsPage() {
 		// Check the actual browser permission, not just the cached state
 		const currentPermission = Notification.permission;
 		console.log('Testing push notification with permission:', currentPermission);
-		console.log('Service permission:', notificationService.getPermission());
 		console.log('Local state permission:', pushPermission);
 		
 		if (currentPermission === 'granted') {
 			try {
 				console.log('Attempting to send notification...');
-				await notificationService.sendNotification({
-					title: 'Paperboat CRM',
+				const notification = new Notification('Paperboat CRM', {
 					body: 'This is a test notification to verify push notifications are working!',
 					icon: '/images/logos/logo.svg',
 					tag: 'test-notification'
 				});
 				console.log('Notification sent successfully');
 				toast.success('Test notification sent!');
+				
+				// Auto-close after 5 seconds
+				setTimeout(() => {
+					notification.close();
+				}, 5000);
 			} catch (error) {
 				console.error('Error sending test notification:', error);
 				toast.error('Failed to send test notification');

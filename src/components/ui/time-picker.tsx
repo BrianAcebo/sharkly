@@ -153,19 +153,52 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 				if (amValid) customOptions.push(amTime);
 				if (pmValid) customOptions.push(pmTime);
 				
-				// Return custom options first, then filtered regular times
-				return [
-					...customOptions,
+				// Filter out any custom options that already exist in the regular times
+				const uniqueCustomOptions = customOptions.filter(customTime => 
+					!times.some(regularTime => regularTime === customTime)
+				);
+				
+				// Return unique custom options first, then filtered regular times
+				const allTimes = [
+					...uniqueCustomOptions,
 					...times.filter(time => 
 						time.toLowerCase().includes(searchQuery.toLowerCase())
 					)
 				];
+				
+				// Final deduplication to ensure no duplicates
+				const finalTimes = [...new Set(allTimes)];
+				
+				// Debug logging to check for duplicates
+				if (finalTimes.length !== allTimes.length) {
+					console.log('🔍 TimePicker: Removed duplicates:', {
+						original: allTimes.length,
+						final: finalTimes.length,
+						duplicates: allTimes.filter((time, index) => allTimes.indexOf(time) !== index)
+					});
+				}
+				
+				return finalTimes;
 			}
 		}
 		
-		return times.filter(time => 
+		const searchFilteredTimes = times.filter(time => 
 			time.toLowerCase().includes(searchQuery.toLowerCase())
 		);
+		
+		// Final deduplication to ensure no duplicates
+		const finalSearchTimes = [...new Set(searchFilteredTimes)];
+		
+		// Debug logging to check for duplicates
+		if (finalSearchTimes.length !== searchFilteredTimes.length) {
+			console.log('🔍 TimePicker: Removed duplicates from search:', {
+				original: searchFilteredTimes.length,
+				final: finalSearchTimes.length,
+				duplicates: searchFilteredTimes.filter((time, index) => searchFilteredTimes.indexOf(time) !== index)
+			});
+		}
+		
+		return finalSearchTimes;
 	}, [timeOptions, searchQuery, selectedDate]);
 
 	// Get available quick select times (only future times)
@@ -479,7 +512,7 @@ export const TimePicker: React.FC<TimePickerProps> = ({
 						placeholder="Enter time (e.g., 2:30 PM)"
 						disabled={disabled}
 						className={cn(
-							"w-full pl-10 pr-10 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 dark:bg-gray-700 dark:text-white",
+							"w-full pl-10 pr-10 py-2 ",
 							"border-gray-300 dark:border-gray-600",
 							disabled && "bg-gray-100 dark:bg-gray-800 cursor-not-allowed",
 							(error || timeError) && "border-red-500 focus:border-red-500 focus:ring-red-500"

@@ -4,7 +4,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './providers/AuthProvider';
 import { AssistantProvider } from './providers/AssistantProvider';
 import { ThemeProvider } from './providers/ThemeProvider';
-import { NotificationsProvider } from './providers/NotificationsProvider';
+
 import App from './App';
 import './index.css';
 
@@ -32,9 +32,7 @@ createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         <AssistantProvider>
           <ThemeProvider>
-            <NotificationsProvider>
-              <App />
-            </NotificationsProvider>
+            <App />
           </ThemeProvider>
         </AssistantProvider>
       </AuthProvider>

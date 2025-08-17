@@ -7,29 +7,23 @@ import { TaskList } from '../components/tasks/TaskList';
 import { KanbanBoard } from '../components/tasks/KanbanBoard';
 import { useTasks } from '../hooks/useTasks';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
-import { useAuth } from '../contexts/AuthContext';
 import { Plus, Calendar, Clock, AlertTriangle, CheckCircle, Grid3X3, List, Trash2, RefreshCw } from 'lucide-react';
-import { Task, TaskFormData } from '../types/tasks';
+import { Task } from '../types/tasks';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import PageMeta from '../components/common/PageMeta';
-import { supabase } from '../utils/supabaseClient';
 
 export default function Tasks() {
 	const { setTitle, breadcrumbs } = useBreadcrumbs();
-	const { user } = useAuth();
 	const navigate = useNavigate();
 	const { id: taskId } = useParams<{ id: string }>();
 	const {
 		tasks,
 		loading,
 		stats,
-		createTask,
 		updateTask,
 		deleteTask,
-		completeTask,
-		createReminder,
-		updateReminder
+		completeTask
 	} = useTasks();
 
 	useEffect(() => {
@@ -57,107 +51,7 @@ export default function Tasks() {
 	const [showTaskDetail, setShowTaskDetail] = useState(false);
 	const [viewingTask, setViewingTask] = useState<Task | null>(null);
 
-	const handleCreateTask = async (taskData: TaskFormData) => {
-		const success = await createTask(taskData);
-		
-		// If task creation was successful and reminder is enabled, create the reminder
-		if (success && taskData.reminder_enabled && taskData.reminder_time) {
-			try {
-				// Extract just the date part for reminder creation
-				let dueDate = taskData.due_date;
-				if (dueDate.includes('T')) {
-					dueDate = dueDate.split('T')[0];
-				}
-				
-				// Get the most recently created task for this user to create the reminder
-				const { data: recentTask } = await supabase
-					.from('tasks')
-					.select('id')
-					.eq('owner_id', user?.id)
-					.eq('title', taskData.title)
-					.order('created_at', { ascending: false })
-					.limit(1)
-					.single();
-				
-				if (recentTask) {
-					await createReminder(recentTask.id, taskData.title, dueDate, taskData.reminder_time);
-				}
-			} catch (error) {
-				console.error('Failed to create reminder:', error);
-			}
-		}
-		
-		// Create immediate notification for task creation
-		if (success) {
-			try {
-				import('../utils/notificationService').then(({ notificationService }) => {
-					// Get the most recently created task for notification
-					supabase
-						.from('tasks')
-						.select('id')
-						.eq('owner_id', user?.id)
-						.eq('title', taskData.title)
-						.order('created_at', { ascending: false })
-						.limit(1)
-						.single()
-						.then(({ data: recentTask }) => {
-							if (recentTask) {
-								notificationService.createTaskNotification(
-									'created',
-									taskData.title,
-									recentTask.id,
-									taskData.due_date
-								);
-							}
-						});
-				});
-			} catch (error) {
-				console.error('Failed to create task notification:', error);
-			}
-		}
-		
-		return success;
-	};
 
-	const handleEditTask = async (taskData: TaskFormData) => {
-		if (!editingTask) return false;
-		
-		const success = await updateTask(editingTask.id, taskData);
-		
-		// If task update was successful and reminder is enabled, update the reminder
-		if (success && taskData.reminder_enabled && taskData.reminder_time) {
-			try {
-				// Extract just the date part for reminder creation
-				let dueDate = taskData.due_date;
-				if (dueDate.includes('T')) {
-					dueDate = dueDate.split('T')[0];
-				}
-				
-				// Update reminder using the destructured function
-				await updateReminder(editingTask.id, dueDate, taskData.reminder_time);
-			} catch (error) {
-				console.error('Failed to update reminder:', error);
-			}
-		}
-		
-		// Create immediate notification for task update
-		if (success) {
-			try {
-				import('../utils/notificationService').then(({ notificationService }) => {
-					notificationService.createTaskNotification(
-						'updated',
-						taskData.title,
-						editingTask.id,
-						taskData.due_date
-					);
-				});
-			} catch (error) {
-				console.error('Failed to create task notification:', error);
-			}
-		}
-		
-		return success;
-	};
 
 	const handleDeleteTask = (task: Task) => {
 		setTaskToDelete(task);
@@ -511,7 +405,6 @@ export default function Tasks() {
 					<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
 						<div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto scrollbar-branded rounded-lg">
 							<TaskForm
-								onSubmit={editingTask ? handleEditTask : handleCreateTask}
 								onCancel={closeForm}
 								initialData={editingTask || undefined}
 								mode={editingTask ? 'edit' : 'create'}

@@ -186,7 +186,7 @@ export const useTasks = () => {
 		}
 	}, [fetchTasks]);
 
-	// Create reminder
+	// Create reminder with 12-hour time format
 	const createReminder = useCallback(async (
 		taskId: string, 
 		taskTitle: string, 
@@ -194,12 +194,48 @@ export const useTasks = () => {
 		reminderTime: string
 	) => {
 		try {
+			// Parse 12-hour format time (e.g., "2:01 PM")
+			const timeMatch = reminderTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+			if (!timeMatch) {
+				throw new Error(`Invalid time format: ${reminderTime}. Expected format: "2:30 PM"`);
+			}
+			
+			const [, hours, minutes, ampm] = timeMatch;
+			let hour24 = parseInt(hours);
+			const minuteValue = parseInt(minutes);
+			
+			// Validate hours and minutes
+			if (isNaN(hour24) || hour24 < 1 || hour24 > 12) {
+				throw new Error(`Invalid hour value: ${hours}. Hours must be 1-12`);
+			}
+			if (isNaN(minuteValue) || minuteValue < 0 || minuteValue > 59) {
+				throw new Error(`Invalid minute value: ${minutes}. Minutes must be 0-59`);
+			}
+			
+			// Convert to 24-hour format
+			if (ampm.toUpperCase() === 'PM' && hour24 < 12) {
+				hour24 += 12; // Convert PM to 24-hour (e.g., 2:30 PM -> 14:30)
+			} else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
+				hour24 = 0; // Convert 12 AM to 00:00
+			}
+			
 			// Calculate the actual reminder time by combining due date and reminder time
 			const [year, month, day] = dueDate.split('-').map(Number);
-			const [hours, minutes] = reminderTime.split(':').map(Number);
 			
-					// Create reminder time at the exact time the user specified
-		const reminderDateTime = new Date(year, month - 1, day, hours, minutes);
+			// Create reminder time at the exact time the user specified
+			const reminderDateTime = new Date(year, month - 1, day, hour24, minuteValue);
+			
+			console.log('🔍 createReminder Debug:', {
+				input: { taskId, taskTitle, dueDate, reminderTime },
+				parsed: { year, month: month - 1, day, hour24, minuteValue },
+				createdDate: reminderDateTime,
+				isValid: !isNaN(reminderDateTime.getTime())
+			});
+			
+			// Validate the created date
+			if (isNaN(reminderDateTime.getTime())) {
+				throw new Error(`Invalid date created: ${reminderDateTime}. Input: ${dueDate} ${reminderTime}`);
+			}
 			
 			// Only create reminder if the reminder time is in the future
 			const now = new Date();
@@ -228,6 +264,44 @@ export const useTasks = () => {
 		}
 	}, []);
 
+	// Create reminder directly with Date object (for preset reminders)
+	const createReminderDirect = useCallback(async (
+		taskId: string,
+		_dueDate: string,
+		reminderDateTime: Date
+	) => {
+		try {
+			// Validate the reminder datetime
+			if (isNaN(reminderDateTime.getTime())) {
+				throw new Error(`Invalid reminder datetime: ${reminderDateTime}`);
+			}
+
+			// Only create reminder if the reminder time is in the future
+			const now = new Date();
+			if (reminderDateTime <= now) {
+				console.log('⚠️ Reminder time is in the past, skipping reminder creation for task:', taskId);
+				console.log('📅 Reminder time:', reminderDateTime.toISOString(), 'Current time:', now.toISOString());
+				return;
+			}
+
+			// Create the reminder record directly
+			const { error: reminderError } = await supabase
+				.from('task_reminders')
+				.insert({
+					task_id: taskId,
+					reminder_time: reminderDateTime.toISOString(),
+					status: 'pending'
+				});
+
+			if (reminderError) throw reminderError;
+			
+			console.log('✅ Direct reminder created for task:', taskId, 'at:', reminderDateTime.toISOString());
+			console.log('📅 Reminder will trigger at:', reminderDateTime.toLocaleString());
+		} catch (error) {
+			console.error('Error creating direct reminder:', error);
+		}
+	}, []);
+
 	// Update reminder when task is updated
 	const updateReminder = useCallback(async (
 		taskId: string,
@@ -235,26 +309,46 @@ export const useTasks = () => {
 		reminderTime: string
 	) => {
 		try {
+			console.log('🔄 updateReminder called with:', { taskId, dueDate, reminderTime });
+			
 			// Delete existing reminders for this task
-			await supabase
+			const { error: deleteError } = await supabase
 				.from('task_reminders')
 				.delete()
 				.eq('task_id', taskId);
+				
+			if (deleteError) {
+				console.error('❌ Error deleting existing reminders:', deleteError);
+			} else {
+				console.log('✅ Existing reminders deleted for task:', taskId);
+			}
 
 			// Create new reminder if reminder time is provided
 			if (reminderTime) {
+				console.log('📝 Creating new reminder for task:', taskId);
+				
 				// Get the task title for the notification
-				const { data: taskData } = await supabase
+				const { data: taskData, error: taskError } = await supabase
 					.from('tasks')
 					.select('title')
 					.eq('id', taskId)
 					.single();
 				
+				if (taskError) {
+					console.error('❌ Error fetching task title:', taskError);
+					return;
+				}
+				
 				const taskTitle = taskData?.title || 'Untitled Task';
+				console.log('📋 Task title for reminder:', taskTitle);
+				
 				await createReminder(taskId, taskTitle, dueDate, reminderTime);
+				console.log('✅ Reminder creation completed for task:', taskId);
+			} else {
+				console.log('ℹ️ No reminder time provided, skipping reminder creation');
 			}
 		} catch (error) {
-			console.error('Error updating reminder:', error);
+			console.error('❌ Error updating reminder:', error);
 		}
 	}, [createReminder]);
 
@@ -314,6 +408,7 @@ export const useTasks = () => {
 		getTasksDueToday,
 		refreshTasks: fetchTasks,
 		createReminder,
+		createReminderDirect,
 		updateReminder
 	};
 };
