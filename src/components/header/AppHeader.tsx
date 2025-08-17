@@ -4,7 +4,7 @@ import { useTheme } from '../../hooks/useTheme';
 
 import { 
   Search, 
-
+  Bell,
   Moon, 
   Sun, 
   Menu,
@@ -14,17 +14,22 @@ import {
   LogOut,
 } from 'lucide-react';
 import CommandPalette from './CommandPalette';
+import NotificationPanel from './NotificationPanel';
 
 import { useSidebar } from '../../hooks/useSidebar';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { Link } from 'react-router';
 
-const Header: React.FC = () => {
+interface HeaderProps {
+  unreadCount?: number;
+}
+
+const Header: React.FC<HeaderProps> = ({ unreadCount = 0 }) => {
   const { user, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
 
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const headerRef = useRef<HTMLDivElement>(null);
@@ -155,7 +160,25 @@ const Header: React.FC = () => {
               {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
 
+            <div className="relative">
+              <button
+                title="Notifications"
+                type="button"
+                onClick={() => setShowNotifications((s) => !s)}
+                className="p-2 text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400 transition-colors duration-200 relative"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
+                    {unreadCount > 99 ? '99+' : unreadCount}
+                  </span>
+                )}
+              </button>
 
+              {showNotifications && (
+                <NotificationPanel onClose={() => setShowNotifications(false)} />
+              )}
+            </div>
 
             <div className="relative">
               <button
@@ -192,6 +215,15 @@ const Header: React.FC = () => {
                   >
                     <Settings className="h-4 w-4" />
                     <span>Settings</span>
+                  </Link>
+                  
+                  <Link
+                    to="/notifications"
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex items-center space-x-2"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <Bell className="h-4 w-4" />
+                    <span>Notifications</span>
                   </Link>
                   <button
                     type="button"

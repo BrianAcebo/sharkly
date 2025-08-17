@@ -1,10 +1,29 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
 import { Notification } from '../types/notifications';
 
 export const useNotifications = (userId?: string) => {
   const channelRef = useRef<any>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch unread count
+  const fetchUnreadCount = async () => {
+    if (!userId) return;
+    
+    try {
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('read', false);
+
+      if (error) throw error;
+      setUnreadCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
 
   useEffect(() => {
     if (!userId) return;
@@ -26,7 +45,7 @@ export const useNotifications = (userId?: string) => {
           return;
         }
 
-        // Show toasts for unread notifications
+        // Show persistent toasts for unread notifications
         notifications?.forEach((notification: Notification) => {
           if (!notification.read) {
             toast(notification.message || notification.title || 'Reminder due', {
@@ -34,7 +53,9 @@ export const useNotifications = (userId?: string) => {
               action: notification.action_url ? {
                 label: 'View',
                 onClick: () => window.open(notification.action_url, '_blank')
-              } : undefined
+              } : undefined,
+              duration: Infinity, // Toast won't auto-dismiss
+              dismissible: true // User must manually dismiss
             });
           }
         });
@@ -59,14 +80,19 @@ export const useNotifications = (userId?: string) => {
             const notification = payload.new as Notification;
             console.log('New notification received:', notification);
             
-            // Show toast for new notification
+            // Show persistent toast for new notification (won't auto-dismiss)
             toast(notification.message || notification.title || 'Reminder due', {
               description: notification.title !== notification.message ? notification.title : undefined,
               action: notification.action_url ? {
                 label: 'View',
                 onClick: () => window.open(notification.action_url, '_blank')
-              } : undefined
+              } : undefined,
+              duration: Infinity, // Toast won't auto-dismiss
+              dismissible: true // User must manually dismiss
             });
+            
+            // Update unread count
+            setUnreadCount((prev: number) => prev + 1);
           }
         )
         .subscribe((status) => {
@@ -76,6 +102,7 @@ export const useNotifications = (userId?: string) => {
 
     // Initial fetch and subscription
     fetchRecentNotifications();
+    fetchUnreadCount();
     subscribeToNotifications();
 
     // Cleanup
@@ -86,5 +113,5 @@ export const useNotifications = (userId?: string) => {
     };
   }, [userId]);
 
-  return {};
+  return { unreadCount, fetchUnreadCount };
 };

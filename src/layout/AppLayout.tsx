@@ -20,7 +20,7 @@ const LayoutContent: React.FC = () => {
 	const { isScreenTooSmall } = useScreenSize();
 	
 	// Initialize notifications system
-	useNotifications(session?.user?.id);
+	const { unreadCount } = useNotifications(session?.user?.id);
 
 	// Show loading while auth is being checked
 	if (loadingState === AuthLoadingState.LOADING) {
@@ -89,7 +89,7 @@ const LayoutContent: React.FC = () => {
             )}
             
             <div className="flex-1 h-screen overflow-hidden">
-                <AppHeader />
+                <AppHeader unreadCount={unreadCount} />
                 
                 <div className="flex-1">
                     <main className="h-screen-visible overflow-y-auto mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">

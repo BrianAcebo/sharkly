@@ -13,7 +13,7 @@ import { TimePicker } from '../ui/time-picker';
 import DatePicker from '../form/date-picker';
 import { toast } from 'sonner';
 
-import { createTaskWithReminders } from '../../api/tasks';
+import { createTaskWithReminders, updateTaskWithReminders } from '../../api/tasks';
 
 // Simple interface for leads dropdown
 interface LeadOption {
@@ -66,6 +66,73 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 			}
 		} catch (error) {
 			console.error('Error fetching lead name:', error);
+		}
+	};
+
+	// Function to fetch existing reminders for a task
+	const fetchExistingReminders = async (taskId: string, dueDate: string) => {
+		if (!taskId || !dueDate) return;
+		
+		try {
+			console.log('🔍 Fetching reminders for task:', taskId, 'with due date:', dueDate);
+			
+			const { data, error } = await supabase
+				.from('task_reminders')
+				.select('reminder_time, notification_type')
+				.eq('task_id', taskId)
+				.eq('status', 'pending');
+
+			if (error) throw error;
+
+			if (data && data.length > 0) {
+				console.log('📅 Found reminder data:', data);
+				
+				// Calculate offsets from reminder times
+				const dueTime = new Date(dueDate + 'T12:00:00'); // Use noon to avoid timezone issues
+				const reminderOffsets: ReminderOption[] = [];
+
+				data.forEach(reminder => {
+					const reminderTime = new Date(reminder.reminder_time);
+					const offsetMs = dueTime.getTime() - reminderTime.getTime();
+					const offsetMinutes = Math.round(offsetMs / (1000 * 60));
+
+					console.log('⏰ Reminder time:', reminder.reminder_time, 'Offset minutes:', offsetMinutes);
+
+					// Map offset to reminder type
+					if (offsetMinutes === 5) {
+						reminderOffsets.push({ type: '5min' });
+					} else if (offsetMinutes === 10) {
+						reminderOffsets.push({ type: '10min' });
+					} else if (offsetMinutes === 15) {
+						reminderOffsets.push({ type: '15min' });
+					} else if (offsetMinutes === 30) {
+						reminderOffsets.push({ type: '30min' });
+					} else if (offsetMinutes === 60) {
+						reminderOffsets.push({ type: '1hr' });
+					} else if (offsetMinutes === 1440) {
+						reminderOffsets.push({ type: '1day' });
+					} else {
+						// Custom time
+						reminderOffsets.push({ 
+							type: 'custom', 
+							customTime: reminder.reminder_time 
+						});
+					}
+				});
+
+				// Update form with existing reminders
+				setFormData(prev => ({
+					...prev,
+					reminder_enabled: true,
+					reminders: reminderOffsets
+				}));
+
+				console.log('✅ Loaded existing reminders:', reminderOffsets);
+			} else {
+				console.log('ℹ️ No existing reminders found for task:', taskId);
+			}
+		} catch (error) {
+			console.error('Error fetching existing reminders:', error);
 		}
 	};
 	const [formData, setFormData] = useState<TaskFormData>({
@@ -137,6 +204,57 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 			return undefined;
 		}
 	}, [formData.due_date]);
+
+	// Populate form with initialData when editing
+	useEffect(() => {
+		if (initialData && mode === 'edit') {
+			console.log('🔄 Populating form with initial data:', initialData);
+			
+			// Convert Task object to TaskFormData if needed
+			const taskData = initialData as Partial<TaskFormData> & Partial<Task>;
+			
+			// Extract due date and time from the existing task
+			const dueDate = taskData.due_date ? taskData.due_date.split('T')[0] : '';
+			let reminderTime = '';
+			
+			// Extract time from the existing due_date if it exists
+			if (taskData.due_date && taskData.due_date.includes('T')) {
+				const fullDateTime = new Date(taskData.due_date);
+				if (!isNaN(fullDateTime.getTime())) {
+					// Convert to 12-hour format for the time picker
+					const hours = fullDateTime.getHours();
+					const minutes = fullDateTime.getMinutes();
+					const ampm = hours >= 12 ? 'PM' : 'AM';
+					const hour12 = hours % 12 || 12;
+					reminderTime = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+					console.log('⏰ Extracted existing time:', reminderTime, 'from:', taskData.due_date);
+				}
+			}
+			
+			setFormData({
+				title: taskData.title || '',
+				description: taskData.description || '',
+				due_date: dueDate,
+				priority: taskData.priority || 'medium',
+				type: taskData.type || 'follow_up',
+				lead_id: taskData.lead_id || '',
+				reminder_enabled: false, // Will be populated from reminders
+				reminder_time: reminderTime, // Use extracted time or empty string
+				reminders: [] // Will be populated from reminders
+			});
+
+			// Set lead name if lead_id exists
+			if (taskData.lead_id) {
+				setLeadSearchQuery(taskData.lead_id);
+				fetchLeadName(taskData.lead_id);
+			}
+
+			// Fetch existing reminders for this task with the due date
+			if (taskData.id && dueDate) {
+				fetchExistingReminders(taskData.id, dueDate);
+			}
+		}
+	}, [initialData, mode]);
 
 	// Fetch leads for selection
 	useEffect(() => {
@@ -624,34 +742,74 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 					: null
 			};
 
-			console.log('🚀 Creating task with reminders:', {
-				taskData: cleanedTaskData,
-				dueAtUtc,
-				offsetsMinutes
-			});
-
-			// Use the new API to create task with reminders
-			const result = await createTaskWithReminders({
-				ownerId: user?.id || '',
-				organizationId: user?.organization_id || '',
-				title: cleanedTaskData.title,
-				description: cleanedTaskData.description,
-				dueAtUtc,
-				offsetsMinutes,
-				priority: cleanedTaskData.priority,
-				type: cleanedTaskData.type
-			});
-
-			if (result.success) {
-				console.log('✅ Task created successfully with ID:', result.taskId);
-				toast.success('Task created successfully');
+			if (mode === 'edit' && initialData) {
+				// Update existing task
+				const taskId = (initialData as Partial<Task>).id;
 				
-				// Close the modal
-				setTimeout(() => {
-					onCancel();
-				}, 100);
+				if (!taskId) {
+					throw new Error('Task ID is required for editing');
+				}
+				
+				console.log('🔄 Updating task with reminders:', {
+					taskId,
+					taskData: cleanedTaskData,
+					dueAtUtc,
+					offsetsMinutes
+				});
+
+				const result = await updateTaskWithReminders({
+					taskId,
+					ownerId: user?.id || '',
+					organizationId: user?.organization_id || '',
+					title: cleanedTaskData.title,
+					description: cleanedTaskData.description,
+					dueAtUtc,
+					offsetsMinutes,
+					priority: cleanedTaskData.priority,
+					type: cleanedTaskData.type
+				});
+
+				if (result.success) {
+					console.log('✅ Task updated successfully with ID:', result.taskId);
+					toast.success('Task updated successfully');
+					
+					// Close the modal
+					setTimeout(() => {
+						onCancel();
+					}, 100);
+				} else {
+					throw new Error(result.error || 'Failed to update task');
+				}
 			} else {
-				throw new Error(result.error || 'Failed to create task');
+				// Create new task
+				console.log('🚀 Creating task with reminders:', {
+					taskData: cleanedTaskData,
+					dueAtUtc,
+					offsetsMinutes
+				});
+
+				const result = await createTaskWithReminders({
+					ownerId: user?.id || '',
+					organizationId: user?.organization_id || '',
+					title: cleanedTaskData.title,
+					description: cleanedTaskData.description,
+					dueAtUtc,
+					offsetsMinutes,
+					priority: cleanedTaskData.priority,
+					type: cleanedTaskData.type
+				});
+
+				if (result.success) {
+					console.log('✅ Task created successfully with ID:', result.taskId);
+					toast.success('Task created successfully');
+					
+					// Close the modal
+					setTimeout(() => {
+						onCancel();
+					}, 100);
+				} else {
+					throw new Error(result.error || 'Failed to create task');
+				}
 			}
 		} catch (error) {
 			console.error('Error submitting task:', error);
@@ -674,39 +832,28 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 
 	// Handle quick reminder selection
 	const handleQuickReminder = (option: string) => {
-		const newReminder: ReminderOption = { type: option as ReminderOption['type'] };
-		setFormData(prev => ({
-			...prev,
-			reminders: [...prev.reminders, newReminder]
-		}));
+		const reminderType = option as ReminderOption['type'];
+		
+		// Check if this reminder type is already selected
+		const isAlreadySelected = formData.reminders.some(reminder => reminder.type === reminderType);
+		
+		if (isAlreadySelected) {
+			// Remove the reminder if it's already selected (toggle off)
+			setFormData(prev => ({
+				...prev,
+				reminders: prev.reminders.filter(reminder => reminder.type !== reminderType)
+			}));
+		} else {
+			// Add the reminder if it's not selected
+			const newReminder: ReminderOption = { type: reminderType };
+			setFormData(prev => ({
+				...prev,
+				reminders: [...prev.reminders, newReminder]
+			}));
+		}
 	};
 
-	// Handle reminder changes
-	const handleReminderChange = (index: number, field: keyof ReminderOption, value: string) => {
-		setFormData(prev => ({
-			...prev,
-			reminders: prev.reminders.map((reminder, i) => 
-				i === index ? { ...reminder, [field]: value } : reminder
-			)
-		}));
-	};
 
-	// Add new reminder
-	const addReminder = () => {
-		const newReminder: ReminderOption = { type: '15min' };
-		setFormData(prev => ({
-			...prev,
-			reminders: [...prev.reminders, newReminder]
-		}));
-	};
-
-	// Remove reminder
-	const removeReminder = (index: number) => {
-		setFormData(prev => ({
-			...prev,
-			reminders: prev.reminders.filter((_, i) => i !== index)
-		}));
-	};
 
 
 
@@ -934,67 +1081,27 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 										Quick Options
 									</label>
 									<div className="flex flex-wrap gap-2">
-										{['5min', '10min', '15min', '30min', '1hr', '1day'].map((option) => (
-											<button
-												key={option}
-												type="button"
-												onClick={() => handleQuickReminder(option)}
-												className="px-3 py-1 text-xs rounded-full border border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600"
-											>
-												{option}
-											</button>
-										))}
+										{['5min', '10min', '15min', '30min', '1hr', '1day'].map((option) => {
+											const isSelected = formData.reminders.some(reminder => reminder.type === option);
+											return (
+												<button
+													key={option}
+													type="button"
+													onClick={() => handleQuickReminder(option)}
+													className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+														isSelected
+															? 'bg-red-600 text-white border-red-600 hover:bg-red-700'
+															: 'border-gray-300 bg-white hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200'
+													}`}
+												>
+													{option}
+												</button>
+											);
+										})}
 									</div>
 								</div>
 
-								{/* Multiple Reminders */}
-								<div className="space-y-3">
-									<label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-										Multiple Reminders
-									</label>
-									<div className="space-y-2">
-										{formData.reminders.map((reminder, index) => (
-											<div key={index} className="flex items-center space-x-2">
-												<select
-													value={reminder.type}
-													onChange={(e) => handleReminderChange(index, 'type', e.target.value)}
-													className="flex-1 rounded border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-												>
-													<option value="5min">5 minutes before</option>
-													<option value="10min">10 minutes before</option>
-													<option value="15min">15 minutes before</option>
-													<option value="30min">30 minutes before</option>
-													<option value="1hr">1 hour before</option>
-													<option value="1day">1 day before</option>
-													<option value="custom">Custom time</option>
-												</select>
-												{reminder.type === 'custom' && (
-													<TimePicker
-														label=""
-														value={reminder.customTime}
-														onChange={(time) => handleReminderChange(index, 'customTime', time)}
-														placeholder="Custom time"
-														selectedDate={formData.due_date}
-													/>
-												)}
-												<button
-													type="button"
-													onClick={() => removeReminder(index)}
-													className="text-red-500 hover:text-red-700"
-												>
-													<X className="h-4 w-4" />
-												</button>
-											</div>
-										))}
-										<button
-											type="button"
-											onClick={addReminder}
-											className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
-										>
-											+ Add another reminder
-										</button>
-									</div>
-								</div>
+
 							</div>
 						)}
 					</div>
