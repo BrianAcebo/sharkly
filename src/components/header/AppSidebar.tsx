@@ -9,10 +9,10 @@ import {
   Building2, 
   Settings, 
   LogOut,
-  User,
   Calendar
 } from 'lucide-react';
 import { Link } from 'react-router';
+import UserAvatar from '../common/UserAvatar';
 
 const Sidebar: React.FC = () => {
   const { user, signOut } = useAuth();
@@ -73,8 +73,14 @@ const Sidebar: React.FC = () => {
 
       <div className="p-4 border-t border-gray-200 dark:border-gray-900">
         <div className="flex items-center space-x-3 mb-4">
-          <div className="p-2 bg-brand-100 dark:bg-brand-900 rounded-full">
-            <User className="h-5 w-5 text-brand-600 dark:text-brand-400" />
+          <div className="border border-gray-200 dark:border-gray-600 rounded-full">
+            <UserAvatar 
+              user={{ 
+                name: user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email || 'User',
+                avatar: user?.avatar 
+              }} 
+              size="md" 
+            />
           </div>
           <div>
             <p className="font-medium text-black dark:text-white">{user?.first_name} {user?.last_name}</p>

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Shield, Mail, Phone, MapPin, Twitter, Linkedin, Github } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Shield, Mail, MapPin, Twitter, Linkedin, Github } from 'lucide-react';
 
 const Footer: React.FC = () => {
 	return (
@@ -80,15 +81,15 @@ const Footer: React.FC = () => {
 						<div className="space-y-4">
 							<div className="flex items-center space-x-3">
 								<Mail className="h-5 w-5 text-gray-400" />
-								<span className="text-gray-300">contact@paperboatcrm.com</span>
+								<span className="text-gray-300">hello@paperboatcrm.com</span>
 							</div>
-							<div className="flex items-center space-x-3">
+							{/* <div className="flex items-center space-x-3">
 								<Phone className="h-5 w-5 text-gray-400" />
 								<span className="text-gray-300">+1 (555) 123-4567</span>
-							</div>
+							</div> */}
 							<div className="flex items-center space-x-3">
 								<MapPin className="h-5 w-5 text-gray-400" />
-								<span className="text-gray-300">San Francisco, CA</span>
+								<span className="text-gray-300">Miami, FL</span>
 							</div>
 						</div>
 					</div>
@@ -101,12 +102,12 @@ const Footer: React.FC = () => {
 							© 2025 Paperboat CRM. All rights reserved.
 						</div>
 						<div className="flex items-center space-x-6 text-sm">
-							<a href="#" className="text-gray-400 transition-colors hover:text-white">
+							<Link to="/privacy" className="text-gray-400 transition-colors hover:text-white">
 								Privacy Policy
-							</a>
-							<a href="#" className="text-gray-400 transition-colors hover:text-white">
+							</Link>
+							<Link to="/terms" className="text-gray-400 transition-colors hover:text-white">
 								Terms of Service
-							</a>
+							</Link>
 							<a href="#" className="text-gray-400 transition-colors hover:text-white">
 								Security
 							</a>

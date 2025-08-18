@@ -325,9 +325,6 @@
 	html {
 		scroll-behavior: smooth;
 	}
-	body {
-		overflow: hidden;
-	}
 	button:not(:disabled),
 	[role='button']:not(:disabled) {
 		cursor: pointer;

@@ -3,7 +3,6 @@ import { Link, useSearchParams, useNavigate } from 'react-router';
 import { ChevronLeft, EyeOff, Eye } from 'lucide-react';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
-import Checkbox from '../form/input/Checkbox';
 import { Button } from '../ui/button';
 import useAuth from '../../hooks/useAuth';
 import { AuthLoadingState } from '../../contexts/AuthContext';
@@ -11,7 +10,6 @@ import { validateEmail, sanitizeInput, checkRateLimit, resetRateLimit } from '..
 
 export default function SignInForm() {
 	const [showPassword, setShowPassword] = useState(false);
-	const [isChecked, setIsChecked] = useState(false);
 	const [email, setEmail] = useState<string>('');
 	const [password, setPassword] = useState<string>('');
 	const [emailError, setEmailError] = useState<string>('');
@@ -211,19 +209,9 @@ export default function SignInForm() {
 										</span>
 									</div>
 								</div>
-								<div className="flex items-center justify-between">
-									<div className="flex items-center gap-3">
-										<Checkbox
-											checked={isChecked}
-											onChange={setIsChecked}
-											disabled={isLoading || isRateLimited}
-										/>
-										<span className="text-theme-sm block font-normal text-gray-700 dark:text-gray-400">
-											Keep me logged in
-										</span>
-									</div>
+								<div className="flex justify-end">
 									<Link
-										to="/reset-password"
+										to="/forgot-password"
 										className="text-brand-500 hover:text-brand-600 dark:text-brand-400 text-sm"
 									>
 										Forgot password?

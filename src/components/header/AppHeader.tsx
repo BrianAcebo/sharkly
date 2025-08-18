@@ -20,11 +20,12 @@ import NotificationPanel from './NotificationPanel';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { Link } from 'react-router';
+import UserAvatar from '../common/UserAvatar';
 
 const Header: React.FC = () => {
   const { user, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
-  const { unreadCount: notificationsUnreadCount, fetchUnreadCount: fetchNotificationsUnreadCount, isConnectionHealthy } = useNotifications(user?.id || undefined);
+  const { unreadCount: notificationsUnreadCount, fetchUnreadCount: fetchNotificationsUnreadCount, isConnectionHealthy, serviceAvailable } = useNotifications(user?.id || undefined);
 
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -160,15 +161,19 @@ const Header: React.FC = () => {
 
             <div className="relative">
               <button
-                title="Notifications"
+                title={!serviceAvailable ? "Notifications - Service Unavailable" : "Notifications"}
                 type="button"
                 onClick={() => setShowNotifications((s) => !s)}
-                className="p-2 text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400 transition-colors duration-200 relative"
+                className={`p-2 transition-colors duration-200 relative ${
+                  !serviceAvailable 
+                    ? 'text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300' 
+                    : 'text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400'
+                }`}
               >
                 <Bell className="h-5 w-5" />
                 
                 {/* Connection status indicator - show when notifications are down */}
-                {!isConnectionHealthy && (
+                {(!isConnectionHealthy || !serviceAvailable) && (
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
                     <span className="text-white text-xs font-bold">!</span>
                   </div>
@@ -196,8 +201,14 @@ const Header: React.FC = () => {
                 onClick={() => setShowUserMenu((s) => !s)}
                 className="flex items-center space-x-2 p-2 rounded-lg hover:bg-brand-50 dark:hover:bg-brand-900/20 transition-colors duration-200"
               >
-                <div className="w-8 h-8 bg-brand-100 dark:bg-brand-900 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-brand-600 dark:text-brand-400" />
+                <div className="border border-gray-200 dark:border-gray-600 rounded-full">
+                  <UserAvatar 
+                    user={{ 
+                      name: user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email || 'User',
+                      avatar: user?.avatar 
+                    }} 
+                      size="sm" 
+                  />
                 </div>
                 <span className="text-sm font-medium text-black dark:text-white">{user?.email}</span>
                 <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
+import { useNotifications } from '../hooks/useNotifications';
 import { Notification } from '../types/notifications';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -33,6 +34,9 @@ export default function Notifications() {
   const [deletingNotifications, setDeletingNotifications] = useState<Set<string>>(new Set());
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+
+  // Get service availability from the notifications hook
+  const { serviceAvailable, lastError, retryService, stopRetries } = useNotifications();
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -264,6 +268,23 @@ export default function Notifications() {
               <p className="text-gray-600 dark:text-gray-400 mt-2">
                 Stay updated with your task reminders and important updates
               </p>
+              {!serviceAvailable && (
+                <div className="mt-3 flex items-center gap-2 text-sm">
+                  <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                  <span className="text-red-600 dark:text-red-400 font-medium">
+                    Notification service unavailable
+                  </span>
+                  <Button
+                    onClick={retryService}
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Retry
+                  </Button>
+                </div>
+              )}
             </div>
             
             <div className="flex items-center gap-3">
@@ -404,6 +425,42 @@ export default function Notifications() {
             <CardContent className="p-8 text-center">
               <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-gray-400" />
               <p className="text-gray-600 dark:text-gray-400">Loading notifications...</p>
+            </CardContent>
+          </Card>
+        ) : !serviceAvailable ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center">
+                <Bell className="h-8 w-8 text-red-500" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Notification Service Unavailable</h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                We're unable to connect to the notification service at the moment. This may be due to a temporary network issue or service maintenance.
+              </p>
+              {lastError && (
+                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    <strong>Error:</strong> {lastError}
+                  </p>
+                </div>
+              )}
+              <div className="flex gap-3 justify-center">
+                <Button
+                  onClick={retryService}
+                  variant="outline"
+                  className="mx-auto"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry Connection
+                </Button>
+                <Button
+                  onClick={stopRetries}
+                  variant="outline"
+                  className="mx-auto text-gray-600"
+                >
+                  Stop Retrying
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ) : filteredNotifications.length === 0 ? (

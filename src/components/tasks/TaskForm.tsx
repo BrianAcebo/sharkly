@@ -14,7 +14,7 @@ import DatePicker from '../form/date-picker';
 import { toast } from 'sonner';
 
 import { createTaskWithReminders, updateTaskAndReminders } from '../../api/tasks';
-import { toUtcIsoFromLocalParts, splitUtcIsoToLocalParts, getBrowserTimezone } from '../../utils/datetime';
+import { getBrowserTimezone, splitUtcIsoToLocalParts, toUtcIsoFromLocalParts } from '../../utils/datetime';
 
 // Simple interface for leads dropdown
 interface LeadOption {
@@ -703,7 +703,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 							if (reminder.customTime && reminder.customTime.trim() !== '') {
 								// For custom times, calculate the offset
 								const customTime = new Date(reminder.customTime!);
-								const dueTime = new Date(dueAtUtc);
+								const dueTime = new Date(dueAtUtc || '');
 								const offsetMs = dueTime.getTime() - customTime.getTime();
 								const offsetMinutes = Math.round(offsetMs / (1000 * 60));
 								if (offsetMinutes > 0) {

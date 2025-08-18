@@ -7,6 +7,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { toast } from 'sonner';
 import { Notification } from '../../types/notifications';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface NotificationPanelProps {
   onClose: () => void;
@@ -22,8 +23,9 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, fetchUnr
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
 
-  // Get connection status from the notifications hook
-  const { connectionStatus } = useNotifications();
+  // Get connection status and service availability from the notifications hook
+  const { user } = useAuth();
+  const { connectionStatus, serviceAvailable, lastError, retryService, stopRetries, isServiceThrottled } = useNotifications(user?.id);
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -43,6 +45,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, fetchUnr
       setNotifications(data || []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
+      // Don't show error toast here - let the hook handle service availability
     } finally {
       setLoading(false);
     }
@@ -242,7 +245,14 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, fetchUnr
         <div className="flex items-center gap-3">
           <h3 className="text-lg font-semibold text-black dark:text-white">Recent Notifications</h3>
           <div className="flex items-center gap-2">
-            {connectionStatus === 'connected' ? (
+            {!serviceAvailable ? (
+              <>
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-xs text-red-600 dark:text-red-400">
+                  Service Unavailable
+                </span>
+              </>
+            ) : connectionStatus === 'connected' ? (
               <>
                 <div className="w-2 h-2 rounded-full bg-green-500" />
                 <span className="text-xs text-green-600 dark:text-green-400">
@@ -281,6 +291,55 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, fetchUnr
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
             <RefreshCw className="h-5 w-5 animate-spin mx-auto mb-2" />
             Loading notifications...
+          </div>
+        ) : !serviceAvailable ? (
+          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+            <div className={`w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center ${
+              isServiceThrottled() 
+                ? 'bg-orange-100 dark:bg-orange-900/20' 
+                : 'bg-red-100 dark:bg-red-900/20'
+            }`}>
+              <Bell className={`h-6 w-6 ${
+                isServiceThrottled() ? 'text-orange-500' : 'text-red-500'
+              }`} />
+            </div>
+            <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+              {isServiceThrottled() ? 'Service Throttled' : 'Notification Service Unavailable'}
+            </h4>
+            <p className="text-sm mb-3">
+              {isServiceThrottled() 
+                ? 'Too many requests to the notification service. Retrying with exponential backoff...'
+                : 'We\'re unable to connect to the notification service at the moment.'
+              }
+            </p>
+            {lastError && (
+              <p className={`text-xs mb-3 p-2 rounded ${
+                isServiceThrottled()
+                  ? 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20'
+                  : 'text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
+              }`}>
+                {isServiceThrottled() ? 'Status: ' : 'Error: '}{lastError}
+              </p>
+            )}
+            <div className="flex gap-2 justify-center">
+              <Button
+                onClick={retryService}
+                variant="outline"
+                size="sm"
+                className="text-xs"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Retry Connection
+              </Button>
+              <Button
+                onClick={stopRetries}
+                variant="outline"
+                size="sm"
+                className="text-xs text-gray-600"
+              >
+                Stop Retrying
+              </Button>
+            </div>
           </div>
         ) : notifications.length === 0 ? (
           <div className="p-4 text-center text-gray-500 dark:text-gray-400">

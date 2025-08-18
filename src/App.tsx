@@ -26,6 +26,10 @@ import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
 import Tasks from './pages/Tasks';
 import CalendarPage from './pages/Calendar';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+import ForgotPassword from './pages/Auth/ForgotPassword';
+import ResetPassword from './pages/Auth/ResetPassword';
 
 export default function App() {
 	return (
@@ -36,6 +40,8 @@ export default function App() {
 				<Routes>
 					<Route element={<MarketingLayout />}>
 						<Route index path="/" element={<Home />} />
+						<Route path="/privacy" element={<PrivacyPolicy />} />
+						<Route path="/terms" element={<TermsOfService />} />
 					</Route>
 
 					<Route element={<AppLayout />}>
@@ -64,6 +70,10 @@ export default function App() {
 
 					{/* Auth Confirm Route - accessible without full auth */}
 					<Route path="/auth/confirm" element={<Confirm />} />
+
+					{/* Password Reset Routes - accessible without full auth */}
+					<Route path="/forgot-password" element={<ForgotPassword />} />
+					<Route path="/reset-password" element={<ResetPassword />} />
 
 					{/* Invite Route - should be accessible without full auth */}
 					<Route path="/invite/:inviteId" element={<InviteAccept />} />

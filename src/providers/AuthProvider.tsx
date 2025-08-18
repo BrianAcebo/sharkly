@@ -675,8 +675,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				options: {
 					redirectTo: inviteId 
 						? `${window.location.origin}/oauth/callback?invite=${inviteId}&next=${next}`
-						: `${window.location.origin}/oauth/callback?next=${next}`
-				}
+						: `${window.location.origin}/oauth/callback?next=${next}`,
+					scopes: [
+						"openid",
+						"email",
+						"https://www.googleapis.com/auth/calendar.readonly",
+						"https://www.googleapis.com/auth/calendar.events"
+					].join(" "),
+					queryParams: {
+						access_type: "offline",
+						prompt: "consent"
+					}
+				},
 			});
 			if (error) throw error;
 			setLoadingState(AuthLoadingState.IDLE);
@@ -693,6 +703,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		setError(null);
 		setMessage(null);
 	}, []);
+
+
 
 	return (
 		<AuthContext.Provider

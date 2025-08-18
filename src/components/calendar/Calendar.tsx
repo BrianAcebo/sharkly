@@ -400,7 +400,7 @@ export const Calendar: React.FC = () => {
 
 							{/* Actions */}
 							<div className="flex items-center space-x-2">
-								<Button
+								{/* <Button
 									variant="outline"
 									size="sm"
 									onClick={connectGoogleCalendar}
@@ -408,7 +408,7 @@ export const Calendar: React.FC = () => {
 								>
 									<RefreshCw className="h-4 w-4 mr-2" />
 									{googleCalendarConnected ? 'Connected' : 'Connect Google'}
-								</Button>
+								</Button> */}
 								<Button
 									onClick={() => setShowTaskModal(true)}
 									size="sm"
