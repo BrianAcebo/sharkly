@@ -9,11 +9,12 @@ import { Task, TaskFormData, TASK_TYPES, PRIORITY_COLORS, ReminderOption } from 
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabaseClient';
 import { X, Search, ChevronDown, AlertCircle } from 'lucide-react';
-import { TimePicker } from '../ui/time-picker';
+
 import DatePicker from '../form/date-picker';
 import { toast } from 'sonner';
 
 import { createTaskWithReminders, updateTaskAndReminders } from '../../api/tasks';
+import { toUtcIsoFromLocalParts, splitUtcIsoToLocalParts, getBrowserTimezone } from '../../utils/datetime';
 
 // Simple interface for leads dropdown
 interface LeadOption {
@@ -33,7 +34,7 @@ interface TaskFormProps {
 interface FormErrors {
 	title?: string;
 	due_date?: string;
-	reminder_time?: string;
+	due_time?: string;
 	general?: string;
 }
 
@@ -140,11 +141,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 		title: '',
 		description: '',
 		due_date: '',
-		priority: 'medium',
-		type: 'follow_up',
+		due_time: '', // New field for time in HH:mm format
+		due_timezone: getBrowserTimezone(), // Default to browser timezone
+		priority: 'low',
+		type: 'general',
 		lead_id: '',
 		reminder_enabled: false,
-		reminder_time: '',
 		reminders: []
 	});
 
@@ -214,21 +216,29 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 			// Convert Task object to TaskFormData if needed
 			const taskData = initialData as Partial<TaskFormData> & Partial<Task>;
 			
-			// Extract due date and time from the existing task
+			// Extract due date and time from the existing task using the new utility function
 			const dueDate = taskData.due_date ? taskData.due_date.split('T')[0] : '';
-			let reminderTime = '';
+			let dueTime = '';
+			const dueTimezone = taskData.due_timezone || getBrowserTimezone();
 			
 			// Extract time from the existing due_date if it exists
-			if (taskData.due_date && taskData.due_date.includes('T')) {
-				const fullDateTime = new Date(taskData.due_date);
-				if (!isNaN(fullDateTime.getTime())) {
-					// Convert to 12-hour format for the time picker
-					const hours = fullDateTime.getHours();
-					const minutes = fullDateTime.getMinutes();
-					const ampm = hours >= 12 ? 'PM' : 'AM';
-					const hour12 = hours % 12 || 12;
-					reminderTime = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-					console.log('⏰ Extracted existing time:', reminderTime, 'from:', taskData.due_date);
+			if (taskData.due_date && taskData.due_timezone) {
+				try {
+					const { localTime } = splitUtcIsoToLocalParts(taskData.due_date, taskData.due_timezone);
+					dueTime = localTime;
+					console.log('⏰ Extracted existing time:', dueTime, 'from:', taskData.due_date, 'in timezone:', taskData.due_timezone);
+				} catch {
+					console.warn('Failed to extract time using utility function, falling back to manual extraction');
+					// Fallback to manual extraction
+					if (taskData.due_date && taskData.due_date.includes('T')) {
+						const fullDateTime = new Date(taskData.due_date);
+						if (!isNaN(fullDateTime.getTime())) {
+							const hours = fullDateTime.getHours();
+							const minutes = fullDateTime.getMinutes();
+							dueTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+							console.log('⏰ Fallback extracted time:', dueTime, 'from:', taskData.due_date);
+						}
+					}
 				}
 			}
 			
@@ -236,11 +246,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 				title: taskData.title || '',
 				description: taskData.description || '',
 				due_date: dueDate,
+				due_time: dueTime,
+				due_timezone: dueTimezone,
 				priority: taskData.priority || 'medium',
 				type: taskData.type || 'follow_up',
 				lead_id: taskData.lead_id || '',
 				reminder_enabled: false, // Will be populated from reminders
-				reminder_time: reminderTime, // Use extracted time or empty string
 				reminders: [] // Will be populated from reminders
 			});
 
@@ -322,8 +333,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 		const setupInitialData = async () => {
 			if (initialData) {
 			    console.log('🔄 Setting initial data for editing:', initialData);
-                // Format the reminder_time properly for editing
-                let reminderTime = initialData.reminder_time || '';
+                // Format the reminder_time properly for editing (only available on Task, not TaskFormData)
+                let reminderTime = '';
+                if ('reminder_time' in initialData && initialData.reminder_time) {
+                    reminderTime = initialData.reminder_time;
+                }
 
                 if (reminderTime && reminderTime.includes('T')) {
                     // If reminder_time is a full timestamp, extract just the time part and convert to 12-hour format
@@ -547,58 +561,40 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 			}
 		}
 
-		// Reminder time validation
-		if (formData.reminder_enabled) {
-			if (!formData.reminder_time || formData.reminder_time.trim() === '') {
-				newErrors.reminder_time = 'Reminder time is required when reminders are enabled';
+		// Due time validation
+		if (formData.due_date && formData.due_time) {
+			// Validate the time string (24-hour format HH:mm)
+			const timeMatch = formData.due_time.match(/^(\d{1,2}):(\d{2})$/);
+			if (!timeMatch) {
+				newErrors.due_time = 'Invalid time format. Use 24-hour format (e.g., 14:30)';
 			} else {
-				// Check if the combined date and time is in the past
-				if (formData.due_date) {
-					// The reminder_time should be in 12-hour format (e.g., "2:30 PM")
-					// We need to parse it and convert to 24-hour for comparison
-					const timeMatch = formData.reminder_time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
-					if (!timeMatch) {
-						newErrors.reminder_time = 'Invalid time format. Use 12-hour format (e.g., 2:30 PM)';
-					} else {
-						const [, hours, minutes, ampm] = timeMatch;
-						let hour24 = parseInt(hours);
+				const [, hours, minutes] = timeMatch;
+				const hour24 = parseInt(hours);
+				const minuteValue = parseInt(minutes);
 
-						// Validate hours and minutes
-						if (isNaN(hour24) || hour24 < 0 || hour24 > 12) {
-							newErrors.reminder_time = 'Invalid hour value';
-						} else {
-							const minuteValue = parseInt(minutes);
-							if (isNaN(minuteValue) || minuteValue < 0 || minuteValue > 59) {
-								newErrors.reminder_time = 'Invalid minute value';
-							} else {
-								// Convert to 24-hour format
-								if (ampm.toUpperCase() === 'PM' && hour24 < 12) {
-									hour24 += 12; // PM times
-								} else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
-									hour24 = 0; // 12 AM to 00:00
-								}
-
-								// Create the full datetime for comparison
-								const reminderDateTime = new Date(
-									`${formData.due_date}T${hour24.toString().padStart(2, '0')}:${minuteValue}:00`
-								);
-
-								// Check if the datetime is valid
-								if (isNaN(reminderDateTime.getTime())) {
-									newErrors.reminder_time = 'Invalid date and time combination';
-								} else {
-									const now = new Date();
-									// Allow a 5-minute buffer to avoid cutting off valid times
-									const bufferTime = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes
-
-									// Only validate future times for new tasks, not when editing
-									if (!initialData && reminderDateTime <= bufferTime) {
-										newErrors.reminder_time =
-											'Reminder time must be at least 5 minutes in the future';
-									}
-								}
-							}
+				// Validate hours and minutes
+				if (isNaN(hour24) || hour24 < 0 || hour24 > 23) {
+					newErrors.due_time = 'Invalid hour value. Hours must be 0-23';
+				} else if (isNaN(minuteValue) || minuteValue < 0 || minuteValue > 59) {
+					newErrors.due_time = 'Invalid minute value. Minutes must be 0-59';
+				} else {
+					// Check if the combined date and time is in the past
+					try {
+											const dueDateTime = toUtcIsoFromLocalParts(
+						formData.due_date,
+						formData.due_time,
+						formData.due_timezone
+					);
+						
+						const now = new Date();
+						const bufferTime = new Date(now.getTime() + 5 * 60 * 1000); // 5 minute buffer
+						
+						// Only validate future times for new tasks, not when editing
+						if (!initialData && new Date(dueDateTime) <= bufferTime) {
+							newErrors.due_time = 'Due time must be at least 5 minutes in the future';
 						}
+					} catch {
+						newErrors.due_time = 'Invalid date and time combination';
 					}
 				}
 			}
@@ -620,10 +616,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 				return;
 			}
 
-			// Combine date and time into a timestamp if both are provided
+			// Build UTC ISO string from local date, time, and timezone
 			let dueAtUtc: string | undefined;
 
-			if (formData.due_date && formData.reminder_time) {
+			if (formData.due_date && formData.due_time) {
 				try {
 					// Validate the date string first
 					const dueDate = new Date(formData.due_date);
@@ -631,75 +627,57 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 						throw new Error('Invalid due date');
 					}
 
-					// Validate the time string (12-hour format with AM/PM)
-					const timeMatch = formData.reminder_time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+					// Validate the time string (24-hour format HH:mm)
+					const timeMatch = formData.due_time.match(/^(\d{1,2}):(\d{2})$/);
 					if (!timeMatch) {
-						throw new Error('Invalid time format. Use 12-hour format (e.g., 2:30 PM)');
+						throw new Error('Invalid time format. Use 24-hour format (e.g., 14:30)');
 					}
 
-					// Parse the 12-hour time and convert to 24-hour for the datetime
-					const [, hours, minutes, ampm] = timeMatch;
-					let hour24 = parseInt(hours);
-
-					// Validate hours and minutes (1-12 is valid for 12-hour format)
-					if (isNaN(hour24) || hour24 < 1 || hour24 > 12) {
-						throw new Error('Invalid hour value. Hours must be 1-12');
-					}
-
+					const [, hours, minutes] = timeMatch;
+					const hour24 = parseInt(hours);
 					const minuteValue = parseInt(minutes);
+
+					// Validate hours and minutes
+					if (isNaN(hour24) || hour24 < 0 || hour24 > 23) {
+						throw new Error('Invalid hour value. Hours must be 0-23');
+					}
 					if (isNaN(minuteValue) || minuteValue < 0 || minuteValue > 59) {
 						throw new Error('Invalid minute value');
 					}
 
-					// Convert to 24-hour format
-					if (ampm.toUpperCase() === 'PM' && hour24 < 12) {
-						hour24 += 12; // Convert PM to 24-hour (e.g., 2:30 PM -> 14:30)
-					} else if (ampm.toUpperCase() === 'AM' && hour24 === 12) {
-						hour24 = 0; // Convert 12 AM to 00:00
-					}
+					// Build UTC ISO string using the new utility function
+					dueAtUtc = toUtcIsoFromLocalParts(
+						formData.due_date,
+						formData.due_time,
+						formData.due_timezone
+					);
 
-					// Extract just the date part (YYYY-MM-DD) from the due_date
-					let dateStr = formData.due_date;
-					if (dateStr.includes('T')) {
-						dateStr = dateStr.split('T')[0];
-					}
-
-					// Create the combined datetime using 24-hour format
-					const datetimeString = `${dateStr}T${hour24.toString().padStart(2, '0')}:${minuteValue}:00`;
-					
-					// Create the date object and ensure it's valid
-					const dateTime = new Date(datetimeString);
-					
-					if (isNaN(dateTime.getTime())) {
-						throw new Error('Invalid date and time combination. Please check your selection.');
-					}
-
-					// Check if the datetime is in the past (with a 5-minute buffer)
-					const now = new Date();
-					const bufferTime = new Date(now.getTime() + 5 * 60 * 1000); // 5 minute buffer
-					
-					// Only validate future times for new tasks, not when editing
-					if (!initialData && dateTime <= bufferTime) {
-						throw new Error('Due time must be at least 5 minutes in the future');
-					}
-
-					// Convert local time to UTC using the specified formula
-					dueAtUtc = new Date(dateTime.getTime() - dateTime.getTimezoneOffset() * 60000).toISOString();
 					console.log('✅ Due time set to (UTC):', dueAtUtc);
 				} catch (error) {
-					console.error('Error combining date and time:', error);
+					console.error('Error building UTC ISO string:', error);
 					setErrors({
-						reminder_time: `Error processing date/time: ${error instanceof Error ? error.message : 'Unknown error'}`
+						due_time: `Error processing date/time: ${error instanceof Error ? error.message : 'Unknown error'}`
 					});
 					setLoading(false);
 					return;
 				}
 			} else if (formData.due_date) {
-				// If only date is provided, use end of day
-				const dueDate = new Date(formData.due_date);
-				dueDate.setHours(23, 59, 59, 999);
-				dueAtUtc = dueDate.toISOString();
-				console.log('✅ Due time set to end of day:', dueAtUtc);
+				// If only date is provided, use noon to avoid timezone issues
+				try {
+					dueAtUtc = toUtcIsoFromLocalParts(
+						formData.due_date,
+						'12:00', // Use noon to avoid timezone edge cases
+						formData.due_timezone
+					);
+					console.log('✅ Due time set to noon (UTC):', dueAtUtc);
+				} catch (error) {
+					console.error('Error building UTC ISO string for date only:', error);
+					setErrors({
+						due_date: `Error processing date: ${error instanceof Error ? error.message : 'Unknown error'}`
+					});
+					setLoading(false);
+					return;
+				}
 			}
 
 			if (!dueAtUtc) {
@@ -765,6 +743,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 				await updateTaskAndReminders({
 					taskId,
 					dueAtUtc,
+					dueTimezone: formData.due_timezone,
 					offsetsMinutes,
 					title: cleanedTaskData.title,
 					description: cleanedTaskData.description,
@@ -776,24 +755,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 				console.log('✅ Task updated successfully with ID:', taskId);
 				toast.success('Task updated successfully');
 				
-				// Immediately update form to reflect the new due_date and reminder_time
-				if (formData.due_date && formData.reminder_time) {
-					// Extract the new time from the saved dueAtUtc
-					const newDateTime = new Date(dueAtUtc);
-					const hours = newDateTime.getHours();
-					const minutes = newDateTime.getMinutes();
-					const ampm = hours >= 12 ? 'PM' : 'AM';
-					const hour12 = hours % 12 || 12;
-					const newReminderTime = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-					
-					// Update form state immediately
-					setFormData(prev => ({
-						...prev,
-						reminder_time: newReminderTime
-					}));
-					
-					console.log('✅ Form updated with new time:', newReminderTime);
-				}
+				// Form updated successfully
+				console.log('✅ Task updated successfully');
 				
 				// Call onSuccess if provided, otherwise close modal
 				if (onSuccess) {
@@ -818,33 +781,16 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 					title: cleanedTaskData.title,
 					description: cleanedTaskData.description,
 					dueAtUtc,
-					offsetsMinutes,
-					priority: cleanedTaskData.priority,
-					type: cleanedTaskData.type
+					dueTimezone: formData.due_timezone,
+					offsetsMinutes
 				});
 
 				if (result.success) {
 					console.log('✅ Task created successfully with ID:', result.taskId);
 					toast.success('Task created successfully');
 					
-					// Immediately update form to reflect the new due_date and reminder_time
-					if (formData.due_date && formData.reminder_time) {
-						// Extract the new time from the saved dueAtUtc
-						const newDateTime = new Date(dueAtUtc);
-						const hours = newDateTime.getHours();
-						const minutes = newDateTime.getMinutes();
-						const ampm = hours >= 12 ? 'PM' : 'AM';
-						const hour12 = hours % 12 || 12;
-						const newReminderTime = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-						
-						// Update form state immediately
-						setFormData(prev => ({
-							...prev,
-							reminder_time: newReminderTime
-						}));
-						
-						console.log('✅ Form updated with new time:', newReminderTime);
-					}
+									// Task created successfully
+				console.log('✅ Task created successfully');
 					
 					// Call onSuccess if provided, otherwise close modal
 					if (onSuccess) {
@@ -1042,13 +988,13 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 										// Use the manual date string to ensure correct timezone handling
 										handleInputChange('due_date', manualDateString);
 										
-										// Clear reminder time if the new date is in the past
+										// Clear reminders if the new date is in the past
 										const newDate = new Date(manualDateString);
 										const today = new Date();
 										const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 										
-										if (newDate < todayStart && formData.reminder_time) {
-											handleInputChange('reminder_time', '');
+										if (newDate < todayStart && formData.reminders.length > 0) {
+											setFormData(prev => ({ ...prev, reminders: [] }));
 										}
 									}
 								}}
@@ -1062,13 +1008,13 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 						</div>
 
 						<div className="space-y-2">
-							<TimePicker
-								label="Due Time (Optional)"
-								value={formData.reminder_time}
-								onChange={(time) => handleInputChange('reminder_time', time)}
-								placeholder={isDateInPast ? "Cannot set time for past dates" : "Type any time (e.g., 2:30 PM) or use presets"}
-								selectedDate={formData.due_date}
+							<Input
+								label="Due Time"
+								value={formData.due_time}
+								onChange={(e) => handleInputChange('due_time', e.target.value)}
+								placeholder={isDateInPast ? "Cannot set time for past dates" : "e.g., 14:30 for 2:30 PM"}
 								disabled={isDateInPast}
+								type="time"
 							/>
 							{isDateInPast && (
 								<p className="flex items-center space-x-1 text-sm text-red-600 dark:text-red-400">
@@ -1076,10 +1022,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
 									<span>Cannot set time for past dates</span>
 								</p>
 							)}
-							{!isDateInPast && errors.reminder_time && (
+							{!isDateInPast && errors.due_time && (
 								<p className="flex items-center space-x-1 text-sm text-red-600 dark:text-red-400">
 									<AlertCircle className="h-4 w-4" />
-									<span>{errors.reminder_time}</span>
+									<span>{errors.due_time}</span>
 								</p>
 							)}
                             {/* Timezone Selection */}
@@ -1089,9 +1035,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initial
                                 </label>
                                 <select
                                     className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200"
-                                    defaultValue="auto"
+                                    value={formData.due_timezone}
+                                    onChange={(e) => handleInputChange('due_timezone', e.target.value)}
                                 >
-                                    <option value="auto">
+                                    <option value={Intl.DateTimeFormat().resolvedOptions().timeZone}>
                                         Auto-detect ({Intl.DateTimeFormat().resolvedOptions().timeZone})
                                     </option>
                                     <option value="America/New_York">Eastern Time (ET)</option>

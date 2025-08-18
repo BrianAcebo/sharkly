@@ -7,9 +7,10 @@ export interface Notification {
   type: string;
   priority: string;
   action_url?: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   read: boolean;
   read_at?: string;
+  shown: boolean;
   created_at: string;
 }
 

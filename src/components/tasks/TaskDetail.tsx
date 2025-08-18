@@ -192,22 +192,45 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
 								<div className="flex items-center space-x-2">
 									<Calendar className="h-4 w-4 text-gray-500" />
 									<span className="text-gray-700 dark:text-gray-300">
-										{formatDateSafe(task.due_date, 'full')}
+										{(() => {
+											try {
+												const dueDate = new Date(task.due_date);
+												if (isNaN(dueDate.getTime())) {
+													return 'Invalid date';
+												}
+												
+												// Format the date
+												const dateStr = dueDate.toLocaleDateString('en-US', {
+													weekday: 'long',
+													year: 'numeric',
+													month: 'long',
+													day: 'numeric'
+												});
+												
+												// Format the time
+												const timeStr = dueDate.toLocaleTimeString('en-US', {
+													hour: 'numeric',
+													minute: '2-digit',
+													hour12: true
+												});
+												
+												return `Due ${dateStr} at ${timeStr}`;
+											} catch (error) {
+												console.error('Error formatting due date:', error);
+												return 'Invalid date';
+											}
+										})()}
 									</span>
 								</div>
 								{task.reminder_time && (
 									<div className="flex items-center space-x-2">
 										<Clock className="h-4 w-4 text-gray-500" />
 										<span className="text-gray-700 dark:text-gray-300">
-											Reminder set for: {task.reminder_time ? new Date(task.reminder_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
-										</span>
-									</div>
-								)}
-								{isOverdue() && (
-									<div className="flex items-center space-x-2 text-red-600 dark:text-red-400">
-										<Clock className="h-4 w-4" />
-										<span className="font-medium">
-											This task is overdue by {Math.ceil((new Date().getTime() - new Date(task.due_date).getTime()) / (1000 * 60 * 60 * 24))} days
+											Reminder set for {new Date(task.reminder_time).toLocaleTimeString('en-US', {
+												hour: 'numeric',
+												minute: '2-digit',
+												hour12: true
+											})}
 										</span>
 									</div>
 								)}

@@ -32,11 +32,12 @@ export const CreateTaskForLead: React.FC<CreateTaskForLeadProps> = ({
 		title: '',
 		description: '',
 		due_date: '',
-		priority: 'medium',
-		type: 'follow_up',
+		due_time: '',
+		due_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+		priority: 'low',
+		type: 'general',
 		lead_id: leadId,
 		reminder_enabled: false,
-		reminder_time: '',
 		reminders: []
 	});
 
@@ -49,9 +50,14 @@ export const CreateTaskForLead: React.FC<CreateTaskForLeadProps> = ({
 			// Combine date and time into a timestamp if both are provided
 			let dueAtUtc: string;
 			
-			if (formData.due_date && formData.reminder_time) {
-				const dateTime = new Date(`${formData.due_date}T${formData.reminder_time}`);
-				dueAtUtc = dateTime.toISOString();
+			if (formData.due_date && formData.due_time) {
+				// Use the new datetime utility function
+				const { toUtcIsoFromLocalParts } = await import('../../utils/datetime');
+				dueAtUtc = toUtcIsoFromLocalParts(
+					formData.due_date,
+					formData.due_time,
+					formData.due_timezone
+				);
 			} else if (formData.due_date) {
 				// If only date is provided, use end of day
 				const dueDate = new Date(formData.due_date);
@@ -95,9 +101,8 @@ export const CreateTaskForLead: React.FC<CreateTaskForLeadProps> = ({
 				title: formData.title,
 				description: formData.description,
 				dueAtUtc,
-				offsetsMinutes,
-				priority: formData.priority,
-				type: formData.type
+				dueTimezone: formData.due_timezone,
+				offsetsMinutes
 			});
 
 			if (result.success) {
@@ -107,11 +112,12 @@ export const CreateTaskForLead: React.FC<CreateTaskForLeadProps> = ({
 					title: '',
 					description: '',
 					due_date: '',
-					priority: 'medium',
-					type: 'follow_up',
+					due_time: '',
+					due_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+					priority: 'low',
+					type: 'general',
 					lead_id: leadId,
 					reminder_enabled: false,
-					reminder_time: '',
 					reminders: []
 				});
 				onTaskCreated?.();
@@ -242,8 +248,8 @@ export const CreateTaskForLead: React.FC<CreateTaskForLeadProps> = ({
 						<div className="space-y-2">
 							<TimePicker
 								label="Due Time (Optional)"
-								value={formData.reminder_time}
-								onChange={(time) => handleInputChange('reminder_time', time)}
+								value={formData.due_time}
+								onChange={(time) => handleInputChange('due_time', time)}
 								placeholder="Select time"
 								selectedDate={formData.due_date}
 							/>

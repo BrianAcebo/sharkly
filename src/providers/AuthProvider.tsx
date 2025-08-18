@@ -118,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		} catch (error) {
 			console.error('Error refreshing user:', error);
 		}
-	}, [user?.id]);
+	}, [user]);
 
 	const updateUser = useCallback(async () => {
 		try {
@@ -611,7 +611,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 			console.error('Sign in error:', err);
 			throw err;
 		}
-	}, []);
+	}, [updateUser]);
 
 	const signUp = useCallback(async (email: string, password: string) => {
 		try {

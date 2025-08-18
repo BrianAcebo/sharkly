@@ -285,7 +285,7 @@ class GoogleCalendarService {
 	}
 
 	// Sync tasks with Google Calendar
-	async syncTasksWithCalendar(tasks: any[]): Promise<void> {
+	async syncTasksWithCalendar(tasks: Array<{ id: string; title: string; description?: string; due_date: string; reminder_enabled: boolean }>): Promise<void> {
 		try {
 			if (!this.accessToken) throw new Error('No access token');
 

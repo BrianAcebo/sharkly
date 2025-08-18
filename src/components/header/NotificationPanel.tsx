@@ -6,12 +6,14 @@ import { Button } from '../ui/button';
 import { supabase } from '../../utils/supabaseClient';
 import { toast } from 'sonner';
 import { Notification } from '../../types/notifications';
+import { useNotifications } from '../../hooks/useNotifications';
 
 interface NotificationPanelProps {
   onClose: () => void;
+  fetchUnreadCount?: () => Promise<void>;
 }
 
-const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
+const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, fetchUnreadCount }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -19,6 +21,9 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
   const [deletingNotifications, setDeletingNotifications] = useState<Set<string>>(new Set());
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+
+  // Get connection status from the notifications hook
+  const { connectionStatus } = useNotifications();
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -65,27 +70,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
     }
   };
 
-  // Mark all notifications as read
-  const markAllAsRead = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true, read_at: new Date().toISOString() })
-        .eq('user_id', user.id)
-        .eq('read', false);
-
-      if (error) throw error;
-
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, read: true, read_at: new Date().toISOString() }))
-      );
-    } catch (error) {
-      console.error('Error marking all notifications as read:', error);
-    }
-  };
 
   // Delete notification
   const deleteNotification = async (notificationId: string) => {
@@ -98,6 +83,12 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
       if (error) throw error;
 
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      
+      // Refresh unread count if function is provided
+      if (fetchUnreadCount) {
+        fetchUnreadCount();
+      }
+      
       toast.success('Notification deleted');
     } catch (error) {
       console.error('Error deleting notification:', error);
@@ -119,6 +110,12 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
       if (error) throw error;
 
       setNotifications([]);
+      
+      // Refresh unread count if function is provided
+      if (fetchUnreadCount) {
+        fetchUnreadCount();
+      }
+      
       toast.success('All notifications deleted');
     } catch (error) {
       console.error('Error deleting all notifications:', error);
@@ -219,6 +216,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
   // Get unread count
   const unreadCount = notifications.filter(n => !n.read).length;
 
+  // Fetch notifications on mount
   useEffect(() => {
     fetchNotifications();
   }, []);
@@ -244,23 +242,31 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
         <div className="flex items-center gap-3">
           <h3 className="text-lg font-semibold text-black dark:text-white">Recent Notifications</h3>
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-xs text-green-600 dark:text-green-400">
-              Realtime
-            </span>
+            {connectionStatus === 'connected' ? (
+              <>
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-xs text-green-600 dark:text-green-400">
+                  Connected
+                </span>
+              </>
+            ) : connectionStatus === 'connecting' ? (
+              <>
+                <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                  Connecting...
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-xs text-red-600 dark:text-red-400">
+                  Disconnected
+                </span>
+              </>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            onClick={markAllAsRead}
-            variant="outline"
-            size="sm"
-            disabled={unreadCount === 0}
-            className="text-xs"
-          >
-            <Check className="h-3 w-3 mr-1" />
-            Mark all read
-          </Button>
           <button
             onClick={onClose}
             className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -316,10 +322,10 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
                         
                         {notification.metadata && Object.keys(notification.metadata).length > 0 && (
                           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            {notification.metadata.task_title && (
+                            {typeof notification.metadata.task_title === 'string' && notification.metadata.task_title && (
                               <p>Task: {notification.metadata.task_title}</p>
                             )}
-                            {notification.metadata.due_date && (
+                            {typeof notification.metadata.due_date === 'string' && notification.metadata.due_date && (
                               <p>Due: {new Date(notification.metadata.due_date).toLocaleDateString()}</p>
                             )}
                           </div>
@@ -385,7 +391,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
             </span>
             
             <div className="flex items-center gap-2">
-              <Button
+              {/* <Button
                 onClick={() => setShowDeleteAllConfirm(true)}
                 variant="outline"
                 size="sm"
@@ -393,7 +399,7 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose }) => {
               >
                 <Trash2 className="h-3 w-3 mr-1" />
                 Delete all
-              </Button>
+              </Button> */}
               
               <Link
                 to="/notifications"

@@ -18,34 +18,6 @@ export const useTasks = () => {
 		dueThisWeek: 0
 	});
 
-	// Fetch tasks
-	const fetchTasks = useCallback(async () => {
-		if (!user?.organization_id) return;
-
-		setLoading(true);
-		try {
-			const { data, error } = await supabase
-				.from('tasks')
-				.select('*')
-				.eq('organization_id', user.organization_id)
-				.eq('owner_id', user.id)
-				.order('due_date', { ascending: true });
-
-			if (error) throw error;
-
-			// Use the lead_name that's already stored in the tasks table
-			const tasksWithLeadNames = data || [];
-
-			setTasks(tasksWithLeadNames);
-			calculateStats(tasksWithLeadNames);
-		} catch (error) {
-			console.error('Error fetching tasks:', error);
-			toast.error('Failed to fetch tasks');
-		} finally {
-			setLoading(false);
-		}
-	}, [user?.organization_id, user?.id]);
-
 	// Calculate task statistics
 	const calculateStats = useCallback((taskList: Task[]) => {
 		const now = new Date();
@@ -73,7 +45,35 @@ export const useTasks = () => {
 		};
 
 		setStats(stats);
-	}, []); // No dependencies needed since it's called with explicit parameter
+	}, [setStats]); // Include setStats dependency
+
+	// Fetch tasks
+	const fetchTasks = useCallback(async () => {
+		if (!user?.organization_id) return;
+
+		setLoading(true);
+		try {
+			const { data, error } = await supabase
+				.from('tasks')
+				.select('*')
+				.eq('organization_id', user.organization_id)
+				.eq('owner_id', user.id)
+				.order('due_date', { ascending: true });
+
+			if (error) throw error;
+
+			// Use the lead_name that's already stored in the tasks table
+			const tasksWithLeadNames = data || [];
+
+			setTasks(tasksWithLeadNames);
+			calculateStats(tasksWithLeadNames);
+		} catch (error) {
+			console.error('Error fetching tasks:', error);
+			toast.error('Failed to fetch tasks');
+		} finally {
+			setLoading(false);
+		}
+	}, [user?.organization_id, user?.id, calculateStats]);
 
 	// Create new task
 	const createTask = useCallback(async (taskData: TaskFormData): Promise<boolean> => {

@@ -33,6 +33,18 @@ export const TaskList: React.FC<TaskListProps> = ({
 	const getFilteredTasks = () => {
 		let filtered = [...tasks];
 
+		console.log('🔍 Filtering tasks:', {
+			totalTasks: tasks.length,
+			currentFilter: filter,
+			tasks: tasks.map(t => ({
+				id: t.id,
+				title: t.title,
+				status: t.status,
+				due_date: t.due_date,
+				dueDateParsed: new Date(t.due_date)
+			}))
+		});
+
 		// Apply filter
 		switch (filter) {
 			case 'pending':
@@ -41,24 +53,67 @@ export const TaskList: React.FC<TaskListProps> = ({
 			case 'overdue': {
 				const today = new Date();
 				today.setHours(0, 0, 0, 0);
-				filtered = filtered.filter(task => 
-					task.status !== 'completed' && 
-					new Date(task.due_date) < today
-				);
+				console.log('📅 Overdue filter - Today start:', today);
+				
+				filtered = filtered.filter(task => {
+					if (task.status === 'completed') {
+						console.log(`❌ Task ${task.title} excluded - completed`);
+						return false;
+					}
+					
+					// Parse the due date properly
+					const dueDate = new Date(task.due_date);
+					if (isNaN(dueDate.getTime())) {
+						console.log(`❌ Task ${task.title} excluded - invalid date:`, task.due_date);
+						return false;
+					}
+					
+					// Set due date to start of day for comparison
+					const dueDateStart = new Date(dueDate);
+					dueDateStart.setHours(0, 0, 0, 0);
+					
+					const isOverdue = dueDateStart < today;
+					console.log(`📋 Task ${task.title}:`, {
+						due_date: task.due_date,
+						dueDateParsed: dueDate,
+						dueDateStart: dueDateStart,
+						today: today,
+						isOverdue: isOverdue
+					});
+					
+					return isOverdue;
+				});
 				break;
 			}
 			case 'due_today': {
 				const todayDate = new Date();
 				todayDate.setHours(0, 0, 0, 0);
-				filtered = filtered.filter(task => 
-					task.status !== 'completed' && 
-					new Date(task.due_date).toDateString() === todayDate.toDateString()
-				);
+				console.log('📅 Due today filter - Today start:', todayDate);
+				
+				filtered = filtered.filter(task => {
+					if (task.status === 'completed') return false;
+					
+					// Parse the due date properly
+					const dueDate = new Date(task.due_date);
+					if (isNaN(dueDate.getTime())) return false;
+					
+					// Set due date to start of day for comparison
+					const dueDateStart = new Date(dueDate);
+					dueDateStart.setHours(0, 0, 0, 0);
+					
+					return dueDateStart.getTime() === todayDate.getTime();
+				});
 				break;
 			}
 			default:
 				break;
 		}
+
+		console.log('✅ Filtered tasks result:', {
+			filter: filter,
+			filteredCount: filtered.length,
+			filteredTasks: filtered.map(t => t.title)
+		});
 
 		// Apply sorting
 		filtered.sort((a, b) => {
@@ -142,20 +197,52 @@ export const TaskList: React.FC<TaskListProps> = ({
 
 	if (filteredTasks.length === 0) {
 		return (
-			<Card>
-				<CardContent className="p-8 text-center">
-					<Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-					<h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-						No tasks found
-					</h3>
-					<p className="text-gray-500 dark:text-gray-400">
-						{filter === 'all' 
-							? 'Create your first task to get started!' 
-							: `No ${filter.replace('_', ' ')} tasks found.`
-						}
-					</p>
-				</CardContent>
-			</Card>
+			<div className="space-y-4">
+				{/* Always show filters even when no tasks */}
+				<div className="flex flex-wrap items-center justify-between gap-4">
+					<div className="flex space-x-2">
+						{['all', 'pending', 'overdue', 'due_today'].map((filterOption) => (
+							<Button
+								key={filterOption}
+								variant={filter === filterOption ? 'default' : 'outline'}
+								size="sm"
+								onClick={() => setFilter(filterOption as FilterType)}
+							>
+								{filterOption.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+							</Button>
+						))}
+					</div>
+
+					<div className="flex items-center space-x-2">
+						<label className="text-sm text-gray-600 dark:text-gray-400">Sort by:</label>
+						<select
+							value={sortBy}
+							onChange={(e) => setSortBy(e.target.value as SortType)}
+							className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md dark:bg-gray-700 dark:text-white"
+						>
+							<option value="due_date">Due Date</option>
+							<option value="priority">Priority</option>
+							<option value="type">Type</option>
+						</select>
+					</div>
+				</div>
+
+				{/* No tasks message */}
+				<Card>
+					<CardContent className="p-8 text-center">
+						<Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+						<h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+							No tasks found
+						</h3>
+						<p className="text-gray-500 dark:text-gray-400">
+							{filter === 'all' 
+								? 'Create your first task to get started!' 
+								: `No ${filter.replace('_', ' ')} tasks found.`
+							}
+						</p>
+					</CardContent>
+				</Card>
+			</div>
 		);
 	}
 

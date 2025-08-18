@@ -20,11 +20,12 @@ export interface TaskFormData {
 	title: string;
 	description: string;
 	due_date: string;
+	due_time: string; // Time in HH:mm format (24-hour)
+	due_timezone: string; // IANA timezone string
 	priority: 'low' | 'medium' | 'high' | 'urgent';
 	type: 'follow_up' | 'proposal' | 'meeting' | 'call' | 'email' | 'general';
 	lead_id?: string;
 	reminder_enabled: boolean;
-	reminder_time?: string; // This sets both due time and reminder time
 	reminders: ReminderOption[];
 }
 
@@ -56,12 +57,12 @@ export interface TaskStats {
 }
 
 export const TASK_TYPES = {
+	general: { label: 'General', icon: '📝', color: 'text-gray-500' },
 	follow_up: { label: 'Follow Up', icon: '📞', color: 'text-blue-500' },
 	proposal: { label: 'Proposal', icon: '📋', color: 'text-green-500' },
 	meeting: { label: 'Meeting', icon: '📅', color: 'text-purple-500' },
 	call: { label: 'Call', icon: '📞', color: 'text-orange-500' },
-	email: { label: 'Email', icon: '📧', color: 'text-indigo-500' },
-	general: { label: 'General', icon: '📝', color: 'text-gray-500' }
+	email: { label: 'Email', icon: '📧', color: 'text-indigo-500' }
 } as const;
 
 export const PRIORITY_COLORS = {

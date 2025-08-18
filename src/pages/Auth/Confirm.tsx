@@ -223,7 +223,7 @@ export default function AuthConfirm() {
 		};
 
 		confirmEmail();
-	}, [hasExecuted]); // Only depend on hasExecuted, not searchParams
+	}, [hasExecuted, navigate, refreshUser, searchParams]); // Include all dependencies
 
 	const handleRetry = () => {
 		window.location.reload();

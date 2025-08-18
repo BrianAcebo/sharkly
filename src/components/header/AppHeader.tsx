@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
+import { useNotifications } from '../../hooks/useNotifications';
 
 import { 
   Search, 
@@ -20,13 +21,10 @@ import { useSidebar } from '../../hooks/useSidebar';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { Link } from 'react-router';
 
-interface HeaderProps {
-  unreadCount?: number;
-}
-
-const Header: React.FC<HeaderProps> = ({ unreadCount = 0 }) => {
+const Header: React.FC = () => {
   const { user, signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
+  const { unreadCount: notificationsUnreadCount, fetchUnreadCount: fetchNotificationsUnreadCount, isConnectionHealthy } = useNotifications(user?.id || undefined);
 
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -168,15 +166,27 @@ const Header: React.FC<HeaderProps> = ({ unreadCount = 0 }) => {
                 className="p-2 text-gray-500 hover:text-brand-500 dark:text-gray-400 dark:hover:text-brand-400 transition-colors duration-200 relative"
               >
                 <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
+                
+                {/* Connection status indicator - show when notifications are down */}
+                {!isConnectionHealthy && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">!</span>
+                  </div>
+                )}
+                
+                {/* Unread count indicator */}
+                {notificationsUnreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">
-                    {unreadCount > 99 ? '99+' : unreadCount}
+                    {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount}
                   </span>
                 )}
               </button>
 
               {showNotifications && (
-                <NotificationPanel onClose={() => setShowNotifications(false)} />
+                <NotificationPanel 
+                  onClose={() => setShowNotifications(false)} 
+                  fetchUnreadCount={fetchNotificationsUnreadCount}
+                />
               )}
             </div>
 

@@ -2,15 +2,29 @@ import { supabase } from '../utils/supabaseClient';
 
 export interface CreateTaskWithRemindersParams {
   ownerId: string;
-  organizationId: string;
+  organizationId?: string;
   title: string;
   description?: string;
-  dueAtUtc: string; // ISO string
-  offsetsMinutes: number[]; // e.g., [5, 15, 30, 60] for 5min, 15min, 30min, 1hr reminders
+  dueAtUtc: string; // UTC ISO string
+  dueTimezone: string; // IANA timezone
+  offsetsMinutes: number[]; // e.g., [5, 15, 30, 60, 1440]
+}
+
+export interface UpdateTaskAndRemindersParams {
+  taskId: string;
+  dueAtUtc: string; // UTC ISO string
+  dueTimezone: string; // IANA timezone
+  offsetsMinutes: number[]; // e.g., [5, 15, 30, 60, 1440]
+  title?: string;
+  description?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
+  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   type?: 'follow_up' | 'proposal' | 'meeting' | 'call' | 'email' | 'general';
 }
 
+/**
+ * Creates a task with associated reminders using the RPC function
+ */
 export const createTaskWithReminders = async (params: CreateTaskWithRemindersParams) => {
   try {
     const {
@@ -19,92 +33,94 @@ export const createTaskWithReminders = async (params: CreateTaskWithRemindersPar
       title,
       description = '',
       dueAtUtc,
-      offsetsMinutes,
-      priority = 'medium',
-      type = 'general'
+      dueTimezone,
+      offsetsMinutes
     } = params;
 
-    // 1. Create the task
-    const { data: task, error: taskError } = await supabase
-      .from('tasks')
-      .insert({
-        title,
-        description,
-        status: 'pending',
-        priority,
-        type,
-        due_date: dueAtUtc,
-        owner_id: ownerId,
-        organization_id: organizationId
-      })
-      .select()
-      .single();
+    console.log('🚀 Creating task with reminders:', {
+      ownerId,
+      organizationId,
+      title,
+      dueAtUtc,
+      dueTimezone,
+      offsetsMinutes
+    });
 
-    if (taskError) {
-      throw new Error(`Failed to create task: ${taskError.message}`);
+    // Call the RPC function
+    const { data, error } = await supabase.rpc('create_task_with_reminders', {
+      _owner: ownerId,
+      _organization: organizationId || null,
+      _title: title,
+      _description: description || null,
+      _due_at: dueAtUtc,
+      _due_timezone: dueTimezone,
+      _offsets_minutes: offsetsMinutes
+    });
+
+    if (error) {
+      console.error('❌ RPC error:', error);
+      throw new Error(`Failed to create task: ${error.message}`);
     }
 
-    console.log('✅ Task created:', task.id);
-
-    // 2. Create reminders for each offset
-    if (offsetsMinutes.length > 0) {
-      const reminderPromises = offsetsMinutes.map(async (offsetMinutes) => {
-        const reminderTime = new Date(new Date(dueAtUtc).getTime() - offsetMinutes * 60 * 1000);
-        
-        const { error: reminderError } = await supabase
-          .from('task_reminders')
-          .insert({
-            task_id: task.id,
-            reminder_time: reminderTime.toISOString(),
-            status: 'pending',
-            notification_type: 'browser'
-          });
-
-        if (reminderError) {
-          console.error(`Failed to create ${offsetMinutes}min reminder:`, reminderError);
-          return null;
-        }
-
-        console.log(`✅ ${offsetMinutes}min reminder created for task:`, task.id);
-        return { offsetMinutes, reminderTime: reminderTime.toISOString() };
-      });
-
-      const reminderResults = await Promise.all(reminderPromises);
-      const successfulReminders = reminderResults.filter(Boolean);
-      
-      console.log(`✅ Created ${successfulReminders.length} reminders for task:`, task.id);
-    }
-
-    return { success: true, taskId: task.id };
+    console.log('✅ Task created successfully with ID:', data);
+    return { success: true, taskId: data };
   } catch (error) {
     console.error('Error creating task with reminders:', error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 };
 
+/**
+ * Updates a task and regenerates its reminders using the RPC function
+ */
+export const updateTaskAndReminders = async (params: UpdateTaskAndRemindersParams) => {
+  try {
+    const {
+      taskId,
+      dueAtUtc,
+      dueTimezone,
+      offsetsMinutes,
+      title,
+      description,
+      priority,
+      status,
+      type
+    } = params;
 
+    console.log('🔄 Updating task and regenerating reminders:', {
+      taskId,
+      dueAtUtc,
+      dueTimezone,
+      offsetsMinutes,
+      title,
+      description,
+      priority,
+      status,
+      type
+    });
 
-export async function updateTaskAndReminders({
-  taskId, dueAtUtc, offsetsMinutes, title, description, priority, status, type
-}: {
-  taskId: string;
-  dueAtUtc: string;             // ISO UTC string
-  offsetsMinutes: number[];     // e.g. [5,10,15]
-  title?: string; 
-  description?: string; 
-  priority?: string; 
-  status?: string; 
-  type?: string;
-}) {
-  const { error } = await supabase.rpc('update_task_and_regenerate_reminders', {
-    _task_id: taskId,
-    _new_due: dueAtUtc,
-    _offsets_minutes: offsetsMinutes,
-    _title: title ?? null,
-    _description: description ?? null,
-    _priority: priority ?? null,
-    _status: status ?? null,
-    _type: type ?? null,
-  });
-  if (error) throw error;
-}
+    // Call the RPC function
+    const { data, error } = await supabase.rpc('update_task_and_regenerate_reminders', {
+      _task_id: taskId,
+      _new_due: dueAtUtc,
+      _due_timezone: dueTimezone,
+      _offsets_minutes: offsetsMinutes,
+      _title: title || null,
+      _description: description || null,
+      _priority: priority || null,
+      _status: status || null,
+      _type: type || null
+    });
+
+    if (error) {
+      console.error('❌ RPC error:', error);
+      throw new Error(`Failed to update task: ${error.message}`);
+    }
+
+    console.log('✅ Task updated successfully:', data);
+    return { success: true, data };
+  } catch (error) {
+    console.error('Error updating task and reminders:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+};

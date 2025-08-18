@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
@@ -35,7 +35,7 @@ export default function Notifications() {
   const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   // Fetch notifications
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!user) return;
     
     setLoading(true);
@@ -54,7 +54,7 @@ export default function Notifications() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   // Mark notification as read
   const markAsRead = async (notificationId: string) => {
@@ -223,7 +223,7 @@ export default function Notifications() {
 
   useEffect(() => {
     fetchNotifications();
-  }, [user]);
+  }, [user, fetchNotifications]);
 
   // Close delete buttons when clicking outside
   useEffect(() => {
@@ -468,13 +468,13 @@ export default function Notifications() {
                             <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                               <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Details</h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                                {notification.metadata.task_title && (
+                                {typeof notification.metadata.task_title === 'string' && notification.metadata.task_title && (
                                   <div>
                                     <span className="font-medium text-gray-600 dark:text-gray-400">Task:</span>
                                     <span className="ml-2 text-gray-800 dark:text-gray-200">{notification.metadata.task_title}</span>
                                   </div>
                                 )}
-                                {notification.metadata.due_date && (
+                                {typeof notification.metadata.due_date === 'string' && notification.metadata.due_date && (
                                   <div>
                                     <span className="font-medium text-gray-600 dark:text-gray-400">Due:</span>
                                     <span className="ml-2 text-gray-800 dark:text-gray-200">
@@ -482,7 +482,7 @@ export default function Notifications() {
                                     </span>
                                   </div>
                                 )}
-                                {notification.metadata.priority && (
+                                {typeof notification.metadata.priority === 'string' && notification.metadata.priority && (
                                   <div>
                                     <span className="font-medium text-gray-600 dark:text-gray-400">Priority:</span>
                                     <span className="ml-2 text-gray-800 dark:text-gray-200 capitalize">
