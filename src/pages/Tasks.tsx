@@ -104,6 +104,12 @@ export default function Tasks() {
 		setEditingTask(null);
 	};
 
+	const handleTaskFormSuccess = () => {
+		// Refresh tasks data after successful creation/update
+		// The useTasks hook will automatically refresh the data
+		closeForm();
+	};
+
 	const getStatusIcon = (status: keyof typeof stats) => {
 		switch (status) {
 			case 'total':
@@ -408,6 +414,7 @@ export default function Tasks() {
 								onCancel={closeForm}
 								initialData={editingTask || undefined}
 								mode={editingTask ? 'edit' : 'create'}
+								onSuccess={handleTaskFormSuccess}
 							/>
 						</div>
 					</div>

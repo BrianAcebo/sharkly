@@ -13,7 +13,7 @@ import { TimePicker } from '../ui/time-picker';
 import DatePicker from '../form/date-picker';
 import { toast } from 'sonner';
 
-import { createTaskWithReminders, updateTaskWithReminders } from '../../api/tasks';
+import { createTaskWithReminders, updateTaskAndReminders } from '../../api/tasks';
 
 // Simple interface for leads dropdown
 interface LeadOption {
@@ -25,6 +25,7 @@ interface LeadOption {
 
 interface TaskFormProps {
 	onCancel: () => void;
+	onSuccess?: () => void;
 	initialData?: Partial<TaskFormData> | Partial<Task>; // Allow Task objects for editing
 	mode: 'create' | 'edit';
 }
@@ -36,7 +37,7 @@ interface FormErrors {
 	general?: string;
 }
 
-export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode }) => {
+export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, onSuccess, initialData, mode }) => {
 	const { user } = useAuth();
 	const [loading, setLoading] = useState(false);
 	const [leads, setLeads] = useState<LeadOption[]>([]);
@@ -251,7 +252,10 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 
 			// Fetch existing reminders for this task with the due date
 			if (taskData.id && dueDate) {
-				fetchExistingReminders(taskData.id, dueDate);
+				// Call fetchExistingReminders and wait for it to complete
+				fetchExistingReminders(taskData.id, dueDate).then(() => {
+					console.log('✅ Existing reminders loaded for editing');
+				});
 			}
 		}
 	}, [initialData, mode]);
@@ -679,8 +683,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 						throw new Error('Due time must be at least 5 minutes in the future');
 					}
 
-					dueAtUtc = dateTime.toISOString();
-					console.log('✅ Due time set to:', dueAtUtc);
+					// Convert local time to UTC using the specified formula
+					dueAtUtc = new Date(dateTime.getTime() - dateTime.getTimezoneOffset() * 60000).toISOString();
+					console.log('✅ Due time set to (UTC):', dueAtUtc);
 				} catch (error) {
 					console.error('Error combining date and time:', error);
 					setErrors({
@@ -717,9 +722,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 						case '1hr': offsetsMinutes.push(60); break;
 						case '1day': offsetsMinutes.push(1440); break;
 						case 'custom':
-							if (reminder.customTime) {
+							if (reminder.customTime && reminder.customTime.trim() !== '') {
 								// For custom times, calculate the offset
-								const customTime = new Date(reminder.customTime);
+								const customTime = new Date(reminder.customTime!);
 								const dueTime = new Date(dueAtUtc);
 								const offsetMs = dueTime.getTime() - customTime.getTime();
 								const offsetMinutes = Math.round(offsetMs / (1000 * 60));
@@ -757,28 +762,47 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 					offsetsMinutes
 				});
 
-				const result = await updateTaskWithReminders({
+				await updateTaskAndReminders({
 					taskId,
-					ownerId: user?.id || '',
-					organizationId: user?.organization_id || '',
-					title: cleanedTaskData.title,
-					description: cleanedTaskData.description,
 					dueAtUtc,
 					offsetsMinutes,
+					title: cleanedTaskData.title,
+					description: cleanedTaskData.description,
 					priority: cleanedTaskData.priority,
+					status: (initialData as Partial<Task>).status,
 					type: cleanedTaskData.type
 				});
 
-				if (result.success) {
-					console.log('✅ Task updated successfully with ID:', result.taskId);
-					toast.success('Task updated successfully');
+				console.log('✅ Task updated successfully with ID:', taskId);
+				toast.success('Task updated successfully');
+				
+				// Immediately update form to reflect the new due_date and reminder_time
+				if (formData.due_date && formData.reminder_time) {
+					// Extract the new time from the saved dueAtUtc
+					const newDateTime = new Date(dueAtUtc);
+					const hours = newDateTime.getHours();
+					const minutes = newDateTime.getMinutes();
+					const ampm = hours >= 12 ? 'PM' : 'AM';
+					const hour12 = hours % 12 || 12;
+					const newReminderTime = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 					
+					// Update form state immediately
+					setFormData(prev => ({
+						...prev,
+						reminder_time: newReminderTime
+					}));
+					
+					console.log('✅ Form updated with new time:', newReminderTime);
+				}
+				
+				// Call onSuccess if provided, otherwise close modal
+				if (onSuccess) {
+					onSuccess();
+				} else {
 					// Close the modal
 					setTimeout(() => {
 						onCancel();
 					}, 100);
-				} else {
-					throw new Error(result.error || 'Failed to update task');
 				}
 			} else {
 				// Create new task
@@ -803,10 +827,34 @@ export const TaskForm: React.FC<TaskFormProps> = ({ onCancel, initialData, mode 
 					console.log('✅ Task created successfully with ID:', result.taskId);
 					toast.success('Task created successfully');
 					
-					// Close the modal
-					setTimeout(() => {
-						onCancel();
-					}, 100);
+					// Immediately update form to reflect the new due_date and reminder_time
+					if (formData.due_date && formData.reminder_time) {
+						// Extract the new time from the saved dueAtUtc
+						const newDateTime = new Date(dueAtUtc);
+						const hours = newDateTime.getHours();
+						const minutes = newDateTime.getMinutes();
+						const ampm = hours >= 12 ? 'PM' : 'AM';
+						const hour12 = hours % 12 || 12;
+						const newReminderTime = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+						
+						// Update form state immediately
+						setFormData(prev => ({
+							...prev,
+							reminder_time: newReminderTime
+						}));
+						
+						console.log('✅ Form updated with new time:', newReminderTime);
+					}
+					
+					// Call onSuccess if provided, otherwise close modal
+					if (onSuccess) {
+						onSuccess();
+					} else {
+						// Close the modal
+						setTimeout(() => {
+							onCancel();
+						}, 100);
+					}
 				} else {
 					throw new Error(result.error || 'Failed to create task');
 				}

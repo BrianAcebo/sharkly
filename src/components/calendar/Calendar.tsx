@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Settings, RefreshCw } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Badge } from '../ui/badge';
+import { Card, CardContent, CardHeader } from '../ui/card';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../utils/supabaseClient';
 import { Task } from '../../types/tasks';
-import { formatDateSafe } from '../../utils/dateUtils';
-import { useNavigate } from 'react-router-dom';
 import { TaskDetail } from '../tasks/TaskDetail';
+import { TaskForm } from '../tasks/TaskForm';
 
 interface CalendarEvent {
 	id: string;
@@ -28,15 +26,14 @@ interface CalendarView {
 
 export const Calendar: React.FC = () => {
 	const { user } = useAuth();
-	const navigate = useNavigate();
 	const [currentDate, setCurrentDate] = useState(new Date());
 	const [view, setView] = useState<CalendarView>({ type: 'month', label: 'Month' });
 	const [events, setEvents] = useState<CalendarEvent[]>([]);
-	const [loading, setLoading] = useState(true);
 	const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
 	const [showTaskModal, setShowTaskModal] = useState(false);
 	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 	const [showTaskDetail, setShowTaskDetail] = useState(false);
+	const [editingTask, setEditingTask] = useState<Task | null>(null);
 
 	// Calendar navigation
 	const goToPrevious = () => {
@@ -92,8 +89,6 @@ export const Calendar: React.FC = () => {
 			setEvents(taskEvents);
 		} catch (error) {
 			console.error('Error fetching tasks:', error);
-		} finally {
-			setLoading(false);
 		}
 	}, [user?.id]);
 
@@ -127,7 +122,6 @@ export const Calendar: React.FC = () => {
 		const year = currentDate.getFullYear();
 		const month = currentDate.getMonth();
 		const firstDay = new Date(year, month, 1);
-		const lastDay = new Date(year, month + 1, 0);
 		const startDate = new Date(firstDay);
 		startDate.setDate(startDate.getDate() - firstDay.getDay());
 
@@ -154,18 +148,31 @@ export const Calendar: React.FC = () => {
 		return days;
 	};
 
-	// Get events for a specific date
-	const getEventsForDate = (date: Date) => {
-		return events.filter(event => {
-			const eventDate = new Date(event.start);
-			return eventDate.toDateString() === date.toDateString();
-		});
-	};
-
 	// Handle date click
 	const handleDateClick = (date: Date) => {
 		setCurrentDate(date);
 		setView({ type: 'day', label: 'Day' });
+	};
+
+	// Handle task edit
+	const handleTaskEdit = (task: Task) => {
+		setEditingTask(task);
+		setShowTaskDetail(false);
+		setShowTaskModal(true);
+	};
+
+	// Handle task form cancel
+	const handleTaskFormCancel = () => {
+		setShowTaskModal(false);
+		setEditingTask(null);
+	};
+
+	// Handle task form success (create or update)
+	const handleTaskFormSuccess = () => {
+		setShowTaskModal(false);
+		setEditingTask(null);
+		// Refresh the calendar data to show updated tasks
+		fetchTasks();
 	};
 
 	// Handle event click
@@ -215,9 +222,9 @@ export const Calendar: React.FC = () => {
 							{/* View Toggle */}
 							<div className="flex rounded-lg border border-gray-200 dark:border-gray-700">
 								{[
-									{ type: 'month', label: 'Month' },
-									{ type: 'week', label: 'Week' },
-									{ type: 'day', label: 'Day' }
+									{ type: 'month' as const, label: 'Month' },
+									{ type: 'week' as const, label: 'Week' },
+									{ type: 'day' as const, label: 'Day' }
 								].map((viewOption) => (
 									<button
 										key={viewOption.type}
@@ -386,11 +393,7 @@ export const Calendar: React.FC = () => {
 			{showTaskDetail && selectedTask && (
 				<TaskDetail
 					task={selectedTask}
-					onEdit={() => {
-						setShowTaskDetail(false);
-						// You could open the edit form here if needed
-						console.log('Edit task:', selectedTask.id);
-					}}
+					onEdit={() => handleTaskEdit(selectedTask)}
 					onDelete={() => {
 						setShowTaskDetail(false);
 						// You could open the delete confirmation here if needed
@@ -407,27 +410,14 @@ export const Calendar: React.FC = () => {
 				/>
 			)}
 
-			{/* Task Modal would go here */}
+			{/* Task Form Modal */}
 			{showTaskModal && (
-				<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-					<div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
-						<h2 className="text-lg font-semibold mb-4">Add New Task</h2>
-						<p className="text-gray-600 dark:text-gray-400 mb-4">
-							Task creation modal coming soon...
-						</p>
-						<div className="flex justify-end space-x-2">
-							<Button
-								variant="outline"
-								onClick={() => setShowTaskModal(false)}
-							>
-								Cancel
-							</Button>
-							<Button onClick={() => setShowTaskModal(false)}>
-								Create Task
-							</Button>
-						</div>
-					</div>
-				</div>
+				<TaskForm
+					mode={editingTask ? 'edit' : 'create'}
+					initialData={editingTask || undefined}
+					onCancel={handleTaskFormCancel}
+					onSuccess={handleTaskFormSuccess}
+				/>
 			)}
 		</div>
 	);

@@ -199,7 +199,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
 									<div className="flex items-center space-x-2">
 										<Clock className="h-4 w-4 text-gray-500" />
 										<span className="text-gray-700 dark:text-gray-300">
-											Reminder set for: {formatDateSafe(task.reminder_time, 'time')}
+											Reminder set for: {task.reminder_time ? new Date(task.reminder_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'N/A'}
 										</span>
 									</div>
 								)}
