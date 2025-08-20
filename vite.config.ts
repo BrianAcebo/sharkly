@@ -10,6 +10,8 @@ const __dirname = dirname(__filename);
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: "/",
+  build: { outDir: "dist" },
   plugins: [react(), tailwindcss()],
   optimizeDeps: {
     exclude: ['lucide-react'],
