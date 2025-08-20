@@ -7,6 +7,21 @@ import leadsRoutes from './routes/leads';
 import { HttpError } from './error/httpError';
 import { requireAuth } from './middleware/auth';
 
+// Twilio SMS routes
+import seatHookRoutes from './routes/twilio/seatHooks';
+import provisionRoutes from './routes/twilio/provision';
+import sendSmsRoutes from './routes/twilio/sendSms';
+import inboundWebhookRoutes from './routes/twilio/inbound';
+import statusWebhookRoutes from './routes/twilio/status';
+
+// Twilio Voice routes
+import callRoutes from './routes/twilio/calls';
+import voiceWebhookRoutes from './routes/twilio/voice';
+import callStatusWebhookRoutes from './routes/twilio/callStatus';
+
+// Twilio Client routes for WebRTC
+import clientTokenRoutes from './twilio/routes/clientTokens';
+
 dotenv.config();
 
 const app = express();
@@ -47,6 +62,28 @@ app.get('/api/test-auth', requireAuth, (req, res) => {
 app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/leads', leadsRoutes);
+
+// Twilio SMS routes
+app.use('/internal', seatHookRoutes);
+app.use('/admin', seatHookRoutes);
+app.use('/me', seatHookRoutes);
+
+// Mount provision routes behind feature flag (disabled by default)
+if (process.env.DISABLE_NUMBER_PURCHASE_UI !== 'true') {
+  app.use('/admin/twilio', provisionRoutes);
+}
+
+app.use('/api/sms', sendSmsRoutes);
+app.use('/webhooks/twilio', inboundWebhookRoutes);
+app.use('/webhooks/twilio', statusWebhookRoutes);
+
+// Twilio Voice routes
+app.use('/api/calls', callRoutes);
+app.use('/twilio', voiceWebhookRoutes); // Mount voice TwiML route
+app.use('/webhooks/twilio', callStatusWebhookRoutes);
+
+// Twilio Client routes for WebRTC
+app.use('/api/twilio-client', clientTokenRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

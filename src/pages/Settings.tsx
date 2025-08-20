@@ -20,10 +20,12 @@ import {
 	EyeOff,
 	AlertTriangle,
 	Upload,
-	RefreshCw
+	RefreshCw,
+	Phone
 } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
+import MyNumberCard from '../components/sms/MyNumberCard';
 
 interface ProfileFormData {
 	first_name: string;
@@ -451,6 +453,7 @@ export default function SettingsPage() {
 		{ id: 'profile', label: 'Profile', icon: User },
 		{ id: 'security', label: 'Security', icon: Shield },
 		{ id: 'notifications', label: 'Notifications', icon: Bell },
+		{ id: 'sms', label: 'SMS', icon: Phone },
 		{ id: 'danger', label: 'Danger Zone', icon: AlertTriangle }
 	];
 
@@ -1032,6 +1035,26 @@ export default function SettingsPage() {
 							</div>
 						</CardContent>
 					</Card>
+				);
+
+			case 'sms':
+				return (
+					<div className="space-y-6">
+						<Card>
+							<CardHeader>
+								<CardTitle className="flex items-center gap-2">
+									<Phone className="h-5 w-5" />
+									SMS Management
+								</CardTitle>
+								<CardDescription>
+									Manage your business phone number for SMS communications
+								</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<MyNumberCard />
+							</CardContent>
+						</Card>
+					</div>
 				);
 
 			default:

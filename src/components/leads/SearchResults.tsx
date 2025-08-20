@@ -412,6 +412,12 @@ export function SearchResults({
 									</p>
 								</div>
 							)}
+
+							<a href={`/leads/${selectedResult.id}`}>
+								<Button variant="flat" size="sm" className="w-full">
+									View
+								</Button>
+							</a>
 						</CardContent>
 					</Card>
 				) : (

@@ -31,7 +31,7 @@ export const getStageColor = (stage: LeadStage): string => {
 export const getStageLabel = (stage: string) => {
   switch (stage) {
     case 'new':
-      return 'New Lead';
+      return 'New';
     case 'contacted':
       return 'Contacted';
     case 'qualified':

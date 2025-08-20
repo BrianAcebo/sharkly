@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Settings, RefreshCw, X } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Settings, X } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader } from '../ui/card';
 import { useAuth } from '../../contexts/AuthContext';
@@ -29,7 +29,6 @@ export const Calendar: React.FC = () => {
 	const [currentDate, setCurrentDate] = useState(new Date());
 	const [view, setView] = useState<CalendarView>({ type: 'month', label: 'Month' });
 	const [events, setEvents] = useState<CalendarEvent[]>([]);
-	const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
 	const [showTaskModal, setShowTaskModal] = useState(false);
 	const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 	const [showTaskDetail, setShowTaskDetail] = useState(false);
@@ -108,30 +107,9 @@ export const Calendar: React.FC = () => {
 		}
 	}, [user?.id, showCompletedTasks]);
 
-	// Fetch Google Calendar events
-	const fetchGoogleCalendarEvents = useCallback(async () => {
-		if (!googleCalendarConnected) return;
 
-		try {
-			// This would integrate with Google Calendar API
-			// For now, we'll show a placeholder
-			console.log('Fetching Google Calendar events...');
-		} catch (error) {
-			console.error('Error fetching Google Calendar events:', error);
-		}
-	}, [googleCalendarConnected]);
 
-	// Connect to Google Calendar
-	const connectGoogleCalendar = async () => {
-		try {
-			// This would use your existing Google OAuth
-			// For now, we'll show a placeholder
-			setGoogleCalendarConnected(true);
-			console.log('Connecting to Google Calendar...');
-		} catch (error) {
-			console.error('Error connecting to Google Calendar:', error);
-		}
-	};
+
 
 	// Generate calendar grid for month view
 	const generateMonthGrid = () => {
@@ -320,8 +298,7 @@ export const Calendar: React.FC = () => {
 
 	useEffect(() => {
 		fetchTasks();
-		fetchGoogleCalendarEvents();
-	}, [fetchTasks, fetchGoogleCalendarEvents]);
+	}, [fetchTasks]);
 
 	const monthGrid = generateMonthGrid();
 	const weekGrid = generateWeekView();

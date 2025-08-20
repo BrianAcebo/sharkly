@@ -50,6 +50,8 @@ export interface ButtonProps
 	loading?: boolean;
 	fullWidth?: boolean;
 	type?: 'button' | 'submit' | 'reset';
+	tooltip?: string;
+	tooltipPosition?: 'top' | 'bottom' | 'left' | 'right';
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -65,6 +67,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 		fullWidth = false,
 		disabled,
 		type = 'button',
+		tooltip,
+		tooltipPosition = 'top',
 		...props 
 	}, ref) => {
 		const Comp = asChild ? Slot : 'button';
@@ -98,7 +102,23 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 			loading ? 'cursor-not-allowed' : ''
 		);
 
-		return (
+		// Tooltip positioning classes
+		const tooltipPositionClasses = {
+			top: 'bottom-full left-1/2 transform -translate-x-1/2 mb-2',
+			bottom: 'top-full left-1/2 transform -translate-x-1/2 mt-2',
+			left: 'right-full top-1/2 transform -translate-y-1/2 mr-2',
+			right: 'left-full top-1/2 transform -translate-y-1/2 ml-2'
+		};
+
+		// Tooltip arrow classes
+		const tooltipArrowClasses = {
+			top: 'top-full left-1/2 transform -translate-x-1/2 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900',
+			bottom: 'bottom-full left-1/2 transform -translate-x-1/2 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900',
+			left: 'left-full top-1/2 transform -translate-y-1/2 border-t-4 border-b-4 border-l-4 border-transparent border-l-gray-900',
+			right: 'right-full top-1/2 transform -translate-y-1/2 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900'
+		};
+
+		const buttonElement = (
 			<Comp 
 				className={buttonClasses} 
 				ref={ref} 
@@ -111,6 +131,25 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 				{children}
 				{!loading && endIcon && <span className="flex items-center">{endIcon}</span>}
 			</Comp>
+		);
+
+		// If no tooltip, return the button as is
+		if (!tooltip) {
+			return buttonElement;
+		}
+
+		// If tooltip is provided, wrap with tooltip functionality
+		return (
+			<div className="relative group inline-flex">
+				{buttonElement}
+				<div className={cn(
+					'absolute px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50',
+					tooltipPositionClasses[tooltipPosition]
+				)}>
+					{tooltip}
+					<div className={cn('absolute w-0 h-0', tooltipArrowClasses[tooltipPosition])}></div>
+				</div>
+			</div>
 		);
 	}
 );

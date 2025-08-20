@@ -11,6 +11,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 export default function OnboardingForm() {
 	const [firstName, setFirstName] = useState<string>('');
 	const [lastName, setLastName] = useState<string>('');
+	const [areaCode, setAreaCode] = useState<string>('');
 	const [avatar, setAvatar] = useState<File | null>(null);
 	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 	const [error, setError] = useState<string>('');
@@ -124,6 +125,7 @@ export default function OnboardingForm() {
 					first_name: firstName,
 					last_name: lastName,
 					avatar: avatarPath,
+					area_code: areaCode.trim() || null,
 					completed_onboarding: true
 				})
 				.eq('id', user.id)
@@ -135,6 +137,31 @@ export default function OnboardingForm() {
 			}
 
 			console.log('Profile update successful:', updateData);
+
+			// Provision phone number for the agent
+			console.log('Provisioning phone number...');
+			try {
+				const response = await fetch(`${import.meta.env.VITE_TWILIO_API_URL || 'http://localhost:3001'}/internal/seat-created`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'x-user-id': user.id
+					},
+					body: JSON.stringify({
+						agentId: user.id,
+						areaCode: areaCode.trim() || undefined
+					})
+				});
+
+				if (response.ok) {
+					const result = await response.json();
+					console.log('Phone number provisioned:', result.phoneNumber);
+				} else {
+					console.warn('Phone number provisioning failed, but continuing with onboarding');
+				}
+			} catch (error) {
+				console.warn('Phone number provisioning error, but continuing with onboarding:', error);
+			}
 
 			console.log('Calling updateUser()...');
 			// Update the user state with new profile information
@@ -252,6 +279,28 @@ export default function OnboardingForm() {
 											required
 										/>
 									</div>
+								</div>
+
+								{/* Area Code Selection */}
+								<div>
+									<Label>
+										Preferred Area Code (Optional)
+									</Label>
+									<input
+										type="text"
+										value={areaCode}
+										onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+											// Only allow numbers
+											const value = e.target.value.replace(/\D/g, '');
+											setAreaCode(value);
+										}}
+										placeholder="e.g., 212 for NYC, 415 for SF"
+										maxLength={3}
+										className="h-11 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 focus:outline-hidden focus:ring-3 focus:border-brand-300 focus:ring-brand-500/20 dark:bg-gray-900 dark:text-white/90 dark:border-gray-700 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+									/>
+									<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										This will be used to provision your business phone number in your preferred area code. <b>If you do not provide an area code, a random one will be assigned to you.</b>
+									</p>
 								</div>
 
 								{/* Submit Button */}

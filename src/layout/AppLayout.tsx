@@ -5,12 +5,14 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import { useSidebar } from '../hooks/useSidebar';
 import { BreadcrumbsProvider } from '../providers/BreadcrumbsProvider';
 import { SidebarProvider } from '../providers/SidebarProvider';
+import { WebRTCCallProvider } from '../contexts/WebRTCCallContext';
 import { useAuth } from '../hooks/useAuth';
 import { AuthLoadingState } from '../contexts/AuthContext';
 import { AuthLoading } from '../components/AuthLoading';
 import { useScreenSize } from '../hooks/useScreenSize';
 import ScreenSizeWarning from '../components/common/ScreenSizeWarning';
 import { useNotifications } from '../hooks/useNotifications';
+import ActiveCallBar from '../components/calls/ActiveCallBar';
 
 const LayoutContent: React.FC = () => {
     const { pathname } = useLocation();
@@ -83,21 +85,26 @@ const LayoutContent: React.FC = () => {
 	}
 
 	return (
-		<div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 app-layout-content">
-            {isExpanded && (
-                <AppSidebar />
-            )}
-            
-            <div className="flex-1 h-screen overflow-hidden">
-                <AppHeader />
-                
-                <div className="flex-1">
-                    <main className="h-screen-visible overflow-y-auto mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
-                        <Outlet />
-                    </main>
-                </div>
-            </div>
-        </div>
+		<WebRTCCallProvider>
+			<div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 app-layout-content">
+				{isExpanded && (
+					<AppSidebar />
+				)}
+				
+				<div className="flex-1 h-screen overflow-hidden">
+					<AppHeader />
+					
+					<div className="flex-1">
+						<main className="h-screen-visible overflow-y-auto mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
+							<Outlet />
+						</main>
+					</div>
+				</div>
+			</div>
+			
+			{/* Fixed Active Call Bar */}
+			<ActiveCallBar />
+		</WebRTCCallProvider>
 	);
 };
 

@@ -30,6 +30,9 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword from './pages/Auth/ResetPassword';
+import NumberSettingsPage from './pages/settings/number';
+import LeadSmsPage from './pages/leads/[leadId]/sms';
+import Calls from './pages/Calls';
 
 export default function App() {
 	return (
@@ -48,6 +51,7 @@ export default function App() {
 						<Route index path="/pipeline" element={<Pipeline />} />
 						<Route path="/profile" element={<Profile />} />
 						<Route path="/settings" element={<Settings />} />
+						<Route path="/settings/number" element={<NumberSettingsPage />} />
 						<Route path="/notifications" element={<Notifications />} />
 						<Route path="/tasks" element={<Tasks />} />
 						<Route path="/tasks/:id" element={<Tasks />} />
@@ -58,6 +62,8 @@ export default function App() {
             			<Route path="/onboarding" element={<Onboarding />} />
 						<Route path="/leads" element={<Leads />} />
 						<Route path="/leads/:id" element={<Lead />} />
+						<Route path="/leads/:leadId/sms" element={<LeadSmsPage />} />
+						<Route path="/calls" element={<Calls />} />
 						<Route path="/organization-required" element={<OrganizationRequired />} />
 						<Route path="/organization" element={<Organization />} />
 					</Route>

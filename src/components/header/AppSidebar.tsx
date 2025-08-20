@@ -9,7 +9,8 @@ import {
   Building2, 
   Settings, 
   LogOut,
-  Calendar
+  Calendar,
+  Phone
 } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
@@ -19,10 +20,11 @@ const Sidebar: React.FC = () => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Pipeline', path: '/pipeline' },
+    { icon: Users, label: 'All Leads', path: '/leads' },
+    { icon: Phone, label: 'Calls', path: '/calls' },
     { icon: Mail, label: 'Inbox', path: '/inbox' },
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
     { icon: Bot, label: 'AI Assistant', path: '/assistant' },
-    { icon: Users, label: 'All Leads', path: '/leads' },
     { icon: Building2, label: 'Organization', path: '/organization' },
     { icon: Calendar, label: 'Calendar', path: '/calendar' },
     { icon: LayoutDashboard, label: 'Tasks', path: '/tasks' },

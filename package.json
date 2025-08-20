@@ -57,7 +57,9 @@
     "sonner": "^2.0.5",
     "stripe": "^18.3.0",
     "tailwind-merge": "^3.0.1",
-    "vaul": "^1.1.2"
+    "twilio": "^5.8.0",
+    "vaul": "^1.1.2",
+    "zod": "^4.0.17"
   },
   "devDependencies": {
     "@eslint/compat": "^1.2.5",
@@ -74,6 +76,7 @@
     "@types/nodemailer": "^6.4.17",
     "@types/react": "^18.2.61",
     "@types/react-dom": "^18.2.19",
+    "@types/twilio": "^3.19.2",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "concurrently": "^9.2.0",

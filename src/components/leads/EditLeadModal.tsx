@@ -185,7 +185,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Email *
+              Email (Optional)
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -196,7 +196,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ lead, onClose, onLeadUpda
                 onChange={handleInputChange}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
                 placeholder="Enter email address"
-                required
                 disabled={isLoading}
               />
             </div>

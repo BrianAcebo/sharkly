@@ -1,29 +1,28 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Edit, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Plus, MessageCircle, Phone } from 'lucide-react';
 import LeadInfo from './LeadInfo';
 import CommunicationHistory from '../communications/CommunicationHistory';
 import CommunicationComposer from '../communications/CommunicationComposer';
-import { useLeads } from '../../hooks/useLeads';
-import { useNavigate, useParams } from 'react-router';
+import CallConfirmation from './CallConfirmation';
+import EditLeadModal from './EditLeadModal';
+import { useNavigate, Link } from 'react-router';
 import { Button } from '../ui/button';
 import { deleteLeadService } from '../../utils/leadService';
 import { toast } from 'sonner';
+import { Lead } from '../../types/leads';
 
-const LeadProfile: React.FC = () => {
+const LeadProfile: React.FC<{ lead: Lead }> = ({ lead }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'communications'>('info');
   const [showComposer, setShowComposer] = useState(false);
   const [composerType, setComposerType] = useState<'email' | 'text' | 'call'>('email');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { leads } = useLeads();
+  const [showCallConfirm, setShowCallConfirm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  
-  // Find the selected lead by ID from the URL params
-  const selectedLead = leads.find(lead => lead.id === id);
   
   const tabs = [
     { id: 'info', label: 'Lead Information' },
-    { id: 'communications', label: `Communications (${selectedLead?.communications?.length || 0})` }
+    { id: 'communications', label: `Communications (${lead?.communications?.length || 0})` }
   ];
 
   const handleCompose = (type: 'email' | 'text' | 'call') => {
@@ -39,15 +38,19 @@ const LeadProfile: React.FC = () => {
     }
   };
 
+  const handleEdit = () => {
+    setShowEditModal(true);
+  };
+
   const handleDelete = () => {
     setShowDeleteConfirm(true);
   };
 
   const confirmDelete = async () => {
-    if (!selectedLead) return;
+    if (!lead) return;
     
     try {
-      await deleteLeadService(selectedLead.id);
+      await deleteLeadService(lead.id);
       toast.success('Lead deleted successfully!');
       navigate('/pipeline');
     } catch (error) {
@@ -61,7 +64,7 @@ const LeadProfile: React.FC = () => {
     setShowDeleteConfirm(false);
   };
 
-  if (!selectedLead) {
+  if (!lead) {
     return (
       <div className="flex items-center justify-center h-full">
         <p className="text-gray-500">Lead not found</p>
@@ -70,7 +73,7 @@ const LeadProfile: React.FC = () => {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col overflow-y-auto scrollbar-branded">
       <div className="bg-white dark:bg-gray-800 shadow-sm p-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
@@ -81,8 +84,8 @@ const LeadProfile: React.FC = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{selectedLead?.name}</h1>
-              <p className="text-gray-600 dark:text-gray-400">{selectedLead?.company}</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{lead?.name}</h1>
+              <p className="text-gray-600 dark:text-gray-400">{lead?.company}</p>
             </div>
           </div>
           
@@ -94,21 +97,20 @@ const LeadProfile: React.FC = () => {
               <Plus className="h-4 w-4 mr-2" />
               Email
             </Button>
+            <Link to={`/leads/${lead.id}/sms`}>
+              <Button variant="secondary">
+                <MessageCircle className="h-4 w-4 mr-2" />
+                SMS
+              </Button>
+            </Link>
             <Button
               variant="secondary"
-              onClick={() => handleCompose('text')}
+              onClick={() => setShowCallConfirm(true)}
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Text
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleCompose('call')}
-            >
-              <Plus className="h-4 w-4 mr-2" />
+              <Phone className="h-4 w-4 mr-2" />
               Call
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleEdit}>
               <Edit className="h-4 w-4" />
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
@@ -136,16 +138,39 @@ const LeadProfile: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'info' && selectedLead && <LeadInfo lead={selectedLead} />}
-        {activeTab === 'communications' && selectedLead && <CommunicationHistory lead={selectedLead} />}
+      <div className="flex-1">
+        {activeTab === 'info' && lead && <LeadInfo lead={lead} />}
+        {activeTab === 'communications' && lead && <CommunicationHistory lead={lead} />}
       </div>
 
       {showComposer && (
         <CommunicationComposer
-          leadId={selectedLead?.id || ''}
+          leadId={lead?.id || ''}
           type={composerType}
           onClose={() => setShowComposer(false)}
+        />
+      )}
+
+      {showCallConfirm && lead && (
+        <CallConfirmation
+          leadName={lead.name || 'Unknown Lead'}
+          leadPhone={lead.phone || ''}
+          onClose={() => setShowCallConfirm(false)}
+          onCallInitiated={(callSid) => {
+            console.log('Call initiated with SID:', callSid);
+            // You could log this call in your communications history
+          }}
+        />
+      )}
+
+      {showEditModal && lead && (
+        <EditLeadModal
+          lead={lead}
+          onClose={() => setShowEditModal(false)}
+          onLeadUpdated={() => {
+            toast.success('Lead updated successfully!');
+            // You could refresh the lead data here if needed
+          }}
         />
       )}
 
@@ -171,11 +196,11 @@ const LeadProfile: React.FC = () => {
             
             <div className="mb-4">
               <p className="text-sm text-gray-700 dark:text-gray-300">
-                Are you sure you want to delete "{selectedLead?.name}"?
+                Are you sure you want to delete "{lead?.name}"?
               </p>
-              {selectedLead?.company && (
+              {lead?.company && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Company: {selectedLead.company}
+                  Company: {lead.company}
                 </p>
               )}
             </div>
