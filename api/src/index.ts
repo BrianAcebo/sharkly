@@ -20,7 +20,7 @@ import voiceWebhookRoutes from './routes/twilio/voice';
 import callStatusWebhookRoutes from './routes/twilio/callStatus';
 
 // Twilio Client routes for WebRTC
-import clientTokenRoutes from './twilio/routes/clientTokens';
+import clientTokenRoutes from './routes/twilio/clientTokens';
 
 dotenv.config();
 
@@ -79,11 +79,11 @@ app.use('/webhooks/twilio', statusWebhookRoutes);
 
 // Twilio Voice routes
 app.use('/api/calls', callRoutes);
-app.use('/twilio', voiceWebhookRoutes); // Mount voice TwiML route
+// app.use('/twilio', voiceWebhookRoutes); // Mount voice TwiML route
 app.use('/webhooks/twilio', callStatusWebhookRoutes);
 
 // Twilio Client routes for WebRTC
-app.use('/api/twilio-client', clientTokenRoutes);
+app.use('/api/twilio/tokens', clientTokenRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

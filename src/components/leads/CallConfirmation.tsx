@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { Phone, X, Loader2 } from 'lucide-react';
 import { Button } from '../ui/button';
-import { callApi } from '../../lib/api';
 import { toast } from 'sonner';
+import { supabase } from '../../utils/supabaseClient';
 
 interface CallConfirmationProps {
   leadName: string;
@@ -37,14 +37,29 @@ const CallConfirmation: React.FC<CallConfirmationProps> = ({
     setIsCalling(true);
     
     try {
-      const response = await callApi.makeCall(leadPhone, twilioNumber);
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No active session');
+      }
+
+      const response = await fetch('/api/calls/make', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ to: leadPhone, from: twilioNumber })
+      });
       
-      if (response.success) {
+      const responseData = await response.json();
+      
+      if (response.ok && responseData.success) {
         toast.success(`Call initiated to ${leadName}`);
-        onCallInitiated?.(response.callSid);
+        onCallInitiated?.(responseData.callSid);
         onClose();
       } else {
-        toast.error('Failed to initiate call');
+        toast.error(responseData.error || 'Failed to initiate call');
       }
     } catch (error) {
       console.error('Error making call:', error);

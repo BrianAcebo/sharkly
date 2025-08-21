@@ -21,8 +21,9 @@ router.post('/make', requireAuth, async (req: Request, res: Response) => {
     // Make the call via Twilio
     const call = await twilioClient.calls.create({
       // url: `${PUBLIC_URL}/twilio/voice`,
-      url: `http://demo.twilio.com/docs/voice.xml`,
-      to: normalizedTo,
+      // url: `http://demo.twilio.com/docs/voice.xml`,
+      url: 'https://mll4s2dq-3001.usw3.devtunnels.ms/twilio/voice',
+      to: '9549976656',
       from: normalizedFrom,
       statusCallback: `${PUBLIC_URL}/webhooks/twilio/call-status`,
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],

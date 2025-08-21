@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useWebRTCCall } from '../../contexts/WebRTCCallContext';
+import { useWebRTCCall } from '../../hooks/useWebRTCCall';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { 
@@ -15,12 +15,13 @@ import {
   Expand
 } from 'lucide-react';
 
-const ActiveCallBar: React.FC = () => {
+export const ActiveCallBar: React.FC = () => {
 	const {
 		currentCall: activeCall,
 		isMuted,
 		isSpeakerOn,
 		callDuration,
+		deviceStatus,
 		toggleMute,
 		toggleSpeaker,
 		endCall,
@@ -82,8 +83,6 @@ const ActiveCallBar: React.FC = () => {
 		}
 	};
 
-	
-
 	const handleMakeCall = () => {
 		if (!dialedNumber) return;
 
@@ -104,6 +103,17 @@ const ActiveCallBar: React.FC = () => {
 			setDialedNumber('');
 		}
 	};
+
+	// Show loading state if device isn't ready
+	if (deviceStatus !== 'Ready') {
+		return (
+			<div className="fixed right-4 bottom-4 z-50">
+				<div className="w-12 h-12 rounded-full bg-gray-400 text-white flex items-center justify-center shadow-lg">
+					<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+				</div>
+			</div>
+		);
+	}
 
 	// If there's an active call and it's minimized
 	if (activeCall && isMinimized) {
@@ -339,5 +349,3 @@ const ActiveCallBar: React.FC = () => {
 		</div>
 	);
 };
-
-export default ActiveCallBar;

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { ActiveCall } from '../types/calls';
-import { callApi } from '../lib/api';
 import { toast } from 'sonner';
+import { supabase } from '../utils/supabaseClient';
 
 interface ActiveCallContextType {
   activeCall: ActiveCall | null;
@@ -98,9 +98,24 @@ export const ActiveCallProvider: React.FC<ActiveCallProviderProps> = ({ children
     setShowKeypad(false);
 
     try {
-      const response = await callApi.makeCall(phoneNumber, twilioNumber);
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No active session');
+      }
+
+      const response = await fetch('/api/calls/make', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ to: phoneNumber, from: twilioNumber })
+      });
       
-      if (response.success) {
+      const responseData = await response.json();
+      
+      if (response.ok && responseData.success) {
         const message = contactName 
           ? `Call initiated to ${contactName}`
           : `Call initiated to ${phoneNumber}`;
@@ -116,7 +131,7 @@ export const ActiveCallProvider: React.FC<ActiveCallProviderProps> = ({ children
           setActiveCall(prev => prev ? { ...prev, status: 'connected' } : null);
         }, 3000);
       } else {
-        throw new Error(response.error || 'Failed to initiate call');
+        throw new Error(responseData.error || 'Failed to initiate call');
       }
     } catch (error) {
       console.error('Error making call:', error);

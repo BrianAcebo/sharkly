@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, Loader2 } from 'lucide-react';
-import { smsApi } from '../../lib/api';
+import { supabase } from '../../utils/supabaseClient';
 
 interface MyNumberBadgeProps {
   onNumberChange?: (phoneNumber: string) => void;
@@ -27,15 +27,31 @@ const MyNumberBadge: React.FC<MyNumberBadgeProps> = ({ onNumberChange, className
     try {
       setIsLoading(true);
       
-      const response = await smsApi.getMyNumber();
-      setPhoneNumber(response.phoneNumber);
+      // Get the current session token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        throw new Error('No active session');
+      }
+
+      const response = await fetch('/me/number', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
       
-      if (response.phoneNumber && onNumberChange) {
-        onNumberChange(response.phoneNumber);
+      if (!response.ok) {
+        throw new Error('Failed to fetch phone number');
+      }
+      
+      const responseData = await response.json();
+      setPhoneNumber(responseData.phoneNumber);
+      
+      if (responseData.phoneNumber && onNumberChange) {
+        onNumberChange(responseData.phoneNumber);
       }
       
       // Reset polling if we got a number
-      if (response.phoneNumber) {
+      if (responseData.phoneNumber) {
         setPollingAttempts(0);
       }
       

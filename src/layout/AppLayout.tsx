@@ -5,22 +5,22 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import { useSidebar } from '../hooks/useSidebar';
 import { BreadcrumbsProvider } from '../providers/BreadcrumbsProvider';
 import { SidebarProvider } from '../providers/SidebarProvider';
-import { WebRTCCallProvider } from '../contexts/WebRTCCallContext';
+import { WebRTCCallProvider } from '../providers/WebRTCCallProvider';
 import { useAuth } from '../hooks/useAuth';
 import { AuthLoadingState } from '../contexts/AuthContext';
 import { AuthLoading } from '../components/AuthLoading';
 import { useScreenSize } from '../hooks/useScreenSize';
 import ScreenSizeWarning from '../components/common/ScreenSizeWarning';
 import { useNotifications } from '../hooks/useNotifications';
-import ActiveCallBar from '../components/calls/ActiveCallBar';
+import { ActiveCallBar } from '../components/calls/ActiveCallBar';
 
 const LayoutContent: React.FC = () => {
-    const { pathname } = useLocation();
+	const { pathname } = useLocation();
 	const { isExpanded } = useSidebar();
 	const { user, loadingState, session } = useAuth();
 	const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
 	const { isScreenTooSmall } = useScreenSize();
-	
+
 	// Initialize notifications system
 	useNotifications(session?.user?.id);
 
@@ -85,35 +85,33 @@ const LayoutContent: React.FC = () => {
 	}
 
 	return (
-		<WebRTCCallProvider>
-			<div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 app-layout-content">
-				{isExpanded && (
-					<AppSidebar />
-				)}
-				
-				<div className="flex-1 h-screen overflow-hidden">
+		<>
+			<div className="app-layout-content flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+				{isExpanded && <AppSidebar />}
+
+				<div className="h-screen flex-1 overflow-hidden">
 					<AppHeader />
-					
+
 					<div className="flex-1">
-						<main className="h-screen-visible overflow-y-auto mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
+						<main className="h-screen-visible mx-auto max-w-(--breakpoint-2xl) overflow-y-auto p-4 md:p-6">
 							<Outlet />
 						</main>
 					</div>
 				</div>
 			</div>
-			
-			{/* Fixed Active Call Bar */}
 			<ActiveCallBar />
-		</WebRTCCallProvider>
+		</>
 	);
 };
 
 const AppLayout: React.FC = () => {
 	return (
 		<SidebarProvider>
-            <BreadcrumbsProvider>
-			    <LayoutContent />
-            </BreadcrumbsProvider>
+			<BreadcrumbsProvider>
+				<WebRTCCallProvider>
+					<LayoutContent />
+				</WebRTCCallProvider>
+			</BreadcrumbsProvider>
 		</SidebarProvider>
 	);
 };

@@ -1,6 +1,22 @@
 import { Router, Request, Response } from 'express';
+import twilio from 'twilio';
 
 const router = Router();
+
+router.post("/voice", (req, res) => {
+  const to = (req.body?.To || "").trim();
+  const e164 = /^\+\d{7,15}$/;
+  const vr = new twilio.twiml.VoiceResponse();
+
+  if (!e164.test(to)) {
+    vr.say("Invalid destination number.");
+  } else {
+    const dial = vr.dial({ callerId: process.env.TWILIO_CALLER_ID! });
+    dial.number(to);
+  }
+
+  res.type("text/xml").send(vr.toString());
+});
 
 // GET /twilio/voice - Serve TwiML XML for voice calls
 router.get('/voice', (req: Request, res: Response) => {
