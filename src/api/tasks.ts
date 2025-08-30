@@ -37,15 +37,6 @@ export const createTaskWithReminders = async (params: CreateTaskWithRemindersPar
       offsetsMinutes
     } = params;
 
-    console.log('🚀 Creating task with reminders:', {
-      ownerId,
-      organizationId,
-      title,
-      dueAtUtc,
-      dueTimezone,
-      offsetsMinutes
-    });
-
     // Call the RPC function
     const { data, error } = await supabase.rpc('create_task_with_reminders', {
       _owner: ownerId,
@@ -58,15 +49,12 @@ export const createTaskWithReminders = async (params: CreateTaskWithRemindersPar
     });
 
     if (error) {
-      console.error('❌ RPC error:', error);
-      throw new Error(`Failed to create task: ${error.message}`);
+      throw error;
     }
 
-    console.log('✅ Task created successfully with ID:', data);
-    return { success: true, taskId: data };
+    return data;
   } catch (error) {
-    console.error('Error creating task with reminders:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    throw error;
   }
 };
 
@@ -87,18 +75,6 @@ export const updateTaskAndReminders = async (params: UpdateTaskAndRemindersParam
       type
     } = params;
 
-    console.log('🔄 Updating task and regenerating reminders:', {
-      taskId,
-      dueAtUtc,
-      dueTimezone,
-      offsetsMinutes,
-      title,
-      description,
-      priority,
-      status,
-      type
-    });
-
     // Call the RPC function
     const { data, error } = await supabase.rpc('update_task_and_regenerate_reminders', {
       _task_id: taskId,
@@ -113,14 +89,11 @@ export const updateTaskAndReminders = async (params: UpdateTaskAndRemindersParam
     });
 
     if (error) {
-      console.error('❌ RPC error:', error);
-      throw new Error(`Failed to update task: ${error.message}`);
+      throw error;
     }
 
-    console.log('✅ Task updated successfully:', data);
-    return { success: true, data };
+    return data;
   } catch (error) {
-    console.error('Error updating task and reminders:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    throw error;
   }
 };

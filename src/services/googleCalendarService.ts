@@ -57,8 +57,12 @@ class GoogleCalendarService {
 				.single();
 
 			if (error) {
-				console.log('No Google tokens found, user needs to connect');
 				return false;
+			}
+
+			if (!tokens) {
+				// No Google tokens found, user needs to connect
+				return null;
 			}
 
 			this.accessToken = tokens.access_token;
@@ -71,8 +75,7 @@ class GoogleCalendarService {
 			}
 
 			return true;
-		} catch (error) {
-			console.error('Error initializing Google Calendar service:', error);
+		} catch {
 			return false;
 		}
 	}
@@ -109,8 +112,7 @@ class GoogleCalendarService {
 			await this.updateTokensInDatabase();
 
 			return true;
-		} catch (error) {
-			console.error('Error refreshing access token:', error);
+		} catch {
 			return false;
 		}
 	}
@@ -130,8 +132,8 @@ class GoogleCalendarService {
 					expires_at: this.tokenExpiry,
 					updated_at: new Date().toISOString(),
 				});
-		} catch (error) {
-			console.error('Error updating tokens in database:', error);
+		} catch {
+			// Silent error handling
 		}
 	}
 
@@ -153,7 +155,6 @@ class GoogleCalendarService {
 
 			return await response.json();
 		} catch (error) {
-			console.error('Error fetching calendar list:', error);
 			throw error;
 		}
 	}
@@ -192,7 +193,6 @@ class GoogleCalendarService {
 
 			return await response.json();
 		} catch (error) {
-			console.error('Error fetching events:', error);
 			throw error;
 		}
 	}
@@ -223,7 +223,6 @@ class GoogleCalendarService {
 
 			return await response.json();
 		} catch (error) {
-			console.error('Error creating event:', error);
 			throw error;
 		}
 	}
@@ -255,7 +254,6 @@ class GoogleCalendarService {
 
 			return await response.json();
 		} catch (error) {
-			console.error('Error updating event:', error);
 			throw error;
 		}
 	}
@@ -278,8 +276,7 @@ class GoogleCalendarService {
 			);
 
 			return response.ok;
-		} catch (error) {
-			console.error('Error deleting event:', error);
+		} catch {
 			return false;
 		}
 	}
@@ -331,8 +328,8 @@ class GoogleCalendarService {
 					await this.createEvent('primary', event);
 				}
 			}
-		} catch (error) {
-			console.error('Error syncing tasks with calendar:', error);
+		} catch {
+			// Silent error handling
 		}
 	}
 
@@ -357,8 +354,8 @@ class GoogleCalendarService {
 			this.accessToken = null;
 			this.refreshToken = null;
 			this.tokenExpiry = null;
-		} catch (error) {
-			console.error('Error disconnecting Google Calendar:', error);
+		} catch {
+			// Silent error handling
 		}
 	}
 }

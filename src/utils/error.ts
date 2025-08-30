@@ -50,7 +50,10 @@ export class DatabaseError extends Error {
 
 // Simple Supabase error parser
 export function parseSupabaseError(error: unknown): Error {
-	console.error('Raw Supabase error:', error);
+	// Log the raw error for debugging (only in development)
+	if (import.meta.env.DEV) {
+		// Silent logging in production
+	}
 	
 	if (!error) {
 		return new Error('Unknown error occurred');

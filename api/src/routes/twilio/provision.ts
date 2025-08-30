@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../utils/supabaseClient';
-import { twilioClient, PUBLIC_URL } from '../../utils/twilioClient';
+import { twilioClient } from '../../utils/twilioClient';
 import { requireAuth } from '../../middleware/auth';
 
 const router = Router();
@@ -73,7 +73,7 @@ const buyNumberSchema = z.object({
     const purchasedNumber = await twilioClient.incomingPhoneNumbers
       .create({
         phoneNumber: phoneNumber.phoneNumber,
-        smsUrl: `${PUBLIC_URL}/webhooks/twilio/sms-inbound`,
+        smsUrl: `${process.env.PUBLIC_URL}/webhooks/twilio/sms-inbound`,
         smsMethod: 'POST'
       });
 
@@ -97,7 +97,7 @@ const buyNumberSchema = z.object({
 
     res.json({
       ok: true,
-      phoneNumber: purchasedNumber.phoneNumber
+      phoneNumber: agentPhoneNumber.phone_number
     });
 
   } catch (error) {

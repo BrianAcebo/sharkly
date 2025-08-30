@@ -25,7 +25,7 @@ export const ActiveCallBar: React.FC = () => {
 		toggleMute,
 		toggleSpeaker,
 		endCall,
-		makeCall: initiateCall
+		makeCall: initiateCall,
 	} = useWebRTCCall();
 
 	const [isMinimized, setIsMinimized] = useState(false);
@@ -109,7 +109,8 @@ export const ActiveCallBar: React.FC = () => {
 		return (
 			<div className="fixed right-4 bottom-4 z-50">
 				<div className="w-12 h-12 rounded-full bg-gray-400 text-white flex items-center justify-center shadow-lg">
-					<div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+					{deviceStatus}
+					{/* <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div> */}
 				</div>
 			</div>
 		);

@@ -1,52 +1,109 @@
 import { Router, Request, Response } from 'express';
+import 'dotenv/config';
 import twilio from 'twilio';
+import { supabase } from '../../utils/supabaseClient';
+import { verifyTwilio } from '../../middleware/twilio';
+
+console.log('[voice router LOADED]', import.meta.url);
+
 
 const router = Router();
 
-router.post("/voice", (req, res) => {
-  const to = (req.body?.To || "").trim();
-  const e164 = /^\+\d{7,15}$/;
-  const vr = new twilio.twiml.VoiceResponse();
+const E164 = /^\+\d{7,15}$/;
 
-  if (!e164.test(to)) {
-    vr.say("Invalid destination number.");
-  } else {
-    const dial = vr.dial({ callerId: process.env.TWILIO_CALLER_ID! });
-    dial.number(to);
-  }
+const toE164 = (n?: string) => {
+	if (!n) return '';
+	const s = String(n).trim();
+	if (!s) return '';
+	return s.startsWith('+') ? s : `+${s.replace(/\D/g, '')}`;
+};
 
-  res.type("text/xml").send(vr.toString());
-});
+async function getAgentsActivePhoneNumber(agentId: string): Promise<string | null> {
+	if (!supabase) return null;
 
-// GET /twilio/voice - Serve TwiML XML for voice calls
-router.get('/voice', (req: Request, res: Response) => {
-  try {
-    console.info('Voice TwiML requested');
-    
-    // Set the content type to XML
-    res.set('Content-Type', 'text/xml');
-    
-    // Return the TwiML XML content
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="woman">Brian says he loves you very much!</Say>
-  <Play>http://demo.twilio.com/docs/classic.mp3</Play>
-</Response>`;
-    
-    res.send(twiml);
-    
-  } catch (error) {
-    console.error('Error serving voice TwiML:', error);
-    
-    // Return a simple error TwiML response
-    const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say voice="woman">We're sorry, but there was an error processing your call. Please try again later.</Say>
-</Response>`;
-    
-    res.set('Content-Type', 'text/xml');
-    res.send(errorTwiml);
-  }
+	const { data, error } = await supabase
+		.from('agent_phone_numbers')
+		.select('phone_number')
+		.eq('agent_id', agentId)
+		.eq('is_active', true)
+		.limit(1)
+		.single();
+
+	if (error || !data?.phone_number) {
+		console.warn('[voice] no active phone number for agent:', agentId, error);
+		return null;
+	}
+
+	const e164 = toE164(data.phone_number);
+	return E164.test(e164) ? e164 : null;
+}
+
+/**
+ * POST /api/twilio/voice/call
+ * - Twilio hits this when your browser runs Device.connect({ params: { To } }).
+ * - We bind callerId to the authenticated agent identity (ClientName="agent_<id>").
+ * - In dev, you can test with: ?dev=1&from=+E164 and -d "To=+E164".
+ */
+router.post('/call', verifyTwilio, async (req: Request, res: Response) => {
+  console.log('[voice handler ENTER]', import.meta.url);
+
+  const devBypass = process.env.ALLOW_DEV_WEBHOOKS === 'true'
+  
+	const identityRaw =
+		(req.body?.ClientName as string | undefined) || (req.body?.From as string | undefined) || '';
+	const identity = identityRaw.replace(/^client:/, ''); // e.g. "agent_123"
+	const to = toE164(req.body?.To);
+
+	// Determine callerId
+	let callerId = '';
+	if (devBypass) {
+		callerId = toE164((req.query.from as string | undefined) || process.env.TWILIO_PHONE_NUMBER);
+	} else {
+		// Require identity = agent_<id>
+		if (!identity || !/^agent_/.test(identity)) {
+			const vr = new twilio.twiml.VoiceResponse();
+			vr.say('Unauthorized caller.');
+			return res.type('text/xml').send(vr.toString());
+		}
+		const agentId = identity.slice(6); // strip "agent_"
+		const lookedUp = await getAgentsActivePhoneNumber(agentId);
+		callerId = toE164(lookedUp || '');
+	}
+
+	const vr = new twilio.twiml.VoiceResponse();
+
+	if (!E164.test(to) || !E164.test(callerId)) {
+		vr.say('Invalid to or from.');
+		return res.type('text/xml').send(vr.toString());
+	}
+
+	// Build TwiML
+	const dial = vr.dial({
+		callerId,
+		answerOnBridge: true
+	});
+
+  const baseHost =
+  process.env.WEBHOOK_PUBLIC_HOST ||
+  process.env.NGROK_DOMAIN ||
+  (req.headers['x-forwarded-host'] as string) ||
+  (req.headers.host as string);
+
+const statusCallback = `https://${String(baseHost).replace(/\/+$/, '')}/api/webhooks/twilio/call-status`;
+
+console.log('[voice] using statusCallback:', statusCallback);
+
+	// Status callbacks belong on <Number> (not <Dial>)
+	dial.number(
+		{
+			statusCallback,
+			statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+			statusCallbackMethod: 'POST'
+		},
+		to
+	);
+
+	return res.type('text/xml').send(vr.toString());
 });
 
 export default router;

@@ -3,9 +3,6 @@ import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
 import type { Notification } from '../types/notifications';
 
-// Audio for notification ding - using generated sound
-console.log('🎵 Using generated sound for notifications (audio file not available)');
-
 // Generate a simple ding sound using Web Audio API as fallback
 const generateDingSound = () => {
   try {
@@ -25,7 +22,7 @@ const generateDingSound = () => {
     oscillator.start(audioContext.currentTime);
     oscillator.stop(audioContext.currentTime + 0.3);
   } catch {
-    console.warn('Could not generate ding sound');
+    // Silent error handling
   }
 };
 
@@ -48,15 +45,12 @@ export const useNotifications = (userId?: string) => {
 
   // Function to play notification ding and show push notification
   const playNotificationAlert = (notification: Notification) => {
-    console.log('🔔 Playing notification alert for:', notification);
     try {
       // Since we don't have an audio file, always use generated sound
-      console.log('🎵 Using generated sound for notification');
       generateDingSound(); // Use generated sound
 
       // Show browser push notification if permission is granted
       if (Notification.permission === 'granted') {
-        console.log('📱 Showing push notification');
         const pushNotification = new Notification(notification.title || 'Task Reminder', {
           body: notification.message,
           icon: '/images/logos/logo.svg',
@@ -77,19 +71,14 @@ export const useNotifications = (userId?: string) => {
             window.open(notification.action_url, '_blank');
           }
         };
-      } else {
-        console.log('📱 Push notification permission not granted:', Notification.permission);
       }
-    } catch (error) {
-      console.warn('Error showing notification alert:', error);
+    } catch {
+      // Silent error handling
     }
   };
 
   // Function to show notification toast and mark as shown in database
   const showNotificationToast = async (notification: Notification) => {
-    console.log('🔔 Showing toast for notification:', notification.id);
-    
-    // Show persistent toast for new notification (won't auto-dismiss)
     toast(notification.message || notification.title || 'Reminder due', {
       description: notification.title !== notification.message ? notification.title : undefined,
       duration: Infinity, // Won't auto-dismiss
@@ -104,12 +93,12 @@ export const useNotifications = (userId?: string) => {
               .eq('id', notification.id);
 
             if (error) {
-              console.error('Error marking notification as shown:', error);
+              // Silent error handling
             } else {
-              console.log('✅ Notification marked as shown in database');
+              // Silent error handling
             }
-          } catch (error) {
-            console.error('Error updating notification shown status:', error);
+          } catch {
+            // Silent error handling
           }
         }
       }
@@ -120,11 +109,9 @@ export const useNotifications = (userId?: string) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleInsert = useCallback((payload: any) => {
     const notification = payload.new as Notification;
-    console.log('🔔 New notification received via real-time:', notification);
     
     // If we're receiving notifications, we're definitely connected
     if (connectionStatus !== 'connected') {
-      console.log('🔄 Updating connection status to connected (received notification)');
       setConnectionStatus('connected');
       setServiceAvailable(true);
     }
@@ -139,14 +126,12 @@ export const useNotifications = (userId?: string) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleUpdate = useCallback((payload: any) => {
     const n = payload.new as Notification;
-    console.log('Notification updated:', n);
     if (n.read) setUnreadCount((c) => Math.max(0, c - 1));
   }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDelete = useCallback((payload: any) => {
     const n = payload.old as Notification;
-    console.log('Notification deleted:', n);
     if (!n.read) setUnreadCount((c) => Math.max(0, c - 1));
   }, []);
 
@@ -154,16 +139,13 @@ export const useNotifications = (userId?: string) => {
   const subscribeToNotifications = useCallback(() => {
     // Don't subscribe if already subscribed
     if (channelRef.current && connectionStatus === 'connected') {
-      console.log('Already subscribed, skipping duplicate subscription');
       return;
     }
     
     // Prevent rapid subscription attempts
-    if (!canAttemptSubscription()) {
-      const remainingTime = Math.ceil((minSubscriptionInterval - (Date.now() - lastSubscriptionAttemptRef.current)) / 1000);
-      console.log(`⏳ Skipping subscription attempt - waiting ${remainingTime}s (rate limiting)`);
-      return;
-    }
+          if (!canAttemptSubscription()) {
+        return;
+      }
     
     // Mark this subscription attempt
     markSubscriptionAttempt();
@@ -172,7 +154,6 @@ export const useNotifications = (userId?: string) => {
     
     // Clean up any existing subscription
     if (channelRef.current) {
-      console.log('🧹 Cleaning up existing subscription before creating new one');
       channelRef.current.unsubscribe();
       channelRef.current = null;
     }
@@ -189,7 +170,6 @@ export const useNotifications = (userId?: string) => {
         },
         (payload) => {
           const notification = payload.new as Notification;
-          console.log('🔔 New notification received via real-time:', notification);
           
           // Only show toast if notification hasn't been shown yet
           if (!notification.shown) {
@@ -214,9 +194,6 @@ export const useNotifications = (userId?: string) => {
         },
         (payload) => {
           const notification = payload.new as Notification;
-          console.log('Notification updated:', notification);
-          
-          // If notification was marked as read, update unread count
           if (notification.read) {
             setUnreadCount((prev: number) => Math.max(0, prev - 1));
           }
@@ -232,17 +209,12 @@ export const useNotifications = (userId?: string) => {
         },
         (payload) => {
           const notification = payload.old as Notification;
-          console.log('Notification deleted:', notification);
-          
-          // If deleted notification was unread, update unread count
           if (!notification.read) {
             setUnreadCount((prev: number) => Math.max(0, prev - 1));
           }
         }
       )
       .subscribe((status) => {
-        console.log('Notification subscription status:', status);
-        
         // Get current time for debouncing
         const now = Date.now();
         
@@ -252,7 +224,6 @@ export const useNotifications = (userId?: string) => {
             setConnectionStatus('connected');
             connectionAttemptsRef.current = 0; // Reset connection attempts on success
             isSubscribingRef.current = false; // Reset subscribing flag
-            console.log('✅ Notification subscription established successfully');
             break;
           case 'TIMED_OUT':
             setConnectionStatus('error');
@@ -263,8 +234,6 @@ export const useNotifications = (userId?: string) => {
             }
             break;
           case 'CLOSED':
-            console.log('🔌 Notification subscription closed');
-            // Don't immediately set as disconnected - wait a bit to see if it reconnects
             connectionAttemptsRef.current++;
             
             if (connectionAttemptsRef.current > maxRetries) { // After max attempts, stop retrying
@@ -272,25 +241,20 @@ export const useNotifications = (userId?: string) => {
               setServiceAvailable(false);
               isSubscribingRef.current = false; // Reset subscribing flag
               stopRetries(); // Stop retry attempts
-              console.log('🚫 Maximum retry attempts reached, stopping automatic reconnection');
               if (now - lastErrorToastRef.current > 10000) { // 10 second debounce
                 toast.error('🔴 Notifications disconnected. Service unavailable. Use retry button to reconnect.');
                 lastErrorToastRef.current = now;
             }
             } else {
               // Check if enough time has passed since last subscription attempt
-              if (!canAttemptSubscription()) {
-                const remainingTime = Math.ceil((minSubscriptionInterval - (Date.now() - lastSubscriptionAttemptRef.current)) / 1000);
-                console.log(`⏳ Waiting ${remainingTime}s before next subscription attempt (rate limiting)`);
-                return; // Don't proceed with retry yet
-              }
+                              if (!canAttemptSubscription()) {
+                  return; // Don't proceed with retry yet
+                }
               
               // Still trying to reconnect, but with exponential backoff
               setConnectionStatus('connecting');
               const backoffDelay = calculateBackoffDelay(connectionAttemptsRef.current);
               const totalDelay = Math.max(backoffDelay, minSubscriptionInterval);
-              
-              console.log(`📡 Retry attempt ${connectionAttemptsRef.current + 1} in ${Math.round(totalDelay / 1000)}s (includes rate limiting)`);
               
               // Mark this attempt and schedule next retry
               markSubscriptionAttempt();
@@ -306,7 +270,6 @@ export const useNotifications = (userId?: string) => {
             setServiceAvailable(false);
             isSubscribingRef.current = false; // Reset subscribing flag
             stopRetries(); // Stop retry attempts
-            console.log('❌ Notification channel error, stopping retries');
             if (now - lastErrorToastRef.current > 10000) { // 10 second debounce
               toast.error('🔴 Notification error. Service unavailable. Use retry button to reconnect.');
               lastErrorToastRef.current = now;
@@ -337,7 +300,7 @@ export const useNotifications = (userId?: string) => {
       setServiceAvailable(true);
       setLastError(null);
     } catch (error) {
-      console.error('Error fetching unread count:', error);
+      // Silent error handling
       
       // Check if it's a throttling error
       if (error instanceof Error && error.message.includes('503')) {
@@ -475,7 +438,7 @@ export const useNotifications = (userId?: string) => {
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('Error fetching recent notifications:', error);
+          // Silent error handling
           
           // Check if it's a throttling error
           if (error instanceof Error && error.message.includes('503')) {
@@ -502,7 +465,7 @@ export const useNotifications = (userId?: string) => {
           }
         });
       } catch (error) {
-        console.error('Error in catch-up fetch:', error);
+        // Silent error handling
         
         // Check if it's a throttling error
         if (error instanceof Error && error.message.includes('503')) {
@@ -554,29 +517,23 @@ export const useNotifications = (userId?: string) => {
       })
       .subscribe((status) => {
         if (!isCurrent) return;
-        console.log('Notification subscription status:', status);
         
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('connected');
           setServiceAvailable(true);
           setLastError(null);
           retryCount = 0; // Reset retry count on success
-          console.log('✅ Connection established successfully');
         } else if (status === 'CLOSED') {
           setConnectionStatus('disconnected');
-          console.log('🔌 Connection closed, starting retry logic');
           
           // Retry with exponential backoff, but don't trigger effect cleanup
           if (retryCount < maxRetries && isCurrent) {
             retryCount++;
             const delay = baseDelay * Math.pow(2, retryCount - 1); // Exponential backoff: 2s, 4s, 8s, 16s, 32s
             
-            console.log(`📡 Retry attempt ${retryCount} in ${delay / 1000}s (creating fresh channel)`);
-            
             setTimeout(() => {
               // Only retry if still current and this is still our channel
               if (isCurrent && channelRef.current === ch) {
-                console.log(`🔄 Attempting to reconnect with fresh channel (retry ${retryCount})`);
                 
                 // Create a fresh channel without triggering effect cleanup
                 const freshChannel = supabase
@@ -594,15 +551,12 @@ export const useNotifications = (userId?: string) => {
                     handleDelete(p);
                   })
                   .subscribe((retryStatus) => {
-                    if (!isCurrent) return;
-                    console.log(`Retry subscription status (attempt ${retryCount}):`, retryStatus);
                     
                     if (retryStatus === 'SUBSCRIBED') {
                       setConnectionStatus('connected');
                       setServiceAvailable(true);
                       setLastError(null);
                       retryCount = 0; // Reset retry count on success
-                      console.log('✅ Retry connection successful');
                     } else if (retryStatus === 'CLOSED') {
                       setConnectionStatus('disconnected');
                     } else if (retryStatus === 'CHANNEL_ERROR' || retryStatus === 'TIMED_OUT') {
@@ -616,13 +570,11 @@ export const useNotifications = (userId?: string) => {
               }
             }, delay);
           } else if (retryCount >= maxRetries) {
-            console.log('🚫 Max retries reached, stopping automatic reconnection');
             setServiceAvailable(false);
           }
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           setConnectionStatus('error');
           setServiceAvailable(false);
-          console.log('❌ Connection error or timeout');
         }
       });
 
@@ -632,7 +584,6 @@ export const useNotifications = (userId?: string) => {
     // This handles the case where the subscription callback might be delayed
     setTimeout(() => {
       if (channelRef.current && connectionStatus === 'connecting') {
-        console.log('🔄 Immediate status update: channel exists, setting to connected');
         setConnectionStatus('connected');
         setServiceAvailable(true);
       }
@@ -642,7 +593,6 @@ export const useNotifications = (userId?: string) => {
       // mark stale first to ignore late events
       isCurrent = false;
       if (channelRef.current) {
-        console.log('🧹 Unsubscribing notifications channel');
         channelRef.current.unsubscribe();
         channelRef.current = null;
       }
@@ -663,7 +613,6 @@ export const useNotifications = (userId?: string) => {
           // This handles the case where status updates might be delayed
           setTimeout(() => {
             if (channelRef.current && connectionStatus === 'connecting') {
-              console.log('🔄 Auto-updating connection status to connected (channel exists)');
               setConnectionStatus('connected');
               setServiceAvailable(true);
             }
@@ -681,7 +630,6 @@ export const useNotifications = (userId?: string) => {
 
     // If we have a channel but status is still connecting, update it
     if (channelRef.current && connectionStatus === 'connecting') {
-      console.log('🔄 Channel exists but status is connecting, updating to connected');
       setConnectionStatus('connected');
       setServiceAvailable(true);
     }

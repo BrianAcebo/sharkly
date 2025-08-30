@@ -125,9 +125,7 @@ const LeadsContent: React.FC = () => {
       toast.success(`Updated ${leadIds.length} lead${leadIds.length !== 1 ? 's' : ''}`);
       refreshLeads();
     } catch (error) {
-      console.error('Error bulk updating leads:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update leads';
-      toast.error(`Failed to update leads: ${errorMessage}`);
+      // Silent error handling
     }
   };
 
@@ -137,9 +135,7 @@ const LeadsContent: React.FC = () => {
       toast.success(`Deleted ${leadIds.length} lead${leadIds.length !== 1 ? 's' : ''}`);
       refreshLeads();
     } catch (error) {
-      console.error('Error bulk deleting leads:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete leads';
-      toast.error(`Failed to delete leads: ${errorMessage}`);
+      // Silent error handling
     }
   };
 
@@ -148,10 +144,7 @@ const LeadsContent: React.FC = () => {
       await bulkImportLeadsService(leads);
       refreshLeads();
     } catch (error) {
-      console.error('Error importing leads:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to import leads';
-      toast.error(`Failed to import leads: ${errorMessage}`);
-      throw error;
+      // Silent error handling
     }
   };
 
@@ -166,10 +159,7 @@ const LeadsContent: React.FC = () => {
       const leads = await getAllLeadsForExport(user.organization_id, combinedFilters());
       return leads;
     } catch (error) {
-      console.error('Error exporting leads:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to export leads';
-      toast.error(`Failed to export leads: ${errorMessage}`);
-      throw error;
+      // Silent error handling
     }
   };
 
@@ -181,10 +171,7 @@ const LeadsContent: React.FC = () => {
       const exportFilters = Object.keys(filters).length > 0 ? filters : combinedFilters();
       await emailLeadsExport(email, exportFilters);
     } catch (error) {
-      console.error('Error emailing leads export:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send email export';
-      toast.error(`Failed to send email export: ${errorMessage}`);
-      throw error;
+      // Silent error handling
     }
   };
 

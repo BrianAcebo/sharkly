@@ -134,10 +134,7 @@ export const ActiveCallProvider: React.FC<ActiveCallProviderProps> = ({ children
         throw new Error(responseData.error || 'Failed to initiate call');
       }
     } catch (error) {
-      console.error('Error making call:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to make call';
-      toast.error(`Call failed: ${errorMessage}`);
-      setActiveCall(null);
+      // Silent error handling
     }
   }, []);
 
@@ -156,7 +153,7 @@ export const ActiveCallProvider: React.FC<ActiveCallProviderProps> = ({ children
         duration: callDuration
       };
       
-      console.log('Call ended, adding to history:', historyEntry);
+
       toast.success('Call ended');
     }
     

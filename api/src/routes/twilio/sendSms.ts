@@ -102,7 +102,7 @@ router.post('/send', requireAuth, async (req: Request, res: Response) => {
       from: agentPhoneNumber.phone_number,
       to: normalizedTo,
       body,
-      statusCallback: `${process.env.PUBLIC_URL || 'http://localhost:3001'}/webhooks/twilio/sms-status`
+      statusCallback: `${process.env.PUBLIC_URL}/webhooks/twilio/sms-status`
     });
 
     // Update the SMS message with Twilio SID and status

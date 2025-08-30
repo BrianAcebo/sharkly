@@ -5,7 +5,6 @@ import { paymentRoutes } from './routes/payment';
 import organizationRoutes from './routes/organization';
 import leadsRoutes from './routes/leads';
 import { HttpError } from './error/httpError';
-import { requireAuth } from './middleware/auth';
 
 // Twilio SMS routes
 import seatHookRoutes from './routes/twilio/seatHooks';
@@ -26,6 +25,16 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
+
+console.log('[api] PID', process.pid);
+
+app.use((req, _res, next) => {
+	console.log('[hit]', req.method, req.originalUrl, 'host=', req.headers.host, 'pid=', process.pid);
+	next();
+});
 
 // Middleware
 app.use(
@@ -50,14 +59,6 @@ app.use((req, res, next) => {
 	}
 });
 
-// Test endpoint to debug authentication
-app.get('/api/test-auth', requireAuth, (req, res) => {
-	res.json({ 
-		message: 'Authentication successful!', 
-		user: req.user 
-	});
-});
-
 // Routes
 app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
@@ -70,24 +71,34 @@ app.use('/me', seatHookRoutes);
 
 // Mount provision routes behind feature flag (disabled by default)
 if (process.env.DISABLE_NUMBER_PURCHASE_UI !== 'true') {
-  app.use('/admin/twilio', provisionRoutes);
+	app.use('/admin/twilio', provisionRoutes);
 }
 
 app.use('/api/sms', sendSmsRoutes);
-app.use('/webhooks/twilio', inboundWebhookRoutes);
-app.use('/webhooks/twilio', statusWebhookRoutes);
+// app.use('/api/webhooks/twilio', inboundWebhookRoutes);
+// app.use('/api/webhooks/twilio', statusWebhookRoutes);
 
 // Twilio Voice routes
 app.use('/api/calls', callRoutes);
-// app.use('/twilio', voiceWebhookRoutes); // Mount voice TwiML route
-app.use('/webhooks/twilio', callStatusWebhookRoutes);
+app.use('/api/twilio/voice', voiceWebhookRoutes); // Mount voice TwiML route
+app.use('/api/webhooks/twilio', callStatusWebhookRoutes);
 
 // Twilio Client routes for WebRTC
 app.use('/api/twilio/tokens', clientTokenRoutes);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/api/health', (req, res) => {
 	res.json({ status: 'ok' });
+});
+
+app.get('/__whoami', (_req, res) => {
+	res.json({
+		pid: process.pid,
+		cwd: process.cwd(),
+		main: (process as any).mainModule?.filename || 'esm',
+		indexFile: import.meta.url, // proves this file
+		startedAt: new Date().toISOString()
+	});
 });
 
 // Error handling middleware

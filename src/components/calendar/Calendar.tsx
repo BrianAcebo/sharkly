@@ -103,7 +103,7 @@ export const Calendar: React.FC = () => {
 
 			setEvents(taskEvents);
 		} catch (error) {
-			console.error('Error fetching tasks:', error);
+			// Silent error handling
 		}
 	}, [user?.id, showCompletedTasks]);
 
@@ -251,7 +251,7 @@ export const Calendar: React.FC = () => {
 				.eq('task_id', taskToDelete.id);
 			
 			if (remindersError) {
-				console.warn('Warning: Could not delete task reminders:', remindersError);
+				// Silent error handling
 			}
 
 			// Then delete the task

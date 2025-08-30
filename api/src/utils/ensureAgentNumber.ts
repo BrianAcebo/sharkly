@@ -1,6 +1,5 @@
 import { supabase } from './supabaseClient';
 import { twilioClient } from './twilioClient';
-import { PUBLIC_URL } from './twilioClient';
 
 interface EnsureAgentNumberOptions {
   areaCode?: string;
@@ -97,7 +96,7 @@ export async function ensureAgentNumber(
     const purchasedNumber = await twilioClient.incomingPhoneNumbers
       .create({
         phoneNumber: availableNumber.phoneNumber,
-        smsUrl: `${PUBLIC_URL}/webhooks/twilio/sms-inbound`,
+        smsUrl: `${process.env.PUBLIC_URL}/webhooks/twilio/sms-inbound`,
         smsMethod: 'POST'
       });
 
@@ -121,7 +120,7 @@ export async function ensureAgentNumber(
     }
 
     console.info(`[${requestId}] Successfully provisioned number ${purchasedNumber.phoneNumber} for agent ${agentId}`);
-    return { phoneNumber: purchasedNumber.phoneNumber };
+    return { phoneNumber: agentPhoneNumber.phone_number };
 
   } catch (error) {
     console.error(`[${requestId}] Error ensuring agent number:`, error);

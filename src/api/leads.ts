@@ -75,8 +75,7 @@ async function fetchTeamMember(teamMemberId: string): Promise<TeamMember | null>
         completed_onboarding: profile?.completed_onboarding || false
       }
     };
-  } catch (error) {
-    console.error('Error fetching team member:', error);
+  } catch {
     return null;
   }
 }
@@ -91,14 +90,11 @@ export async function getAllLeads(): Promise<Lead[]> {
       .select('*');
 
     if (error) {
-      console.error('Error fetching all leads:', error);
       return [];
     }
 
-    console.log('All leads in database:', data);
     return data || [];
-  } catch (error) {
-    console.error('Error in getAllLeads:', error);
+  } catch {
     return [];
   }
 }
@@ -198,7 +194,6 @@ export async function getLeads(
       totalPages
     };
   } catch (error) {
-    console.error('Error fetching leads:', error);
     throw parseSupabaseError(error);
   }
 }
@@ -244,7 +239,6 @@ export async function getLead(id: string): Promise<Lead> {
 
     return lead;
   } catch (error) {
-    console.error('Error fetching lead:', error);
     throw parseSupabaseError(error);
   }
 }
@@ -273,18 +267,12 @@ export async function createLead(leadData: CreateLeadData): Promise<Lead> {
     }
 
     // Prepare the data for insertion, extracting assigned_to_id and adding created_by and organization_id
-    console.log('Creating lead with data:', leadData);
-    console.log('Assigned to object:', leadData.assigned_to);
-    console.log('Assigned to ID:', leadData.assigned_to?.id);
-    
     const insertData = {
       ...leadData,
       assigned_to: leadData.assigned_to?.id || null,
       created_by: user.id,
       organization_id: userOrg.organization_id
     };
-    
-    console.log('Insert data:', insertData);
 
     const { data, error } = await supabase
       .from('leads')
@@ -318,7 +306,6 @@ export async function createLead(leadData: CreateLeadData): Promise<Lead> {
 
     return lead;
   } catch (error) {
-    console.error('Error creating lead:', error);
     throw parseSupabaseError(error);
   }
 }
@@ -374,7 +361,6 @@ export async function updateLead(id: string, leadData: UpdateLeadData): Promise<
 
     return lead;
   } catch (error) {
-    console.error('Error updating lead:', error);
     throw parseSupabaseError(error);
   }
 }
@@ -393,7 +379,6 @@ export async function deleteLead(id: string): Promise<void> {
       throw error;
     }
   } catch (error) {
-    console.error('Error deleting lead:', error);
     throw parseSupabaseError(error);
   }
 }
@@ -446,7 +431,6 @@ export async function getLeadStats(organizationId?: string): Promise<{
       byPriority
     };
   } catch (error) {
-    console.error('Error fetching lead stats:', error);
     throw parseSupabaseError(error);
   }
 }
@@ -492,10 +476,8 @@ export async function emailLeadsExport(
     }
 
     const result = await response.json();
-    console.log('Email export result:', result);
-
+    return result;
   } catch (error) {
-    console.error('Error emailing leads export:', error);
     throw parseSupabaseError(error);
   }
 } 
@@ -531,7 +513,7 @@ export async function bulkCreateLeads(leadsData: CreateLeadData[]): Promise<Lead
       organization_id: userOrg.organization_id
     }));
 
-    console.log(`Bulk creating ${insertData.length} leads`);
+
 
     const { data, error } = await supabase
       .from('leads')
@@ -546,7 +528,7 @@ export async function bulkCreateLeads(leadsData: CreateLeadData[]): Promise<Lead
       throw new Error('No leads were created');
     }
 
-    console.log(`Successfully created ${data.length} leads`);
+
 
     // Transform data to match Lead type and fetch team members
     const leads: Lead[] = await Promise.all(
@@ -574,7 +556,6 @@ export async function bulkCreateLeads(leadsData: CreateLeadData[]): Promise<Lead
 
     return leads;
   } catch (error) {
-    console.error('Error bulk creating leads:', error);
     throw parseSupabaseError(error);
   }
 } 

@@ -11,7 +11,7 @@ const statusWebhookSchema = z.object({
 });
 
 // POST /webhooks/twilio/sms-status
-router.post('/webhooks/twilio/sms-status', async (req: Request, res: Response) => {
+router.post('/sms-status', async (req: Request, res: Response) => {
   try {
     // Parse and validate the webhook data
     const webhookData = statusWebhookSchema.parse(req.body);

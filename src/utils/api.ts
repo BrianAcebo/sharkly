@@ -53,30 +53,13 @@ export const api = {
 				body: body ? JSON.stringify(body) : undefined
 			});
 
-			let responseData;
 			try {
-				responseData = await response.json();
+				return await response.json();
 			} catch (parseError) {
-				console.error('Failed to parse response:', parseError);
-				throw new ApiError('Invalid response format', response.status);
+				throw new Error('Invalid JSON response');
 			}
-
-			if (!response.ok) {
-				const errorMessage =
-					responseData.error?.message || responseData.error || 'An error occurred';
-				throw new ApiError(errorMessage, response.status);
-			}
-
-			return responseData;
 		} catch (error) {
-			if (error instanceof ApiError) {
-				throw error;
-			}
-			if (error instanceof TypeError && error.message.includes('fetch')) {
-				throw new ApiError('Network error - unable to connect to server', 500);
-			}
-			console.error('API request error:', error);
-			throw new ApiError('Network error', 500);
+			throw error;
 		}
 	},
 

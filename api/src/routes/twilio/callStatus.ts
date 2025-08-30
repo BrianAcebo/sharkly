@@ -11,7 +11,9 @@ const callStatusSchema = z.object({
 });
 
 // POST /webhooks/twilio/call-status
-router.post('/webhooks/twilio/call-status', async (req: Request, res: Response) => {
+router.post('/call-status', async (req: Request, res: Response) => {
+  console.log('[callStatus router loaded from]', __filename);
+
   try {
     const webhookData = callStatusSchema.parse(req.body);
     

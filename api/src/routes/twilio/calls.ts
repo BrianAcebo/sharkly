@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { twilioClient, PUBLIC_URL } from '../../utils/twilioClient';
+import { twilioClient } from '../../utils/twilioClient';
 import { requireAuth } from '../../middleware/auth';
 import { makeCallSchema, normalizePhoneNumber } from '../../utils/utils';
 
@@ -18,14 +18,14 @@ router.post('/make', requireAuth, async (req: Request, res: Response) => {
 
     console.info(`Initiating call from ${normalizedFrom} to ${normalizedTo} for agent ${agentId}`);
 
+    console.log('PUBLIC_URL', process.env.PUBLIC_URL);
+
     // Make the call via Twilio
     const call = await twilioClient.calls.create({
-      // url: `${PUBLIC_URL}/twilio/voice`,
-      // url: `http://demo.twilio.com/docs/voice.xml`,
-      url: 'https://mll4s2dq-3001.usw3.devtunnels.ms/twilio/voice',
-      to: '9549976656',
+      url: `${process.env.PUBLIC_URL}/twilio/voice`,
+      to: normalizedTo,
       from: normalizedFrom,
-      statusCallback: `${PUBLIC_URL}/webhooks/twilio/call-status`,
+      statusCallback: `${process.env.PUBLIC_URL}/webhooks/twilio/call-status`,
       statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
       statusCallbackMethod: 'POST'
     });
