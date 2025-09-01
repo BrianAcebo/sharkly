@@ -44,8 +44,21 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 
 	const connRef = useRef<Call | null>(null);
 	const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+	const mediaStreamRef = useRef<MediaStream | null>(null);
 
 	const endCall = useCallback(() => {
+		console.log('[WebRTC] Ending call, cleaning up media streams');
+		
+		// Stop all media tracks (microphone, camera, etc.)
+		if (mediaStreamRef.current) {
+			mediaStreamRef.current.getTracks().forEach(track => {
+				console.log('[WebRTC] Stopping media track:', track.kind);
+				track.stop();
+			});
+			mediaStreamRef.current = null;
+		}
+
+		// Disconnect the call
 		if (connRef.current) {
 			connRef.current.disconnect();
 		}
@@ -131,6 +144,7 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 					connRef.current = connection;
 
 					connection.on('accept', () => {
+						console.log('[WebRTC] Incoming call accepted, capturing media stream');
 						setIsRinging(false);
 						setIsConnected(true);
 						setIsConnecting(false);
@@ -138,6 +152,14 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 							contactName: connection.parameters.From || 'Unknown',
 							status: 'connected'
 						});
+						
+						// Capture the media stream for cleanup when call ends
+						if (connection.getLocalStream) {
+							const localStream = connection.getLocalStream();
+							if (localStream) {
+								mediaStreamRef.current = localStream;
+							}
+						}
 					});
 
 					connection.on('disconnect', () => {
@@ -228,6 +250,20 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 		};
 	}, [isConnected, currentCall]);
 
+	// Cleanup media streams on unmount
+	useEffect(() => {
+		return () => {
+			console.log('[WebRTC] Component unmounting, cleaning up media streams');
+			if (mediaStreamRef.current) {
+				mediaStreamRef.current.getTracks().forEach(track => {
+					console.log('[WebRTC] Stopping media track on unmount:', track.kind);
+					track.stop();
+				});
+				mediaStreamRef.current = null;
+			}
+		};
+	}, []);
+
 	const makeCall = useCallback(
 		async (phoneNumber: string, contactName?: string) => {
 			if (!device) return;
@@ -289,6 +325,7 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 				console.log('c', c);
 
 				c.on('accept', () => {
+					console.log('[WebRTC] Call accepted, capturing media stream');
 					setStatus('On call');
 					setIsConnecting(false);
 					setIsConnected(true);
@@ -296,6 +333,14 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 						contactName: contactName || phoneNumber,
 						status: 'connected'
 					});
+					
+					// Capture the media stream for cleanup when call ends
+					if (c.getLocalStream) {
+						const localStream = c.getLocalStream();
+						if (localStream) {
+							mediaStreamRef.current = localStream;
+						}
+					}
 				});
 
 				c.on('disconnect', () => {
