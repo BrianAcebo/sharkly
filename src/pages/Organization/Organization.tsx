@@ -26,6 +26,7 @@ import {
 import Input from '../../components/form/input/InputField';
 import { useNavigate } from 'react-router-dom';
 import PageMeta from '../../components/common/PageMeta';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
 interface PendingInvitation {
 	id: string;
@@ -53,6 +54,11 @@ export default function OrganizationPage() {
 	);
 	const [isInviting, setIsInviting] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
+	const { setTitle } = useBreadcrumbs();
+
+	useEffect(() => {
+		setTitle('Organization');
+	}, [setTitle]);
 
 	const fetchOrganizationData = async () => {
 		setIsLoading(true);

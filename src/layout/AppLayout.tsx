@@ -6,6 +6,7 @@ import { useSidebar } from '../hooks/useSidebar';
 import { BreadcrumbsProvider } from '../providers/BreadcrumbsProvider';
 import { SidebarProvider } from '../providers/SidebarProvider';
 import { WebRTCCallProvider } from '../providers/WebRTCCallProvider';
+import { ActiveCallProvider } from '../contexts/ActiveCallContext';
 import { useAuth } from '../hooks/useAuth';
 import { AuthLoadingState } from '../contexts/AuthContext';
 import { AuthLoading } from '../components/AuthLoading';
@@ -109,7 +110,9 @@ const AppLayout: React.FC = () => {
 		<SidebarProvider>
 			<BreadcrumbsProvider>
 				<WebRTCCallProvider>
-					<LayoutContent />
+					<ActiveCallProvider>
+						<LayoutContent />
+					</ActiveCallProvider>
 				</WebRTCCallProvider>
 			</BreadcrumbsProvider>
 		</SidebarProvider>

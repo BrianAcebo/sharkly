@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useWebRTCCall } from '../../hooks/useWebRTCCall';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
+import { supabase } from '../../utils/supabaseClient';
 import { 
   Phone,
   PhoneOff, 
@@ -33,6 +34,54 @@ export const ActiveCallBar: React.FC = () => {
 	const [isMinimized, setIsMinimized] = useState(false);
 	const [showDialPad, setShowDialPad] = useState(false);
 	const [dialedNumber, setDialedNumber] = useState('');
+	const [isDialing, setIsDialing] = useState(false);
+
+	// Function to lookup lead by phone number
+	const lookupLeadByPhone = async (phoneNumber: string) => {
+		try {
+			// Get current user's organization
+			const { data: { user } } = await supabase.auth.getUser();
+			if (!user) return null;
+
+			const { data: userOrg } = await supabase
+				.from('user_organizations')
+				.select('organization_id')
+				.eq('user_id', user.id)
+				.single();
+
+			if (!userOrg) return null;
+
+			// Normalize phone number for lookup (remove all non-digits)
+			const normalizedPhone = phoneNumber.replace(/\D/g, '');
+			
+			// Try different phone number formats
+			const phoneVariations = [
+				normalizedPhone, // Raw digits
+				`+1${normalizedPhone}`, // +1 prefix
+				`+${normalizedPhone}`, // + prefix
+				normalizedPhone.slice(1), // Remove leading 1
+			];
+
+			// Look for lead with matching phone number
+			const { data: lead, error } = await supabase
+				.from('leads')
+				.select('id, name, phone')
+				.eq('organization_id', userOrg.organization_id)
+				.or(phoneVariations.map(phone => `phone.eq.${phone}`).join(','))
+				.single();
+
+			if (error || !lead) {
+				console.log('No lead found for phone number:', phoneNumber);
+				return null;
+			}
+
+			console.log('Found lead for phone number:', { phoneNumber, lead });
+			return lead;
+		} catch (error) {
+			console.error('Error looking up lead by phone:', error);
+			return null;
+		}
+	};
 
 	// Auto-close dial pad when a call becomes active (not just calling)
 	useEffect(() => {
@@ -40,6 +89,20 @@ export const ActiveCallBar: React.FC = () => {
 			setShowDialPad(false);
 		}
 	}, [activeCall, showDialPad]);
+
+	// Auto-open dial pad when a call is initiated (calling state)
+	useEffect(() => {
+		if (deviceStatus === 'Calling…' && !showDialPad) {
+			setShowDialPad(true);
+		}
+	}, [deviceStatus, showDialPad]);
+
+	// Pre-populate dial pad with remote number when call is initiated
+	useEffect(() => {
+		if (deviceStatus === 'Calling…' && remoteNumber && !dialedNumber) {
+			setDialedNumber(remoteNumber);
+		}
+	}, [deviceStatus, remoteNumber, dialedNumber]);
 
 	const formatDuration = (seconds: number) => {
 		const mins = Math.floor(seconds / 60);
@@ -92,18 +155,37 @@ export const ActiveCallBar: React.FC = () => {
 		}
 	};
 
-	const handleMakeCall = () => {
+	const handleMakeCall = async () => {
 		if (!dialedNumber) return;
 
-		// Clean the number for the actual call (remove formatting)
-		const cleanedNumber = dialedNumber.replace(/\D/g, '');
+		setIsDialing(true);
 
-		// Add +1 if it's a 10-digit US number
-		const callNumber = cleanedNumber.length === 10 ? `+1${cleanedNumber}` : cleanedNumber;
+		try {
+			// Clean the number for the actual call (remove formatting)
+			const cleanedNumber = dialedNumber.replace(/\D/g, '');
 
-		initiateCall(callNumber, dialedNumber);
-		setDialedNumber('');
-		// Keep dial pad open during calling state, it will close when call becomes active
+			// Add +1 if it's a 10-digit US number
+			const callNumber = cleanedNumber.length === 10 ? `+1${cleanedNumber}` : cleanedNumber;
+
+			// Lookup lead by phone number
+			const lead = await lookupLeadByPhone(callNumber);
+			
+			// Make the call with lead information if found
+			if (lead) {
+				console.log('Making call to lead:', lead.name, 'with ID:', lead.id);
+				await initiateCall(callNumber, lead.name, lead.id);
+			} else {
+				console.log('Making call to unknown number:', callNumber);
+				await initiateCall(callNumber, callNumber);
+			}
+
+			setDialedNumber('');
+			// Keep dial pad open during calling state, it will close when call becomes active
+		} catch (error) {
+			console.error('Error making call:', error);
+		} finally {
+			setIsDialing(false);
+		}
 	};
 
 	const toggleDialPad = () => {
@@ -298,12 +380,22 @@ export const ActiveCallBar: React.FC = () => {
 								) : (
 									<Button
 										onClick={handleMakeCall}
-										disabled={!dialedNumber}
-										className="mx-auto size-12 rounded-full bg-green-700 text-lg font-medium hover:bg-green-700"
-										tooltip={dialedNumber ? `Call ${dialedNumber}` : 'Enter a phone number'}
+										disabled={!dialedNumber || isDialing}
+										className="mx-auto size-12 rounded-full bg-green-700 text-lg font-medium hover:bg-green-700 disabled:opacity-50"
+										tooltip={
+											isDialing 
+												? 'Looking up contact...' 
+												: dialedNumber 
+													? `Call ${dialedNumber}` 
+													: 'Enter a phone number'
+										}
 										tooltipPosition="top"
 									>
-										<Phone className="size-6" />
+										{isDialing ? (
+											<div className="size-6 animate-spin rounded-full border-2 border-white border-t-transparent" />
+										) : (
+											<Phone className="size-6" />
+										)}
 									</Button>
 								)}
 							</div>

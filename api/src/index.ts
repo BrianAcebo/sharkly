@@ -21,6 +21,11 @@ import callStatusWebhookRoutes from './routes/twilio/callStatus';
 // Twilio Client routes for WebRTC
 import clientTokenRoutes from './routes/twilio/clientTokens';
 
+// Billing routes
+import billingRoutes from './routes/billing';
+
+
+
 dotenv.config();
 
 const app = express();
@@ -75,8 +80,8 @@ if (process.env.DISABLE_NUMBER_PURCHASE_UI !== 'true') {
 }
 
 app.use('/api/sms', sendSmsRoutes);
-// app.use('/api/webhooks/twilio', inboundWebhookRoutes);
-// app.use('/api/webhooks/twilio', statusWebhookRoutes);
+app.use('/api/webhooks/twilio', inboundWebhookRoutes);
+app.use('/api/webhooks/twilio', statusWebhookRoutes);
 
 // Twilio Voice routes
 app.use('/api/calls', callRoutes);
@@ -85,6 +90,11 @@ app.use('/api/webhooks/twilio', callStatusWebhookRoutes);
 
 // Twilio Client routes for WebRTC
 app.use('/api/twilio/tokens', clientTokenRoutes);
+
+// Billing routes
+app.use('/api/billing', billingRoutes);
+
+
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

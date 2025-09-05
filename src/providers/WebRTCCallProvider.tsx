@@ -46,6 +46,60 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 	const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
 
+	// Helper function to create call history record with complete context
+	const createCallHistoryRecord = async (call: Call, callContext: any) => {
+		console.log("history", call.parameters, call)
+		try {
+			// Get the actual Twilio Call SID
+			const twilioCallSid = call.parameters?.CallSid || call.sid;
+			if (!twilioCallSid) {
+				console.warn('No Twilio Call SID available');
+				return;
+			}
+
+			// Debug logging
+			console.log('Creating call history record with complete context:', {
+				twilioCallSid,
+				callContext
+			});
+
+			const { data: callRecord, error: insertError } = await supabase
+				.from('call_history')
+				.insert({
+					twilio_call_sid: twilioCallSid,
+					call_direction: 'outbound',
+					from_number: callContext.agentNumber,
+					to_number: callContext.formattedNumber,
+					agent_id: callContext.user.id,
+					organization_id: callContext.organizationId,
+					lead_id: callContext.leadId,
+					call_status: 'initiated',
+					call_start_time: new Date().toISOString()
+				})
+				.select()
+				.single();
+
+			if (insertError) {
+				console.error('Failed to create call history record:', insertError);
+			} else {
+				console.log('Call history record created successfully with complete context:', {
+					id: callRecord.id,
+					twilioCallSid,
+					organizationId: callContext.organizationId,
+					leadId: callContext.leadId,
+					fromNumber: callContext.agentNumber,
+					toNumber: callContext.formattedNumber
+				});
+				// Store the call record ID for reference
+				(call as any).callRecordId = callRecord.id;
+			}
+		} catch (error) {
+			console.error('Failed to create call history record:', error);
+		}
+	};
+
+
+
 	const endCall = useCallback(() => {
 		console.log('[WebRTC] Ending call, cleaning up media streams');
 		
@@ -264,8 +318,112 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 		};
 	}, []);
 
+	// Call context manager to collect all necessary information
+	const collectCallContext = async (phoneNumber: string, contactName?: string, leadId?: string) => {
+		try {
+			// Get current user and organization
+			const { data: { user } } = await supabase.auth.getUser();
+			if (!user) {
+				console.error('[voice] user not found');
+				throw new Error('User not authenticated');
+			}
+
+			const { data: userOrg } = await supabase
+				.from('user_organizations')
+				.select('organization_id')
+				.eq('user_id', user.id)
+				.single();
+
+			if (!userOrg) {
+				console.error('[voice] user organization not found');
+				throw new Error('User organization not found');
+			}
+
+			// Get agent phone number
+			let agentNumber;
+			if (import.meta.env.VITE_NODE_ENV === 'development') {
+				agentNumber = import.meta.env.VITE_TWILIO_PHONE_NUMBER;
+			} else {
+				const agentData = await supabase
+					.from('agent_phone_numbers')
+					.select('phone_number')
+					.eq('agent_id', user.id)
+					.eq('is_active', true)
+					.single();
+
+				if (agentData.error || !agentData.data?.phone_number) {
+					console.error('[voice] agentNumber:', agentData.error, agentData.data?.phone_number);
+					throw new Error('Agent phone number not found');
+				}
+
+				agentNumber = agentData.data.phone_number;
+			}
+
+			// Format phone number
+			const formattedNumber = phoneNumber.startsWith('+')
+				? phoneNumber
+				: `${phoneNumber.replace(/\D/g, '')}`;
+
+			// Lookup lead information if leadId is provided or if we need to find it
+			let leadInfo = null;
+			if (leadId) {
+				// Get lead info by ID
+				const { data: lead, error: leadError } = await supabase
+					.from('leads')
+					.select('id, name, phone')
+					.eq('id', leadId)
+					.eq('organization_id', userOrg.organization_id)
+					.single();
+
+				if (!leadError && lead) {
+					leadInfo = lead;
+					console.log('Found lead by ID:', lead);
+				}
+			} else {
+				// Try to find lead by phone number
+				const normalizedPhone = formattedNumber.replace(/\D/g, '');
+				const phoneVariations = [
+					normalizedPhone,
+					`+1${normalizedPhone}`,
+					`+${normalizedPhone}`,
+					normalizedPhone.slice(1),
+				];
+
+				const { data: lead, error: leadError } = await supabase
+					.from('leads')
+					.select('id, name, phone')
+					.eq('organization_id', userOrg.organization_id)
+					.or(phoneVariations.map(phone => `phone.eq.${phone}`).join(','))
+					.single();
+
+				if (!leadError && lead) {
+					leadInfo = lead;
+					console.log('Found lead by phone number:', lead);
+				}
+			}
+
+			// Return complete call context
+			const callContext = {
+				user,
+				organizationId: userOrg.organization_id,
+				agentNumber,
+				formattedNumber,
+				contactName: contactName || leadInfo?.name || formattedNumber,
+				leadId: leadInfo?.id || leadId || null,
+				leadInfo
+			};
+
+			console.log('Call context collected:', callContext);
+			return callContext;
+
+		} catch (error) {
+			console.error('Error collecting call context:', error);
+			throw error;
+		}
+	};
+
 	const makeCall = useCallback(
-		async (phoneNumber: string, contactName?: string) => {
+		async (phoneNumber: string, contactName?: string, leadId?: string) => {
 			if (!device) return;
 
 			// ✅ Use the SDK state, not your string
@@ -283,48 +441,43 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 			setRemoteNumber(phoneNumber);
 			setRemoteName(contactName || phoneNumber);
 
-			// Ensure phone number is properly formatted (E.164)
-			const formattedNumber = phoneNumber.startsWith('+')
-				? phoneNumber
-				: `${phoneNumber.replace(/\D/g, '')}`;
-
-			let agentNumber;
-
-			if (import.meta.env.VITE_NODE_ENV === 'development') {
-				agentNumber = import.meta.env.VITE_TWILIO_PHONE_NUMBER;
-			} else {
-				const {
-					data: { user }
-				} = await supabase.auth.getUser();
-				if (!user) {
-					console.error('[voice] user not found');
-					setStatus('Unauthorized');
-					return;
-				}
-
-				const agentData = await supabase
-					.from('agent_phone_numbers')
-					.select('phone_number')
-					.eq('agent_id', user.id)
-					.eq('is_active', true)
-					.single();
-
-				if (agentData.error || !agentData.data?.phone_number) {
-					console.error('[voice] agentNumber:', agentData.error, agentData.data?.phone_number);
-					setStatus('Unauthorized to use this phone number');
-					return;
-				}
-
-				agentNumber = agentData.data.phone_number;
+			// Collect all call context information
+			let callContext;
+			try {
+				callContext = await collectCallContext(phoneNumber, contactName, leadId);
+			} catch (error) {
+				setStatus('Failed to prepare call');
+				setIsConnecting(false);
+				return;
 			}
 
 			try {
-				const c = await device.connect({ params: { To: formattedNumber, From: agentNumber } });
+				const c = await device.connect({ 
+					params: { 
+						To: callContext.formattedNumber, 
+						From: callContext.agentNumber 
+					} 
+				});
 				connRef.current = c;
 
-				console.log('c', c);
+				console.log('Call object:', c);
 
-				c.on('accept', () => {
+				// Store complete call context on the call object for reference
+				(c as any).callContext = callContext;
+
+				console.log('Call object created:', c);
+
+				// Create call history record when call starts ringing (for all calls)
+				c.on('ringing', async () => {
+					console.log('[WebRTC] Call is ringing');
+					const callContext = (c as any).callContext;
+					if (callContext && !(c as any).callRecordCreated) {
+						await createCallHistoryRecord(c, callContext);
+						(c as any).callRecordCreated = true; // Prevent duplicate creation
+					}
+				});
+
+				c.on('accept', async () => {
 					console.log('[WebRTC] Call accepted, capturing media stream');
 					setStatus('On call');
 					setIsConnecting(false);
@@ -341,22 +494,32 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 							mediaStreamRef.current = localStream;
 						}
 					}
+
+					// Call history record already created in 'ringing' event
 				});
 
 				c.on('disconnect', () => {
+					// Call history will be updated by backend webhook
 					endCall();
 				});
 
-				c.on('error', (e: { message: string }) => {
+				c.on('error', async (e: { message: string }) => {
 					setStatus('Call error: ' + e.message);
 					setIsConnecting(false);
+					
+					// Create call history record if not already created (for failed calls)
+					const callContext = (c as any).callContext;
+					if (callContext && !(c as any).callRecordCreated) {
+						await createCallHistoryRecord(c, callContext);
+						(c as any).callRecordCreated = true;
+					}
 				});
 			} catch {
 				setStatus('Call failed');
 				setIsConnecting(false);
 			}
 		},
-		[device]
+		[device, callDuration]
 	);
 
 	const answerCall = useCallback(() => {

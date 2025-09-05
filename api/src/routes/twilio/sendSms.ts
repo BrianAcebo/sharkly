@@ -34,17 +34,35 @@ const router = Router();
 // Validation schema
 const sendSmsSchema = z.object({
   to: z.string().min(1, 'Recipient phone number is required'),
-  body: z.string().min(1, 'Message body is required').max(1600, 'Message too long')
+  body: z.string().min(1, 'Message body is required').max(1600, 'Message too long'),
+  lead_id: z.string().optional()
 });
 
 // POST /send
 router.post('/send', requireAuth, async (req: Request, res: Response) => {
   try {
-    const { to, body } = sendSmsSchema.parse(req.body);
+    const { to, body, lead_id } = sendSmsSchema.parse(req.body);
     const agentId = req.userId!;
     
     // Normalize the recipient phone number
     const normalizedTo = normalizePhoneNumber(to);
+    
+    // Find lead_id if not provided
+    let finalLeadId = lead_id;
+    if (!finalLeadId) {
+      const { data: leadData } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('phone', normalizedTo)
+        .single();
+      
+      if (leadData) {
+        finalLeadId = leadData.id;
+        console.info(`Found lead_id ${finalLeadId} for phone number ${normalizedTo}`);
+      } else {
+        console.info(`No lead found for phone number ${normalizedTo}`);
+      }
+    }
     
     // Look up agent's active phone number
     let agentPhoneNumber: { phone_number: string } | null = null;
@@ -87,7 +105,8 @@ router.post('/send', requireAuth, async (req: Request, res: Response) => {
         from_number: agentPhoneNumber.phone_number,
         direction: 'outbound',
         body,
-        status: 'queued'
+        status: 'queued',
+        lead_id: finalLeadId
       })
       .select()
       .single();
@@ -98,11 +117,14 @@ router.post('/send', requireAuth, async (req: Request, res: Response) => {
     }
 
     // Send SMS via Twilio
+    const statusCallbackUrl = `${process.env.PUBLIC_URL}/api/webhooks/twilio/sms-status`;
+    console.info(`SMS webhook URL: ${statusCallbackUrl}`);
+    
     const twilioMessage = await twilioClient.messages.create({
       from: agentPhoneNumber.phone_number,
       to: normalizedTo,
       body,
-      statusCallback: `${process.env.PUBLIC_URL}/webhooks/twilio/sms-status`
+      statusCallback: statusCallbackUrl
     });
 
     // Update the SMS message with Twilio SID and status

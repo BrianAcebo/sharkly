@@ -394,11 +394,11 @@ export function SearchResults({
 							</div>
 
 							{/* Value Section */}
-							{selectedResult.value && (
+							{Number(selectedResult.value) > 0 && (
 								<div className="mb-4 flex flex-col space-y-1">
 									<span className="text-xs text-gray-600 dark:text-gray-300">Value</span>
 									<span className="font-medium text-green-600 dark:text-green-400">
-										${selectedResult.value.toLocaleString()}
+										${selectedResult.value?.toLocaleString()}
 									</span>
 								</div>
 							)}

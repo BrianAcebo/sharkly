@@ -26,7 +26,7 @@ interface WebRTCCallContextType {
   selectedSpeakerDevice: string | null;
   
   // Call controls
-  makeCall: (phoneNumber: string, contactName?: string) => Promise<void>;
+  makeCall: (phoneNumber: string, contactName?: string, leadId?: string) => Promise<void>;
   answerCall: () => void;
   rejectCall: () => void;
   endCall: () => void;

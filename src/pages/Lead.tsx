@@ -3,13 +3,20 @@ import LeadProfile from '../components/leads/LeadProfile';
 import { useLeads } from '../hooks/useLeads';
 import { useParams } from 'react-router';
 import NotFound from './Error/NotFound';
+import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
+import { useEffect } from 'react';
 
 export default function LeadsPage() {
 	const { leads } = useLeads();
 	const { id } = useParams<{ id: string }>();
+	const { setTitle } = useBreadcrumbs();
   
 	// Find the selected lead by ID from the URL params
 	const selectedLead = leads.find(lead => lead.id === id);
+
+	useEffect(() => {
+		setTitle(selectedLead?.name ?? '');
+	}, [setTitle, selectedLead]);
 
 	if (!selectedLead) {
 		return (

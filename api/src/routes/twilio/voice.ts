@@ -38,6 +38,8 @@ async function getAgentsActivePhoneNumber(agentId: string): Promise<string | nul
 	return E164.test(e164) ? e164 : null;
 }
 
+// Call history creation moved to frontend
+
 /**
  * POST /api/twilio/voice/call
  * - Twilio hits this when your browser runs Device.connect({ params: { To } }).
@@ -102,6 +104,8 @@ console.log('[voice] using statusCallback:', statusCallback);
 		},
 		to
 	);
+
+	// Call history is now created by frontend
 
 	return res.type('text/xml').send(vr.toString());
 });

@@ -155,6 +155,7 @@ const LeadProfile: React.FC<{ lead: Lead }> = ({ lead }) => {
         <CallConfirmation
           leadName={lead.name || 'Unknown Lead'}
           leadPhone={lead.phone || ''}
+          leadId={lead.id}
           onClose={() => setShowCallConfirm(false)}
           onCallInitiated={(callSid) => {
             console.log('Call initiated with SID:', callSid);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useModal } from '../../hooks/useModal';
 import { Modal } from '../../components/ui/modal';
 import { Button } from '../../components/ui/button';
@@ -12,6 +12,7 @@ import { api } from '../../utils/api';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { HttpError } from '../../utils/error';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -108,6 +109,11 @@ const SubscriptionForm = ({
 	const [isLoading, setIsLoading] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string>();
 	const [clientSecret, setClientSecret] = useState<string>();
+	const { setTitle } = useBreadcrumbs();
+
+	useEffect(() => {
+		setTitle('Organization Required');
+	}, [setTitle]);
 
 	const handleSubscribe = async () => {
 		if (!user?.id || !session?.access_token) {
