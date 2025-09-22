@@ -3,6 +3,7 @@ import CTA from '../components/home/CTA';
 import Demo from '../components/home/Demo';
 import Features from '../components/home/Features';
 import Hero from '../components/home/Hero';
+import Pricing from '../components/home/Pricing';
 import Testimonials from '../components/home/Testimonials';
 import { useEffect, useState } from 'react';
 
@@ -18,6 +19,7 @@ const Home = () => {
 			
 			<Hero isLoading={isLoading} />
 			<Features />
+			<Pricing />
 			<Demo />
 			<Testimonials />
 			<CTA />

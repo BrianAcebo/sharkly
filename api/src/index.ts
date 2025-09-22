@@ -23,6 +23,22 @@ import clientTokenRoutes from './routes/twilio/clientTokens';
 
 // Billing routes
 import billingRoutes from './routes/billing';
+import billingOnboardingRoutes from './routes/billingOnboarding';
+
+// Organization status routes
+import organizationStatusRoutes from './routes/organizationStatus';
+
+// SMS Verification routes
+import smsVerificationRoutes from './routes/smsVerification';
+
+// Trial Status routes
+import trialStatusRoutes from './routes/trialStatus';
+
+// Subscription Status routes
+import subscriptionStatusRoutes from './routes/subscriptionStatus';
+
+// Payment Status routes
+import paymentStatusRoutes from './routes/paymentStatus';
 
 
 
@@ -32,7 +48,6 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 app.use(express.urlencoded({ extended: false }));
-app.use(express.json());
 
 console.log('[api] PID', process.pid);
 
@@ -49,18 +64,17 @@ app.use(
 	})
 );
 
-// Parse JSON bodies for all routes except Stripe webhook
+// Mount webhook routes first (before JSON parsing)
+app.use('/api/billing', billingOnboardingRoutes);
+
+// Parse JSON bodies for all other routes (excluding webhooks)
 app.use((req, res, next) => {
-	if (req.originalUrl === '/api/payments/webhook') {
+	// Skip JSON parsing for webhook routes
+	if (req.originalUrl === '/api/billing/stripe/webhook' || 
+		req.originalUrl === '/api/payments/webhook') {
 		next();
 	} else {
-		express.json()(req, res, (err) => {
-			if (err) {
-				console.error('Error parsing JSON:', err);
-				throw new HttpError('Invalid JSON', 400);
-			}
-			next();
-		});
+		express.json()(req, res, next);
 	}
 });
 
@@ -93,6 +107,21 @@ app.use('/api/twilio/tokens', clientTokenRoutes);
 
 // Billing routes
 app.use('/api/billing', billingRoutes);
+
+// Organization status routes
+app.use('/api/organizations', organizationStatusRoutes);
+
+// SMS Verification routes
+app.use('/api/sms', smsVerificationRoutes);
+
+// Trial Status routes
+app.use('/api/trial', trialStatusRoutes);
+
+// Subscription Status routes
+app.use('/api/subscription', subscriptionStatusRoutes);
+
+// Payment Status routes
+app.use('/api', paymentStatusRoutes);
 
 
 

@@ -269,11 +269,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 								.eq('user_id', profileData.id)
 								.single();
 
-							if (userOrgError && userOrgError.code !== 'PGRST116') {
-								console.error('Error fetching user organization:', userOrgError);
-							} else if (userOrgError?.code === 'PGRST116') {
-								// No rows returned - user not in organization yet (normal during onboarding)
-								console.log('User not in organization yet (normal during onboarding)');
+							if (userOrgError) {
+								if (userOrgError.code === 'PGRST116') {
+									// No rows returned - user not in organization yet (normal during onboarding)
+									console.log('User not in organization yet (normal during onboarding)');
+								} else if (userOrgError.code === '406') {
+									// 406 error - table might not be accessible yet, skip organization data
+									console.log('Organization data not accessible yet, skipping');
+								} else {
+									console.error('Error fetching user organization:', userOrgError);
+								}
 							} else {
 								userOrg = data;
 							}
@@ -419,12 +424,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 								.eq('user_id', profileData.id)
 								.single();
 
-							if (userOrgError && userOrgError.code !== 'PGRST116') {
-								// PGRST116 is the error code for no rows returned, which is expected if user is not in an organization
-								console.error('Error fetching user organization:', userOrgError);
-							} else if (userOrgError?.code === 'PGRST116') {
-								// No rows returned - user not in organization yet (normal during onboarding)
-								console.log('User not in organization yet (normal during onboarding)');
+							if (userOrgError) {
+								if (userOrgError.code === 'PGRST116') {
+									// No rows returned - user not in organization yet (normal during onboarding)
+									console.log('User not in organization yet (normal during onboarding)');
+								} else if (userOrgError.code === '406') {
+									// 406 error - table might not be accessible yet, skip organization data
+									console.log('Organization data not accessible yet, skipping');
+								} else {
+									console.error('Error fetching user organization:', userOrgError);
+								}
 							} else {
 								userOrg = data;
 							}

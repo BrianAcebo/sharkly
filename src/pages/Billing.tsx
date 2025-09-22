@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
+import { useOrganization } from '../hooks/useOrganization';
+import { useTrial } from '../hooks/useTrial';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
 import {
@@ -10,9 +12,16 @@ import {
   Calendar,
   Settings,
   Download,
-  AlertCircle
+  AlertCircle,
+  CreditCard,
+  Clock,
+  Users,
+  Mail,
+  ExternalLink
 } from 'lucide-react';
 import PricingCalculator from '../components/billing/PricingCalculator';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 
 interface UsageSummary {
   sms: {
@@ -56,13 +65,15 @@ interface BillingSettings {
 
 const Billing: React.FC = () => {
   const { setTitle } = useBreadcrumbs();
+  const { organization, loading: orgLoading } = useOrganization();
+  const trialInfo = useTrial();
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
   const [monthlyBilling, setMonthlyBilling] = useState<MonthlyBilling[]>([]);
   const [billingSettings, setBillingSettings] = useState<BillingSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('current-month');
   const [showSettings, setShowSettings] = useState(false);
-  const [activeTab, setActiveTab] = useState<'usage' | 'pricing'>('usage');
+  const [activeTab, setActiveTab] = useState<'overview' | 'usage' | 'pricing'>('overview');
 
   useEffect(() => {
     setTitle('Billing & Usage');
@@ -213,6 +224,16 @@ const Billing: React.FC = () => {
       <div className="border-b border-gray-200 dark:border-gray-700">
         <nav className="-mb-px flex space-x-8">
           <button
+            onClick={() => setActiveTab('overview')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'overview'
+                ? 'border-red-500 text-red-600 dark:text-red-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+          >
+            Overview
+          </button>
+          <button
             onClick={() => setActiveTab('usage')}
             className={`py-2 px-1 border-b-2 font-medium text-sm ${
               activeTab === 'usage'
@@ -236,6 +257,215 @@ const Billing: React.FC = () => {
       </div>
 
       {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Current Plan & Subscription Status */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Current Plan Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <CreditCard className="h-5 w-5" />
+                  <span>Current Plan</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {orgLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-red-500"></div>
+                  </div>
+                ) : organization ? (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {organization.plan_code ? 
+                            organization.plan_code.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 
+                            'No Plan'
+                          }
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {organization.plan_price_cents ? 
+                            `$${(organization.plan_price_cents / 100).toFixed(2)}/month` : 
+                            'Free'
+                          }
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          organization.stripe_status === 'active' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            : organization.stripe_status === 'trialing'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                            : organization.stripe_status === 'incomplete'
+                            ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                        }`}>
+                          {organization.stripe_status || 'Unknown'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Plan Features */}
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-gray-900 dark:text-white">Included Features</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Users className="h-4 w-4 text-gray-500" />
+                          <span>{organization.included_seats || 0} team members</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Phone className="h-4 w-4 text-gray-500" />
+                          <span>{organization.included_minutes || 0} calling minutes</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-sm">
+                          <MessageSquare className="h-4 w-4 text-gray-500" />
+                          <span>{organization.included_sms || 0} SMS messages</span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-sm">
+                          <Mail className="h-4 w-4 text-gray-500" />
+                          <span>{organization.included_emails || 0} emails</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => window.open('https://billing.stripe.com/p/login/test_fZu8wPeit9J33Yu4Kb2go00', '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Manage Subscription
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <AlertCircle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-500">No organization data available</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Trial Status Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Clock className="h-5 w-5" />
+                  <span>Trial Status</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {trialInfo.loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-red-500"></div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {trialInfo.isOnTrial ? 'Free Trial Active' : 'No Active Trial'}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {trialInfo.statusMessage}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          trialInfo.isOnTrial 
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                        }`}>
+                          {trialInfo.isOnTrial ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {trialInfo.isOnTrial && trialInfo.trialEndFormatted && (
+                      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="h-4 w-4 text-blue-600" />
+                          <span className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                            Trial ends: {trialInfo.trialEndFormatted}
+                          </span>
+                        </div>
+                        {trialInfo.daysRemaining !== null && (
+                          <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+                            {trialInfo.daysRemaining === 0 
+                              ? 'Trial ends today' 
+                              : trialInfo.daysRemaining === 1 
+                              ? 'Trial ends tomorrow'
+                              : `${trialInfo.daysRemaining} days remaining`
+                            }
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {trialInfo.isOnTrial && (
+                      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <Button 
+                          className="w-full bg-red-600 hover:bg-red-700 text-white"
+                          onClick={() => setActiveTab('pricing')}
+                        >
+                          Upgrade Plan
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Actions */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Button 
+                  variant="outline" 
+                  className="h-20 flex flex-col items-center justify-center space-y-2"
+                  onClick={() => setActiveTab('usage')}
+                >
+                  <DollarSign className="h-6 w-6" />
+                  <span>View Usage</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="h-20 flex flex-col items-center justify-center space-y-2"
+                  onClick={() => setActiveTab('pricing')}
+                >
+                  <TrendingUp className="h-6 w-6" />
+                  <span>Pricing Calculator</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-20 flex flex-col items-center justify-center space-y-2"
+                  onClick={() => window.open('https://billing.stripe.com/p/login/test_fZu8wPeit9J33Yu4Kb2go00', '_blank')}
+                >
+                  <ExternalLink className="h-6 w-6" />
+                  <span>Manage Subscription</span>
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="h-20 flex flex-col items-center justify-center space-y-2"
+                  onClick={() => setShowSettings(true)}
+                >
+                  <Settings className="h-6 w-6" />
+                  <span>Billing Settings</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {activeTab === 'usage' && (
         <>
           {/* Usage Summary Cards */}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useWebRTCCall } from '../../hooks/useWebRTCCall';
+import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { supabase } from '../../utils/supabaseClient';
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const ActiveCallBar: React.FC = () => {
+	const { user } = useAuth();
 	const {
 		currentCall: activeCall,
 		isMuted,
@@ -30,6 +32,11 @@ export const ActiveCallBar: React.FC = () => {
 		endCall,
 		makeCall: initiateCall,
 	} = useWebRTCCall();
+
+	// Don't show dial pad if user has no organization
+	if (!user?.organization_id) {
+		return null;
+	}
 
 	const [isMinimized, setIsMinimized] = useState(false);
 	const [showDialPad, setShowDialPad] = useState(false);

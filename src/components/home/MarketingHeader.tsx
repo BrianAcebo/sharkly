@@ -37,6 +37,12 @@ const Header: React.FC = () => {
 							Features
 						</a>
 						<a
+							href="#pricing"
+							className="hover:text-brand-500 dark:hover:text-brand-400 text-gray-700 transition-colors dark:text-gray-300"
+						>
+							Pricing
+						</a>
+						<a
 							href="#demo"
 							className="hover:text-brand-500 dark:hover:text-brand-400 text-gray-700 transition-colors dark:text-gray-300"
 						>

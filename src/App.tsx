@@ -33,6 +33,9 @@ import ResetPassword from './pages/Auth/ResetPassword';
 import NumberSettingsPage from './pages/settings/number';
 import LeadSmsPage from './pages/leads/[leadId]/sms';
 import Calls from './pages/Calls';
+import Billing from './pages/Billing';
+import BillingOnboarding from './pages/BillingOnboarding';
+import PhoneSmsVerification from './pages/PhoneSmsVerification';
 
 export default function App() {
 	return (
@@ -64,6 +67,9 @@ export default function App() {
 						<Route path="/leads/:id" element={<Lead />} />
 						<Route path="/leads/:leadId/sms" element={<LeadSmsPage />} />
 						<Route path="/calls" element={<Calls />} />
+						<Route path="/billing" element={<Billing />} />
+						<Route path="/billing-onboarding" element={<BillingOnboarding />} />
+						<Route path="/phone-sms-verification" element={<PhoneSmsVerification />} />
 						<Route path="/organization-required" element={<OrganizationRequired />} />
 						<Route path="/organization" element={<Organization />} />
 					</Route>

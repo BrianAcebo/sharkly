@@ -302,3 +302,103 @@ export const cancelInvitation = async (req: Request, res: Response) => {
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
+
+export const deleteOrganization = async (req: Request, res: Response) => {
+	try {
+		const { organizationId } = req.params;
+		const userId = req.user?.id;
+
+		if (!userId) {
+			return res.status(401).json({ error: 'Unauthorized' });
+		}
+
+		if (!organizationId) {
+			return res.status(400).json({ error: 'Organization ID is required' });
+		}
+
+		// Get the organization and verify ownership
+		const { data: organization, error: orgError } = await supabase
+			.from('organizations')
+			.select('id, name, owner_id')
+			.eq('id', organizationId)
+			.single();
+
+		if (orgError || !organization) {
+			return res.status(404).json({ error: 'Organization not found' });
+		}
+
+		// Check if the user is the owner of this organization
+		if (organization.owner_id !== userId) {
+			return res.status(403).json({ error: 'Only the organization owner can delete the organization' });
+		}
+
+		// Get all team members to notify them before deletion
+		const { data: teamMembers, error: membersError } = await supabase
+			.from('user_organizations')
+			.select('user_id, profile:profiles(email, first_name, last_name)')
+			.eq('organization_id', organizationId);
+
+		if (membersError) {
+			console.error('Error fetching team members:', membersError);
+		}
+
+		// Delete all related data in the correct order to avoid foreign key constraints
+		// 1. Delete organization invites
+		const { error: invitesError } = await supabase
+			.from('organization_invites')
+			.delete()
+			.eq('organization_id', organizationId);
+
+		if (invitesError) {
+			console.error('Error deleting organization invites:', invitesError);
+		}
+
+		// 2. Delete user organization relationships
+		const { error: userOrgsError } = await supabase
+			.from('user_organizations')
+			.delete()
+			.eq('organization_id', organizationId);
+
+		if (userOrgsError) {
+			console.error('Error deleting user organizations:', userOrgsError);
+		}
+
+		// 3. Delete the organization itself
+		const { error: deleteError } = await supabase
+			.from('organizations')
+			.delete()
+			.eq('id', organizationId);
+
+		if (deleteError) {
+			console.error('Error deleting organization:', deleteError);
+			return res.status(500).json({ error: 'Failed to delete organization' });
+		}
+
+		// Send notification emails to all team members about organization deletion
+		if (teamMembers && teamMembers.length > 0) {
+			for (const member of teamMembers) {
+				if (member.profile && member.user_id !== userId) {
+					try {
+						// Handle the case where profile might be an array
+						const profile = Array.isArray(member.profile) ? member.profile[0] : member.profile;
+						if (profile && profile.email && profile.first_name) {
+							await emailService.sendOrganizationDeletedNotification(
+								profile.email,
+								organization.name,
+								profile.first_name
+							);
+						}
+					} catch (emailError) {
+						console.error('Error sending deletion notification email:', emailError);
+						// Don't fail the deletion if email sending fails
+					}
+				}
+			}
+		}
+
+		return res.json({ message: 'Organization deleted successfully' });
+	} catch (error) {
+		console.error('Error deleting organization:', error);
+		return res.status(500).json({ error: 'Internal server error' });
+	}
+};

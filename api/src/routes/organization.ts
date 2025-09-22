@@ -4,7 +4,8 @@ import {
 	createOrganization,
 	inviteTeamMember,
 	acceptInvitation,
-	cancelInvitation
+	cancelInvitation,
+	deleteOrganization
 } from '../controllers/organization';
 
 const router = express.Router();
@@ -23,5 +24,8 @@ router.post('/accept-invite', acceptInvitation);
 
 // Cancel an invitation
 router.delete('/cancel-invite/:inviteId', cancelInvitation);
+
+// Delete an organization
+router.delete('/:organizationId', deleteOrganization);
 
 export default router;

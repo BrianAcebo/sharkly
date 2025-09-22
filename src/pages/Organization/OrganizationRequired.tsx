@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { HttpError } from '../../utils/error';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import SeamlessBillingFlow from '../../components/billing/SeamlessBillingFlow';
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -342,12 +343,21 @@ const PaymentForm = ({
 
 export default function OrganizationRequired() {
 	const { isOpen, openModal, closeModal } = useModal();
-	const [activeTab, setActiveTab] = useState<'create' | 'subscribe'>('create');
+	const [activeTab, setActiveTab] = useState<'create' | 'subscribe' | 'billing'>('create');
 	const [organizationData, setOrganizationData] = useState<OrganizationData>({
 		name: '',
 		maxSeats: '3'
 	});
-	const navigate = useNavigate();
+	const [showSeamlessBilling, setShowSeamlessBilling] = useState(false);
+	const { setTitle } = useBreadcrumbs();
+
+	useEffect(() => {
+		setTitle('Organization Required');
+	}, [setTitle]);
+
+	if (showSeamlessBilling) {
+		return <SeamlessBillingFlow onClose={() => setShowSeamlessBilling(false)} />;
+	}
 
 	return (
 		<div className="flex h-full flex-col items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8 dark:bg-gray-900">
@@ -357,22 +367,14 @@ export default function OrganizationRequired() {
 						Organization Required
 					</h1>
 					<p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-						You need to be part of an organization to use this feature. Either create a new
-						organization or try it out for free{' '}
-						<button
-							className="font-medium text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
-							onClick={() => navigate('/')}
-						>
-							here
-						</button>
-						.
+						You need to be part of an organization to use this feature.
 					</p>
+					<Button size="sm" onClick={() => setShowSeamlessBilling(true)} className="mx-auto block w-40 mt-6">
+						Get Started
+					</Button>
 				</div>
 
 				<div className="space-y-6">
-					<Button size="sm" onClick={openModal} className="mx-auto block w-40">
-						Get Started
-					</Button>
 					<p className="text-center text-sm text-gray-600 dark:text-gray-400">
 						Already have an invitation?{' '}
 						<a

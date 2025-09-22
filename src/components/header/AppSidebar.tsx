@@ -10,7 +10,8 @@ import {
   Settings, 
   LogOut,
   Calendar,
-  Phone
+  Phone,
+  Shield
 } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
@@ -26,6 +27,7 @@ const Sidebar: React.FC = () => {
     { icon: MessageSquare, label: 'Chat', path: '/chat' },
     { icon: Bot, label: 'AI Assistant', path: '/assistant' },
     { icon: Building2, label: 'Organization', path: '/organization' },
+    { icon: Shield, label: 'SMS Verification', path: '/phone-sms-verification' },
     { icon: Calendar, label: 'Calendar', path: '/calendar' },
     { icon: LayoutDashboard, label: 'Tasks', path: '/tasks' },
     { icon: Settings, label: 'Settings', path: '/settings' },

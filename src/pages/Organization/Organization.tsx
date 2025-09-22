@@ -4,12 +4,15 @@ import type { Organization, TeamMember } from '../../types/leads';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
 import { Tabs, TabsContent, TabsList } from '../../components/ui/tabs';
-import { Calendar, Users, Building2, Shield, Trash2, UserPlus } from 'lucide-react';
+import { Calendar, Users, Building2, Shield, Trash2, UserPlus, AlertTriangle, MessageSquare, CreditCard } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
 import { HttpError } from '../../utils/error';
 import { api } from '../../utils/api';
+import { useOrganizationStatus } from '../../hooks/useOrganizationStatus';
+import { usePaymentStatus } from '../../hooks/usePaymentStatus';
+import { getOrganizationStatusMessage } from '../../utils/paymentStatus';
 import {
 	TEAM_MEMBER_ROLES,
 	ASSIGNABLE_TEAM_MEMBER_ROLES,
@@ -27,6 +30,11 @@ import Input from '../../components/form/input/InputField';
 import { useNavigate } from 'react-router-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import DangerConfirmationModal from '../../components/common/DangerConfirmationModal';
+import BrandForm from '../../components/sms/BrandForm';
+import CampaignForm from '../../components/sms/CampaignForm';
+import TollFreeForm from '../../components/sms/TollFreeForm';
+import { VerificationStatusResponse } from '../../types/smsVerification';
 
 interface PendingInvitation {
 	id: string;
@@ -45,6 +53,19 @@ export default function OrganizationPage() {
 	const { user, refreshUser } = useAuth();
 	const navigate = useNavigate();
 	const [activeTab, setActiveTab] = useState('overview');
+	const { 
+		status: orgStatus, 
+    // omit loading here
+    isReadOnly,
+		getOrganizationStatus 
+	} = useOrganizationStatus();
+	const { paymentStatus } = usePaymentStatus();
+	
+	// Check if organization can be resumed (not behind on payments)
+  const canResumeOrganization = false; // manual resume disabled
+	
+	// Check if user is owner
+	const isOwner = user?.role === 'owner';
 	const [organization, setOrganization] = useState<Organization | null>(null);
 	const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 	const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
@@ -53,12 +74,42 @@ export default function OrganizationPage() {
 		ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER
 	);
 	const [isInviting, setIsInviting] = useState(false);
-	const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+	const [showDeleteModal, setShowDeleteModal] = useState(false);
+	const [isDeleting, setIsDeleting] = useState(false);
+	const [smsVerificationStatus, setSmsVerificationStatus] = useState<VerificationStatusResponse | null>(null);
 	const { setTitle } = useBreadcrumbs();
 
 	useEffect(() => {
 		setTitle('Organization');
-	}, [setTitle]);
+		// Fetch organization status on component mount
+		getOrganizationStatus();
+	}, [setTitle, getOrganizationStatus]);
+
+	const fetchSmsVerificationStatus = async () => {
+		if (!user?.organization_id) return;
+
+		try {
+			const { data: { session } } = await supabase.auth.getSession();
+			if (!session?.access_token) return;
+
+			const response = await fetch(`/api/sms/verification-status?orgId=${user.organization_id}`, {
+				headers: {
+					'Authorization': `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (response.ok) {
+				const data = await response.json();
+				if (data.ok) {
+					setSmsVerificationStatus(data.data);
+				}
+			}
+		} catch (error) {
+			console.error('Error fetching SMS verification status:', error);
+		}
+	};
 
 	const fetchOrganizationData = async () => {
 		setIsLoading(true);
@@ -179,10 +230,12 @@ export default function OrganizationPage() {
 
 	useEffect(() => {
 		fetchOrganizationData();
+		fetchSmsVerificationStatus();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
-	const isOwner = organization?.ownerId === user?.id;
+	const isAdmin = user?.role === 'admin';
+	const canManageSMS = isOwner || isAdmin;
 
 	const handleInviteTeamMember = async () => {
 		if (!inviteEmail) {
@@ -352,6 +405,38 @@ export default function OrganizationPage() {
 		}
 	};
 
+	const handleDeleteOrganization = async () => {
+		if (!organization) {
+			toast.error('Organization not found');
+			return;
+		}
+
+		setIsDeleting(true);
+		try {
+			await api.delete(`/api/organizations/${organization.id}`);
+			
+			toast.success('Organization deleted successfully');
+			
+			// Sign out the user and redirect to home since they no longer have an organization
+			await supabase.auth.signOut();
+			window.location.href = '/';
+		} catch (error) {
+			console.error('Error deleting organization:', error);
+			
+			if (error && typeof error === 'object' && 'status' in error) {
+				const apiError = error as { status: number; message: string };
+				toast.error(apiError.message || 'Failed to delete organization');
+			} else {
+				toast.error('Failed to delete organization. Please try again.');
+			}
+		} finally {
+			setIsDeleting(false);
+			setShowDeleteModal(false);
+		}
+	};
+
+// Manual pause/resume disabled; status managed via Stripe webhooks
+
 	if (isLoading) {
 		return <div className="container mx-auto px-4 py-8">Loading...</div>;
 	}
@@ -406,6 +491,15 @@ export default function OrganizationPage() {
 							size="sm"
 						>
 							Settings
+						</Button>
+						<Button
+							onClick={() => setActiveTab('sms-verification')}
+							variant={activeTab === 'sms-verification' ? 'default' : 'outline'}
+							size="sm"
+							className="flex items-center space-x-2"
+						>
+							<MessageSquare className="h-4 w-4" />
+							<span>SMS Verification</span>
 						</Button>
 					</TabsList>
 
@@ -606,6 +700,100 @@ export default function OrganizationPage() {
 					</TabsContent>
 
 					<TabsContent value="settings" className="space-y-4">
+						{/* Organization Status */}
+						<Card className="p-4">
+							<CardHeader>
+								<h3 className="mb-4 font-semibold">Organization Status</h3>
+							</CardHeader>
+							<CardContent>
+								<div className="space-y-4">
+									<div className="flex items-center justify-between">
+										<div>
+											<label className="text-sm font-medium">Current Status</label>
+											<div className="mt-1 flex items-center gap-2">
+												<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+													orgStatus === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
+													orgStatus === 'paused' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400' :
+													orgStatus === 'disabled' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
+													'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+												}`}>
+													{orgStatus === 'active' ? 'Active' :
+													 orgStatus === 'paused' ? 'Paused' :
+													 orgStatus === 'disabled' ? 'Disabled' : 'Unknown'}
+												</span>
+											</div>
+										</div>
+    {/* Manual pause/resume controls removed - status is automated via Stripe */}
+									</div>
+									{orgStatus === 'paused' && (
+										<div className="text-sm text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 p-3 rounded-md">
+											<AlertTriangle className="h-4 w-4 inline mr-1" />
+											{canResumeOrganization ? (
+												<>
+													Organization is paused. All features are in read-only mode. You can resume when ready.
+												</>
+											) : (
+												<>
+													Organization is paused due to payment issues. Please resolve payment problems to resume service.
+													{paymentStatus?.organization?.payment_failure_reason && (
+														<div className="mt-1 text-xs">
+															Reason: {paymentStatus.organization.payment_failure_reason}
+														</div>
+													)}
+												</>
+											)}
+										</div>
+									)}
+									{orgStatus === 'disabled' && (
+										<div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
+											<AlertTriangle className="h-4 w-4 inline mr-1" />
+											Organization is disabled. All features are in read-only mode.
+										</div>
+									)}
+									{(orgStatus === 'payment_required' || orgStatus === 'past_due') && (
+										<div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
+											<CreditCard className="h-4 w-4 inline mr-1" />
+											{getOrganizationStatusMessage(paymentStatus?.organization as unknown as import('../../types/billing').OrganizationRow)}
+											{paymentStatus?.organization?.payment_failure_reason && (
+												<div className="mt-1 text-xs">
+													Reason: {paymentStatus.organization.payment_failure_reason}
+												</div>
+											)}
+										</div>
+									)}
+								</div>
+							</CardContent>
+						</Card>
+
+						{/* Billing */}
+						<Card className="p-4">
+							<CardHeader>
+								<h3 className="mb-4 font-semibold">Billing & Subscription</h3>
+							</CardHeader>
+							<CardContent>
+								<div className="space-y-4">
+									<div className="flex items-center justify-between">
+										<div>
+											<label className="text-sm font-medium">Manage Billing</label>
+											<p className="text-sm text-gray-500 dark:text-gray-400">
+												View usage, update payment methods, and manage your subscription
+											</p>
+										</div>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => navigate('/billing')}
+											className="text-blue-600 border-blue-300 hover:bg-blue-50"
+										>
+											<CreditCard className="h-4 w-4 mr-1" />
+											Billing
+										</Button>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+
+						{/* Organization Settings */}
 						<Card className="p-4">
 							<CardHeader>
 								<h3 className="mb-4 font-semibold">Organization Settings</h3>
@@ -617,7 +805,7 @@ export default function OrganizationPage() {
 										<Input
 											type="text"
 											value={organization.name}
-											disabled={!isOwner}
+											disabled={!isOwner || isReadOnly}
 											className="mt-1"
 										/>
 									</div>
@@ -625,7 +813,7 @@ export default function OrganizationPage() {
 										<label className="text-sm font-medium">Max Seats</label>
 										<div className="mt-1 flex items-center gap-2">{organization.maxSeats}</div>
 									</div>
-									{isOwner && (
+									{isOwner && !isReadOnly && (
 										<div className="flex items-center gap-3">
 											<Button
 												size="sm"
@@ -635,17 +823,151 @@ export default function OrganizationPage() {
 											>
 												Save Changes
 											</Button>
-											<Button size="sm" className="mt-4">
-												Upgrade
-											</Button>
 										</div>
 									)}
 								</div>
 							</CardContent>
 						</Card>
+
+						{/* Danger Zone */}
+						{isOwner && (
+							<Card className="p-4 border-red-200 dark:border-red-800">
+								<CardHeader>
+									<div className="flex items-center space-x-2">
+										<AlertTriangle className="h-5 w-5 text-red-600" />
+										<h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+											Danger Zone
+										</h3>
+									</div>
+									<p className="text-sm text-gray-600 dark:text-gray-400">
+										Irreversible and destructive actions
+									</p>
+								</CardHeader>
+								<CardContent>
+									<div className="space-y-4">
+										<div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+											<div className="flex items-start justify-between">
+												<div className="flex-1">
+													<h4 className="text-sm font-medium text-red-800 dark:text-red-200">
+														Delete Organization
+													</h4>
+													<p className="text-sm text-red-700 dark:text-red-300 mt-1">
+														Permanently delete this organization and all of its data. This action cannot be undone.
+														All team members will be removed and lose access to the organization.
+													</p>
+													<div className="mt-3 text-xs text-red-600 dark:text-red-400">
+														<p><strong>This will delete:</strong></p>
+														<ul className="list-disc list-inside mt-1 space-y-1">
+															<li>All leads and customer data</li>
+															<li>All tasks and notes</li>
+															<li>All team member access</li>
+															<li>All organization settings</li>
+															<li>All billing and subscription data</li>
+														</ul>
+													</div>
+												</div>
+												<Button
+													variant="destructive"
+													size="sm"
+													onClick={() => setShowDeleteModal(true)}
+													className="ml-4"
+												>
+													<Trash2 className="h-4 w-4 mr-2" />
+													Delete Organization
+												</Button>
+											</div>
+										</div>
+									</div>
+								</CardContent>
+							</Card>
+						)}
+					</TabsContent>
+
+					<TabsContent value="sms-verification" className="space-y-4">
+						{canManageSMS ? (
+							<div className="space-y-6">
+								{/* SMS Verification Status Overview */}
+								{smsVerificationStatus && (
+									<Card>
+										<CardHeader>
+											<h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+												Verification Status
+											</h3>
+										</CardHeader>
+										<CardContent>
+											<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+												<div className="flex items-center space-x-3">
+													<MessageSquare className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+													<div>
+														<span className="font-medium text-gray-900 dark:text-white">A2P 10DLC</span>
+														<div className="text-sm text-gray-600 dark:text-gray-400">
+															{smsVerificationStatus.a2p.status || 'Not Started'}
+														</div>
+													</div>
+												</div>
+												<div className="flex items-center space-x-3">
+													<Shield className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+													<div>
+														<span className="font-medium text-gray-900 dark:text-white">Toll-Free</span>
+														<div className="text-sm text-gray-600 dark:text-gray-400">
+															{smsVerificationStatus.tollfree.status || 'Not Started'}
+														</div>
+													</div>
+												</div>
+											</div>
+										</CardContent>
+									</Card>
+								)}
+
+								{/* SMS Verification Forms */}
+								<div className="space-y-6">
+									<BrandForm 
+										orgId={user?.organization_id || ''} 
+										onSave={() => fetchSmsVerificationStatus()}
+										userRole={user?.role}
+									/>
+									<CampaignForm 
+										orgId={user?.organization_id || ''} 
+										onSave={() => fetchSmsVerificationStatus()}
+										onSubmit10DLC={() => fetchSmsVerificationStatus()}
+										userRole={user?.role}
+									/>
+									<TollFreeForm 
+										orgId={user?.organization_id || ''} 
+										onSubmit={() => fetchSmsVerificationStatus()}
+										userRole={user?.role}
+									/>
+								</div>
+							</div>
+						) : (
+							<Card>
+								<CardContent className="p-6">
+									<div className="text-center">
+										<Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+										<h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+											SMS Verification
+										</h3>
+						<p className="text-gray-600 dark:text-gray-400">
+							Only organization owners and admins can manage SMS verification settings.
+						</p>
+									</div>
+								</CardContent>
+							</Card>
+						)}
 					</TabsContent>
 				</Tabs>
 			</div>
+
+			{/* Delete Organization Confirmation Modal */}
+			<DangerConfirmationModal
+				isOpen={showDeleteModal}
+				onClose={() => setShowDeleteModal(false)}
+				onConfirm={handleDeleteOrganization}
+				title="Delete Organization"
+				confirmText="Delete Organization"
+				organizationName={organization?.name || ''}
+				isLoading={isDeleting}
+			/>
 		</>
 	);
 }
