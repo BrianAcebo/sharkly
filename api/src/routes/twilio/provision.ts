@@ -10,9 +10,7 @@ const router = Router();
 const DISABLE_NUMBER_PURCHASE_UI = process.env.DISABLE_NUMBER_PURCHASE_UI === 'true';
 
 // Validation schemas
-const buyNumberSchema = z.object({
-  areaCode: z.string().regex(/^\d{3}$/).optional()
-});
+const buyNumberSchema = z.object({});
 
 // POST /admin/twilio/buy-number (disabled by default)
   router.post('/buy-number', requireAuth, async (req: Request, res: Response) => {
@@ -23,7 +21,7 @@ const buyNumberSchema = z.object({
   }
 
   try {
-    const { areaCode } = buyNumberSchema.parse(req.body);
+    buyNumberSchema.parse(req.body);
     const agentId = req.userId!;
 
     // Check if agent already has an active number
@@ -46,7 +44,6 @@ const buyNumberSchema = z.object({
       smsEnabled: boolean;
       voiceEnabled: boolean;
       limit: number;
-      areaCode?: string;
     } = {
       country: 'US',
       smsEnabled: true,
@@ -54,18 +51,12 @@ const buyNumberSchema = z.object({
       limit: 1
     };
 
-    if (areaCode) {
-      searchParams.areaCode = areaCode;
-    }
-
     const [phoneNumber] = await twilioClient.incomingPhoneNumbers
       .list(searchParams);
 
     if (!phoneNumber) {
       return res.status(400).json({
-        error: areaCode 
-          ? `No SMS-enabled numbers available in area code ${areaCode}`
-          : 'No SMS-enabled numbers available'
+        error: 'No SMS-enabled numbers available'
       });
     }
 

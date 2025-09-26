@@ -8,51 +8,44 @@ import {
   DollarSign,
   MessageSquare,
   Phone,
-  TrendingUp,
-  Calendar,
-  Settings,
-  Download,
+  Mail,
   AlertCircle,
   CreditCard,
   Clock,
   Users,
-  Mail,
+  Calendar,
   ExternalLink
 } from 'lucide-react';
 import PricingCalculator from '../components/billing/PricingCalculator';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { STRIPE_CUSTOMER_PORTAL_URL, canManageBilling } from '../utils/billing';
+import { useAuth } from '../hooks/useAuth';
+
+type UsageRecord = Record<string, unknown>;
 
 interface UsageSummary {
   sms: {
     count: number;
     cost: number;
-    records: any[];
+    records: UsageRecord[];
   };
   voice: {
     minutes: number;
     cost: number;
-    records: any[];
+    records: UsageRecord[];
+  };
+  email: {
+    count: number;
+    cost: number;
+    records: UsageRecord[];
   };
   total: {
     cost: number;
     sms_cost: number;
     voice_cost: number;
+    email_cost: number;
   };
-}
-
-interface MonthlyBilling {
-  id: string;
-  billing_month: string;
-  sms_count: number;
-  sms_cost: number;
-  voice_minutes: number;
-  voice_cost: number;
-  total_cost: number;
-  status: string;
-  invoice_number?: string;
-  due_date?: string;
-  paid_date?: string;
 }
 
 interface BillingSettings {
@@ -63,35 +56,174 @@ interface BillingSettings {
   payment_method?: string;
 }
 
+interface StripeInvoice {
+  id: string;
+  object: string;
+  amount_due: number;
+  amount_paid: number;
+  amount_remaining: number;
+  application_fee_amount: number | null;
+  attempt_count: number;
+  attempted: boolean;
+  auto_advance: boolean;
+  billing_reason: string | null;
+  billing_session: string | null;
+  charge: string;
+  collection_method: string;
+  created: number;
+  currency: string;
+  custom_fields: string | null;
+  customer: string;
+  customer_address: string | null;
+  customer_email: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  customer_shipping: string | null;
+  customer_tax_exempt: string | null;
+  customer_tax_ids: string[] | null;
+  default_payment_method: string | null;
+  default_source: string | null;
+  default_tax_rates: string[] | null;
+  description: string | null;
+  discount: string | null;
+  due_date: number | null;
+  ending_balance: number;
+  footer: string | null;
+  hosted_invoice_url: string;
+  invoice_pdf: string;
+  lines: {
+    id: string;
+    object: string;
+    amount: number;
+    currency: string;
+    description: string | null;
+    discountable: boolean;
+    invoice_item: string;
+    invoice_line_item: string;
+    livemode: boolean;
+    metadata: Record<string, unknown>;
+    period: {
+      end: number;
+      start: number;
+    };
+    plan: {
+      id: string;
+      object: string;
+      active: boolean;
+      aggregate_usage: string | null;
+      amount: number;
+      amount_decimal: string;
+      billing_scheme: string;
+      created: number;
+      currency: string;
+      interval: string;
+      interval_count: number;
+      livemode: boolean;
+      metadata: Record<string, unknown>;
+      nickname: string | null;
+      product: string;
+      tiers: string | null;
+      tiers_mode: string | null;
+      transform_usage: string | null;
+      unit_amount: number;
+      unit_amount_decimal: string;
+    };
+    proration: boolean;
+    quantity: number;
+    subscription: string | null;
+    subscription_item: string;
+    tax_amounts: string[] | null;
+    tax_rates: string[] | null;
+    type: string;
+    unit_amount: number;
+    unit_amount_decimal: string;
+  }[];
+  livemode: boolean;
+  metadata: Record<string, unknown>;
+  next_payment_attempt: number | null;
+  number: string | null;
+  paid: boolean;
+  paid_at: number | null;
+  payment_intent: string | null;
+  payment_settings: {
+    payment_method_options: {
+      card: {
+        request_three_d_secure: string;
+      };
+    };
+    payment_method_types: string[];
+    save_default_payment_method: string;
+  };
+  period_end: number;
+  period_start: number;
+  post_payment_credit_notes_amount: number;
+  pre_payment_credit_notes_amount: number;
+  quote: string | null;
+  receipt_number: string | null;
+  rendering_options: string | null;
+  shipping_cost: string | null;
+  starting_balance: number;
+  statement_descriptor: string | null;
+  status: string;
+  status_transitions: {
+    finalized_at: number | null;
+    marked_uncollectible_at: number | null;
+    paid_at: number | null;
+    voided_at: number | null;
+  };
+  subscription: string | null;
+  subtotal: number;
+  tax_amounts: string[] | null;
+  tax_rates: string[] | null;
+  total: number;
+  total_tax_amounts: string[] | null;
+  transfer_data: string | null;
+  webhooks_delivered_at: number | null;
+}
+
 const Billing: React.FC = () => {
-  const { setTitle } = useBreadcrumbs();
   const { organization, loading: orgLoading } = useOrganization();
   const trialInfo = useTrial();
+  const { setTitle } = useBreadcrumbs();
+  const { user } = useAuth();
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
-  const [monthlyBilling, setMonthlyBilling] = useState<MonthlyBilling[]>([]);
   const [billingSettings, setBillingSettings] = useState<BillingSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState('current-month');
-  const [showSettings, setShowSettings] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'usage' | 'pricing'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'usage' | 'pricing' | 'invoices'>('overview');
+  const [invoices, setInvoices] = useState<StripeInvoice[] | null>(null);
+  const [invoicePagination, setInvoicePagination] = useState({
+    hasMore: false,
+    startingAfter: null as string | null,
+    endingBefore: null as string | null
+  });
 
   useEffect(() => {
     setTitle('Billing & Usage');
     fetchBillingData();
-  }, [setTitle, selectedPeriod]);
+  }, [setTitle]);
+
+  useEffect(() => {
+    if (organization?.stripe_customer_id) {
+      fetchInvoices(organization.stripe_customer_id, invoicePagination.startingAfter, invoicePagination.endingBefore);
+    }
+  }, [organization?.stripe_customer_id, invoicePagination.startingAfter, invoicePagination.endingBefore]);
 
   const fetchBillingData = async () => {
     try {
       setIsLoading(true);
-      
-      // Get current user and organization
-      const { data: { user } } = await supabase.auth.getUser();
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error('User not authenticated');
+        return;
+      }
+
+      const { data: user } = await supabase.auth.getUser();
       if (!user) {
         toast.error('User not authenticated');
         return;
       }
 
-      // Get user's organization
       const { data: userOrg } = await supabase
         .from('user_organizations')
         .select('organization_id')
@@ -105,32 +237,36 @@ const Billing: React.FC = () => {
 
       const organizationId = userOrg.organization_id;
 
-      // Calculate date range based on selected period
-      const { startDate, endDate } = getDateRange(selectedPeriod);
+      const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const endDate = now.toISOString().split('T')[0];
 
-      // Fetch usage summary
       const usageResponse = await fetch(
-        `/api/billing/usage-summary/${organizationId}?startDate=${startDate}&endDate=${endDate}`
+        `/api/billing/usage-summary/${organizationId}?startDate=${startDate}&endDate=${endDate}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }
       );
-      
+
       if (usageResponse.ok) {
         const usageData = await usageResponse.json();
         setUsageSummary(usageData.summary);
+      } else {
+        setUsageSummary(null);
       }
 
-      // Fetch monthly billing history
-      const billingResponse = await fetch(`/api/billing/monthly-billing/${organizationId}`);
-      
+      const billingResponse = await fetch(`/api/billing/settings/${organizationId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
       if (billingResponse.ok) {
-        const billingData = await billingResponse.json();
-        setMonthlyBilling(billingData.billing_history);
-      }
-
-      // Fetch billing settings
-      const settingsResponse = await fetch(`/api/billing/settings/${organizationId}`);
-      
-      if (settingsResponse.ok) {
-        const settingsData = await settingsResponse.json();
+        const settingsData = await billingResponse.json();
         setBillingSettings(settingsData.settings);
       }
 
@@ -142,32 +278,60 @@ const Billing: React.FC = () => {
     }
   };
 
-  const getDateRange = (period: string) => {
-    const now = new Date();
-    let startDate: string;
-    let endDate: string;
+  const fetchInvoices = async (customerId: string, startingAfter?: string | null, endingBefore?: string | null) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        return;
+      }
 
-    switch (period) {
-      case 'current-month':
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        endDate = now.toISOString().split('T')[0];
-        break;
-      case 'last-month':
-        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        startDate = lastMonth.toISOString().split('T')[0];
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
-        break;
-      case 'last-3-months':
-        const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-        startDate = threeMonthsAgo.toISOString().split('T')[0];
-        endDate = now.toISOString().split('T')[0];
-        break;
-      default:
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        endDate = now.toISOString().split('T')[0];
+      const query = new URLSearchParams();
+      query.append('customerId', customerId);
+      query.append('limit', '10');
+      if (startingAfter) query.append('starting_after', startingAfter);
+      if (endingBefore) query.append('ending_before', endingBefore);
+
+      const response = await fetch(`/api/billing/invoices?${query.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch invoices');
+      }
+
+      const data = await response.json();
+      setInvoices(data.data || []);
+      setInvoicePagination((prev) => ({
+        ...prev,
+        hasMore: data.has_more || false
+      }));
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+      toast.error('Failed to fetch invoices');
     }
+  };
 
-    return { startDate, endDate };
+  const goToNextInvoicePage = () => {
+    if (invoices && invoices.length > 0) {
+      setInvoicePagination((prev) => ({
+        ...prev,
+        startingAfter: invoices[invoices.length - 1].id,
+        endingBefore: null
+      }));
+    }
+  };
+
+  const goToPreviousInvoicePage = () => {
+    if (invoices && invoices.length > 0) {
+      setInvoicePagination((prev) => ({
+        ...prev,
+        endingBefore: invoices[0].id,
+        startingAfter: null
+      }));
+    }
   };
 
   const formatCurrency = (amount: number) => {
@@ -175,14 +339,6 @@ const Billing: React.FC = () => {
       style: 'currency',
       currency: 'USD'
     }).format(amount);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
   };
 
   if (isLoading) {
@@ -193,30 +349,14 @@ const Billing: React.FC = () => {
     );
   }
 
+  const userRole = user?.role || null;
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Billing & Usage</h1>
-          <p className="text-gray-600 dark:text-gray-400">Track your Twilio usage and costs</p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <select
-            value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-          >
-            <option value="current-month">Current Month</option>
-            <option value="last-month">Last Month</option>
-            <option value="last-3-months">Last 3 Months</option>
-          </select>
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="flex items-center px-3 py-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
-          >
-            <Settings className="h-5 w-5" />
-          </button>
         </div>
       </div>
 
@@ -241,7 +381,7 @@ const Billing: React.FC = () => {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
             }`}
           >
-            Usage & Billing
+            Usage Costs
           </button>
           <button
             onClick={() => setActiveTab('pricing')}
@@ -253,6 +393,16 @@ const Billing: React.FC = () => {
           >
             Pricing Calculator
           </button>
+          <button
+            onClick={() => setActiveTab('invoices')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'invoices'
+                ? 'border-red-500 text-red-600 dark:text-red-400'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
+            }`}
+          >
+            Invoices
+          </button>
         </nav>
       </div>
 
@@ -260,7 +410,7 @@ const Billing: React.FC = () => {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {/* Current Plan & Subscription Status */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             {/* Current Plan Card */}
             <Card>
               <CardHeader>
@@ -330,14 +480,21 @@ const Billing: React.FC = () => {
                     </div>
 
                     <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => window.open('https://billing.stripe.com/p/login/test_fZu8wPeit9J33Yu4Kb2go00', '_blank')}
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Manage Subscription
-                      </Button>
+                      {organization && canManageBilling(userRole) && (
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => window.open(STRIPE_CUSTOMER_PORTAL_URL, '_blank')}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Manage Subscription
+                        </Button>
+                      )}
+                      {organization && !canManageBilling(userRole) && (
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
+                          Only an owner or admin can manage billing settings.
+                        </p>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -420,195 +577,86 @@ const Billing: React.FC = () => {
               </CardContent>
             </Card>
           </div>
-
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center space-y-2"
-                  onClick={() => setActiveTab('usage')}
-                >
-                  <DollarSign className="h-6 w-6" />
-                  <span>View Usage</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center space-y-2"
-                  onClick={() => setActiveTab('pricing')}
-                >
-                  <TrendingUp className="h-6 w-6" />
-                  <span>Pricing Calculator</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="h-20 flex flex-col items-center justify-center space-y-2"
-                  onClick={() => window.open('https://billing.stripe.com/p/login/test_fZu8wPeit9J33Yu4Kb2go00', '_blank')}
-                >
-                  <ExternalLink className="h-6 w-6" />
-                  <span>Manage Subscription</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-20 flex flex-col items-center justify-center space-y-2"
-                  onClick={() => setShowSettings(true)}
-                >
-                  <Settings className="h-6 w-6" />
-                  <span>Billing Settings</span>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       )}
 
       {activeTab === 'usage' && (
-        <>
-          {/* Usage Summary Cards */}
-          {usageSummary && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                <DollarSign className="h-6 w-6 text-red-600 dark:text-red-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cost</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {formatCurrency(usageSummary.total.cost)}
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Usage Highlights</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                      <DollarSign className="h-6 w-6 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Cost</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {formatCurrency(usageSummary?.total.cost || 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <MessageSquare className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">SMS Messages</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {usageSummary.sms.count.toLocaleString()}
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {formatCurrency(usageSummary.sms.cost)}
-                </p>
-              </div>
-            </div>
-          </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                      <MessageSquare className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">SMS Messages</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {usageSummary?.sms.count || 0}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {formatCurrency(usageSummary?.sms.cost || 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <Phone className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Voice Minutes</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {usageSummary.voice.minutes.toFixed(1)}
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {formatCurrency(usageSummary.voice.cost)}
-                </p>
-              </div>
-            </div>
-          </div>
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                      <Phone className="h-6 w-6 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Voice Minutes</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {usageSummary?.voice.minutes?.toFixed(1) || '0.0'}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {formatCurrency(usageSummary?.voice.cost || 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                      <Mail className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div className="ml-4">
+                      <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Emails Sent</p>
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {usageSummary?.email?.count ?? 0}
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        {formatCurrency(usageSummary?.email?.cost ?? 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Markup</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {billingSettings?.default_markup_percentage || 20}%
-                </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Profit margin</p>
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
+
         </div>
-          )}
-
-          {/* Monthly Billing History */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Billing History</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Month
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  SMS
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Voice
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Total Cost
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {monthlyBilling.map((bill) => (
-                <tr key={bill.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {formatDate(bill.billing_month)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {bill.sms_count.toLocaleString()} messages
-                    <br />
-                    <span className="text-xs">{formatCurrency(bill.sms_cost)}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {bill.voice_minutes.toFixed(1)} minutes
-                    <br />
-                    <span className="text-xs">{formatCurrency(bill.voice_cost)}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {formatCurrency(bill.total_cost)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      bill.status === 'paid' 
-                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        : bill.status === 'billed'
-                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-                        : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-                    }`}>
-                      {bill.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                    {bill.invoice_number && (
-                      <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
-                        <Download className="h-4 w-4" />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-        </>
       )}
 
       {/* Pricing Calculator Tab */}
@@ -616,8 +664,82 @@ const Billing: React.FC = () => {
         <PricingCalculator />
       )}
 
+      {activeTab === 'invoices' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Invoices</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {invoices && invoices.length > 0 ? (
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-800">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                  {invoices.map((invoice) => (
+                    <tr key={invoice.id}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{invoice.number ?? invoice.id}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatCurrency((invoice.total ?? 0) / 100)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{invoice.status}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{invoice.created ? new Date(invoice.created * 1000).toLocaleDateString() : ''}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            if (invoice.invoice_pdf) {
+                              window.open(invoice.invoice_pdf, '_blank');
+                            } else if (invoice.hosted_invoice_url) {
+                              window.open(invoice.hosted_invoice_url, '_blank');
+                            } else {
+                              toast.info('Invoice PDF unavailable.');
+                            }
+                          }}
+                        >
+                          View PDF
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500 dark:text-gray-400">
+                  No invoices found.
+                </p>
+              </div>
+            )}
+            <div className="flex justify-between mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!invoicePagination.endingBefore}
+                onClick={goToPreviousInvoicePage}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!invoicePagination.hasMore}
+                onClick={goToNextInvoicePage}
+              >
+                Next
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Billing Settings Modal */}
-      {showSettings && billingSettings && (
+      {billingSettings && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4">
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">

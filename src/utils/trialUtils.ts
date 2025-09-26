@@ -141,28 +141,20 @@ export function getTrialWarningLevel(organization: OrganizationRow | null): 'non
 /**
  * Check if the app should be blocked due to trial/subscription issues
  */
-export function shouldBlockApp(organization: OrganizationRow | null): boolean {
+export function shouldBlockApp(organization: OrganizationRow | null, hasStripeStatus: boolean): boolean {
   if (!organization) {
-    return true; // Block if no organization
+    return false;
   }
 
-  // Block if subscription is cancelled or doesn't exist
-  if (!organization.stripe_subscription_id || organization.stripe_status === 'canceled') {
+  if (!hasStripeStatus) {
+    return false;
+  }
+
+  if (!organization.stripe_status) {
     return true;
   }
 
-  // Block if trial has expired and no active subscription
-  const status = getTrialStatus(organization);
-  if (status.isExpired && organization.stripe_status !== 'active') {
-    return true;
-  }
-
-  // Block if subscription is incomplete (needs payment method)
-  if (organization.stripe_status === 'incomplete') {
-    return true;
-  }
-
-  return false;
+  return !['active', 'trialing'].includes(organization.stripe_status);
 }
 
 /**

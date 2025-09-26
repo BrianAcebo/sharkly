@@ -8,10 +8,12 @@ import {
   OrgOnboardRequest, 
   OrgOnboardResponse, 
   ApiError, 
-  unixToISO 
+  unixToISO,
+  CustomerPaymentMethodSummary
 } from '../types/billing';
+import { getStripeClient } from '../utils/stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+const stripe = getStripeClient();
 
 export const onboardOrganization = async (req: Request, res: Response) => {
   try {
@@ -29,7 +31,9 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       industry,
       ein,
       tz = 'America/New_York',
-      address
+      address,
+      paymentMethodId: paymentMethodIdFromRequest,
+      useExistingPaymentMethod
     }: OrgOnboardRequest = req.body;
 
     // Validate required fields
@@ -110,7 +114,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     let stripeCustomerId = org.stripe_customer_id;
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
-        name: name,
+        name,
         email: req.user?.email || undefined,
         metadata: {
           organization_id: org.id,
@@ -118,6 +122,68 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         }
       });
       stripeCustomerId = customer.id;
+
+      const { error: customerUpdateError } = await supabase
+        .from('organizations')
+        .update({
+          stripe_customer_id: stripeCustomerId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', org.id);
+
+      if (customerUpdateError) {
+        console.error('Failed to persist stripe_customer_id after customer creation:', customerUpdateError);
+      }
+    }
+
+    let defaultPaymentMethodId: string | null = paymentMethodIdFromRequest || null;
+    const shouldAttachNewPaymentMethod = Boolean(paymentMethodIdFromRequest) && !useExistingPaymentMethod;
+
+    if (!defaultPaymentMethodId && stripeCustomerId) {
+      try {
+        const customer = await stripe.customers.retrieve(stripeCustomerId, {
+          expand: ['invoice_settings.default_payment_method']
+        });
+
+        const customerDefault =
+          typeof customer.invoice_settings?.default_payment_method === 'string'
+            ? customer.invoice_settings.default_payment_method
+            : customer.invoice_settings?.default_payment_method &&
+              'id' in customer.invoice_settings.default_payment_method
+              ? (customer.invoice_settings.default_payment_method as { id: string }).id
+              : null;
+
+        defaultPaymentMethodId = customerDefault;
+      } catch (customerError) {
+        console.error('Error retrieving customer for default payment method:', customerError);
+      }
+    }
+
+    if (!defaultPaymentMethodId) {
+      if (!trialDays || trialDays <= 0) {
+        return res.status(400).json({
+          ok: false,
+          error: 'No payment method available for this customer. Please add a new payment method.',
+          code: 'payment_method_required'
+        } as ApiError);
+      }
+    }
+
+    if (shouldAttachNewPaymentMethod && defaultPaymentMethodId) {
+      try {
+        await stripe.paymentMethods.attach(defaultPaymentMethodId, {
+          customer: stripeCustomerId
+        });
+
+        await stripe.customers.update(stripeCustomerId, {
+          invoice_settings: {
+            default_payment_method: defaultPaymentMethodId
+          }
+        });
+      } catch (attachError) {
+        console.error('Error attaching new payment method to customer:', attachError);
+        throw attachError;
+      }
     }
 
     // Create or get Stripe subscription
@@ -125,12 +191,12 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     let subscriptionClientSecret: string | null = null;
 
     if (!stripeSubscriptionId) {
-      const subscriptionData: Stripe.SubscriptionCreateParams = {
+      const subscriptionParams: Stripe.SubscriptionCreateParams = {
         customer: stripeCustomerId,
         items: [
           {
-            price: plan.stripe_price_id,
-          },
+            price: plan.stripe_price_id
+          }
         ],
         metadata: {
           organization_id: org.id,
@@ -138,25 +204,26 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         },
         payment_behavior: 'default_incomplete',
         payment_settings: { save_default_payment_method: 'on_subscription' },
-        expand: ['latest_invoice.payment_intent'],
+        collection_method: 'charge_automatically',
+        expand: ['latest_invoice.payment_intent']
       };
 
-      // Add trial if requested
-      if (trialDays && trialDays > 0) {
-        subscriptionData.trial_period_days = trialDays;
+      if (defaultPaymentMethodId) {
+        subscriptionParams.default_payment_method = defaultPaymentMethodId;
       }
 
-      const subscription = await stripe.subscriptions.create(subscriptionData);
+      if (trialDays && trialDays > 0) {
+        subscriptionParams.trial_period_days = trialDays;
+      }
+
+      const subscription = await stripe.subscriptions.create(subscriptionParams);
       stripeSubscriptionId = subscription.id;
 
-      // Get client secret for payment (only if there's a payment intent)
       const invoice = subscription.latest_invoice as Stripe.Invoice;
       if (invoice && (invoice as unknown as { payment_intent?: { client_secret: string } }).payment_intent) {
         const paymentIntent = (invoice as unknown as { payment_intent: { client_secret: string } }).payment_intent;
         subscriptionClientSecret = paymentIntent.client_secret;
       } else if (trialDays && trialDays > 0) {
-        // For trial subscriptions, no payment intent is created immediately
-        // The client secret will be null, which is expected
         subscriptionClientSecret = null;
       }
     }
@@ -279,3 +346,105 @@ export const getPlanCatalog = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const getCustomerPaymentMethodSummary = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const orgId = req.query.orgId as string | undefined;
+    if (!orgId) {
+      return res.status(400).json({ error: 'Missing orgId' });
+    }
+
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('id, owner_id, stripe_customer_id, stripe_subscription_id, plan_code, name')
+      .eq('id', orgId)
+      .single();
+
+    if (orgError || !org) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    if (org.owner_id && org.owner_id !== userId) {
+      return res.status(403).json({ error: 'Only the organization owner can manage billing' });
+    }
+
+    if (!org.stripe_customer_id) {
+      return res.json({
+        hasDefault: false,
+        defaultPaymentMethod: null as CustomerPaymentMethodSummary | null,
+        customerId: null,
+        subscriptionId: org.stripe_subscription_id || null,
+        planCode: org.plan_code,
+        organizationName: org.name
+      });
+    }
+
+    try {
+      const customer = await stripe.customers.retrieve(org.stripe_customer_id, {
+        expand: ['invoice_settings.default_payment_method']
+      });
+
+      let summary: CustomerPaymentMethodSummary | null = null;
+
+      const defaultPM = customer.invoice_settings?.default_payment_method;
+      if (defaultPM && typeof defaultPM === 'object' && 'id' in defaultPM) {
+        const pmObject = defaultPM as Stripe.PaymentMethod;
+        if (pmObject.card) {
+          summary = {
+            id: pmObject.id,
+            brand: pmObject.card.brand || null,
+            last4: pmObject.card.last4 || null,
+            exp_month: pmObject.card.exp_month || null,
+            exp_year: pmObject.card.exp_year || null,
+            billing_details_name: pmObject.billing_details?.name || null
+          };
+        } else {
+          summary = {
+            id: pmObject.id,
+            brand: null,
+            last4: null,
+            exp_month: null,
+            exp_year: null,
+            billing_details_name: pmObject.billing_details?.name || null
+          };
+        }
+      } else if (typeof defaultPM === 'string') {
+        try {
+          const paymentMethod = await stripe.paymentMethods.retrieve(defaultPM);
+          const card = paymentMethod.card;
+          summary = {
+            id: paymentMethod.id,
+            brand: card?.brand || null,
+            last4: card?.last4 || null,
+            exp_month: card?.exp_month || null,
+            exp_year: card?.exp_year || null,
+            billing_details_name: paymentMethod.billing_details?.name || null
+          };
+        } catch (pmError) {
+          console.error('Error retrieving payment method for summary:', pmError);
+        }
+      }
+
+      return res.json({
+        hasDefault: Boolean(summary),
+        defaultPaymentMethod: summary,
+        customerId: org.stripe_customer_id,
+        subscriptionId: org.stripe_subscription_id || null,
+        planCode: org.plan_code,
+        organizationName: org.name
+      });
+    } catch (stripeError) {
+      console.error('Error retrieving customer payment method summary:', stripeError);
+      return res.status(500).json({ error: 'Failed to retrieve payment method summary' });
+    }
+  } catch (error) {
+    console.error('Error retrieving customer payment method summary:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+

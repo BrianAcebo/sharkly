@@ -95,6 +95,17 @@ export interface OrgOnboardRequest {
   ein?: string;
   tz?: string;
   address?: PostalAddress;
+  paymentMethodId?: string;
+  useExistingPaymentMethod?: boolean;
+}
+
+export interface CustomerPaymentMethodSummary {
+  id: string;
+  brand: string | null;
+  last4: string | null;
+  exp_month: number | null;
+  exp_year: number | null;
+  billing_details_name?: string | null;
 }
 
 export interface OrgOnboardResponse {

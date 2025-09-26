@@ -1,20 +1,12 @@
-import { Request } from 'express';
-import { User } from '@supabase/supabase-js';
+import 'express';
 
-interface TeamMember {
-  id: string;
-  profile_id: string;
-  organization_id: string;
-  role: string;
-  created_at: string;
-}
-
-declare global {
-  namespace Express {
-    interface Request {
-      user?: User;
-      userId?: string;
-      teamMember?: TeamMember;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    userId?: string;
+    user?: {
+      id: string;
+      email?: string;
+      [key: string]: unknown;
+    };
   }
 }

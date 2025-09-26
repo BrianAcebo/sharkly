@@ -17,22 +17,8 @@ const MyNumberCard: React.FC<MyNumberCardProps> = ({ onNumberChange }) => {
       </div>
 
       <div className="space-y-4">
-        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-100 dark:bg-blue-800 rounded-full flex items-center justify-center">
-              <Phone className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                Auto-Provisioned Number
-              </p>
-              <MyNumberBadge onNumberChange={onNumberChange} />
-            </div>
-          </div>
-        </div>
-        
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Your business number is automatically provisioned for your seat and used for all SMS communications with leads.
+          SMS number provisioning is currently managed by the Paperboat team. Contact support if you need changes.
         </p>
       </div>
     </div>

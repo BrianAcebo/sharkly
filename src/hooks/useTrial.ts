@@ -46,7 +46,7 @@ export function useTrial() {
         organization: null,
         loading: false,
         error,
-        shouldBlockApp: true,
+        shouldBlockApp: false,
         needsPayment: false
       };
     }
@@ -55,8 +55,12 @@ export function useTrial() {
     const statusMessage = getTrialStatusMessage(organization);
     const isEndingSoon = isTrialEndingSoon(organization);
     const warningLevel = getTrialWarningLevel(organization);
-    const shouldBlock = shouldBlockApp(organization);
     const needsPayment = needsPaymentMethod(organization);
+    const stripeStatus = organization?.stripe_status;
+    const hasStripeStatus = typeof stripeStatus === 'string';
+
+    const shouldBlock = shouldBlockApp(organization, hasStripeStatus);
+    const adjustedNeedsPayment = stripeStatus === 'canceled' ? false : needsPayment;
 
     return {
       ...status,
@@ -67,7 +71,7 @@ export function useTrial() {
       loading: false,
       error: null,
       shouldBlockApp: shouldBlock,
-      needsPayment
+      needsPayment: adjustedNeedsPayment
     };
   }, [organization, loading, error]);
 

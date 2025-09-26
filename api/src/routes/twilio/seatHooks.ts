@@ -6,8 +6,7 @@ const router = Router();
 
 // Validation schemas
 const seatCreatedSchema = z.object({
-  agentId: z.string().uuid(),
-  areaCode: z.string().regex(/^\d{3}$/).optional()
+  agentId: z.string().uuid()
 });
 
 const ensureAgentNumbersSchema = z.object({
@@ -17,17 +16,17 @@ const ensureAgentNumbersSchema = z.object({
 // POST /seat-created
 router.post('/seat-created', async (req: Request, res: Response) => {
   try {
-    const { agentId, areaCode } = seatCreatedSchema.parse(req.body);
+    const { agentId } = seatCreatedSchema.parse(req.body);
     
     console.info(`Seat created for agent ${agentId}, ensuring phone number...`);
     
-    const result = await ensureAgentNumber(agentId, { areaCode });
-    
+    const result = await ensureAgentNumber(agentId);
+
     if (result.error) {
       console.error(`Failed to ensure number for agent ${agentId}:`, result.error);
       return res.status(500).json({ error: result.error });
     }
-    
+
     console.info(`Successfully ensured number ${result.phoneNumber} for agent ${agentId}`);
     res.json({ phoneNumber: result.phoneNumber });
     

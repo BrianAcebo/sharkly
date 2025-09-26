@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import AppHeader from '../components/header/AppHeader';
 import AppSidebar from '../components/header/AppSidebar';
-import { Navigate, Outlet, useLocation } from 'react-router';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
 import { useSidebar } from '../hooks/useSidebar';
 import { BreadcrumbsProvider } from '../providers/BreadcrumbsProvider';
 import { SidebarProvider } from '../providers/SidebarProvider';
@@ -15,30 +15,27 @@ import ScreenSizeWarning from '../components/common/ScreenSizeWarning';
 import { useNotifications } from '../hooks/useNotifications';
 import { ActiveCallBar } from '../components/calls/ActiveCallBar';
 import { TrialBanner } from '../components/billing/TrialBanner';
-import { TrialExpiredBlock } from '../components/billing/TrialExpiredBlock';
 import PaymentStatusBanner from '../components/billing/PaymentStatusBanner';
-import PaymentRequiredBlock from '../components/billing/PaymentRequiredBlock';
 import { useTrial } from '../hooks/useTrial';
 import { useOrganizationStatus } from '../hooks/useOrganizationStatus';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { isOrganizationBehindOnPayments } from '../utils/paymentStatus';
 import ReadOnlyMode from '../components/common/ReadOnlyMode';
+import { useOrganization } from '../hooks/useOrganization';
+import { OrganizationRow } from '../types/billing';
 
 const LayoutContent: React.FC = () => {
 	const { pathname } = useLocation();
+	const navigate = useNavigate();
 	const { isExpanded } = useSidebar();
 	const { user, loadingState, session } = useAuth();
 	const trialInfo = useTrial();
-	const {
-		isReadOnly,
-		isPaused,
-    isDisabled,
-		status: orgStatus
-	} = useOrganizationStatus();
+	const { organization: currentOrg } = useOrganization();
+	const { isPaused, isDisabled, status: orgStatus } = useOrganizationStatus();
 	const { paymentStatus } = usePaymentStatus();
 
 	// Debug logging
-	console.log('[APP_LAYOUT] Organization status:', { orgStatus, isPaused, isDisabled, isReadOnly });
+	console.log('[APP_LAYOUT] Organization status:', { orgStatus, isPaused, isDisabled });
 	const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
 	const { isScreenTooSmall } = useScreenSize();
 
@@ -73,41 +70,6 @@ const LayoutContent: React.FC = () => {
 			setTimeout(() => setHasCheckedOrg(true), 100);
 			return <AuthLoading state={AuthLoadingState.LOADING} />;
 		}
-
-		if (orgStatus && orgStatus !== 'active') {
-			return (
-        <ReadOnlyMode
-					isReadOnly={true}
-          reason={isPaused ? 'paused' : isDisabled ? 'disabled' : 'trial_expired'}
-          onResume={undefined}
-          showResumeButton={false}
-					className="h-screen"
-				>
-					<div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-						<div className="text-center">
-							<h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-								Organization Paused
-							</h1>
-						</div>
-					</div>
-				</ReadOnlyMode>
-			);
-		}
-
-		// If user has no organization after completing onboarding, redirect to organization-required
-		if (!user?.organization_id && pathname !== '/organization-required') {
-			return <Navigate to="/organization-required" replace />;
-		}
-
-		// If user has organization and is on organization-required, redirect to pipeline
-		if (user?.organization_id && pathname === '/organization-required') {
-			return <Navigate to="/pipeline" replace />;
-		}
-
-		// If user has organization and is on onboarding, redirect to pipeline
-		if (user?.organization_id && pathname === '/onboarding') {
-			return <Navigate to="/pipeline" replace />;
-		}
 	}
 
 	// Safety fallback: if we're on organization-required but user has organization, redirect to pipeline
@@ -125,73 +87,64 @@ const LayoutContent: React.FC = () => {
 		return <ScreenSizeWarning />;
 	}
 
-	// Block app if organization is behind on payments (check this first)
-    if (paymentStatus && isOrganizationBehindOnPayments(paymentStatus.organization as unknown as import('../types/billing').OrganizationRow)) {
-		return (
-			<PaymentRequiredBlock 
-				organization={paymentStatus.organization}
-				onUpdatePayment={() => {
-					// Navigate to billing page
-					window.location.href = '/billing';
-				}}
-			>
-				<div />
-			</PaymentRequiredBlock>
-		);
-	}
+  const organizationForBilling = (currentOrg || trialInfo.organization) as OrganizationRow | null;
+  const stripeStatus = organizationForBilling?.stripe_status;
+  const hasStripeStatus = typeof stripeStatus === 'string';
 
-	// Block app if trial expired or subscription issues (check this after payment status)
-	if (trialInfo.shouldBlockApp) {
-		console.log('[APP_LAYOUT] trialInfo.shouldBlockApp', trialInfo.shouldBlockApp);
-		return <TrialExpiredBlock trialInfo={trialInfo} needsPayment={trialInfo.needsPayment} />;
-	}
+  if (!hasStripeStatus) {
+    return <AuthLoading state={AuthLoadingState.LOADING} />;
+  }
 
-	// Show read-only mode as full-screen replacement if organization is paused or disabled
-  if (isReadOnly) {
-		console.log('[APP_LAYOUT] isReadOnly', isReadOnly);
-		// Determine the reason and whether resumption is allowed
-		let reason: 'paused' | 'disabled' | 'trial_expired' | 'payment_required' | 'past_due' = 'paused';
-    // no manual resume
-		let paymentFailureReason: string | undefined;
+  let shouldShowReadOnly = false;
+  let reason: 'paused' | 'disabled' | 'trial_expired' | 'payment_required' | 'past_due' = 'paused';
+  let paymentFailureReason: string | undefined;
 
-		if (paymentStatus && isOrganizationBehindOnPayments(paymentStatus.organization as unknown as import('../types/billing').OrganizationRow)) {
-			// Organization is behind on payments
-			if (orgStatus === 'payment_required') {
-				reason = 'payment_required';
-			} else if (orgStatus === 'past_due') {
-				reason = 'past_due';
-			}
-			paymentFailureReason = paymentStatus.organization.payment_failure_reason || undefined;
-    } else if (isPaused) {
-			// Organization is paused but in good standing
-			reason = 'paused';
-      // no manual resume
-    } else if (isDisabled) {
-			reason = 'disabled';
-		} else {
-			reason = 'trial_expired';
-		}
+  if (isOrganizationBehindOnPayments(organizationForBilling)) {
+    shouldShowReadOnly = true;
+    if (orgStatus === 'payment_required') {
+      reason = 'payment_required';
+    } else if (orgStatus === 'past_due') {
+      reason = 'past_due';
+    }
+    paymentFailureReason = organizationForBilling?.payment_failure_reason || undefined;
+  } else if (isPaused) {
+    shouldShowReadOnly = true;
+    reason = 'paused';
+  } else if (isDisabled) {
+    shouldShowReadOnly = true;
+    reason = 'disabled';
+  } else if (stripeStatus === 'canceled' || stripeStatus === 'incomplete_expired') {
+    shouldShowReadOnly = true;
+    reason = 'trial_expired';
+  }
 
+  if (shouldShowReadOnly) {
     return (
-			<ReadOnlyMode
-				isReadOnly={true}
-				reason={reason}
+      <ReadOnlyMode
+        isReadOnly={true}
+        reason={reason}
         onResume={undefined}
         showResumeButton={false}
-				paymentFailureReason={paymentFailureReason}
-				className="h-screen"
-			>
-				<div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-					<div className="text-center">
-						<h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-							Organization Paused
-						</h1>
-						<p className="text-gray-600 dark:text-gray-400">This content is in read-only mode</p>
-					</div>
-				</div>
-			</ReadOnlyMode>
-		);
-	}
+        paymentFailureReason={paymentFailureReason}
+        userRole={user?.role}
+        userId={user?.id}
+        organization={organizationForBilling}
+        onStartNewSubscription={() => navigate('/billing')}
+        className="h-screen"
+      >
+        <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {reason === 'trial_expired' ? 'Subscription Canceled' : 'Organization Paused'}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400">
+              {reason === 'trial_expired' ? 'Please renew to regain access.' : 'This content is in read-only mode'}
+            </p>
+          </div>
+        </div>
+      </ReadOnlyMode>
+    );
+  }
 
 	return (
 		<>
@@ -200,7 +153,7 @@ const LayoutContent: React.FC = () => {
 
 				<div className="h-screen flex-1 overflow-hidden">
 					<TrialBanner />
-					<PaymentStatusBanner 
+					<PaymentStatusBanner
 						organization={paymentStatus?.organization}
 						onUpdatePayment={() => {
 							window.location.href = '/billing';

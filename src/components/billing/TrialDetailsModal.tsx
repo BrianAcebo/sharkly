@@ -2,11 +2,11 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
-import { 
-  Clock, 
-  CreditCard, 
-  AlertTriangle, 
-  CheckCircle, 
+import {
+  Clock,
+  CreditCard,
+  AlertTriangle,
+  CheckCircle,
   Calendar,
   DollarSign,
   Users,
@@ -15,6 +15,7 @@ import {
   Mail
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
+import { OrganizationRow } from '../../types/billing';
 
 interface TrialDetailsModalProps {
   isOpen: boolean;
@@ -24,14 +25,7 @@ interface TrialDetailsModalProps {
     daysRemaining: number | null;
     trialEndFormatted: string | null;
     warningLevel: 'none' | 'warning' | 'danger';
-    organization: {
-      plan_code?: string;
-      plan_price_cents?: number;
-      included_seats?: number;
-      included_minutes?: number;
-      included_sms?: number;
-      included_emails?: number;
-    } | null;
+    organization: OrganizationRow | null;
   };
   needsPayment: boolean;
 }
@@ -52,8 +46,16 @@ export const TrialDetailsModal: React.FC<TrialDetailsModalProps> = ({
     organization
   } = trialInfo;
 
+  const stripeStatus = organization?.stripe_status;
+
   const handleUpgrade = () => {
     onClose();
+
+    if (stripeStatus === 'canceled') {
+      window.open('https://billing.stripe.com/p/login/test_fZu8wPeit9J33Yu4Kb2go00', '_blank');
+      return;
+    }
+
     navigate('/billing');
   };
 

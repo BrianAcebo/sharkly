@@ -64,30 +64,14 @@ const getPlanFromPriceId = async (priceId: string): Promise<PlanCatalogRow | nul
   }
 };
 
-// Helper function to update organization plan details
-const updateOrganizationPlan = async (orgId: string, plan: PlanCatalogRow) => {
-  const updateData = {
-    plan_code: plan.plan_code,
-    plan_price_cents: plan.base_price_cents,
-    included_seats: plan.included_seats,
-    included_minutes: plan.included_minutes,
-    included_sms: plan.included_sms,
-    included_emails: plan.included_emails,
-    updated_at: new Date().toISOString()
-  };
-
-  const { error } = await supabase
-    .from('organizations')
-    .update(updateData)
-    .eq('id', orgId);
-
-  if (error) {
-    console.error(`[WEBHOOK] Error updating organization plan for ${orgId}:`, error);
-    throw error;
-  }
-
-  console.log(`[WEBHOOK] Updated organization ${orgId} plan to ${plan.plan_code}`);
-};
+const mapPlanFields = (plan: PlanCatalogRow) => ({
+  plan_code: plan.plan_code,
+  plan_price_cents: plan.base_price_cents,
+  included_seats: plan.included_seats,
+  included_minutes: plan.included_minutes,
+  included_sms: plan.included_sms,
+  included_emails: plan.included_emails
+});
 
 // Helper function to log subscription changes
 const logSubscriptionChange = async (orgId: string, event: string, fromPlan: string | null, toPlan: string | null, prorationCents: number = 0, rawData: unknown) => {
@@ -123,6 +107,13 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
+  console.log('[WEBHOOK] Incoming request', {
+    path: req.path,
+    method: req.method,
+    hasAuthHeader: Boolean(req.headers.authorization),
+    contentType: req.headers['content-type']
+  });
+
   if (!webhookSecret) {
     console.error('STRIPE_WEBHOOK_SECRET not configured');
     return res.status(500).json({ error: 'Webhook secret not configured' });
@@ -132,6 +123,11 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
 
   try {
     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+    console.log('[WEBHOOK] Signature verified', {
+      eventId: event.id,
+      eventType: event.type,
+      livemode: event.livemode
+    });
   } catch (err) {
     console.error('Webhook signature verification failed:', err);
     return res.status(400).json({ error: 'Invalid signature' });
@@ -182,24 +178,25 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
         await handleSubscriptionScheduleCompleted(event);
         break;
 
-      case 'invoice.upcoming':
-        await handleInvoiceUpcoming(event);
-        break;
-
-      case 'invoice.finalized':
-        await handleInvoiceFinalized(event);
+      case 'invoice.paid':
+      case 'invoice.payment_succeeded':
+        await handleInvoicePaid(event);
         break;
 
       case 'invoice.payment_failed':
         await handleInvoicePaymentFailed(event);
         break;
 
-      case 'invoice.payment_succeeded':
-        await handleInvoicePaid(event);
-        break;
-
       case 'invoice.payment_action_required':
         await handleInvoicePaymentActionRequired(event);
+        break;
+
+      case 'invoice.finalized':
+        await handleInvoiceFinalized(event);
+        break;
+
+      case 'invoice.upcoming':
+        await handleInvoiceUpcoming(event);
         break;
 
       default:
@@ -214,15 +211,25 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
 };
 
 const handleSubscriptionEvent = async (event: Stripe.Event) => {
-  const subscription = event.data.object as Stripe.Subscription;
-  const customerId = subscription.customer as string;
+  const incomingSubscription = event.data.object as Stripe.Subscription;
+  const customerId = incomingSubscription.customer as string;
 
-  console.log(`[WEBHOOK] Processing subscription ${subscription.id} for customer ${customerId}`);
+  console.log(`[WEBHOOK] Processing subscription ${incomingSubscription.id} for customer ${customerId}`);
 
-  const org = await findOrganization(subscription.id, customerId);
+  const org = await findOrganization(incomingSubscription.id, customerId);
   if (!org) {
-    console.error(`[WEBHOOK] Organization not found for subscription ${subscription.id}`);
+    console.error(`[WEBHOOK] Organization not found for subscription ${incomingSubscription.id}`);
     return;
+  }
+
+  let subscription: Stripe.Subscription = incomingSubscription;
+  try {
+    subscription = await stripe.subscriptions.retrieve(incomingSubscription.id, {
+      expand: ['items.data.price.product']
+    });
+    console.log(`[WEBHOOK] Retrieved latest subscription ${subscription.id} for sync`);
+  } catch (retrieveError) {
+    console.warn('[WEBHOOK] Failed to retrieve latest subscription, falling back to event payload:', retrieveError);
   }
 
   // Check if trial has ended (status changed from trialing to active/canceled)
@@ -233,7 +240,19 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
   const isNoLongerTrialing = subscription.status !== 'trialing';
 
   // Get the current plan from the subscription
-  const currentPriceId = subscription.items.data[0]?.price.id;
+  const subscriptionItems = subscription.items?.data ?? [];
+  if (subscriptionItems.length === 0) {
+    console.warn(`[WEBHOOK] Subscription ${subscription.id} has no items, skipping plan sync`);
+  }
+
+  const activeItem =
+    subscriptionItems.find((item) => {
+      const quantity = item.quantity ?? 0;
+      const isActive = !item.deleted && quantity > 0;
+      return isActive;
+    }) ?? subscriptionItems[0];
+
+  const currentPriceId = activeItem?.price.id;
   let currentPlan: PlanCatalogRow | null = null;
   let planChanged = false;
   const fromPlan = org.plan_code;
@@ -242,12 +261,14 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
     currentPlan = await getPlanFromPriceId(currentPriceId);
     if (currentPlan && currentPlan.plan_code !== org.plan_code) {
       planChanged = true;
-      console.log(`[WEBHOOK] Plan change detected: ${org.plan_code} -> ${currentPlan.plan_code}`);
+      console.log(`[WEBHOOK] Plan change detected: ${org.plan_code} -> ${currentPlan.plan_code} (price ${currentPriceId})`);
+    } else if (!currentPlan) {
+      console.warn(`[WEBHOOK] No matching plan found for price ${currentPriceId}, skipping plan sync`);
     }
   }
 
   // Update subscription mirrors
-  const updateData = {
+  const updateData: Record<string, unknown> = {
     stripe_subscription_id: subscription.id,
     stripe_status: subscription.status as StripeSubStatus,
     trial_end: subscription.trial_end ? unixToISO(subscription.trial_end) : null,
@@ -256,14 +277,65 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
 
   // Clear trial_ending_soon flag if trial has ended
   if (trialHasEnded || (wasTrialing && isNoLongerTrialing)) {
-    (updateData as Record<string, unknown>).trial_ending_soon = false;
+    updateData.trial_ending_soon = false;
     console.log(`[WEBHOOK] Trial ended for organization ${org.id}, clearing trial_ending_soon flag`);
   }
 
-  // Add cancel_at_period_end if the column exists
-  if (subscription.cancel_at_period_end !== undefined) {
-    (updateData as Record<string, unknown>).cancel_at_period_end = subscription.cancel_at_period_end;
+  if (currentPlan) {
+    Object.assign(updateData, mapPlanFields(currentPlan));
+    console.log('[WEBHOOK] Plan metadata from catalog', {
+      currentPriceId,
+      catalogPlanCode: currentPlan.plan_code,
+      catalogName: currentPlan.name,
+      included: {
+        seats: currentPlan.included_seats,
+        minutes: currentPlan.included_minutes,
+        sms: currentPlan.included_sms,
+        emails: currentPlan.included_emails
+      }
+    });
   }
+
+  if (subscription.cancel_at_period_end !== undefined) {
+    console.log('[WEBHOOK] Stripe cancel_at_period_end', {
+      value: subscription.cancel_at_period_end
+    });
+    updateData.cancel_at_period_end = subscription.cancel_at_period_end;
+  }
+
+  if (subscription.current_period_start) {
+    updateData.current_period_start = unixToISO(subscription.current_period_start);
+  }
+
+  if (subscription.current_period_end) {
+    updateData.current_period_end = unixToISO(subscription.current_period_end);
+  }
+
+  if (subscription.collection_method) {
+    updateData.stripe_collection_method = subscription.collection_method;
+  }
+
+  if (subscription.pause_collection) {
+    console.log('[WEBHOOK] Stripe pause_collection', subscription.pause_collection);
+    updateData.stripe_pause_collection = subscription.pause_collection as Stripe.Subscription.PauseCollection;
+  } else {
+    updateData.stripe_pause_collection = null;
+  }
+
+  if (subscription.latest_invoice && typeof subscription.latest_invoice === 'string') {
+    updateData.stripe_latest_invoice_id = subscription.latest_invoice;
+  }
+
+  if (subscription.metadata && Object.keys(subscription.metadata).length > 0) {
+    updateData.stripe_subscription_metadata = subscription.metadata;
+  }
+
+  console.log('[WEBHOOK] Prepared organization update payload', {
+    orgId: org.id,
+    stripeStatus: updateData.stripe_status,
+    planCode: updateData.plan_code,
+    planPrice: updateData.plan_price_cents
+  });
 
   // Note: current_period_start and current_period_end are not available in Stripe Basil API
   // These would need to be tracked separately or retrieved from Stripe API if needed
@@ -275,14 +347,15 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
     .eq('id', org.id);
 
   if (error) {
-    console.error('Error updating organization subscription data:', error);
+    console.error('Error updating organization subscription data:', error, {
+      orgId: org.id,
+      updateData
+    });
     throw error;
   }
 
   // Update plan details if plan changed
   if (planChanged && currentPlan) {
-    await updateOrganizationPlan(org.id, currentPlan);
-    
     // Log the plan change
     await logSubscriptionChange(
       org.id,
@@ -414,14 +487,8 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
     return;
   }
 
-  // Clear payment failure flags; do not auto-resume, rely on webhook-updated status
-  const shouldResume = false;
-  
-  console.log(`[WEBHOOK] Clearing payment failure flags for organization ${org.id}${shouldResume ? ' and resuming' : ''}`);
-  
   const updateData: Record<string, unknown> = {
     payment_action_required: false,
-    dunning_enabled: false,
     last_payment_failed_at: null,
     payment_retry_count: 0,
     next_payment_retry_at: null,
@@ -429,7 +496,11 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
     updated_at: new Date().toISOString()
   };
 
-  // Do not mutate org_status here; webhook lifecycle should drive status
+  if (invoice.paid || invoice.status === 'paid') {
+    updateData.stripe_latest_invoice_id = invoice.id;
+    updateData.stripe_latest_invoice_status = invoice.status;
+    updateData.stripe_status = 'active';
+  }
 
   const { error } = await supabase
     .from('organizations')
@@ -437,11 +508,10 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
     .eq('id', org.id);
 
   if (error) {
-    console.error('Error clearing payment failure flags:', error);
+    console.error('Error updating organization for paid invoice:', error);
     throw error;
   }
 
-  // Log the payment success event
   await logSubscriptionChange(
     org.id,
     'invoice.payment_succeeded',
@@ -451,7 +521,7 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
     invoice
   );
 
-  console.log(`[WEBHOOK] Cleared payment failure flags for organization ${org.id}${shouldResume ? ' and resumed to active' : ''}`);
+  console.log(`[WEBHOOK] Cleared payment failure flags for organization ${org.id}`);
 };
 
 // New webhook handlers for subscription lifecycle events

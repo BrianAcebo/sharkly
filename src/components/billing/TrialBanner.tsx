@@ -20,10 +20,11 @@ export const TrialBanner: React.FC<TrialBannerProps> = ({ className = '' }) => {
     loading
   } = trialInfo;
 
-  const needsPayment = needsPaymentMethod(trialInfo.organization);
+  const needsPayment = trialInfo.organization ? needsPaymentMethod(trialInfo.organization) : false;
+  const stripeStatus = trialInfo.organization?.stripe_status;
 
-  // Don't show banner if loading, not on trial, and doesn't need payment method
-  if (loading || (!isOnTrial && !needsPayment)) {
+  const showBanner = stripeStatus === 'trialing';
+  if (loading || !showBanner) {
     return null;
   }
 

@@ -1,10 +1,6 @@
 import { supabase } from './supabaseClient';
 import { twilioClient } from './twilioClient';
 
-interface EnsureAgentNumberOptions {
-  areaCode?: string;
-}
-
 interface EnsureAgentNumberResult {
   phoneNumber: string;
   error?: string;
@@ -15,13 +11,12 @@ interface EnsureAgentNumberResult {
  * This function is idempotent - if the agent already has a number, it returns it.
  */
 export async function ensureAgentNumber(
-  agentId: string, 
-  options: EnsureAgentNumberOptions = {}
+  agentId: string
 ): Promise<EnsureAgentNumberResult> {
   const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
   try {
-    console.info(`[${requestId}] Ensuring phone number for agent ${agentId}`, { areaCode: options.areaCode });
+    console.info(`[${requestId}] Ensuring phone number for agent ${agentId}`);
     
     // Check if agent already has an active number
     const { data: existingNumber, error: queryError } = await supabase
@@ -45,27 +40,12 @@ export async function ensureAgentNumber(
     console.info(`[${requestId}] Provisioning new number for agent ${agentId}`);
     
     // Check if agent has area code preference in profile
-    let preferredAreaCode = options.areaCode;
-    if (!preferredAreaCode) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('area_code')
-        .eq('id', agentId)
-        .single();
-      
-      if (profile?.area_code) {
-        preferredAreaCode = profile.area_code;
-        console.info(`[${requestId}] Using area code preference from profile: ${preferredAreaCode}`);
-      }
-    }
-    
     // Search for available phone numbers
     const searchParams: {
       country: string;
       smsEnabled: boolean;
       voiceEnabled: boolean;
       limit: number;
-      areaCode?: string;
     } = {
       country: 'US',
       smsEnabled: true,
@@ -73,19 +53,12 @@ export async function ensureAgentNumber(
       limit: 1
     };
 
-    if (preferredAreaCode) {
-      searchParams.areaCode = preferredAreaCode;
-    }
-
     // Try to find available numbers
     const [availableNumber] = await twilioClient.incomingPhoneNumbers
       .list(searchParams);
 
     if (!availableNumber) {
-      const errorMsg = preferredAreaCode 
-        ? `No SMS-enabled numbers available in area code ${preferredAreaCode}`
-        : 'No SMS-enabled numbers available';
-      
+      const errorMsg = 'No SMS-enabled numbers available';
       console.error(`[${requestId}] ${errorMsg}`);
       return { phoneNumber: '', error: errorMsg };
     }
@@ -133,7 +106,7 @@ export async function ensureAgentNumber(
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         // Recursive call for retry
-        return await ensureAgentNumber(agentId, options);
+        return await ensureAgentNumber(agentId);
       } catch (retryError) {
         console.error(`[${requestId}] Retry failed:`, retryError);
         return { phoneNumber: '', error: 'Failed to provision number after retry' };

@@ -1,6 +1,11 @@
 import express from 'express';
 import { z } from 'zod';
 import { supabase } from '../utils/supabaseClient';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: '2025-08-27.basil'
+});
 
 const router = express.Router();
 
@@ -476,6 +481,41 @@ router.post('/pricing/calculate', async (req, res) => {
   } catch (error) {
     console.error('Pricing calculation error:', error);
     res.status(500).json({ error: 'Failed to calculate pricing' });
+  }
+});
+
+router.get('/invoices', async (req, res) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const customerId = req.query.customerId as string | undefined;
+    if (!customerId) {
+      return res.status(400).json({ error: 'customerId is required' });
+    }
+
+    const limit = Number(req.query.limit ?? 10);
+    const startingAfter = (req.query.starting_after as string | undefined) || undefined;
+    const endingBefore = (req.query.ending_before as string | undefined) || undefined;
+
+    const invoices = await stripe.invoices.list({
+      customer: customerId,
+      limit,
+      starting_after: startingAfter,
+      ending_before: endingBefore,
+      expand: ['data.charge']
+    });
+
+    res.json({
+      data: invoices.data,
+      has_more: invoices.has_more,
+      url: invoices.url
+    });
+  } catch (error) {
+    console.error('Error fetching invoices:', error);
+    res.status(500).json({ error: 'Failed to fetch invoices' });
   }
 });
 

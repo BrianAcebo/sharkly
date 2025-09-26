@@ -27,10 +27,15 @@ export const TrialStatusBanner: React.FC<TrialStatusBannerProps> = ({
     loading
   } = trialInfo;
 
-  const needsPayment = needsPaymentMethod(trialInfo.organization);
+  const needsPayment = trialInfo.organization ? needsPaymentMethod(trialInfo.organization) : false;
+  const stripeStatus = trialInfo.organization?.stripe_status;
 
-  // Don't show banner if loading, not on trial, and doesn't need payment method
-  if (loading || (!isOnTrial && !needsPayment)) {
+  const showTrialBanner = stripeStatus === 'trialing';
+  if (!showTrialBanner) {
+    return null;
+  }
+
+  if (loading) {
     return null;
   }
 
@@ -64,6 +69,17 @@ export const TrialStatusBanner: React.FC<TrialStatusBannerProps> = ({
     return 'text-green-800 dark:text-green-200';
   };
 
+  const getTitle = () => {
+    return needsPayment ? 'Payment Method Required' : 'Free Trial Active';
+  };
+
+  const getButtonLabel = () => {
+    if (needsPayment) {
+      return 'Add Payment Method';
+    }
+    return isEndingSoon ? 'Upgrade Now' : 'Upgrade';
+  };
+
   return (
     <Card className={`${getCardStyles()} ${className}`}>
       <CardContent className="p-4">
@@ -72,7 +88,7 @@ export const TrialStatusBanner: React.FC<TrialStatusBannerProps> = ({
             {getIcon()}
             <div>
               <h3 className={`text-sm font-medium ${getTextStyles()}`}>
-                {needsPayment ? 'Payment Method Required' : 'Free Trial Active'}
+                {getTitle()}
               </h3>
               <p className={`text-sm ${getTextStyles()}`}>
                 {statusMessage}
@@ -91,12 +107,12 @@ export const TrialStatusBanner: React.FC<TrialStatusBannerProps> = ({
               size="sm"
               variant={needsPayment || warningLevel === 'danger' ? 'default' : 'outline'}
               className={
-                needsPayment || warningLevel === 'danger' 
-                  ? 'bg-red-600 hover:bg-red-700 text-white' 
+                needsPayment || warningLevel === 'danger'
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
                   : ''
               }
             >
-              {needsPayment ? 'Add Payment Method' : (isEndingSoon ? 'Upgrade Now' : 'Upgrade')}
+              {getButtonLabel()}
             </Button>
           )}
         </div>
