@@ -9,26 +9,29 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export const createPaymentIntent = async (req: Request, res: Response) => {
 	try {
-		const { amount, currency = 'usd' } = req.body;
+    const { amount, currency = 'usd', customerId }: { amount: number; currency?: string; customerId?: string } = req.body;
 
 		if (!amount) {
 			console.error('Missing required fields:', { amount });
 			throw new HttpError('Missing required fields', 400);
 		}
 
-		// Create a PaymentIntent
-		const paymentIntent = await stripe.paymentIntents.create({
+    if (!customerId) {
+      throw new HttpError('Stripe customer required. Create/lookup customer first, then pass customerId.', 400);
+    }
+
+    // Create a PaymentIntent only. If a customer is provided, set setup_future_usage
+    // so Stripe saves the card during confirmation.
+    const paymentIntent = await stripe.paymentIntents.create({
 			amount,
 			currency,
-			automatic_payment_methods: {
-				enabled: true
-			}
+			customer: customerId || undefined,
+			automatic_payment_methods: { enabled: true },
+			setup_future_usage: customerId ? 'off_session' : undefined
 		});
 
-		// Send response with client secret and organization details
-		const responseData = {
-			clientSecret: paymentIntent.client_secret
-		};
+    // Send response with PI client secret only
+    const responseData = { clientSecret: paymentIntent.client_secret };
 
 		res.json(responseData);
 	} catch (error) {
@@ -122,4 +125,29 @@ export const handleWebhook = async (req: Request, res: Response) => {
 		console.error('Webhook error:', error);
 		return res.status(400).send(`Webhook Error: ${error.message}`);
 	}
+};
+
+export const createSetupIntent = async (req: Request, res: Response) => {
+  try {
+    const { customerId }: { customerId?: string } = req.body;
+
+    if (!customerId) {
+      throw new HttpError('Missing customerId', 400);
+    }
+
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customerId,
+      automatic_payment_methods: { enabled: true }
+    });
+
+    return res.json({ setupClientSecret: setupIntent.client_secret });
+  } catch (error) {
+    if (error instanceof HttpError) {
+      const err = error as { message: string; statusCode: number };
+      console.error(`Error ${err.statusCode}: ${err.message}`);
+      return res.status(err.statusCode).json({ error: { message: err.message } });
+    }
+    console.error('Unexpected error creating setup intent:', error);
+    return res.status(500).json({ error: { message: 'Failed to create setup intent' } });
+  }
 };

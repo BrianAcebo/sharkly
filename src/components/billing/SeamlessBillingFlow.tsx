@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '../../hooks/useAuth';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { useOrganization } from '../../hooks/useOrganization';
+import { useOrganizationStatus } from '../../hooks/useOrganizationStatus';
 import { supabase } from '../../utils/supabaseClient';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
@@ -14,9 +16,8 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import PricingTable from './PricingTable';
 import { CustomerPaymentMethodSummary, PlanCatalogRow } from '../../types/billing';
 import { ArrowRight, ArrowLeft, CheckCircle, Users, Clock, Shield } from 'lucide-react';
-import BrandForm from '../sms/BrandForm';
-import CampaignForm from '../sms/CampaignForm';
-import TollFreeForm from '../sms/TollFreeForm';
+import { CreditCard as CreditCardIcon } from 'lucide-react';
+import { SiVisa, SiMastercard, SiAmericanexpress, SiDiscover, SiDinersclub, SiJcb } from 'react-icons/si';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 
@@ -44,6 +45,11 @@ interface PaymentFormProps {
   setIsLoading: (loading: boolean) => void;
   clientSecret: string;
   setOrgId: (id: string) => void;
+  existingOrgId?: string | null;
+  setupClientSecret?: string | null;
+  useExistingPaymentMethod: boolean;
+  existingOrgStripeCustomerId?: string;
+  preOnboarded?: boolean;
 }
 
 interface ExistingPaymentMethodFormProps {
@@ -57,6 +63,8 @@ interface ExistingPaymentMethodFormProps {
   setIsLoading: (loading: boolean) => void;
   setOrgId: (id: string) => void;
   savedPaymentMethod: CustomerPaymentMethodSummary;
+  existingOrgId?: string | null;
+  selectedPaymentMethodId?: string | null;
 }
 
 interface PlanSummaryProps {
@@ -81,99 +89,105 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   isLoading,
   setIsLoading,
   clientSecret,
-  setOrgId
+  setOrgId,
+  existingOrgId,
+  setupClientSecret,
+  useExistingPaymentMethod,
+  existingOrgStripeCustomerId
 }) => {
   const stripe = useStripe();
   const elements = useElements();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stripe || !elements || !clientSecret) {
-      return;
-    }
+    if (!stripe || !elements) return;
 
     setIsLoading(true);
     try {
       const { error: submitError } = await elements.submit();
-      if (submitError) {
-        onError(submitError.message || 'Unable to process payment details');
+      if (submitError) { onError(submitError.message ?? 'Unable to process payment details'); return; }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) { onError('Not authenticated'); return; }
+
+      const onboard = async (opts: { pmId?: string; useExisting?: boolean }) => {
+        const resp = await fetch('/api/billing/orgs/onboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({
+            orgId: existingOrgId ?? undefined,
+            name: orgName,
+            planCode: selectedPlan.plan_code,
+            trialDays: trialSelected ? 7 : 0,
+            tz: 'America/New_York',
+            address: { street: '', city: '', state: '', zip: '', country: 'US' },
+            paymentMethodId: opts.pmId,
+            useExistingPaymentMethod: Boolean(opts.useExisting)
+          })
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.error || err.message || 'Failed to create organization');
+        }
+        const result = await resp.json();
+        if (result.org?.id) setOrgId(result.org.id);
+      };
+
+      // PATH 1: SetupIntent ONLY
+      if (setupClientSecret && !clientSecret) {
+        const { error: setupError, setupIntent } = await stripe.confirmSetup({
+          elements,
+          clientSecret: setupClientSecret,
+          redirect: 'if_required'
+        });
+        if (setupError) { onError(setupError.message ?? 'Unable to save payment method'); return; }
+
+        const pmId = typeof setupIntent?.payment_method === 'string'
+          ? setupIntent.payment_method
+          : (setupIntent?.payment_method && 'id' in (setupIntent.payment_method as object)
+              ? (setupIntent.payment_method as { id: string }).id
+              : undefined);
+        if (!pmId) { onError('No payment method created'); return; }
+
+        // Verify PM belongs to org's customer
+        // retrieve via REST to validate customer matches
+        try {
+          const resp = await fetch(`/api/stripe/payment-methods/${pmId}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            const pmCustomer: string | null = data?.paymentMethod?.customer ?? null;
+            if (existingOrgStripeCustomerId && pmCustomer && pmCustomer !== existingOrgStripeCustomerId) {
+              onError('Card saved to a different customer. Please try again.');
+              return;
+            }
+          }
+        } catch { /* best-effort validation */ }
+
+        await onboard({ pmId, useExisting: false });
+        toast.success('Payment method saved');
+        await onSuccess();
         return;
       }
 
-      const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
-        elements,
-        clientSecret,
-        redirect: 'if_required'
-      });
+      // PATH 2: PaymentIntent ONLY
+      if (clientSecret && !setupClientSecret) {
+        const { error: piErr } = await stripe.confirmPayment({
+          elements,
+          clientSecret,
+          redirect: 'if_required'
+        });
+        if (piErr) { onError(piErr.message ?? 'Payment failed'); return; }
 
-      if (stripeError) {
-        onError(stripeError.message || 'Payment failed');
+        await onboard({ pmId: undefined, useExisting: useExistingPaymentMethod });
+        toast.success(trialSelected ? 'Organization and trial subscription created' : 'Organization and subscription created');
+        await onSuccess();
         return;
       }
 
-      const savedPaymentMethodId =
-        typeof paymentIntent?.payment_method === 'string'
-          ? paymentIntent.payment_method
-          : paymentIntent?.payment_method && typeof paymentIntent.payment_method === 'object'
-            ? (paymentIntent.payment_method as { id: string }).id
-            : undefined;
-
-      toast.success('Payment details saved');
-
-      const {
-        data: { session }
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        onError('Not authenticated');
-        return;
-      }
-
-      const response = await fetch('/api/billing/orgs/onboard', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          name: orgName,
-          planCode: selectedPlan.plan_code,
-          trialDays: trialSelected ? 7 : 0,
-          website: '',
-          industry: '',
-          ein: '',
-          tz: 'America/New_York',
-          address: {
-            street: '',
-            city: '',
-            state: '',
-            zip: '',
-            country: 'US'
-          },
-          paymentMethodId: savedPaymentMethodId,
-          useExistingPaymentMethod: false
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Failed to create organization');
-      }
-
-      const result = await response.json();
-
-      if (result.org && result.org.id) {
-        setOrgId(result.org.id);
-      }
-
-      toast.success(trialSelected ? 'Organization and trial subscription created successfully' : 'Organization and subscription created successfully');
-      if (trialSelected) {
-        toast.success('Your 7-day free trial has begun!');
-      }
-
-      await onSuccess();
-    } catch (error) {
-      console.error('Error creating subscription:', error);
-      onError(error instanceof Error ? error.message : 'Payment failed');
+      onError('Payment not prepared. Go back and try again.');
+    } catch (err) {
+      console.error(err);
+      onError(err instanceof Error ? err.message : 'Payment failed');
     } finally {
       setIsLoading(false);
     }
@@ -201,7 +215,9 @@ const ExistingPaymentMethodForm: React.FC<ExistingPaymentMethodFormProps> = ({
   isLoading,
   setIsLoading,
   setOrgId,
-  savedPaymentMethod
+  savedPaymentMethod,
+  existingOrgId,
+  selectedPaymentMethodId
 }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,6 +238,7 @@ const ExistingPaymentMethodForm: React.FC<ExistingPaymentMethodFormProps> = ({
           Authorization: `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
+          orgId: existingOrgId ?? undefined,
           name: orgName,
           planCode: selectedPlan.plan_code,
           trialDays: trialSelected ? 7 : 0,
@@ -236,7 +253,8 @@ const ExistingPaymentMethodForm: React.FC<ExistingPaymentMethodFormProps> = ({
             zip: '',
             country: 'US'
           },
-          useExistingPaymentMethod: true
+          useExistingPaymentMethod: true,
+          paymentMethodId: selectedPaymentMethodId || savedPaymentMethod.id
         })
       });
 
@@ -275,12 +293,15 @@ const ExistingPaymentMethodForm: React.FC<ExistingPaymentMethodFormProps> = ({
               ? 'Your saved card will be charged automatically at the end of the trial.'
               : 'We will charge your saved card automatically.'}
           </p>
-          <p className="mt-1 text-xs">
-            {savedPaymentMethod.brand ? savedPaymentMethod.brand.toUpperCase() : 'Card'} ending in {savedPaymentMethod.last4}
-            {savedPaymentMethod.exp_month && savedPaymentMethod.exp_year
-              ? ` · Expires ${savedPaymentMethod.exp_month}/${savedPaymentMethod.exp_year}`
-              : ''}
-          </p>
+          <div className="mt-1 flex items-center gap-3 text-xs">
+            <div className="px-2 py-0.5 border border-gray-200 rounded-sm">
+              <BrandIcon brand={savedPaymentMethod.brand || undefined} />
+            </div>
+            <p>
+              {(savedPaymentMethod.brand || 'Card').toUpperCase()} ending in {savedPaymentMethod.last4}
+              {savedPaymentMethod.exp_month && savedPaymentMethod.exp_year ? ` · Expires ${savedPaymentMethod.exp_month}/${savedPaymentMethod.exp_year}` : ''}
+            </p>
+          </div>
         </div>
       </div>
       <FormActions onBack={onBack} isLoading={isLoading} primaryLabel="Complete" />
@@ -334,14 +355,28 @@ const FormActions: React.FC<FormActionsProps> = ({ onBack, isLoading, primaryLab
   </div>
 );
 
+function BrandIcon({ brand, className = 'h-5 w-5' }: { brand?: string | null; className?: string }) {
+  const b = (brand || '').toLowerCase();
+  if (b === 'visa') return <SiVisa className={className} />;
+  if (b === 'mastercard' || b === 'mc' || b === 'master card') return <SiMastercard className={className} />;
+  if (b === 'american_express' || b === 'amex') return <SiAmericanexpress className={className} />;
+  if (b === 'discover') return <SiDiscover className={className} />;
+  if (b === 'diners' || b === 'diners_club' || b === 'diners club') return <SiDinersclub className={className} />;
+  if (b === 'jcb') return <SiJcb className={className} />;
+  return <CreditCardIcon className={className} />;
+}
+
 const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, existingOrganization }) => {
   const { user, refreshUser } = useAuth();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const { setTitle } = useBreadcrumbs();
+  const { refetch: refetchOrganization } = useOrganization();
+  const { getOrganizationStatus } = useOrganizationStatus();
 
   const mode: OrgMode = existingOrganization ? 'renewal' : 'new';
   const skipOrgStep = mode === 'renewal';
   const skipSmsStep = mode === 'renewal';
+  const showSmsStep = !skipSmsStep;
 
   const [currentStep, setCurrentStep] = useState<FlowStep>(skipOrgStep ? 'plan' : 'organization');
   const [completedSteps, setCompletedSteps] = useState<FlowStep[]>(skipOrgStep ? ['organization'] : []);
@@ -349,7 +384,9 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [setupSecret, setSetupSecret] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string>('');
+  const [preOnboarded, setPreOnboarded] = useState<boolean>(false);
 
   const [orgName, setOrgName] = useState(
     existingOrganization?.name || user?.organization?.name || ''
@@ -358,15 +395,18 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
   const [trialSelected, setTrialSelected] = useState(mode === 'new');
 
   const [savedPaymentMethod, setSavedPaymentMethod] = useState<CustomerPaymentMethodSummary | null>(null);
+  const [savedPaymentMethods, setSavedPaymentMethods] = useState<CustomerPaymentMethodSummary[]>([]);
+  const [selectedSavedPaymentMethodId, setSelectedSavedPaymentMethodId] = useState<string | null>(null);
   const [hasDefaultPaymentMethod, setHasDefaultPaymentMethod] = useState(false);
   const [useExistingPaymentMethod, setUseExistingPaymentMethod] = useState(mode === 'renewal');
-  const [loadingDefaultPaymentMethod, setLoadingDefaultPaymentMethod] = useState(false);
+  // const [loadingDefaultPaymentMethod, setLoadingDefaultPaymentMethod] = useState(false);
 
   useEffect(() => {
     setTitle('Get Started');
     fetchPlans();
     if (mode === 'renewal' && existingOrganization?.id) {
       fetchDefaultPaymentMethod(existingOrganization.id);
+      fetchPaymentMethods(existingOrganization.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setTitle, mode, existingOrganization?.id]);
@@ -408,7 +448,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
 
   const fetchDefaultPaymentMethod = async (orgId: string) => {
     try {
-      setLoadingDefaultPaymentMethod(true);
+      // setLoadingDefaultPaymentMethod(true);
       const {
         data: { session }
       } = await supabase.auth.getSession();
@@ -432,10 +472,12 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
         setSavedPaymentMethod(data.defaultPaymentMethod as CustomerPaymentMethodSummary);
         setHasDefaultPaymentMethod(true);
         setUseExistingPaymentMethod(true);
+        setSelectedSavedPaymentMethodId((data.defaultPaymentMethod as CustomerPaymentMethodSummary).id);
       } else {
         setSavedPaymentMethod(null);
         setHasDefaultPaymentMethod(false);
         setUseExistingPaymentMethod(false);
+        setSelectedSavedPaymentMethodId(null);
       }
     } catch (err) {
       console.error('Error fetching default payment method:', err);
@@ -443,61 +485,110 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       setHasDefaultPaymentMethod(false);
       setUseExistingPaymentMethod(false);
     } finally {
-      setLoadingDefaultPaymentMethod(false);
+      // setLoadingDefaultPaymentMethod(false);
     }
   };
 
-  const createPaymentIntent = async (plan: PlanCatalogRow) => {
+  const fetchPaymentMethods = async (orgId: string) => {
+    try {
+      const {
+        data: { session }
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+      const params = new URLSearchParams({ orgId });
+      const res = await fetch(`/api/billing/orgs/payment-methods?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` }
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setSavedPaymentMethods(Array.isArray(data.paymentMethods) ? data.paymentMethods : []);
+      if (data.defaultPaymentMethodId) {
+        setSelectedSavedPaymentMethodId(data.defaultPaymentMethodId);
+      }
+    } catch (e) {
+      console.error('Error loading payment methods list', e);
+    }
+  };
+
+  // Removed standalone createPaymentIntent; PI will come from onboard subscription response
+
+  const createSetupOnly = async () => {
     const {
       data: { session }
     } = await supabase.auth.getSession();
-
     if (!session?.access_token) {
       throw new Error('You must be logged in to subscribe');
     }
+    // Ensure we have a Stripe customerId for this org (recover/create if missing)
+    let customerId = existingOrganization?.stripe_customer_id || null;
+    if (!customerId && existingOrganization?.id && selectedPlan) {
+      const ensureResp = await fetch('/api/billing/orgs/onboard', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          orgId: existingOrganization.id,
+          name: orgName,
+          planCode: selectedPlan.plan_code,
+          trialDays: trialSelected ? 7 : 0,
+          tz: 'America/New_York',
+          address: { street: '', city: '', state: '', zip: '', country: 'US' },
+          useExistingPaymentMethod: false
+        })
+      });
+      if (ensureResp.ok) {
+        const data = await ensureResp.json();
+        customerId = data?.org?.stripe_customer_id || null;
+        if (data?.subscriptionClientSecret && !setupSecret) {
+          // If backend started a subscription, prefer confirming PI path
+          setClientSecret(data.subscriptionClientSecret);
+        }
+      }
+    }
 
-    const response = await fetch('/api/payments/create-intent', {
+    const response = await fetch('/api/payments/create-setup-intent', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`
       },
-      body: JSON.stringify({
-        amount: plan.base_price_cents,
-        currency: 'usd'
-      })
+      body: JSON.stringify({ customerId: customerId || undefined })
     });
-
     if (!response.ok) {
-      throw new Error('Failed to create payment intent');
+      throw new Error('Failed to create setup intent');
     }
-
     const data = await response.json();
-    if (!data.clientSecret) {
-      throw new Error('No client secret received');
-    }
-
-    setClientSecret(data.clientSecret);
+    setSetupSecret(data.setupClientSecret || null);
   };
 
+  // Removed automatic PI creation on renewal new-card path; we use SetupIntent-only there
   useEffect(() => {
     if (
       currentStep === 'payment' &&
+      mode === 'renewal' &&
       !useExistingPaymentMethod &&
-      !clientSecret &&
-      selectedPlan &&
-      mode === 'renewal'
+      !setupSecret
     ) {
       setLoading(true);
-      createPaymentIntent(selectedPlan)
+      createSetupOnly()
         .catch((err: { message?: string }) => {
-          console.error('Error preparing payment intent after switching cards:', err);
+          console.error('Error preparing setup intent after switching cards:', err);
           setError(err?.message || 'Failed to prepare payment');
         })
         .finally(() => setLoading(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useExistingPaymentMethod, currentStep]);
+
+  // If new org onboarding produced no intent (e.g., free trial), advance immediately
+  useEffect(() => {
+    if (currentStep === 'payment' && mode === 'new' && preOnboarded && !clientSecret && !setupSecret) {
+      handleSuccess();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preOnboarded, clientSecret, setupSecret, currentStep, mode]);
 
   const handleNext = async () => {
     if (currentStep === 'organization') {
@@ -521,8 +612,44 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
 
       setLoading(true);
       try {
-        if (!(mode === 'renewal' && hasDefaultPaymentMethod && useExistingPaymentMethod)) {
-          await createPaymentIntent(selectedPlan);
+        if (mode === 'renewal' && !hasDefaultPaymentMethod) {
+          // New card for renewal: only need SetupIntent
+          await createSetupOnly();
+        } else if (mode === 'new') {
+          // Pre-create org + subscription (default_incomplete) to get invoice PI client_secret
+          const {
+            data: { session }
+          } = await supabase.auth.getSession();
+          if (!session?.access_token) {
+            throw new Error('Not authenticated');
+          }
+          const resp = await fetch('/api/billing/orgs/onboard', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({
+              name: orgName,
+              planCode: selectedPlan.plan_code,
+              trialDays: trialSelected ? 7 : 0,
+              website: '',
+              industry: '',
+              ein: '',
+              tz: 'America/New_York',
+              address: { street: '', city: '', state: '', zip: '', country: 'US' },
+              useExistingPaymentMethod: false
+            })
+          });
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || err.message || 'Failed to start subscription');
+          }
+          const data = await resp.json();
+          if (data?.subscriptionClientSecret) {
+            setClientSecret(data.subscriptionClientSecret);
+            setPreOnboarded(true);
+          }
+          if (data?.org?.id) setOrgId(data.org.id);
+        } else {
+          // Renewal using saved card path - no client-side intent required
         }
 
         setCompletedSteps((prev) => Array.from(new Set([...prev, 'payment'])));
@@ -584,13 +711,21 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
   };
 
   const handleGoToDashboard = async () => {
-    await refreshUser();
+    try {
+      await Promise.all([
+        refreshUser(),
+        getOrganizationStatus(),
+        refetchOrganization()
+      ]);
+    } catch {
+      // no-op; we'll hard refresh regardless
+    }
     onClose();
-    navigate('/pipeline');
+    window.location.assign('/pipeline');
   };
 
   const renderSavedCardOptions = () => {
-    if (!(mode === 'renewal' && hasDefaultPaymentMethod && savedPaymentMethod)) {
+    if (!(mode === 'renewal' && (hasDefaultPaymentMethod || savedPaymentMethods.length > 0))) {
       return null;
     }
 
@@ -598,27 +733,48 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       <div className="space-y-2">
         <p className="text-sm font-medium text-gray-900 dark:text-white">Payment Method</p>
         <div className="grid gap-2">
-          <button
-            type="button"
-            onClick={() => setUseExistingPaymentMethod(true)}
-            disabled={loadingDefaultPaymentMethod}
-            className={`w-full rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
-              useExistingPaymentMethod
-                ? 'border-red-400 bg-red-50 text-gray-900 shadow-sm dark:border-red-500/60 dark:bg-red-500/10'
-                : 'border-gray-200 bg-white text-gray-700 hover:border-red-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
-            }`}
-          >
-            <p className="text-sm font-semibold">Use saved card</p>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              {savedPaymentMethod.brand ? savedPaymentMethod.brand.toUpperCase() : 'Card'} ending in {savedPaymentMethod.last4}
-              {savedPaymentMethod.exp_month && savedPaymentMethod.exp_year
-                ? ` · Expires ${savedPaymentMethod.exp_month}/${savedPaymentMethod.exp_year}`
-                : ''}
-            </p>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {loadingDefaultPaymentMethod ? 'Checking saved card…' : 'We’ll reuse this card automatically'}
-            </p>
-          </button>
+          {savedPaymentMethods.map((pm) => (
+            <label
+              key={pm.id}
+              className={`w-full cursor-pointer rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
+                useExistingPaymentMethod && selectedSavedPaymentMethodId === pm.id
+                  ? 'border-red-400 bg-red-50 text-gray-900 shadow-sm dark:border-red-500/60 dark:bg-red-500/10'
+                  : 'border-gray-200 bg-white text-gray-700 hover-border-red-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+              }`}
+              onClick={() => {
+                setUseExistingPaymentMethod(true);
+                setSelectedSavedPaymentMethodId(pm.id);
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="px-2 py-0.5 border border-gray-200 rounded-sm">
+                    <BrandIcon brand={pm.brand} />
+                  </div>
+                  <p className="text-sm font-semibold">{(pm.brand || 'Card').toUpperCase()} ending in {pm.last4}</p>
+                </div>
+                <input type="radio" checked={useExistingPaymentMethod && selectedSavedPaymentMethodId === pm.id} readOnly />
+              </div>
+              <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{pm.exp_month && pm.exp_year ? `Expires ${pm.exp_month}/${pm.exp_year}` : ''}</p>
+            </label>
+          ))}
+
+          {savedPaymentMethods.length === 0 && savedPaymentMethod && (
+            <label
+              className={`w-full cursor-pointer rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
+                useExistingPaymentMethod ? 'border-red-400 bg-red-50 text-gray-900 shadow-sm dark:border-red-500/60 dark:bg-red-500/10' : 'border-gray-200 bg-white text-gray-700 hover-border-red-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+              }`}
+              onClick={() => setUseExistingPaymentMethod(true)}
+            >
+              <div className="flex items-center gap-3">
+                <BrandIcon brand={savedPaymentMethod.brand || undefined} />
+                <div>
+                  <p className="text-sm font-semibold">Use saved card</p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400">{savedPaymentMethod.brand ? savedPaymentMethod.brand.toUpperCase() : 'Card'} ending in {savedPaymentMethod.last4}{savedPaymentMethod.exp_month && savedPaymentMethod.exp_year ? ` · Expires ${savedPaymentMethod.exp_month}/${savedPaymentMethod.exp_year}` : ''}</p>
+                </div>
+              </div>
+            </label>
+          )}
 
           <button
             type="button"
@@ -723,13 +879,17 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                 isLoading={loading}
                 setIsLoading={setLoading}
                 setOrgId={setOrgId}
-                savedPaymentMethod={savedPaymentMethod}
+                savedPaymentMethod={
+                  savedPaymentMethods.find((m) => m.id === selectedSavedPaymentMethodId) || savedPaymentMethod
+                }
+                existingOrgId={existingOrganization?.id || null}
+                selectedPaymentMethodId={selectedSavedPaymentMethodId}
               />
-            ) : clientSecret ? (
+            ) : (setupSecret ?? clientSecret) ? (
               <Elements
                 stripe={stripePromise!}
                 options={{
-                  clientSecret,
+                  clientSecret: (setupSecret ?? clientSecret)!,
                   appearance: {
                     theme: 'flat',
                     variables: {
@@ -747,8 +907,13 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                   onError={setError}
                   isLoading={loading}
                   setIsLoading={setLoading}
-                  clientSecret={clientSecret}
+                  clientSecret={(clientSecret ?? '')}
                   setOrgId={setOrgId}
+                  existingOrgId={existingOrganization?.id || null}
+                  setupClientSecret={(setupSecret ?? '')}
+                  useExistingPaymentMethod={useExistingPaymentMethod}
+                  existingOrgStripeCustomerId={existingOrganization?.stripe_customer_id || undefined}
+                  preOnboarded={preOnboarded}
                 />
               </Elements>
             ) : (

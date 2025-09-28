@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth';
-import { onboardOrganization, getPlanCatalog, getCustomerPaymentMethodSummary } from '../controllers/billingOnboarding';
+import { onboardOrganization, getPlanCatalog, getCustomerPaymentMethodSummary, getCustomerPaymentMethods } from '../controllers/billingOnboarding';
 import { handleStripeWebhook } from '../controllers/stripeWebhook';
 
 const router = express.Router();
@@ -27,6 +27,7 @@ router.use((req, res, next) => {
 // Get plan catalog
 router.get('/plans', getPlanCatalog);
 router.get('/orgs/payment-methods/default', getCustomerPaymentMethodSummary);
+router.get('/orgs/payment-methods', getCustomerPaymentMethods);
 
 // Onboard organization to billing
 router.post('/orgs/onboard', onboardOrganization);

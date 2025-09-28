@@ -135,7 +135,7 @@ export default function OrganizationPage() {
 					createdAt: created_at,
 					ownerId: owner_id,
 					updatedAt: updated_at,
-					status
+					status: org_status
 				`
 				)
 				.eq('id', user?.organization_id || '')

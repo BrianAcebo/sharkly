@@ -34,8 +34,6 @@ const LayoutContent: React.FC = () => {
 	const { isPaused, isDisabled, status: orgStatus } = useOrganizationStatus();
 	const { paymentStatus } = usePaymentStatus();
 
-	// Debug logging
-	console.log('[APP_LAYOUT] Organization status:', { orgStatus, isPaused, isDisabled });
 	const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
 	const { isScreenTooSmall } = useScreenSize();
 
@@ -99,7 +97,11 @@ const LayoutContent: React.FC = () => {
   let reason: 'paused' | 'disabled' | 'trial_expired' | 'payment_required' | 'past_due' = 'paused';
   let paymentFailureReason: string | undefined;
 
-  if (isOrganizationBehindOnPayments(organizationForBilling)) {
+  // If the organization status is already active, do NOT render read-only gate,
+  // even if other derived fields are momentarily stale.
+  if (orgStatus === 'active') {
+    shouldShowReadOnly = false;
+  } else if (isOrganizationBehindOnPayments(organizationForBilling)) {
     shouldShowReadOnly = true;
     if (orgStatus === 'payment_required') {
       reason = 'payment_required';
