@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient';
 import Stripe from 'stripe';
 import { OrganizationRow, StripeSubStatus, unixToISO, PlanCatalogRow } from '../types/billing';
+import { deactivateExtraSeats, loadSeatSummary, recordSeatEvent, syncExtraSeatAddon, updateOrgMaxSeats } from '../utils/seats';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-07-30.basil',
@@ -416,9 +417,12 @@ const handleSubscriptionDeleted = async (event: Stripe.Event) => {
   }
 
   // Set subscription as canceled and disable organization access
+  const summaryBeforeCancellation = await loadSeatSummary(org.id);
+
   const updateData: Record<string, unknown> = {
     stripe_status: 'canceled' as StripeSubStatus,
     org_status: 'disabled',
+    stripe_subscription_id: null,
     updated_at: new Date().toISOString()
   };
 
@@ -433,6 +437,35 @@ const handleSubscriptionDeleted = async (event: Stripe.Event) => {
   if (error) {
     console.error('Error updating organization for deleted subscription:', error);
     throw error;
+  }
+
+  try {
+    if (summaryBeforeCancellation.extraSeatsPurchased > 0) {
+      if (summaryBeforeCancellation.extraSeatAddonPriceId && summaryBeforeCancellation.stripeSubscriptionId) {
+        try {
+          await syncExtraSeatAddon({
+            orgId: org.id,
+            stripeSubscriptionId: summaryBeforeCancellation.stripeSubscriptionId,
+            addonPriceId: summaryBeforeCancellation.extraSeatAddonPriceId,
+            quantity: 0
+          });
+        } catch (addonError) {
+          console.warn('[WEBHOOK] Failed to update extra seat addon during cancellation:', addonError);
+        }
+
+        await recordSeatEvent({
+          orgId: org.id,
+          action: 'subscription_cancelled_reset',
+          delta: -summaryBeforeCancellation.extraSeatsPurchased,
+          reason: 'subscription_cancelled'
+        });
+      }
+
+      await deactivateExtraSeats({ orgId: org.id, includedSeats: summaryBeforeCancellation.includedSeats });
+      await updateOrgMaxSeats(org.id, summaryBeforeCancellation.includedSeats);
+    }
+  } catch (syncError) {
+    console.warn('[WEBHOOK] Failed to reset seat state during cancellation:', syncError);
   }
 
   console.log(`[WEBHOOK] Marked subscription as canceled for organization ${org.id}`);

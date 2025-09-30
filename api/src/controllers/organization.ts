@@ -1,6 +1,13 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient';
 import { emailService } from '../utils/email';
+import {
+	getSeatCapacity,
+	loadSeatSummary,
+	recordSeatEvent,
+	updateOrgMaxSeats,
+	syncExtraSeatAddon
+} from '../utils/seats';
 
 interface InviteTeamMemberRequest {
 	email: string;
@@ -62,6 +69,198 @@ export const createOrganization = async (req: Request, res: Response) => {
 	}
 };
 
+export const getSeatSummary = async (req: Request, res: Response) => {
+	try {
+		const { organizationId } = req.params;
+		const userId = req.user?.id;
+
+		if (!userId) {
+			return res.status(401).json({ error: 'Unauthorized' });
+		}
+
+		if (!organizationId) {
+			return res.status(400).json({ error: 'Organization ID is required' });
+		}
+
+		const { data: membership, error: membershipError } = await supabase
+			.from('user_organizations')
+			.select('role')
+			.eq('organization_id', organizationId)
+			.eq('user_id', userId)
+			.single();
+
+		if (membershipError || !membership) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		const summary = await loadSeatSummary(organizationId);
+		return res.json({ summary });
+	} catch (error) {
+		console.error('Error fetching seat summary:', error);
+		return res.status(500).json({ error: 'Failed to fetch seat summary' });
+	}
+};
+
+export const purchaseSeats = async (req: Request, res: Response) => {
+	try {
+		const { organizationId } = req.params;
+		const { quantity, reason } = req.body as { quantity: number; reason?: string };
+		const userId = req.user?.id;
+
+		if (!userId) {
+			return res.status(401).json({ error: 'Unauthorized' });
+		}
+
+		if (!organizationId) {
+			return res.status(400).json({ error: 'Organization ID is required' });
+		}
+
+		if (!quantity || quantity <= 0) {
+			return res.status(400).json({ error: 'Quantity must be greater than zero' });
+		}
+
+		const { data: membership, error: membershipError } = await supabase
+			.from('user_organizations')
+			.select('role')
+			.eq('organization_id', organizationId)
+			.eq('user_id', userId)
+			.single();
+
+		if (membershipError || !membership || !['owner', 'admin'].includes(membership.role)) {
+			return res.status(403).json({ error: 'Only owners or admins can purchase seats' });
+		}
+
+	const summary = await loadSeatSummary(organizationId);
+
+	if (summary.nextPlan && summary.extraSeatsRemainingBeforeUpgrade !== null) {
+		const { extraSeatsRemainingBeforeUpgrade: extraSeatsRemaining } = summary;
+
+		if (extraSeatsRemaining <= 0) {
+			return res.status(400).json({
+				error: `You have reached the maximum additional seats for your current plan. Please upgrade to the ${summary.nextPlan.name} plan.`
+			});
+		}
+
+		if (quantity > extraSeatsRemaining) {
+			return res.status(400).json({
+				error: `You can only purchase up to ${extraSeatsRemaining} additional seat${extraSeatsRemaining === 1 ? '' : 's'} before needing to upgrade.`
+			});
+		}
+	}
+
+	const newCapacity = summary.includedSeats + summary.extraSeatsPurchased + quantity;
+
+		await updateOrgMaxSeats(organizationId, newCapacity);
+		await recordSeatEvent({
+			orgId: organizationId,
+			seatId: null,
+			action: 'purchase',
+			delta: quantity,
+			reason: reason || 'manual_purchase'
+		});
+
+		let updatedSummary = await loadSeatSummary(organizationId);
+
+		if (updatedSummary.extraSeatAddonPriceId && updatedSummary.stripeSubscriptionId) {
+			await syncExtraSeatAddon({
+				orgId: organizationId,
+				stripeSubscriptionId: updatedSummary.stripeSubscriptionId,
+				addonPriceId: updatedSummary.extraSeatAddonPriceId,
+				quantity: updatedSummary.extraSeatsPurchased
+			});
+
+			updatedSummary = await loadSeatSummary(organizationId);
+		}
+
+		return res.json({ summary: updatedSummary });
+	} catch (error) {
+		console.error('Error purchasing seats:', error);
+		return res.status(500).json({ error: 'Failed to purchase seats' });
+	}
+};
+
+export const releaseSeats = async (req: Request, res: Response) => {
+	try {
+		const { organizationId } = req.params;
+		const { quantity, reason } = req.body as { quantity: number; reason?: string };
+		const userId = req.user?.id;
+
+		if (!userId) {
+			return res.status(401).json({ error: 'Unauthorized' });
+		}
+
+		if (!organizationId) {
+			return res.status(400).json({ error: 'Organization ID is required' });
+		}
+
+		if (!quantity || quantity <= 0) {
+			return res.status(400).json({ error: 'Quantity must be greater than zero' });
+		}
+
+		const { data: membership, error: membershipError } = await supabase
+			.from('user_organizations')
+			.select('role')
+			.eq('organization_id', organizationId)
+			.eq('user_id', userId)
+			.single();
+
+		if (membershipError || !membership || !['owner', 'admin'].includes(membership.role)) {
+			return res.status(403).json({ error: 'Only owners or admins can release seats' });
+		}
+
+		const summary = await loadSeatSummary(organizationId);
+
+		const maxReleasable = Math.max(0, summary.extraSeatsPurchased);
+
+		if (quantity > maxReleasable) {
+			return res.status(400).json({
+				error: `Cannot release more than ${maxReleasable} extra seat${maxReleasable === 1 ? '' : 's'}`
+			});
+		}
+
+		const newCapacity = summary.capacity - quantity;
+
+		if (newCapacity < summary.includedSeats) {
+			return res.status(400).json({
+				error: 'Cannot release seats below included plan limits'
+			});
+		}
+
+		if (summary.assignedSeats > newCapacity) {
+			return res.status(400).json({
+				error: 'Cannot release seats below number of assigned members'
+			});
+		}
+
+		await updateOrgMaxSeats(organizationId, newCapacity);
+		await recordSeatEvent({
+			orgId: organizationId,
+			seatId: null,
+			action: 'release',
+			delta: -quantity,
+			reason: reason || 'manual_release'
+		});
+
+	let updatedSummary = await loadSeatSummary(organizationId);
+
+	if (updatedSummary.extraSeatAddonPriceId && updatedSummary.stripeSubscriptionId) {
+		await syncExtraSeatAddon({
+			orgId: organizationId,
+			stripeSubscriptionId: updatedSummary.stripeSubscriptionId,
+			addonPriceId: updatedSummary.extraSeatAddonPriceId,
+			quantity: updatedSummary.extraSeatsPurchased
+		});
+
+		updatedSummary = await loadSeatSummary(organizationId);
+	}
+
+	return res.json({ summary: updatedSummary });
+	} catch (error) {
+		console.error('Error releasing seats:', error);
+		return res.status(500).json({ error: 'Failed to release seats' });
+	}
+};
+
 export const inviteTeamMember = async (req: Request, res: Response) => {
 	try {
 		const { email, role } = req.body as InviteTeamMemberRequest;
@@ -79,9 +278,9 @@ export const inviteTeamMember = async (req: Request, res: Response) => {
 		}
 
 		// Verify the organization exists and user is owner
-		const { data: organization, error: orgError } = await supabase
-			.from('organizations')
-			.select('id, name, owner_id')
+	const { data: organization, error: orgError } = await supabase
+		.from('organizations')
+		.select('id, name, owner_id')
 			.eq('id', organizationId)
 			.single();
 
@@ -105,6 +304,30 @@ export const inviteTeamMember = async (req: Request, res: Response) => {
 		if (existingInvite) {
 			return res.status(400).json({ error: 'User already invited' });
 		}
+
+	const [capacity, pendingInviteResult] = await Promise.all([
+		getSeatCapacity(organization.id),
+		supabase
+			.from('organization_invites')
+			.select('id')
+			.eq('organization_id', organization.id)
+			.eq('status', 'pending')
+	]);
+
+		if ('error' in pendingInviteResult && pendingInviteResult.error) {
+			console.error('Error fetching pending invitations:', pendingInviteResult.error);
+			return res.status(500).json({ error: 'Failed to prepare invitation' });
+		}
+
+		const pendingCount = 'data' in pendingInviteResult && Array.isArray(pendingInviteResult.data)
+			? pendingInviteResult.data.length
+			: 0;
+
+	if (capacity.assignedSeats + pendingCount >= capacity.capacity) {
+		return res.status(400).json({
+			error: 'No seats available. Purchase additional seats before inviting new members.'
+		});
+	}
 
 		// Create invitation
 		const { data: invite, error: createError } = await supabase
@@ -143,16 +366,16 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 			return res.status(401).json({ error: 'Unauthorized' });
 		}
 
-		if (!inviteId) {
-			return res.status(400).json({ error: 'Invitation ID is required' });
-		}
+	if (!inviteId) {
+		return res.status(400).json({ error: 'Invitation ID is required' });
+	}
 
-		// Get the invitation
-		const { data: invitation, error: inviteError } = await supabase
-			.from('organization_invites')
-			.select('*')
-			.eq('id', inviteId)
-			.single();
+	// Get the invitation
+	const { data: invitation, error: inviteError } = await supabase
+		.from('organization_invites')
+		.select('*')
+		.eq('id', inviteId)
+		.single();
 
 		if (inviteError || !invitation) {
 			return res.status(404).json({ error: 'Invitation not found' });
@@ -198,24 +421,13 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 		}
 
 		// Check organization seat limit
-		const { data: organization } = await supabase
-			.from('organizations')
-			.select('max_seats')
-			.eq('id', invitation.organization_id)
-			.single();
+	const capacity = await getSeatCapacity(invitation.organization_id);
 
-		if (organization) {
-			const { count: currentMembers } = await supabase
-				.from('user_organizations')
-				.select('*', { count: 'exact', head: true })
-				.eq('organization_id', invitation.organization_id);
-
-			if (currentMembers && currentMembers >= organization.max_seats) {
-				return res
-					.status(400)
-					.json({ error: 'Organization has reached its maximum number of members' });
-			}
-		}
+	if (capacity.assignedSeats >= capacity.capacity) {
+		return res
+			.status(400)
+			.json({ error: 'Organization has reached its maximum number of seats' });
+	}
 
 		// Add user to organization
 		const { error: addError } = await supabase.from('user_organizations').insert({

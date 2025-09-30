@@ -60,6 +60,8 @@ const LayoutContent: React.FC = () => {
 		return <Navigate to="/onboarding" replace />;
 	}
 
+	const hasOrganization = Boolean(user?.organization_id);
+
 	// Only after onboarding is complete, check organization status
 	if (user?.completed_onboarding) {
 		// Add a small delay to allow user context to update after invitation completion
@@ -68,10 +70,14 @@ const LayoutContent: React.FC = () => {
 			setTimeout(() => setHasCheckedOrg(true), 100);
 			return <AuthLoading state={AuthLoadingState.LOADING} />;
 		}
+
+		if (!hasOrganization && pathname !== '/organization-required') {
+			return <Navigate to="/organization-required" replace />;
+		}
 	}
 
 	// Safety fallback: if we're on organization-required but user has organization, redirect to pipeline
-	if (pathname === '/organization-required' && user?.organization_id) {
+	if (pathname === '/organization-required' && hasOrganization) {
 		return <Navigate to="/pipeline" replace />;
 	}
 
@@ -85,68 +91,71 @@ const LayoutContent: React.FC = () => {
 		return <ScreenSizeWarning />;
 	}
 
-  const organizationForBilling = (currentOrg || trialInfo.organization) as OrganizationRow | null;
-  const stripeStatus = organizationForBilling?.stripe_status;
-  const hasStripeStatus = typeof stripeStatus === 'string';
+	const organizationForBilling = (currentOrg || trialInfo.organization) as OrganizationRow | null;
+	const stripeStatus = organizationForBilling?.stripe_status;
+	const hasStripeStatus = typeof stripeStatus === 'string';
+	const shouldRequireStripeStatus = Boolean(user?.completed_onboarding && hasOrganization);
 
-  if (!hasStripeStatus) {
-    return <AuthLoading state={AuthLoadingState.LOADING} />;
-  }
+	if (shouldRequireStripeStatus && !hasStripeStatus) {
+		return <AuthLoading state={AuthLoadingState.LOADING} />;
+	}
 
-  let shouldShowReadOnly = false;
-  let reason: 'paused' | 'disabled' | 'trial_expired' | 'payment_required' | 'past_due' = 'paused';
-  let paymentFailureReason: string | undefined;
+	let shouldShowReadOnly = false;
+	let reason: 'paused' | 'disabled' | 'trial_expired' | 'payment_required' | 'past_due' = 'paused';
+	let paymentFailureReason: string | undefined;
 
-  // If the organization status is already active, do NOT render read-only gate,
-  // even if other derived fields are momentarily stale.
-  if (orgStatus === 'active') {
-    shouldShowReadOnly = false;
-  } else if (isOrganizationBehindOnPayments(organizationForBilling)) {
-    shouldShowReadOnly = true;
-    if (orgStatus === 'payment_required') {
-      reason = 'payment_required';
-    } else if (orgStatus === 'past_due') {
-      reason = 'past_due';
-    }
-    paymentFailureReason = organizationForBilling?.payment_failure_reason || undefined;
-  } else if (isPaused) {
-    shouldShowReadOnly = true;
-    reason = 'paused';
-  } else if (isDisabled) {
-    shouldShowReadOnly = true;
-    reason = 'disabled';
-  } else if (stripeStatus === 'canceled' || stripeStatus === 'incomplete_expired') {
-    shouldShowReadOnly = true;
-    reason = 'trial_expired';
-  }
+	// If the organization status is already active, do NOT render read-only gate,
+	// even if other derived fields are momentarily stale.
+	if (orgStatus === 'active') {
+		shouldShowReadOnly = false;
+	} else if (isOrganizationBehindOnPayments(organizationForBilling)) {
+		shouldShowReadOnly = true;
+		if (orgStatus === 'payment_required') {
+			reason = 'payment_required';
+		} else if (orgStatus === 'past_due') {
+			reason = 'past_due';
+		}
+		paymentFailureReason = organizationForBilling?.payment_failure_reason || undefined;
+	} else if (isPaused) {
+		shouldShowReadOnly = true;
+		reason = 'paused';
+	} else if (isDisabled) {
+		shouldShowReadOnly = true;
+		reason = 'disabled';
+	} else if (stripeStatus === 'canceled' || stripeStatus === 'incomplete_expired') {
+		shouldShowReadOnly = true;
+		reason = 'trial_expired';
+	}
 
-  if (shouldShowReadOnly) {
-    return (
-      <ReadOnlyMode
-        isReadOnly={true}
-        reason={reason}
-        onResume={undefined}
-        showResumeButton={false}
-        paymentFailureReason={paymentFailureReason}
-        userRole={user?.role}
-        userId={user?.id}
-        organization={organizationForBilling}
-        onStartNewSubscription={() => navigate('/billing')}
-        className="h-screen"
-      >
-        <div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {reason === 'trial_expired' ? 'Subscription Canceled' : 'Organization Paused'}
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              {reason === 'trial_expired' ? 'Please renew to regain access.' : 'This content is in read-only mode'}
-            </p>
-          </div>
-        </div>
-      </ReadOnlyMode>
-    );
-  }
+	if (shouldShowReadOnly) {
+		return (
+			<ReadOnlyMode
+				isReadOnly={true}
+				reason={reason}
+				onResume={undefined}
+				showResumeButton={false}
+				paymentFailureReason={paymentFailureReason}
+				userRole={user?.role}
+				userId={user?.id}
+				organization={organizationForBilling}
+				onStartNewSubscription={() => navigate('/billing')}
+				className="h-screen"
+			>
+				<div className="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+					<div className="text-center">
+						<h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+							{reason === 'trial_expired' ? 'Subscription Canceled' : 'Organization Paused'}
+						</h1>
+						<p className="text-gray-600 dark:text-gray-400">
+							{reason === 'trial_expired'
+								? 'Please renew to regain access.'
+								: 'This content is in read-only mode'}
+						</p>
+					</div>
+				</div>
+			</ReadOnlyMode>
+		);
+	}
 
 	return (
 		<>

@@ -1,12 +1,29 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import useAuth from '../../hooks/useAuth';
 import type { Organization, TeamMember } from '../../types/leads';
+import type { SeatSummary } from '../../types/organization';
+import { formatCurrency } from '../../utils/format';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
 import { Tabs, TabsContent, TabsList } from '../../components/ui/tabs';
-import { Calendar, Users, Building2, Shield, Trash2, UserPlus, AlertTriangle, MessageSquare, CreditCard } from 'lucide-react';
+import {
+	Calendar,
+	Users,
+	Building2,
+	Shield,
+	Trash2,
+	UserPlus,
+	AlertTriangle,
+	MessageSquare,
+	CreditCard,
+	Plus,
+	Minus,
+	RefreshCw,
+	PhoneCall
+} from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { toast } from 'sonner';
+import { Modal } from '../../components/ui/modal';
 import { supabase } from '../../utils/supabaseClient';
 import { HttpError } from '../../utils/error';
 import { api } from '../../utils/api';
@@ -27,7 +44,7 @@ import {
 	SelectValue
 } from '../../components/ui/select';
 import Input from '../../components/form/input/InputField';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import DangerConfirmationModal from '../../components/common/DangerConfirmationModal';
@@ -35,6 +52,16 @@ import BrandForm from '../../components/sms/BrandForm';
 import CampaignForm from '../../components/sms/CampaignForm';
 import TollFreeForm from '../../components/sms/TollFreeForm';
 import { VerificationStatusResponse } from '../../types/smsVerification';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle
+} from '../../components/ui/alert-dialog';
 
 interface PendingInvitation {
 	id: string;
@@ -53,17 +80,17 @@ export default function OrganizationPage() {
 	const { user, refreshUser } = useAuth();
 	const navigate = useNavigate();
 	const [activeTab, setActiveTab] = useState('overview');
-	const { 
-		status: orgStatus, 
-    // omit loading here
-    isReadOnly,
-		getOrganizationStatus 
+	const {
+		status: orgStatus,
+		// omit loading here
+		isReadOnly,
+		getOrganizationStatus
 	} = useOrganizationStatus();
 	const { paymentStatus } = usePaymentStatus();
-	
+
 	// Check if organization can be resumed (not behind on payments)
-  const canResumeOrganization = false; // manual resume disabled
-	
+	const canResumeOrganization = false; // manual resume disabled
+
 	// Check if user is owner
 	const isOwner = user?.role === 'owner';
 	const [organization, setOrganization] = useState<Organization | null>(null);
@@ -74,11 +101,39 @@ export default function OrganizationPage() {
 		ASSIGNABLE_TEAM_MEMBER_ROLES.MEMBER
 	);
 	const [isInviting, setIsInviting] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+	const [isLoading, setIsLoading] = useState(true);
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
-	const [smsVerificationStatus, setSmsVerificationStatus] = useState<VerificationStatusResponse | null>(null);
+	const [smsVerificationStatus, setSmsVerificationStatus] =
+		useState<VerificationStatusResponse | null>(null);
 	const { setTitle } = useBreadcrumbs();
+	const [seatSummary, setSeatSummary] = useState<SeatSummary | null>(null);
+	const [isSeatSummaryLoading, setIsSeatSummaryLoading] = useState(false);
+	const [seatError, setSeatError] = useState<string | null>(null);
+	const [purchaseQuantity, setPurchaseQuantity] = useState(1);
+	const [releaseQuantity, setReleaseQuantity] = useState(1);
+	const [isSeatActionLoading, setIsSeatActionLoading] = useState(false);
+	const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+	const [showReleaseModal, setShowReleaseModal] = useState(false);
+
+	useEffect(() => {
+		if (!seatSummary) {
+			setReleaseQuantity(1);
+			return;
+		}
+
+		setReleaseQuantity((prev) => {
+			if (prev < 1) return 1;
+			if (prev > seatSummary.extraSeatsPurchased && seatSummary.extraSeatsPurchased > 0) {
+				return seatSummary.extraSeatsPurchased;
+			}
+			if (seatSummary.extraSeatsPurchased === 0) {
+				return 1;
+			}
+			return prev;
+		});
+		setPurchaseQuantity((prev) => (prev < 1 ? 1 : prev));
+	}, [seatSummary]);
 
 	useEffect(() => {
 		setTitle('Organization');
@@ -90,12 +145,14 @@ export default function OrganizationPage() {
 		if (!user?.organization_id) return;
 
 		try {
-			const { data: { session } } = await supabase.auth.getSession();
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
 			if (!session?.access_token) return;
 
 			const response = await fetch(`/api/sms/verification-status?orgId=${user.organization_id}`, {
 				headers: {
-					'Authorization': `Bearer ${session.access_token}`,
+					Authorization: `Bearer ${session.access_token}`,
 					'Content-Type': 'application/json'
 				}
 			});
@@ -111,6 +168,282 @@ export default function OrganizationPage() {
 		}
 	};
 
+	const fetchSeatSummary = async (orgId: string): Promise<SeatSummary | null> => {
+		setIsSeatSummaryLoading(true);
+		setSeatError(null);
+		try {
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+
+			if (!session?.access_token) {
+				setSeatError('Not authenticated');
+				return null;
+			}
+
+			const response = await fetch(`/api/organizations/${orgId}/seats`, {
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				setSeatError(err?.error || 'Failed to load seat summary');
+				setSeatSummary(null);
+				return null;
+			}
+
+			const data = (await response.json()) as { summary: SeatSummary };
+			setSeatSummary(data.summary);
+			return data.summary;
+		} catch (error) {
+			console.error('Error loading seat summary:', error);
+			setSeatError(error instanceof Error ? error.message : 'Failed to load seat summary');
+			setSeatSummary(null);
+			return null;
+		} finally {
+			setIsSeatSummaryLoading(false);
+		}
+	};
+
+	const performSeatMutation = async (
+		path: string,
+		payload: { quantity: number; reason: string }
+	) => {
+		try {
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			if (!session?.access_token) {
+				toast.error('Not authenticated');
+				return null;
+			}
+
+			setIsSeatActionLoading(true);
+
+			const response = await fetch(path, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(payload)
+			});
+
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				throw new Error(err?.error || 'Seat update failed');
+			}
+
+			const data = (await response.json()) as { summary: SeatSummary };
+			setSeatSummary(data.summary);
+			return data.summary;
+		} catch (error) {
+			console.error('Seat update error:', error);
+			toast.error(error instanceof Error ? error.message : 'Seat update failed');
+			return null;
+		} finally {
+			setIsSeatActionLoading(false);
+		}
+	};
+
+	const handleSeatPurchase = () => {
+		if (!seatSummary) {
+			toast.error('Seat summary unavailable');
+			return;
+		}
+		if (!organization?.id) {
+			toast.error('Organization not found');
+			return;
+		}
+
+		if (purchaseQuantity <= 0) {
+			toast.error('Quantity must be greater than zero');
+			return;
+		}
+
+		if (
+			seatSummary.extraSeatsRemainingBeforeUpgrade !== null &&
+			purchaseQuantity > seatSummary.extraSeatsRemainingBeforeUpgrade
+		) {
+			toast.error(
+				`You can only purchase up to ${seatSummary.extraSeatsRemainingBeforeUpgrade} additional seat${seatSummary.extraSeatsRemainingBeforeUpgrade === 1 ? '' : 's'} before needing to upgrade.`
+			);
+			return;
+		}
+
+		setShowPurchaseModal(true);
+	};
+
+	const handleSeatRelease = () => {
+		if (!organization?.id) {
+			toast.error('Organization not found');
+			return;
+		}
+
+		if (!seatSummary) {
+			toast.error('Seat summary unavailable');
+			return;
+		}
+
+		if (releaseQuantity <= 0) {
+			toast.error('Quantity must be greater than zero');
+			return;
+		}
+
+		if (releaseQuantity > seatSummary.extraSeatsPurchased) {
+			toast.error(
+				`You only have ${seatSummary.extraSeatsPurchased} extra seat${seatSummary.extraSeatsPurchased === 1 ? '' : 's'} to release.`
+			);
+			return;
+		}
+
+		setShowReleaseModal(true);
+	};
+
+	const confirmSeatPurchase = async () => {
+		if (!organization?.id) {
+			toast.error('Organization not found');
+			return;
+		}
+
+		const summary = await performSeatMutation(
+			`/api/organizations/${organization.id}/seats/purchase`,
+			{
+				quantity: purchaseQuantity,
+				reason: 'manual_purchase'
+			}
+		);
+
+		if (summary) {
+			toast.success(
+				`Added ${purchaseQuantity} seat${purchaseQuantity === 1 ? '' : 's'} successfully`
+			);
+			setPurchaseQuantity(1);
+			setShowPurchaseModal(false);
+		}
+	};
+
+	const confirmSeatRelease = async () => {
+		if (!organization?.id) {
+			toast.error('Organization not found');
+			return;
+		}
+
+		const summary = await performSeatMutation(
+			`/api/organizations/${organization.id}/seats/release`,
+			{
+				quantity: releaseQuantity,
+				reason: 'manual_release'
+			}
+		);
+
+		if (summary) {
+			toast.success(
+				`Released ${releaseQuantity} seat${releaseQuantity === 1 ? '' : 's'} successfully`
+			);
+			setReleaseQuantity(1);
+			setShowReleaseModal(false);
+		}
+	};
+
+	const handlePurchaseModalChange = (open: boolean) => {
+		if (!open && isSeatActionLoading) {
+			return;
+		}
+		setShowPurchaseModal(open);
+	};
+
+	const handleReleaseModalChange = (open: boolean) => {
+		if (!open && isSeatActionLoading) {
+			return;
+		}
+		setShowReleaseModal(open);
+	};
+
+	const purchaseSubtotalCents =
+		seatSummary?.extraSeatUnitPriceCents !== null && seatSummary?.extraSeatUnitPriceCents !== undefined
+			? seatSummary.extraSeatUnitPriceCents * purchaseQuantity
+			: null;
+
+	const purchaseNewCapacity = seatSummary ? seatSummary.capacity + purchaseQuantity : null;
+	const releaseNewCapacity = seatSummary ? seatSummary.capacity - releaseQuantity : null;
+	const releaseRemainingExtras = seatSummary
+		? Math.max(0, seatSummary.extraSeatsPurchased - releaseQuantity)
+		: null;
+	const purchaseBillingCopy = seatSummary?.extraSeatUnitPriceCents !== null
+		? 'We’ll add the new seats to your monthly invoice and adjust the current cycle automatically.'
+		: 'Extra seats are billed as an add-on to your active subscription.';
+	const releaseBillingCopy =
+		'We’ll adjust your subscription right away. Any credit from unused time will appear on your next invoice.';
+	const formattedPurchaseSubtotal = purchaseSubtotalCents !== null ? formatCurrency(purchaseSubtotalCents) : null;
+
+	const purchaseConfirmation = (
+		<AlertDialog open={showPurchaseModal} onOpenChange={handlePurchaseModalChange}>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Confirm Seat Purchase</AlertDialogTitle>
+				</AlertDialogHeader>
+				<div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+					<p>
+						You&apos;re about to add {purchaseQuantity} extra seat{purchaseQuantity === 1 ? '' : 's'}.{` `}
+						We’ll sync this change to your subscription immediately.
+					</p>
+					{seatSummary?.extraSeatUnitPriceCents !== null && formattedPurchaseSubtotal && (
+						<p>
+							<strong>{formattedPurchaseSubtotal}</strong> is the monthly total for these seats. We’ll handle any proration automatically.
+						</p>
+					)}
+					<p>{purchaseBillingCopy}</p>
+					{purchaseNewCapacity !== null && seatSummary && (
+						<p>
+							Your seat capacity will increase to <strong>{purchaseNewCapacity}</strong> (currently{' '}
+							{seatSummary.capacity}).
+						</p>
+					)}
+				</div>
+				<AlertDialogFooter>
+					<AlertDialogCancel disabled={isSeatActionLoading}>Cancel</AlertDialogCancel>
+					<AlertDialogAction onClick={confirmSeatPurchase} disabled={isSeatActionLoading}>
+						{isSeatActionLoading ? 'Processing…' : 'Confirm Purchase'}
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
+
+	const releaseConfirmation = (
+		<AlertDialog open={showReleaseModal} onOpenChange={handleReleaseModalChange}>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Confirm Seat Release</AlertDialogTitle>
+				</AlertDialogHeader>
+				<div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+					<p>
+						Releasing {releaseQuantity} extra seat{releaseQuantity === 1 ? '' : 's'} reduces your capacity right away. We’ll sync the change to your subscription automatically.
+					</p>
+					<p>{releaseBillingCopy}</p>
+					{releaseNewCapacity !== null && releaseRemainingExtras !== null && seatSummary && (
+						<ul className="space-y-1">
+							<li>
+								Capacity will drop to <strong>{releaseNewCapacity}</strong> (currently{' '}
+								{seatSummary.capacity}).
+							</li>
+							<li>Extra seats remaining after this change: {releaseRemainingExtras}.</li>
+						</ul>
+					)}
+				</div>
+				<AlertDialogFooter>
+					<AlertDialogCancel disabled={isSeatActionLoading}>Keep Seats</AlertDialogCancel>
+					<AlertDialogAction onClick={confirmSeatRelease} disabled={isSeatActionLoading}>
+						{isSeatActionLoading ? 'Processing…' : 'Confirm Release'}
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
 	const fetchOrganizationData = async () => {
 		setIsLoading(true);
 		try {
@@ -215,6 +548,10 @@ export default function OrganizationPage() {
 				);
 				setPendingInvitations(transformedInvites);
 			}
+
+			if (org.id) {
+				fetchSeatSummary(org.id);
+			}
 		} catch (error) {
 			if (error instanceof HttpError) {
 				console.error(error.statusCode, error.message);
@@ -236,6 +573,10 @@ export default function OrganizationPage() {
 
 	const isAdmin = user?.role === 'admin';
 	const canManageSMS = isOwner || isAdmin;
+	const canManageSeats = isOwner || isAdmin;
+	const seatUsageLabel = seatSummary
+		? `${seatSummary.assignedSeats} of ${seatSummary.capacity} seats used`
+		: `${teamMembers.length} of ${organization?.maxSeats ?? 0} seats used`;
 
 	const handleInviteTeamMember = async () => {
 		if (!inviteEmail) {
@@ -260,17 +601,25 @@ export default function OrganizationPage() {
 
 		setIsInviting(true);
 		try {
-			await api.post(
-				'/api/organizations/invite',
-				{
-					email: inviteEmail,
-					role: inviteRole
-				},
-				organization?.id
-			);
+			let latestSummary = seatSummary;
+			if ((!latestSummary || typeof latestSummary.capacity !== 'number') && organization?.id) {
+				latestSummary = await fetchSeatSummary(organization.id);
+			}
+			if (latestSummary && latestSummary.assignedSeats >= latestSummary.capacity) {
+				toast.error('No seats available. Purchase additional seats before inviting new members.');
+				return;
+			}
+
+			await api.post('/api/organizations/invite', {
+				email: inviteEmail,
+				role: inviteRole
+			});
 
 			toast.success(`Invitation sent to ${inviteEmail}`);
 			setInviteEmail('');
+			if (organization?.id) {
+				await fetchSeatSummary(organization.id);
+			}
 			fetchOrganizationData();
 		} catch (error) {
 			console.error('Error sending invitation:', error);
@@ -414,15 +763,15 @@ export default function OrganizationPage() {
 		setIsDeleting(true);
 		try {
 			await api.delete(`/api/organizations/${organization.id}`);
-			
+
 			toast.success('Organization deleted successfully');
-			
+
 			// Sign out the user and redirect to home since they no longer have an organization
 			await supabase.auth.signOut();
 			window.location.href = '/';
 		} catch (error) {
 			console.error('Error deleting organization:', error);
-			
+
 			if (error && typeof error === 'object' && 'status' in error) {
 				const apiError = error as { status: number; message: string };
 				toast.error(apiError.message || 'Failed to delete organization');
@@ -435,7 +784,7 @@ export default function OrganizationPage() {
 		}
 	};
 
-// Manual pause/resume disabled; status managed via Stripe webhooks
+	// Manual pause/resume disabled; status managed via Stripe webhooks
 
 	if (isLoading) {
 		return <div className="container mx-auto px-4 py-8">Loading...</div>;
@@ -445,22 +794,199 @@ export default function OrganizationPage() {
 		return <div className="container mx-auto px-4 py-8">No organization found.</div>;
 	}
 
+	const seatsCard = (
+		<Card className="p-4">
+			<CardHeader>
+				<div className="flex items-center gap-2">
+					<Users className="h-5 w-5 text-gray-500" />
+					<h3 className="font-semibold">Seats</h3>
+				</div>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				{isSeatSummaryLoading ? (
+					<div className="py-4 text-sm text-gray-500">Loading seat usage…</div>
+				) : seatSummary ? (
+					<>
+						<div className="space-y-3 text-sm">
+							<div className="flex items-center justify-between">
+								<span className="text-gray-500">Seats used</span>
+								<span className="font-semibold text-gray-900 dark:text-gray-100">
+									{seatSummary.assignedSeats} / {seatSummary.capacity}
+								</span>
+							</div>
+							<div className="flex items-center justify-between">
+								<span className="text-gray-500">Included seats</span>
+								<span>{seatSummary.includedSeats}</span>
+							</div>
+							<div className="flex items-center justify-between">
+								<span className="text-gray-500">Extra seats</span>
+								<span>{seatSummary.extraSeatsPurchased}</span>
+							</div>
+							{seatSummary.extraSeatUnitPriceCents !== null && (
+								<div className="flex items-center justify-between">
+									<span className="text-gray-500">Extra seat price</span>
+									<span>{formatCurrency(seatSummary.extraSeatUnitPriceCents)}</span>
+								</div>
+							)}
+							{seatSummary.extraSeatMonthlyCostCents !== null &&
+								seatSummary.extraSeatMonthlyCostCents > 0 && (
+									<div className="flex items-center justify-between">
+										<span className="text-gray-500">Extra seat total</span>
+										<span>{formatCurrency(seatSummary.extraSeatMonthlyCostCents)}</span>
+									</div>
+								)}
+							{seatSummary.upgradeMessage && (
+								<div className="rounded-md bg-yellow-50 p-2 text-xs text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
+									{seatSummary.upgradeMessage}
+								</div>
+							)}
+						</div>
+
+						{canManageSeats && (
+						<div className="space-y-3 border-t pt-4">
+								<div>
+									<div className="mb-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+										Add extra seats
+									</div>
+									<div className="flex flex-wrap items-center gap-2">
+										<Input
+											type="number"
+											min={1}
+											value={purchaseQuantity}
+											onChange={(event) => {
+												const next = parseInt(event.target.value, 10);
+												setPurchaseQuantity(Number.isNaN(next) || next < 1 ? 1 : next);
+											}}
+											className="w-24"
+											disabled={isSeatActionLoading}
+										/>
+				<Button onClick={handleSeatPurchase} disabled={isSeatActionLoading}>
+					{isSeatActionLoading ? 'Processing…' : 'Purchase Seats'}
+				</Button>
+									</div>
+									<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										{seatSummary.extraSeatUnitPriceCents !== null
+											? `Each extra seat costs ${formatCurrency(seatSummary.extraSeatUnitPriceCents)} per billing period.`
+											: 'Extra seat pricing is determined by your current plan.'}
+									</p>
+								</div>
+							<div className="border-t pt-4">
+									<div className="mb-1 text-sm font-medium text-gray-900 dark:text-gray-100">
+										Release extra seats
+									</div>
+									<div className="flex flex-wrap items-center gap-2">
+										<Input
+											type="number"
+											min={1}
+											max={seatSummary.extraSeatsPurchased || undefined}
+											value={releaseQuantity}
+											onChange={(event) => {
+												const next = parseInt(event.target.value, 10);
+												if (Number.isNaN(next) || next < 1) {
+													setReleaseQuantity(1);
+													return;
+												}
+												setReleaseQuantity(next);
+											}}
+											className="w-24"
+											disabled={isSeatActionLoading || seatSummary.extraSeatsPurchased === 0}
+										/>
+				<Button
+					onClick={handleSeatRelease}
+					disabled={
+						isSeatActionLoading ||
+						seatSummary.extraSeatsPurchased === 0 ||
+						releaseQuantity < 1
+					}
+					variant="outline"
+				>
+					{isSeatActionLoading ? 'Processing…' : 'Release Seats'}
+				</Button>
+									</div>
+									<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										You currently have {seatSummary.extraSeatsPurchased} extra seat
+										{seatSummary.extraSeatsPurchased === 1 ? '' : 's'}.
+									</p>
+								</div>
+							</div>
+						)}
+					</>
+				) : seatError ? (
+					<div className="py-4 text-sm text-red-500">{seatError}</div>
+				) : (
+					<div className="py-4 text-sm text-gray-500">No seat data</div>
+				)}
+		</CardContent>
+	</Card>
+	);
+
+	const hasPhoneNumbers = (seatSummary?.phoneNumbers?.length ?? 0) > 0;
+	const assignedNumbers = seatSummary?.phoneNumbers?.filter((pn) => pn.status === 'assigned').length ?? 0;
+	const availableNumbers = seatSummary?.phoneNumbers?.filter((pn) => pn.status === 'available').length ?? 0;
+	const totalNumbers = seatSummary?.phoneNumbers?.length ?? 0;
+
+	const renderPhoneSmsSummary = () => {
+		if (!seatSummary) return null;
+
+		return (
+			<Card className="p-4">
+				<CardHeader>
+					<div className="flex items-center justify-between gap-2">
+						<div className="flex items-center gap-2">
+							<PhoneCall className="h-5 w-5 text-gray-500" />
+							<h3 className="font-semibold">Phone &amp; SMS</h3>
+						</div>
+						<Button variant="outline" size="sm" onClick={() => navigate('/organization/phone-sms')}>
+							Manage Numbers
+						</Button>
+					</div>
+				</CardHeader>
+				<CardContent className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+					<p>
+						<strong>{assignedNumbers}</strong> numbers assigned
+					</p>
+					<p>
+						<strong>{availableNumbers}</strong> available number{availableNumbers === 1 ? '' : 's'} ready to assign
+					</p>
+					<p>
+						<strong>{totalNumbers}</strong> total number{totalNumbers === 1 ? '' : 's'} provisioned
+					</p>
+					{!hasPhoneNumbers && (
+						<p>No phone numbers provisioned yet. Use Manage Numbers to purchase or assign numbers to seats.</p>
+					)}
+					{seatSummary.twilioSubaccountSid ? (
+						<div className="space-y-1 text-xs">
+							<p>
+								<strong>Twilio Subaccount:</strong> {seatSummary.twilioSubaccountSid}
+							</p>
+							<p>
+								<strong>Messaging Service:</strong> {seatSummary.twilioMessagingServiceSid ?? 'Not set'}
+							</p>
+						</div>
+					) : (
+						<p className="text-xs text-red-500">
+							Twilio provisioning incomplete. Contact support to finish setup before purchasing numbers.
+						</p>
+					)}
+				</CardContent>
+			</Card>
+		);
+	};
+
 	return (
 		<>
 			<PageMeta title={organization.name} description="Manage your organization and team members" />
 			<div className="container mx-auto px-4 py-8">
 				<div className="mb-8">
 					<h1 className="text-3xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
-					<div className="mt-2 flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+					<div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
 						<div className="flex items-center gap-1">
 							<Building2 className="h-4 w-4" />
 							<span>Organization ID: {organization.id}</span>
 						</div>
 						<div className="flex items-center gap-1">
 							<Users className="h-4 w-4" />
-							<span>
-								{teamMembers.length} of {organization.maxSeats} seats used
-							</span>
+							<span>{seatUsageLabel}</span>
 						</div>
 						<div className="flex items-center gap-1">
 							<Calendar className="h-4 w-4" />
@@ -468,6 +994,9 @@ export default function OrganizationPage() {
 						</div>
 					</div>
 				</div>
+
+				{purchaseConfirmation}
+				{releaseConfirmation}
 
 				<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
 					<TabsList className="flex items-center justify-start gap-3 p-0">
@@ -532,6 +1061,7 @@ export default function OrganizationPage() {
 									<p className="text-sm text-gray-500">Team managers</p>
 								</CardContent>
 							</Card>
+							{renderPhoneSmsSummary()}
 
 							<Card className="p-4">
 								<CardHeader>
@@ -551,6 +1081,7 @@ export default function OrganizationPage() {
 								</CardContent>
 							</Card>
 						</div>
+						{seatsCard}
 					</TabsContent>
 
 					<TabsContent value="team-members" className="space-y-4">
@@ -711,30 +1242,41 @@ export default function OrganizationPage() {
 										<div>
 											<label className="text-sm font-medium">Current Status</label>
 											<div className="mt-1 flex items-center gap-2">
-												<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-													orgStatus === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-													orgStatus === 'paused' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400' :
-													orgStatus === 'disabled' ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400' :
-													'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
-												}`}>
-													{orgStatus === 'active' ? 'Active' :
-													 orgStatus === 'paused' ? 'Paused' :
-													 orgStatus === 'disabled' ? 'Disabled' : 'Unknown'}
+												<span
+													className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+														orgStatus === 'active'
+															? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+															: orgStatus === 'paused'
+																? 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400'
+																: orgStatus === 'disabled'
+																	? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+																	: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+													}`}
+												>
+													{orgStatus === 'active'
+														? 'Active'
+														: orgStatus === 'paused'
+															? 'Paused'
+															: orgStatus === 'disabled'
+																? 'Disabled'
+																: 'Unknown'}
 												</span>
 											</div>
 										</div>
-    {/* Manual pause/resume controls removed - status is automated via Stripe */}
+										{/* Manual pause/resume controls removed - status is automated via Stripe */}
 									</div>
 									{orgStatus === 'paused' && (
-										<div className="text-sm text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 p-3 rounded-md">
-											<AlertTriangle className="h-4 w-4 inline mr-1" />
+										<div className="rounded-md bg-orange-50 p-3 text-sm text-orange-600 dark:bg-orange-900/20 dark:text-orange-400">
+											<AlertTriangle className="mr-1 inline h-4 w-4" />
 											{canResumeOrganization ? (
 												<>
-													Organization is paused. All features are in read-only mode. You can resume when ready.
+													Organization is paused. All features are in read-only mode. You can resume
+													when ready.
 												</>
 											) : (
 												<>
-													Organization is paused due to payment issues. Please resolve payment problems to resume service.
+													Organization is paused due to payment issues. Please resolve payment
+													problems to resume service.
 													{paymentStatus?.organization?.payment_failure_reason && (
 														<div className="mt-1 text-xs">
 															Reason: {paymentStatus.organization.payment_failure_reason}
@@ -745,15 +1287,17 @@ export default function OrganizationPage() {
 										</div>
 									)}
 									{orgStatus === 'disabled' && (
-										<div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
-											<AlertTriangle className="h-4 w-4 inline mr-1" />
+										<div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+											<AlertTriangle className="mr-1 inline h-4 w-4" />
 											Organization is disabled. All features are in read-only mode.
 										</div>
 									)}
 									{(orgStatus === 'payment_required' || orgStatus === 'past_due') && (
-										<div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-md">
-											<CreditCard className="h-4 w-4 inline mr-1" />
-											{getOrganizationStatusMessage(paymentStatus?.organization as unknown as import('../../types/billing').OrganizationRow)}
+										<div className="rounded-md bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+											<CreditCard className="mr-1 inline h-4 w-4" />
+											{getOrganizationStatusMessage(
+												paymentStatus?.organization as unknown as import('../../types/billing').OrganizationRow
+											)}
 											{paymentStatus?.organization?.payment_failure_reason && (
 												<div className="mt-1 text-xs">
 													Reason: {paymentStatus.organization.payment_failure_reason}
@@ -783,9 +1327,9 @@ export default function OrganizationPage() {
 											size="sm"
 											variant="outline"
 											onClick={() => navigate('/billing')}
-											className="text-blue-600 border-blue-300 hover:bg-blue-50"
+											className="border-blue-300 text-blue-600 hover:bg-blue-50"
 										>
-											<CreditCard className="h-4 w-4 mr-1" />
+											<CreditCard className="mr-1 h-4 w-4" />
 											Billing
 										</Button>
 									</div>
@@ -830,7 +1374,8 @@ export default function OrganizationPage() {
 						</Card>
 
 						{/* Danger Zone */}
-						{isOwner && (
+						{/* TODO: Improve with soft delete */}
+						{/* {isOwner && (
 							<Card className="p-4 border-red-200 dark:border-red-800">
 								<CardHeader>
 									<div className="flex items-center space-x-2">
@@ -880,7 +1425,7 @@ export default function OrganizationPage() {
 									</div>
 								</CardContent>
 							</Card>
-						)}
+						)} */}
 					</TabsContent>
 
 					<TabsContent value="sms-verification" className="space-y-4">
@@ -895,11 +1440,13 @@ export default function OrganizationPage() {
 											</h3>
 										</CardHeader>
 										<CardContent>
-											<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+											<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 												<div className="flex items-center space-x-3">
 													<MessageSquare className="h-5 w-5 text-gray-600 dark:text-gray-400" />
 													<div>
-														<span className="font-medium text-gray-900 dark:text-white">A2P 10DLC</span>
+														<span className="font-medium text-gray-900 dark:text-white">
+															A2P 10DLC
+														</span>
 														<div className="text-sm text-gray-600 dark:text-gray-400">
 															{smsVerificationStatus.a2p.status || 'Not Started'}
 														</div>
@@ -908,7 +1455,9 @@ export default function OrganizationPage() {
 												<div className="flex items-center space-x-3">
 													<Shield className="h-5 w-5 text-gray-600 dark:text-gray-400" />
 													<div>
-														<span className="font-medium text-gray-900 dark:text-white">Toll-Free</span>
+														<span className="font-medium text-gray-900 dark:text-white">
+															Toll-Free
+														</span>
 														<div className="text-sm text-gray-600 dark:text-gray-400">
 															{smsVerificationStatus.tollfree.status || 'Not Started'}
 														</div>
@@ -921,19 +1470,19 @@ export default function OrganizationPage() {
 
 								{/* SMS Verification Forms */}
 								<div className="space-y-6">
-									<BrandForm 
-										orgId={user?.organization_id || ''} 
+									<BrandForm
+										orgId={user?.organization_id || ''}
 										onSave={() => fetchSmsVerificationStatus()}
 										userRole={user?.role}
 									/>
-									<CampaignForm 
-										orgId={user?.organization_id || ''} 
+									<CampaignForm
+										orgId={user?.organization_id || ''}
 										onSave={() => fetchSmsVerificationStatus()}
 										onSubmit10DLC={() => fetchSmsVerificationStatus()}
 										userRole={user?.role}
 									/>
-									<TollFreeForm 
-										orgId={user?.organization_id || ''} 
+									<TollFreeForm
+										orgId={user?.organization_id || ''}
 										onSubmit={() => fetchSmsVerificationStatus()}
 										userRole={user?.role}
 									/>
@@ -943,13 +1492,13 @@ export default function OrganizationPage() {
 							<Card>
 								<CardContent className="p-6">
 									<div className="text-center">
-										<Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-										<h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+										<Shield className="mx-auto mb-4 h-12 w-12 text-gray-400" />
+										<h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
 											SMS Verification
 										</h3>
-						<p className="text-gray-600 dark:text-gray-400">
-							Only organization owners and admins can manage SMS verification settings.
-						</p>
+										<p className="text-gray-600 dark:text-gray-400">
+											Only organization owners and admins can manage SMS verification settings.
+										</p>
 									</div>
 								</CardContent>
 							</Card>

@@ -12,6 +12,7 @@ import {
   CustomerPaymentMethodSummary
 } from '../types/billing';
 import { getStripeClient } from '../utils/stripe';
+import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning';
 
 const stripe = getStripeClient();
 
@@ -110,6 +111,23 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       }
 
       org = newOrg;
+
+      try {
+        const provisioning = await ensureTwilioResourcesForOrganization({
+          orgId: org.id,
+          orgName: org.name,
+          twilioSubaccountSid: org.twilio_subaccount_sid,
+          twilioMessagingServiceSid: (org as OrganizationRow).twilio_messaging_service_sid ?? null
+        });
+
+        org = {
+          ...org,
+          twilio_subaccount_sid: provisioning.subaccountSid,
+          twilio_messaging_service_sid: provisioning.messagingServiceSid
+        } as OrganizationRow;
+      } catch (twilioError) {
+        console.error('Failed to provision Twilio resources during onboarding:', twilioError);
+      }
     }
 
     // Create or get Stripe customer (ONE customer per org)

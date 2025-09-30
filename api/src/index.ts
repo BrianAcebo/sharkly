@@ -7,8 +7,6 @@ import leadsRoutes from './routes/leads';
 import { HttpError } from './error/httpError';
 
 // Twilio SMS routes
-import seatHookRoutes from './routes/twilio/seatHooks';
-import provisionRoutes from './routes/twilio/provision';
 import sendSmsRoutes from './routes/twilio/sendSms';
 import inboundWebhookRoutes from './routes/twilio/inbound';
 import statusWebhookRoutes from './routes/twilio/status';
@@ -24,6 +22,7 @@ import clientTokenRoutes from './routes/twilio/clientTokens';
 // Billing routes
 import billingRoutes from './routes/billing';
 import billingOnboardingRoutes from './routes/billingOnboarding';
+import twilioPhoneRoutes from './routes/twilioPhone';
 
 // Organization status routes
 import organizationStatusRoutes from './routes/organizationStatus';
@@ -82,17 +81,9 @@ app.use((req, res, next) => {
 app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/leads', leadsRoutes);
+app.use('/api/twilio', twilioPhoneRoutes);
 
 // Twilio SMS routes
-app.use('/internal', seatHookRoutes);
-app.use('/admin', seatHookRoutes);
-app.use('/me', seatHookRoutes);
-
-// Mount provision routes behind feature flag (disabled by default)
-if (process.env.DISABLE_NUMBER_PURCHASE_UI !== 'true') {
-	app.use('/admin/twilio', provisionRoutes);
-}
-
 app.use('/api/sms', sendSmsRoutes);
 app.use('/api/webhooks/twilio', inboundWebhookRoutes);
 app.use('/api/webhooks/twilio', statusWebhookRoutes);

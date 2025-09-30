@@ -1,9 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../utils/supabaseClient';
-import { twilioClient } from '../../utils/twilioClient';
+import { getTwilioClientForSubaccount } from '../../utils/twilioClient';
 import { requireAuth } from '../../middleware/auth';
-import { ensureAgentNumber } from '../../utils/ensureAgentNumber';
 
 // Phone number normalization utility
 function normalizePhoneNumber(phone: string): string {
@@ -64,35 +63,58 @@ router.post('/send', requireAuth, async (req: Request, res: Response) => {
       }
     }
     
-    // Look up agent's active phone number
-    let agentPhoneNumber: { phone_number: string } | null = null;
-    
-    const { data: existingNumber, error: numberError } = await supabase
-      .from('agent_phone_numbers')
-      .select('phone_number')
-      .eq('agent_id', agentId)
-      .eq('is_active', true)
+    const { data: membership, error: membershipError } = await supabase
+      .from('user_organizations')
+      .select('organization_id')
+      .eq('user_id', agentId)
       .single();
 
-    if (numberError && numberError.code !== 'PGRST116') { // PGRST116 = no rows returned
-      throw numberError;
+    if (membershipError || !membership?.organization_id) {
+      return res.status(403).json({ error: 'Agent is not linked to an organization' });
     }
 
-    if (existingNumber) {
-      agentPhoneNumber = existingNumber;
-    } else {
-      // Self-heal: agent has no number, provision one automatically
-      console.info(`Agent ${agentId} has no active number, auto-provisioning...`);
-      
-      const provisionResult = await ensureAgentNumber(agentId);
-      if (provisionResult.error) {
-        return res.status(500).json({
-          error: `Failed to provision phone number: ${provisionResult.error}`
-        });
-      }
-      
-      agentPhoneNumber = { phone_number: provisionResult.phoneNumber };
-      console.info(`Auto-provisioned number ${provisionResult.phoneNumber} for agent ${agentId}`);
+    const orgId = membership.organization_id;
+
+    const { data: organization, error: orgError } = await supabase
+      .from('organizations')
+      .select('id, name, twilio_subaccount_sid, twilio_messaging_service_sid')
+      .eq('id', orgId)
+      .single();
+
+    if (orgError || !organization) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    if (!organization.twilio_subaccount_sid || !organization.twilio_messaging_service_sid) {
+      return res.status(400).json({ error: 'Organization is missing Twilio configuration' });
+    }
+
+    const { data: seat, error: seatError } = await supabase
+      .from('seats')
+      .select('id, phone_e164, phone_sid, status')
+      .eq('org_id', orgId)
+      .eq('user_id', agentId)
+      .eq('status', 'active')
+      .single();
+
+    if (seatError || !seat) {
+      return res.status(400).json({ error: 'No active seat assigned to this user' });
+    }
+
+    const { data: phoneNumberRecord, error: phoneError } = await supabase
+      .from('phone_numbers')
+      .select('id, sid, phone_number, capabilities, status')
+      .eq('org_id', orgId)
+      .eq('seat_id', seat.id)
+      .eq('status', 'assigned')
+      .single();
+
+    if (phoneError || !phoneNumberRecord) {
+      return res.status(400).json({ error: 'No phone number assigned to this seat' });
+    }
+
+    if (phoneNumberRecord.capabilities?.sms === false) {
+      return res.status(400).json({ error: 'Assigned phone number is not SMS-enabled' });
     }
 
     // Insert initial SMS message record
@@ -100,9 +122,9 @@ router.post('/send', requireAuth, async (req: Request, res: Response) => {
       .from('sms_messages')
       .insert({
         agent_id: agentId,
-        phone_number: agentPhoneNumber.phone_number,
+        phone_number: phoneNumberRecord.phone_number,
         to_number: normalizedTo,
-        from_number: agentPhoneNumber.phone_number,
+        from_number: phoneNumberRecord.phone_number,
         direction: 'outbound',
         body,
         status: 'queued',
@@ -119,9 +141,11 @@ router.post('/send', requireAuth, async (req: Request, res: Response) => {
     // Send SMS via Twilio
     const statusCallbackUrl = `${process.env.PUBLIC_URL}/api/webhooks/twilio/sms-status`;
     console.info(`SMS webhook URL: ${statusCallbackUrl}`);
-    
-    const twilioMessage = await twilioClient.messages.create({
-      from: agentPhoneNumber.phone_number,
+
+    const twilioClientForOrg = getTwilioClientForSubaccount({ accountSid: organization.twilio_subaccount_sid });
+
+    const twilioMessage = await twilioClientForOrg.messages.create({
+      from: phoneNumberRecord.phone_number,
       to: normalizedTo,
       body,
       statusCallback: statusCallbackUrl

@@ -18,24 +18,76 @@ const toE164 = (n?: string) => {
 	return s.startsWith('+') ? s : `+${s.replace(/\D/g, '')}`;
 };
 
-async function getAgentsActivePhoneNumber(agentId: string): Promise<string | null> {
-	if (!supabase) return null;
+async function resolveDialConfiguration(agentId: string, toNumber: string) {
+  const { data: membership, error: membershipError } = await supabase
+    .from('user_organizations')
+    .select('organization_id')
+    .eq('user_id', agentId)
+    .single();
 
-	const { data, error } = await supabase
-		.from('agent_phone_numbers')
-		.select('phone_number')
-		.eq('agent_id', agentId)
-		.eq('is_active', true)
-		.limit(1)
-		.single();
+  if (membershipError || !membership?.organization_id) {
+    console.warn('[voice] agent is not linked to organization', agentId, membershipError);
+    return null;
+  }
 
-	if (error || !data?.phone_number) {
-		console.warn('[voice] no active phone number for agent:', agentId, error);
-		return null;
-	}
+  const orgId = membership.organization_id;
 
-	const e164 = toE164(data.phone_number);
-	return E164.test(e164) ? e164 : null;
+  const { data: organization, error: orgError } = await supabase
+    .from('organizations')
+    .select('id, twilio_subaccount_sid')
+    .eq('id', orgId)
+    .single();
+
+  if (orgError || !organization?.twilio_subaccount_sid) {
+    console.warn('[voice] organization missing Twilio subaccount', orgId, orgError);
+    return null;
+  }
+
+  const { data: seat, error: seatError } = await supabase
+    .from('seats')
+    .select('id')
+    .eq('org_id', orgId)
+    .eq('user_id', agentId)
+    .eq('status', 'active')
+    .single();
+
+  if (seatError || !seat?.id) {
+    console.warn('[voice] agent has no active seat', agentId, seatError);
+    return null;
+  }
+
+  const { data: phoneNumber, error: phoneError } = await supabase
+    .from('phone_numbers')
+    .select('phone_number, capabilities')
+    .eq('org_id', orgId)
+    .eq('seat_id', seat.id)
+    .eq('status', 'assigned')
+    .single();
+
+  if (phoneError || !phoneNumber?.phone_number) {
+    console.warn('[voice] seat has no assigned phone number', seat.id, phoneError);
+    return null;
+  }
+
+  if (phoneNumber.capabilities?.voice === false) {
+    console.warn('[voice] assigned number is not voice capable', seat.id);
+    return null;
+  }
+
+  const dialFrom = toE164(phoneNumber.phone_number);
+  const dialTo = toE164(toNumber);
+
+  if (!E164.test(dialFrom) || !E164.test(dialTo)) {
+    console.warn('[voice] invalid E.164 numbers from/to', dialFrom, dialTo);
+    return null;
+  }
+
+  return {
+    orgId,
+    subaccountSid: organization.twilio_subaccount_sid,
+    fromNumber: dialFrom,
+    toNumber: dialTo
+  };
 }
 
 // Call history creation moved to frontend
@@ -54,22 +106,21 @@ router.post('/call', verifyTwilio, async (req: Request, res: Response) => {
 	const identityRaw =
 		(req.body?.ClientName as string | undefined) || (req.body?.From as string | undefined) || '';
 	const identity = identityRaw.replace(/^client:/, ''); // e.g. "agent_123"
-	const to = toE164(req.body?.To);
 
-	// Determine callerId
-	let callerId = '';
-	if (devBypass) {
-		callerId = toE164((req.query.from as string | undefined) || process.env.TWILIO_PHONE_NUMBER);
-	} else {
-		// Require identity = agent_<id>
-		if (!identity || !/^agent_/.test(identity)) {
-			const vr = new twilio.twiml.VoiceResponse();
-			vr.say('Unauthorized caller.');
-			return res.type('text/xml').send(vr.toString());
-		}
-		const agentId = identity.slice(6); // strip "agent_"
-		const lookedUp = await getAgentsActivePhoneNumber(agentId);
-		callerId = toE164(lookedUp || '');
+	if (!identity || !/^agent_/.test(identity)) {
+		const vr = new twilio.twiml.VoiceResponse();
+		vr.say('Unauthorized caller.');
+		return res.type('text/xml').send(vr.toString());
+	}
+
+	const agentId = identity.slice(6);
+
+	const resolved = await resolveDialConfiguration(agentId, req.body?.To);
+
+	if (!resolved || !resolved.fromNumber || !resolved.toNumber) {
+		const vr = new twilio.twiml.VoiceResponse();
+		vr.say('Unable to place call. Please configure a phone number for this seat.');
+		return res.type('text/xml').send(vr.toString());
 	}
 
 	const vr = new twilio.twiml.VoiceResponse();

@@ -5,7 +5,10 @@ import {
 	inviteTeamMember,
 	acceptInvitation,
 	cancelInvitation,
-	deleteOrganization
+	deleteOrganization,
+	getSeatSummary,
+	purchaseSeats,
+	releaseSeats
 } from '../controllers/organization';
 
 const router = express.Router();
@@ -27,5 +30,10 @@ router.delete('/cancel-invite/:inviteId', cancelInvitation);
 
 // Delete an organization
 router.delete('/:organizationId', deleteOrganization);
+
+// Seat management
+router.get('/:organizationId/seats', getSeatSummary);
+router.post('/:organizationId/seats/purchase', purchaseSeats);
+router.post('/:organizationId/seats/release', releaseSeats);
 
 export default router;

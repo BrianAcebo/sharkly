@@ -45,6 +45,8 @@ export interface OrganizationRow {
   included_minutes: number | null;
   included_sms: number | null;
   included_emails: number | null;
+  twilio_subaccount_sid: string | null;
+  twilio_messaging_service_sid?: string | null;
   trial_end: string | null;
   payment_action_required?: boolean | null;
   dunning_enabled?: boolean | null;

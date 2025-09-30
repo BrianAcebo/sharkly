@@ -20,6 +20,7 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import Lead from './pages/Lead';
 import OrganizationRequired from './pages/Organization/OrganizationRequired';
 import Organization from './pages/Organization/Organization';
+import PhoneSmsPage from './pages/Organization/PhoneSmsPage';
 import InviteAccept from './pages/Organization/InviteAccept';
 import Confirm from './pages/Auth/Confirm';
 import Settings from './pages/Settings';
@@ -35,6 +36,7 @@ import LeadSmsPage from './pages/leads/[leadId]/sms';
 import Calls from './pages/Calls';
 import Billing from './pages/Billing';
 import BillingOnboarding from './pages/BillingOnboarding';
+import LogoutPage from './pages/Logout';
 
 export default function App() {
 	return (
@@ -69,7 +71,8 @@ export default function App() {
 						<Route path="/billing" element={<Billing />} />
 						<Route path="/billing-onboarding" element={<BillingOnboarding />} />
 						<Route path="/organization-required" element={<OrganizationRequired />} />
-						<Route path="/organization" element={<Organization />} />
+					<Route path="/organization" element={<Organization />} />
+					<Route path="/organization/phone-sms" element={<PhoneSmsPage />} />
 					</Route>
 
 					{/* Auth Layout */}
@@ -80,6 +83,8 @@ export default function App() {
 
 					{/* Auth Confirm Route - accessible without full auth */}
 					<Route path="/auth/confirm" element={<Confirm />} />
+
+					<Route path="/logout" element={<LogoutPage />} />
 
 					{/* Password Reset Routes - accessible without full auth */}
 					<Route path="/forgot-password" element={<ForgotPassword />} />
