@@ -274,9 +274,7 @@ export default function PhoneSmsPage() {
 					<div className="text-sm text-muted-foreground">
 						<strong>{assignedCounts}</strong> numbers assigned to seats
 					</div>
-					<Button onClick={handlePurchaseClick} disabled={!organizationId || state.isLoading}>
-						Buy Number
-					</Button>
+                    {/* Buying numbers moved to automated provisioning; button removed */}
 				</CardFooter>
 			</Card>
 

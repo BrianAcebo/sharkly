@@ -151,6 +151,64 @@ router.post('/organizations/:organizationId/phone-numbers', async (req, res) => 
 	}
 });
 
+router.post('/organizations/:organizationId/phone-numbers/sync', async (req, res) => {
+	const { organizationId } = req.params;
+	try {
+		const { data: organization, error: orgError } = await supabase
+			.from('organizations')
+			.select('id, twilio_subaccount_sid, twilio_messaging_service_sid')
+			.eq('id', organizationId)
+			.single();
+		if (orgError || !organization?.twilio_subaccount_sid) {
+			return res.status(400).json({ error: 'Organization missing Twilio subaccount' });
+		}
+
+		const subClient = getTwilioClientForSubaccount({ accountSid: organization.twilio_subaccount_sid });
+		const numbersApi = subClient as unknown as {
+			incomingPhoneNumbers: {
+				list: (args: { limit?: number }) => Promise<Array<{ sid: string; phoneNumber: string; capabilities?: { sms?: boolean; voice?: boolean; mms?: boolean } }>>;
+			};
+		};
+
+		const PUBLIC_URL = process.env.PUBLIC_URL || '';
+		const baseUrl = PUBLIC_URL.replace(/\/$/, '');
+		const smsWebhookUrl = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-inbound` : undefined;
+		const voiceWebhookUrl = baseUrl ? `${baseUrl}/api/twilio/voice/call` : undefined;
+
+		const existingNumbers = await numbersApi.incomingPhoneNumbers.list({ limit: 200 });
+		let inserted = 0;
+		for (const num of existingNumbers) {
+			const { data: exists } = await supabase
+				.from('phone_numbers')
+				.select('id')
+				.eq('org_id', organizationId)
+				.eq('sid', num.sid)
+				.maybeSingle();
+
+			if (!exists) {
+				const { error: insErr } = await supabase
+					.from('phone_numbers')
+					.insert({
+						org_id: organizationId,
+						seat_id: null,
+						phone_number: num.phoneNumber,
+						sid: num.sid,
+						capabilities: { sms: Boolean(num.capabilities?.sms), voice: Boolean(num.capabilities?.voice), mms: Boolean(num.capabilities?.mms) },
+						status: 'available',
+						sms_webhook_url: smsWebhookUrl ?? null,
+						voice_webhook_url: voiceWebhookUrl ?? null
+					});
+				if (!insErr) inserted += 1;
+			}
+		}
+
+		return res.json({ ok: true, synced: existingNumbers.length, inserted });
+	} catch (error) {
+		console.error('[twilioPhone] error syncing numbers', error);
+		return res.status(500).json({ error: 'Failed to sync numbers' });
+	}
+});
+
 router.post('/organizations/:organizationId/phone-numbers/:phoneNumberId/assign', async (req, res) => {
 	const { organizationId, phoneNumberId } = req.params;
 	const { seatId } = req.body ?? {};

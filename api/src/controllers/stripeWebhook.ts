@@ -3,6 +3,7 @@ import { supabase } from '../utils/supabaseClient';
 import Stripe from 'stripe';
 import { OrganizationRow, StripeSubStatus, unixToISO, PlanCatalogRow } from '../types/billing';
 import { deactivateExtraSeats, loadSeatSummary, recordSeatEvent, syncExtraSeatAddon, updateOrgMaxSeats } from '../utils/seats';
+import { getStripeClient } from '../utils/stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-07-30.basil',
@@ -369,6 +370,53 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
   }
 
   console.log(`[WEBHOOK] Updated organization ${org.id} with subscription data`);
+
+  // Ensure metered voice usage item exists on the subscription (env-aware overage catalog)
+  try {
+    const stripeClient = getStripeClient();
+    const isLive = process.env.NODE_ENV === 'production' || process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_');
+    const overageCode = isLive ? 'voice_minutes_overage' : 'voice_minutes_overage_test';
+
+    const { data: overage } = await supabase
+      .from('usage_overage_catalog')
+      .select('stripe_price_id')
+      .eq('overage_code', overageCode)
+      .eq('active', true)
+      .single();
+
+    if (overage?.stripe_price_id) {
+      // If this is the main plan subscription and it's trialing, we do NOT attach the usage item here
+      // Instead, a separate usage-only subscription handles usage during trial.
+      if (subscription.status !== 'trialing') {
+        const sub = await stripeClient.subscriptions.retrieve(subscription.id, { expand: ['items.data.price'] });
+        const exists = sub.items.data.some((item) => item.price?.id === overage.stripe_price_id);
+        if (!exists) {
+          await stripeClient.subscriptionItems.create({
+            subscription: subscription.id,
+            price: overage.stripe_price_id,
+            proration_behavior: 'none'
+          });
+          console.log('[WEBHOOK] Added voice usage metered item to subscription (post-trial)', {
+            subscriptionId: subscription.id,
+            price: overage.stripe_price_id
+          });
+        }
+
+        // Cancel any usage-only subscription once the plan is out of trial
+        const usageSubs = await stripeClient.subscriptions.list({ customer: customerId, status: 'active', limit: 100 });
+        for (const s of usageSubs.data) {
+          if ((s.metadata as Record<string, string> | undefined)?.usage_only === 'voice') {
+            await stripeClient.subscriptions.cancel(s.id, { prorate: false });
+            console.log('[WEBHOOK] Canceled usage-only subscription after trial end', { usageSubscriptionId: s.id });
+          }
+        }
+      }
+    } else {
+      console.warn('[WEBHOOK] No active overage catalog row found for env when ensuring metered item', { overageCode });
+    }
+  } catch (ensureErr) {
+    console.warn('[WEBHOOK] Failed to ensure metered voice item on subscription:', ensureErr);
+  }
 };
 
 const handleTrialWillEnd = async (event: Stripe.Event) => {
@@ -469,6 +517,86 @@ const handleSubscriptionDeleted = async (event: Stripe.Event) => {
   }
 
   console.log(`[WEBHOOK] Marked subscription as canceled for organization ${org.id}`);
+
+  // Reset current-period voice usage so analytics show 0 immediately after cancellation
+  try {
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
+
+    const { error: usageDelErr } = await supabase
+      .from('voice_usage')
+      .delete()
+      .eq('organization_id', org.id)
+      .gte('usage_date', monthStart.toISOString());
+
+    if (usageDelErr) {
+      console.warn('[WEBHOOK] Failed to reset voice usage for canceled org:', usageDelErr);
+    } else {
+      console.log('[WEBHOOK] Reset current-period voice usage after cancellation', {
+        orgId: org.id,
+        from: monthStart.toISOString()
+      });
+    }
+
+    // Reset SMS usage for the current period
+    const { error: smsDelErr } = await supabase
+      .from('sms_usage')
+      .delete()
+      .eq('organization_id', org.id)
+      .gte('usage_date', monthStart.toISOString());
+    if (smsDelErr) {
+      console.warn('[WEBHOOK] Failed to reset SMS usage for canceled org:', smsDelErr);
+    }
+
+    // Reset call history for the current period
+    const { error: callsDelErr } = await supabase
+      .from('call_history')
+      .delete()
+      .eq('organization_id', org.id)
+      .gte('call_start_time', monthStart.toISOString());
+    if (callsDelErr) {
+      console.warn('[WEBHOOK] Failed to reset call history for canceled org:', callsDelErr);
+    }
+
+    // Zero out monthly billing row for this month and also cancel any pending usage-only invoice draft
+    const monthISO = new Date(monthStart.getUTCFullYear(), monthStart.getUTCMonth(), 1).toISOString().split('T')[0];
+    const { error: mbUpdateErr } = await supabase
+      .from('monthly_billing')
+      .upsert({
+        organization_id: org.id,
+        billing_month: monthISO,
+        sms_count: 0,
+        sms_cost: 0,
+        voice_minutes: 0,
+        voice_cost: 0,
+        total_cost: 0,
+        currency: 'USD',
+        status: 'pending',
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'organization_id,billing_month' });
+    if (mbUpdateErr) {
+      console.warn('[WEBHOOK] Failed to zero monthly_billing for canceled org:', mbUpdateErr);
+    }
+
+    try {
+      const stripeClient = getStripeClient();
+      const invoices = await stripeClient.invoices.list({ customer: org.stripe_customer_id as string, status: 'draft', limit: 10 });
+      for (const inv of invoices.data) {
+        // If invoice looks like the usage-only one (no plan items, has metered item), we can void it
+        try {
+          await stripeClient.invoices.voidInvoice(inv.id);
+          console.log('[WEBHOOK] Voided draft invoice on cancellation', { invoiceId: inv.id });
+        } catch (voidErr) {
+          console.warn('[WEBHOOK] Failed to void draft invoice:', voidErr);
+        }
+      }
+    } catch (invErr) {
+      console.warn('[WEBHOOK] Failed to scan and void draft invoices:', invErr);
+    }
+  } catch (resetErr) {
+    console.warn('[WEBHOOK] Exception while resetting voice usage after cancellation:', resetErr);
+  }
 };
 
 const handleInvoiceUpcoming = async (event: Stripe.Event) => {
@@ -484,8 +612,70 @@ const handleInvoiceUpcoming = async (event: Stripe.Event) => {
     return;
   }
 
-  // Trigger usage rollup
-  await triggerUsageRollup(org.id, subscriptionId);
+  // Usage rollup: compute billed minutes since current period start
+  try {
+    // Decide whether this upcoming invoice should carry usage
+    let shouldPostUsage = false;
+    try {
+      const stripeClient = getStripeClient();
+      const sub = await stripeClient.subscriptions.retrieve(subscriptionId);
+      const isUsageOnly = ((sub.metadata as Record<string, string> | undefined)?.usage_only === 'voice');
+      const isTrialing = sub.status === 'trialing';
+      // Post usage only if this is the usage-only subscription, or if this is the main (non-trial) subscription
+      shouldPostUsage = isUsageOnly || !isTrialing;
+      if (!shouldPostUsage) {
+        console.log('[WEBHOOK] Skipping usage post for trialing main subscription');
+        return;
+      }
+    } catch (sErr) {
+      console.warn('[WEBHOOK] Failed to retrieve subscription for gating; proceeding with rollup by default', sErr);
+      shouldPostUsage = true;
+    }
+
+    // Determine current anchor window: from month start to now (simple month-based window for now)
+    const periodStart = new Date(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1).toISOString();
+    const periodEnd = new Date().toISOString();
+
+    const { data: usageRows, error: usageErr } = await supabase
+      .from('voice_usage')
+      .select('call_duration_minutes')
+      .eq('organization_id', org.id)
+      .gte('usage_date', periodStart)
+      .lte('usage_date', periodEnd);
+    if (usageErr) {
+      console.warn('[WEBHOOK] Failed to load voice usage for rollup:', usageErr);
+      return;
+    }
+
+    const totalMinutes = (usageRows || []).reduce((sum, r) => sum + Number(r.call_duration_minutes || 0), 0);
+
+    // Load included minutes from org; default to 0 if absent
+    const included = (org as unknown as { included_minutes?: number }).included_minutes ?? 0;
+    const overageMinutes = Math.max(0, Math.ceil(totalMinutes - included));
+
+    console.log('[WEBHOOK] Rollup minutes', { totalMinutes, included, overageMinutes });
+
+    if (overageMinutes > 0 && shouldPostUsage) {
+      try {
+        const stripeClient = getStripeClient();
+        await stripeClient.billing.meterEvents.create({
+          event_name: 'aggregate_by_sum',
+          timestamp: Math.floor(Date.now() / 1000),
+          payload: {
+            value: String(overageMinutes),
+            stripe_customer_id: org.stripe_customer_id as string
+          }
+        });
+        console.log('[WEBHOOK] Posted overage minutes to meter', { overageMinutes });
+      } catch (meterErr) {
+        console.warn('[WEBHOOK] Failed posting rollup to Stripe meter:', meterErr);
+      }
+    } else {
+      console.log('[WEBHOOK] No overage minutes to post');
+    }
+  } catch (rollupErr) {
+    console.warn('[WEBHOOK] Exception during usage rollup:', rollupErr);
+  }
 };
 
 const handleInvoiceFinalized = async (event: Stripe.Event) => {

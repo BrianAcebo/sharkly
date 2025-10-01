@@ -1,11 +1,10 @@
 import express from 'express';
 import { z } from 'zod';
 import { supabase } from '../utils/supabaseClient';
-import Stripe from 'stripe';
+import { getStripeClient } from '../utils/stripe';
+import type Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-08-27.basil'
-});
+const stripe = getStripeClient();
 
 const router = express.Router();
 
@@ -138,43 +137,29 @@ router.post('/sms-usage', async (req, res) => {
   }
 });
 
-// Track voice usage and calculate costs
+// Track voice usage (no cost fields) and post Stripe meter event
 router.post('/voice-usage', async (req, res) => {
   try {
     const data = voiceUsageSchema.parse(req.body);
     
-    // Convert seconds to minutes for billing
-    const call_duration_minutes = data.call_duration_seconds / 60;
-    
-    // Determine voice service type based on phone number
-    const serviceType = determineVoiceServiceType(data.phone_number);
-    
-    // Calculate costs using the database function
-    const { data: costData, error: costError } = await supabase
-      .rpc('calculate_usage_cost', {
-        p_service_type: serviceType,
-        p_country_code: data.country_code,
-        p_pricing_type: data.direction,
-        p_units: call_duration_minutes,
-        p_organization_id: data.organization_id
-      });
-
-    if (costError) {
-      console.error('Error calculating voice costs:', costError);
-      return res.status(500).json({ error: 'Failed to calculate costs' });
-    }
-
-    const costs = costData[0];
+    // Convert seconds to minutes (ceil to align with metering)
+    const call_duration_minutes = Math.ceil(data.call_duration_seconds / 60);
 
     // Insert voice usage record
     const { data: usageRecord, error: insertError } = await supabase
       .from('voice_usage')
       .insert({
-        ...data,
-        call_duration_minutes: call_duration_minutes,
-        twilio_cost: costs.twilio_cost,
-        markup_amount: costs.markup_amount,
-        total_cost: costs.total_cost
+        organization_id: data.organization_id,
+        agent_id: data.agent_id,
+        call_history_id: data.call_history_id,
+        twilio_call_sid: data.twilio_call_sid,
+        phone_number: data.phone_number,
+        to_number: data.to_number,
+        from_number: data.from_number,
+        direction: data.direction,
+        country_code: data.country_code,
+        call_duration_seconds: data.call_duration_seconds,
+        call_duration_minutes: call_duration_minutes
       })
       .select()
       .single();
@@ -184,7 +169,25 @@ router.post('/voice-usage', async (req, res) => {
       return res.status(500).json({ error: 'Failed to track voice usage' });
     }
 
-    // Update monthly billing
+    // Do not post meter events here; rollup happens on invoice.upcoming webhook
+    try {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('stripe_customer_id')
+        .eq('id', data.organization_id)
+        .single();
+
+      const stripeCustomerId = org?.stripe_customer_id as string | undefined;
+      if (stripeCustomerId) {
+        // No-op here; usage will be rolled up and posted during invoice.upcoming
+      } else {
+        console.warn('Missing stripe_customer_id for org; skipping meter event', data.organization_id);
+      }
+    } catch (meterErr) {
+      console.error('Failed to post Stripe meter event:', meterErr);
+    }
+
+    // Update monthly billing (minutes only)
     const currentMonth = new Date();
     currentMonth.setDate(1); // First day of current month
     await supabase.rpc('update_monthly_billing', {
@@ -194,13 +197,7 @@ router.post('/voice-usage', async (req, res) => {
 
     res.json({
       success: true,
-      usage_record: usageRecord,
-      costs: {
-        twilio_cost: costs.twilio_cost,
-        markup_amount: costs.markup_amount,
-        total_cost: costs.total_cost,
-        markup_percentage: costs.markup_percentage
-      }
+      usage_record: usageRecord
     });
 
   } catch (error) {
@@ -209,6 +206,159 @@ router.post('/voice-usage', async (req, res) => {
   }
 });
 
+// Return the active Stripe price for voice minutes overage (env-aware)
+router.get('/voice-price', async (req, res) => {
+  try {
+    const isLive = process.env.NODE_ENV === 'production' || process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_');
+    const overageCode = isLive ? 'voice_minutes_overage' : 'voice_minutes_overage_test';
+
+    const { data: overage, error } = await supabase
+      .from('usage_overage_catalog')
+      .select('overage_code, name, stripe_price_id, rounding_mode, billing_increment_seconds, env, active')
+      .eq('overage_code', overageCode)
+      .eq('active', true)
+      .single();
+
+    if (error || !overage?.stripe_price_id) {
+      return res.status(404).json({ error: 'Active voice overage price not found' });
+    }
+
+    const stripe = getStripeClient();
+    const price = await stripe.prices.retrieve(overage.stripe_price_id, { expand: ['product'] });
+
+    const recurring = price.recurring as Stripe.Price.Recurring | null;
+    const aggregateUsage = recurring && (recurring as unknown as { aggregate_usage?: string }).aggregate_usage;
+
+    res.json({
+      success: true,
+      overage,
+      stripe_price: {
+        id: price.id,
+        currency: price.currency,
+        unit_amount: price.unit_amount, // in cents if set
+        unit_amount_decimal: (price.unit_amount_decimal as string | null) || null,
+        billing_scheme: price.billing_scheme,
+        usage_type: recurring?.usage_type ?? 'metered',
+        aggregate_usage: aggregateUsage ?? 'sum',
+        product: typeof price.product === 'string' ? price.product : price.product?.id
+      }
+    });
+  } catch (e) {
+    console.error('voice-price error', e);
+    res.status(500).json({ error: 'Failed to load voice price' });
+  }
+});
+
+// Per-agent voice analytics for an organization (current period or date range)
+router.get('/voice-analytics/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { startDate, endDate } = req.query as { startDate?: string; endDate?: string };
+
+    if (!organizationId) {
+      return res.status(400).json({ error: 'Organization ID is required' });
+    }
+
+    // If the subscription is canceled, reset usage numbers in the response
+    try {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('stripe_status')
+        .eq('id', organizationId)
+        .single();
+      if (org?.stripe_status === 'canceled') {
+        return res.json({
+          success: true,
+          start: startDate || null,
+          end: endDate || null,
+          totals: { calls: 0, seconds: 0, minutes: 0, cost: 0 },
+          rows: []
+        });
+      }
+    } catch (orgErr) {
+      console.warn('Failed to load org for analytics reset check:', orgErr);
+    }
+
+    const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+    const end = endDate || new Date().toISOString();
+
+    // 1) Load billed minutes and calls from voice_usage (minutes are already per-call rounded up)
+    const { data: usageRows, error: usageErr } = await supabase
+      .from('voice_usage')
+      .select('agent_id, call_duration_seconds, call_duration_minutes, usage_date')
+      .eq('organization_id', organizationId)
+      .gte('usage_date', start)
+      .lte('usage_date', end);
+
+    if (usageErr) {
+      console.error('Error fetching voice_usage for analytics:', usageErr);
+      return res.status(500).json({ error: 'Failed to fetch voice usage' });
+    }
+
+    // 2) Build per-agent usage, including seconds directly from voice_usage for consistency
+    const perAgentUsage: Record<string, { calls: number; billedMinutes: number; seconds: number }> = {};
+    for (const u of usageRows || []) {
+      if (!u.agent_id) continue;
+      if (!perAgentUsage[u.agent_id]) perAgentUsage[u.agent_id] = { calls: 0, billedMinutes: 0, seconds: 0 };
+      perAgentUsage[u.agent_id].calls += 1;
+      perAgentUsage[u.agent_id].billedMinutes += Number(u.call_duration_minutes || 0);
+      perAgentUsage[u.agent_id].seconds += Number(u.call_duration_seconds || 0);
+    }
+
+    // 3) Load Stripe overage price to compute cost
+    let unitPrice = 0; // in dollars per minute
+    try {
+      const isLive = process.env.NODE_ENV === 'production' || process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_');
+      const overageCode = isLive ? 'voice_minutes_overage' : 'voice_minutes_overage_test';
+      const { data: overage } = await supabase
+        .from('usage_overage_catalog')
+        .select('stripe_price_id')
+        .eq('overage_code', overageCode)
+        .eq('active', true)
+        .single();
+      if (overage?.stripe_price_id) {
+        const stripe = getStripeClient();
+        const price = await stripe.prices.retrieve(overage.stripe_price_id);
+        if (price.unit_amount !== null && price.unit_amount !== undefined) {
+          unitPrice = price.unit_amount / 100; // cents to dollars
+        } else if (price.unit_amount_decimal) {
+          unitPrice = parseFloat(price.unit_amount_decimal) / 100;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to retrieve overage price for analytics; costs will be 0:', e);
+    }
+
+    const agentIds = Array.from(new Set([...(usageRows || []).map(u => u.agent_id).filter(Boolean)] as string[]));
+
+    const rows = agentIds.map((agentId) => {
+      const usage = perAgentUsage[agentId] || { calls: 0, billedMinutes: 0, seconds: 0 };
+      const cost = unitPrice * usage.billedMinutes;
+      return {
+        agent_id: agentId,
+        calls: usage.calls,
+        seconds: usage.seconds,
+        minutes: usage.billedMinutes,
+        cost
+      };
+    });
+
+    const totals = rows.reduce(
+      (acc, r) => ({
+        calls: acc.calls + r.calls,
+        seconds: acc.seconds + r.seconds,
+        minutes: acc.minutes + r.minutes,
+        cost: acc.cost + r.cost
+      }),
+      { calls: 0, seconds: 0, minutes: 0, cost: 0 }
+    );
+
+    res.json({ success: true, start, end, totals, rows });
+  } catch (error) {
+    console.error('Voice analytics API error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
+  }
+});
 // Get usage summary for an organization
 router.get('/usage-summary/:organizationId', async (req, res) => {
   try {
@@ -219,11 +369,7 @@ router.get('/usage-summary/:organizationId', async (req, res) => {
       return res.status(400).json({ error: 'Organization ID is required' });
     }
 
-    // Build date filter
-    let dateFilter = '';
-    if (startDate && endDate) {
-      dateFilter = `AND usage_date >= '${startDate}' AND usage_date <= '${endDate}'`;
-    }
+    // Build date filter (unused; kept for clarity of intent)
 
     // Get SMS usage summary
     const { data: smsUsage, error: smsError } = await supabase
@@ -254,9 +400,10 @@ router.get('/usage-summary/:organizationId', async (req, res) => {
     }
 
     // Calculate totals
-    const smsTotal = smsUsage?.reduce((sum, usage) => sum + parseFloat(usage.total_cost), 0) || 0;
-    const voiceTotal = voiceUsage?.reduce((sum, usage) => sum + parseFloat(usage.total_cost), 0) || 0;
-    const totalCost = smsTotal + voiceTotal;
+    // No on-DB costs: only minutes; cost is now derived by Stripe invoice
+    const smsTotal = 0;
+    const voiceTotal = 0;
+    const totalCost = 0;
 
     const smsCount = smsUsage?.reduce((sum, usage) => sum + usage.message_count, 0) || 0;
     const voiceMinutes = voiceUsage?.reduce((sum, usage) => sum + parseFloat(usage.call_duration_minutes), 0) || 0;

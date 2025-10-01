@@ -83,6 +83,7 @@ export interface OrgOnboardRequest {
   address?: PostalAddress;
   paymentMethodId?: string;
   useExistingPaymentMethod?: boolean;
+  areaCode?: string;
 }
 
 export interface CustomerPaymentMethodSummary {

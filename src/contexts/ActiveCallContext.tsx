@@ -66,7 +66,7 @@ export const ActiveCallProvider: React.FC<ActiveCallProviderProps> = ({ children
     }
 
     // Get the Twilio number from environment variable
-    const twilioNumber = import.meta.env.VITE_TWILIO_PHONE_NUMBER;
+    // Removed global fallback number; we will use the seat's assigned number from the server
     if (!twilioNumber) {
       toast.error('Twilio phone number not configured');
       return;

@@ -81,6 +81,8 @@ app.use((req, res, next) => {
 app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/leads', leadsRoutes);
+// IMPORTANT: Mount Twilio Voice webhook (no auth) before other /api/twilio routes
+app.use('/api/twilio/voice', voiceWebhookRoutes);
 app.use('/api/twilio', twilioPhoneRoutes);
 
 // Twilio SMS routes
@@ -90,7 +92,6 @@ app.use('/api/webhooks/twilio', statusWebhookRoutes);
 
 // Twilio Voice routes
 app.use('/api/calls', callRoutes);
-app.use('/api/twilio/voice', voiceWebhookRoutes); // Mount voice TwiML route
 app.use('/api/webhooks/twilio', callStatusWebhookRoutes);
 
 // Twilio Client routes for WebRTC

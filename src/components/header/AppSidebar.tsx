@@ -27,7 +27,7 @@ const Sidebar: React.FC = () => {
   { icon: MessageSquare, label: 'Chat', path: '/chat' },
   { icon: Bot, label: 'AI Assistant', path: '/assistant' },
   { icon: Building2, label: 'Organization', path: '/organization' },
-  { icon: PhoneCall, label: 'Phone & SMS', path: '/organization/phone-sms' },
+  // { icon: PhoneCall, label: 'Phone & SMS', path: '/organization/phone-sms' },
   { icon: Calendar, label: 'Calendar', path: '/calendar' },
   { icon: LayoutDashboard, label: 'Tasks', path: '/tasks' },
   { icon: Settings, label: 'Settings', path: '/settings' },

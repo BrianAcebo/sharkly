@@ -6,24 +6,26 @@ import { formatCurrency } from '../../utils/format';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
 import { Tabs, TabsContent, TabsList } from '../../components/ui/tabs';
+import { BarChart2 } from 'lucide-react';
+import OrganizationAnalytics from './components/OrganizationAnalytics';
 import {
-	Calendar,
-	Users,
-	Building2,
-	Shield,
-	Trash2,
-	UserPlus,
-	AlertTriangle,
-	MessageSquare,
-	CreditCard,
-	Plus,
-	Minus,
-	RefreshCw,
-	PhoneCall
+    Calendar,
+    Users,
+    Building2,
+    Shield,
+    Trash2,
+    UserPlus,
+    AlertTriangle,
+    MessageSquare,
+    CreditCard,
+    PhoneCall
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+// import { fetchPhoneNumbers } from '../../api/phone';
+// import type { PhoneNumberRecord } from '../../types/phone';
 import { toast } from 'sonner';
-import { Modal } from '../../components/ui/modal';
+// import { Modal } from '../../components/ui/modal';
 import { supabase } from '../../utils/supabaseClient';
 import { HttpError } from '../../utils/error';
 import { api } from '../../utils/api';
@@ -44,7 +46,7 @@ import {
 	SelectValue
 } from '../../components/ui/select';
 import Input from '../../components/form/input/InputField';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import DangerConfirmationModal from '../../components/common/DangerConfirmationModal';
@@ -57,7 +59,7 @@ import {
 	AlertDialogAction,
 	AlertDialogCancel,
 	AlertDialogContent,
-	AlertDialogDescription,
+    // AlertDialogDescription,
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle
@@ -851,8 +853,8 @@ export default function OrganizationPage() {
 									<div className="flex flex-wrap items-center gap-2">
 										<Input
 											type="number"
-											min={1}
-											value={purchaseQuantity}
+											min={"1"}
+											value={String(purchaseQuantity)}
 											onChange={(event) => {
 												const next = parseInt(event.target.value, 10);
 												setPurchaseQuantity(Number.isNaN(next) || next < 1 ? 1 : next);
@@ -877,9 +879,9 @@ export default function OrganizationPage() {
 									<div className="flex flex-wrap items-center gap-2">
 										<Input
 											type="number"
-											min={1}
-											max={seatSummary.extraSeatsPurchased || undefined}
-											value={releaseQuantity}
+											min={"1"}
+											max={seatSummary.extraSeatsPurchased ? String(seatSummary.extraSeatsPurchased) : undefined}
+											value={String(releaseQuantity)}
 											onChange={(event) => {
 												const next = parseInt(event.target.value, 10);
 												if (Number.isNaN(next) || next < 1) {
@@ -925,7 +927,7 @@ export default function OrganizationPage() {
 	const availableNumbers = seatSummary?.phoneNumbers?.filter((pn) => pn.status === 'available').length ?? 0;
 	const totalNumbers = seatSummary?.phoneNumbers?.length ?? 0;
 
-	const renderPhoneSmsSummary = () => {
+const renderPhoneSmsSummary = () => {
 		if (!seatSummary) return null;
 
 		return (
@@ -936,9 +938,9 @@ export default function OrganizationPage() {
 							<PhoneCall className="h-5 w-5 text-gray-500" />
 							<h3 className="font-semibold">Phone &amp; SMS</h3>
 						</div>
-						<Button variant="outline" size="sm" onClick={() => navigate('/organization/phone-sms')}>
-							Manage Numbers
-						</Button>
+                        <Button variant="outline" size="sm" onClick={() => setActiveTab('phone-numbers')}>
+                            Manage Numbers
+                        </Button>
 					</div>
 				</CardHeader>
 				<CardContent className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
@@ -957,10 +959,14 @@ export default function OrganizationPage() {
 					{seatSummary.twilioSubaccountSid ? (
 						<div className="space-y-1 text-xs">
 							<p>
-								<strong>Twilio Subaccount:</strong> {seatSummary.twilioSubaccountSid}
+								<strong>Subaccount SID:</strong>
+								<br />
+								{seatSummary.twilioSubaccountSid}
 							</p>
 							<p>
-								<strong>Messaging Service:</strong> {seatSummary.twilioMessagingServiceSid ?? 'Not set'}
+								<strong>Messaging Service SID:</strong>
+								<br />
+								{seatSummary.twilioMessagingServiceSid ?? 'Not set'}
 							</p>
 						</div>
 					) : (
@@ -979,7 +985,7 @@ export default function OrganizationPage() {
 			<div className="container mx-auto px-4 py-8">
 				<div className="mb-8">
 					<h1 className="text-3xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
-					<div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
 						<div className="flex items-center gap-1">
 							<Building2 className="h-4 w-4" />
 							<span>Organization ID: {organization.id}</span>
@@ -990,7 +996,7 @@ export default function OrganizationPage() {
 						</div>
 						<div className="flex items-center gap-1">
 							<Calendar className="h-4 w-4" />
-							<span>Created {new Date(organization.createdAt).toLocaleDateString()}</span>
+                            <span>Created {new Date(String(organization.createdAt)).toLocaleDateString()}</span>
 						</div>
 					</div>
 				</div>
@@ -999,7 +1005,7 @@ export default function OrganizationPage() {
 				{releaseConfirmation}
 
 				<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-					<TabsList className="flex items-center justify-start gap-3 p-0">
+                    <TabsList className="flex items-center justify-start gap-3 p-0">
 						<Button
 							onClick={() => setActiveTab('overview')}
 							variant={activeTab === 'overview' ? 'default' : 'outline'}
@@ -1030,6 +1036,24 @@ export default function OrganizationPage() {
 							<MessageSquare className="h-4 w-4" />
 							<span>SMS Verification</span>
 						</Button>
+                        <Button
+                            onClick={() => setActiveTab('phone-numbers')}
+                            variant={activeTab === 'phone-numbers' ? 'default' : 'outline'}
+                            size="sm"
+                            className="flex items-center space-x-2"
+                        >
+                            <PhoneCall className="h-4 w-4" />
+                            <span>Phone Numbers</span>
+                        </Button>
+                        <Button
+                            onClick={() => setActiveTab('analytics')}
+                            variant={activeTab === 'analytics' ? 'default' : 'outline'}
+                            size="sm"
+                            className="flex items-center space-x-2"
+                        >
+                            <BarChart2 className="h-4 w-4" />
+                            <span>Analytics</span>
+                        </Button>
 					</TabsList>
 
 					<TabsContent value="overview" className="space-y-4">
@@ -1073,7 +1097,7 @@ export default function OrganizationPage() {
 								<CardContent>
 									<p className="mt-2 text-2xl font-bold">
 										{Math.floor(
-											(new Date().getTime() - new Date(organization.createdAt).getTime()) /
+                                            (new Date().getTime() - new Date(String(organization.createdAt)).getTime()) /
 												(1000 * 60 * 60 * 24 * 30)
 										)}
 									</p>
@@ -1083,6 +1107,68 @@ export default function OrganizationPage() {
 						</div>
 						{seatsCard}
 					</TabsContent>
+
+                    <TabsContent value="phone-numbers" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold">Phone Numbers</h3>
+                                    <div className="text-sm text-muted-foreground">
+                                        <strong>{assignedNumbers}</strong> numbers assigned to seats
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                {seatSummary?.phoneNumbers && seatSummary.phoneNumbers.length > 0 ? (
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Number</TableHead>
+                                                <TableHead>Status</TableHead>
+                                                <TableHead>Seat</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {seatSummary.phoneNumbers.map((n) => (
+                                                <TableRow key={n.id}>
+                                                    <TableCell>{n.phone_number}</TableCell>
+                                                    <TableCell className="capitalize">{n.status}</TableCell>
+                                                    <TableCell>
+                                                        {n.seat_id ? (
+                                                            (() => {
+                                                                const seat = seatSummary.seats.find((s) => s.id === n.seat_id);
+                                                                const first = seat?.profile?.first_name ?? '';
+                                                                const last = seat?.profile?.last_name ?? '';
+                                                                const name = `${first} ${last}`.trim();
+                                                                return name || n.seat_id;
+                                                            })()
+                                                        ) : (
+                                                            'Unassigned'
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">No phone numbers provisioned yet.</p>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="analytics" className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-semibold">Voice Usage Analytics</h3>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <OrganizationAnalytics orgId={organization.id} />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
 					<TabsContent value="team-members" className="space-y-4">
 						{isOwner && (

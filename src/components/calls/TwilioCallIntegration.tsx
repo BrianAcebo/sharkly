@@ -29,7 +29,7 @@ const TwilioCallIntegration: React.FC<TwilioCallIntegrationProps> = ({
     
     try {
       // Get the Twilio number from environment variable
-      const twilioNumber = import.meta.env.VITE_TWILIO_PHONE_NUMBER;
+      // Removed global fallback number; rely on seat assignment
       if (!twilioNumber) {
         throw new Error('Twilio phone number not configured');
       }

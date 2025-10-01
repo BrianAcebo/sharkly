@@ -18,6 +18,9 @@ import { CustomerPaymentMethodSummary, PlanCatalogRow } from '../../types/billin
 import { ArrowRight, ArrowLeft, CheckCircle, Users, Clock, Shield } from 'lucide-react';
 import { CreditCard as CreditCardIcon } from 'lucide-react';
 import { SiVisa, SiMastercard, SiAmericanexpress, SiDiscover, SiDinersclub, SiJcb } from 'react-icons/si';
+import BrandForm from '../sms/BrandForm';
+import CampaignForm from '../sms/CampaignForm';
+import TollFreeForm from '../sms/TollFreeForm';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 
@@ -48,7 +51,6 @@ interface PaymentFormProps {
   existingOrgId?: string | null;
   setupClientSecret?: string | null;
   useExistingPaymentMethod: boolean;
-  existingOrgStripeCustomerId?: string;
   preOnboarded?: boolean;
 }
 
@@ -93,7 +95,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   existingOrgId,
   setupClientSecret,
   useExistingPaymentMethod,
-  existingOrgStripeCustomerId
+  
 }) => {
   const stripe = useStripe();
   const elements = useElements();
@@ -149,19 +151,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
               : undefined);
         if (!pmId) { onError('No payment method created'); return; }
 
-        // Verify PM belongs to org's customer
-        // retrieve via REST to validate customer matches
-        try {
-          const resp = await fetch(`/api/stripe/payment-methods/${pmId}`);
-          if (resp.ok) {
-            const data = await resp.json();
-            const pmCustomer: string | null = data?.paymentMethod?.customer ?? null;
-            if (existingOrgStripeCustomerId && pmCustomer && pmCustomer !== existingOrgStripeCustomerId) {
-              onError('Card saved to a different customer. Please try again.');
-              return;
-            }
-          }
-        } catch { /* best-effort validation */ }
+        // Client-side no longer blocks when PM is on a different customer; backend will safely migrate it if allowed
 
         await onboard({ pmId, useExisting: false });
         toast.success('Payment method saved');
@@ -386,7 +376,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [setupSecret, setSetupSecret] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string>('');
-  const [preOnboarded, setPreOnboarded] = useState<boolean>(false);
+  const [preOnboarded] = useState<boolean>(false);
 
   const [orgName, setOrgName] = useState(
     existingOrganization?.name || user?.organization?.name || ''
@@ -616,38 +606,8 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
           // New card for renewal: only need SetupIntent
           await createSetupOnly();
         } else if (mode === 'new') {
-          // Pre-create org + subscription (default_incomplete) to get invoice PI client_secret
-          const {
-            data: { session }
-          } = await supabase.auth.getSession();
-          if (!session?.access_token) {
-            throw new Error('Not authenticated');
-          }
-          const resp = await fetch('/api/billing/orgs/onboard', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({
-              name: orgName,
-              planCode: selectedPlan.plan_code,
-              trialDays: trialSelected ? 7 : 0,
-              website: '',
-              industry: '',
-              ein: '',
-              tz: 'America/New_York',
-              address: { street: '', city: '', state: '', zip: '', country: 'US' },
-              useExistingPaymentMethod: false
-            })
-          });
-          if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            throw new Error(err.error || err.message || 'Failed to start subscription');
-          }
-          const data = await resp.json();
-          if (data?.subscriptionClientSecret) {
-            setClientSecret(data.subscriptionClientSecret);
-            setPreOnboarded(true);
-          }
-          if (data?.org?.id) setOrgId(data.org.id);
+          // For new orgs, ALWAYS collect a payment method first (via SetupIntent)
+          await createSetupOnly();
         } else {
           // Renewal using saved card path - no client-side intent required
         }
@@ -912,13 +872,17 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                   existingOrgId={existingOrganization?.id || null}
                   setupClientSecret={(setupSecret ?? '')}
                   useExistingPaymentMethod={useExistingPaymentMethod}
-                  existingOrgStripeCustomerId={existingOrganization?.stripe_customer_id || undefined}
                   preOnboarded={preOnboarded}
                 />
               </Elements>
             ) : (
-              <div className="rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-200">
-                Preparing payment session...
+              <div className="space-y-3">
+                <div className="rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-200">
+                  Preparing payment session...
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  If this takes too long, go back and reselect your plan or try again.
+                </div>
               </div>
             )}
           </div>

@@ -17,6 +17,7 @@ export interface SeatAssignment {
 	user_id: string | null;
 	status: string;
 	created_at: string;
+  profile?: { first_name?: string | null; last_name?: string | null; email?: string | null } | null;
 }
 
 export interface SeatSummaryNextPlan {

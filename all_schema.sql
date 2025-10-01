@@ -1,509 +1,122 @@
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
-
-CREATE TABLE public.addon_catalog (
-  addon_code text NOT NULL,
-  name text NOT NULL,
-  unit text,
-  price_cents integer NOT NULL,
-  stripe_price_id text NOT NULL,
-  billing_mode text NOT NULL,
-  CONSTRAINT addon_catalog_pkey PRIMARY KEY (addon_code)
-);
-CREATE TABLE public.agent_phone_numbers (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  agent_id uuid NOT NULL,
-  phone_number text NOT NULL UNIQUE,
-  twilio_sid text NOT NULL,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT agent_phone_numbers_pkey PRIMARY KEY (id),
-  CONSTRAINT agent_phone_numbers_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.call_history (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  twilio_call_sid character varying NOT NULL UNIQUE,
-  call_direction character varying NOT NULL CHECK (call_direction::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying]::text[])),
-  from_number character varying NOT NULL,
-  to_number character varying NOT NULL,
-  agent_id uuid,
-  organization_id uuid,
-  lead_id uuid,
-  call_status character varying NOT NULL DEFAULT 'initiated'::character varying CHECK (call_status::text = ANY (ARRAY['initiated'::character varying, 'ringing'::character varying, 'answered'::character varying, 'completed'::character varying, 'busy'::character varying, 'no-answer'::character varying, 'failed'::character varying, 'canceled'::character varying]::text[])),
-  call_duration integer DEFAULT 0,
-  call_start_time timestamp with time zone,
-  call_end_time timestamp with time zone,
-  call_quality_score numeric,
-  recording_url text,
-  recording_duration integer,
-  twilio_price numeric,
-  twilio_price_unit character varying DEFAULT 'USD'::character varying,
-  call_notes text,
-  call_tags ARRAY,
-  call_outcome character varying CHECK (call_outcome::text = ANY (ARRAY['successful'::character varying, 'no-answer'::character varying, 'busy'::character varying, 'failed'::character varying, 'voicemail'::character varying, 'callback-requested'::character varying, 'not-interested'::character varying]::text[])),
-  follow_up_required boolean DEFAULT false,
-  follow_up_date date,
-  follow_up_notes text,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT call_history_pkey PRIMARY KEY (id),
-  CONSTRAINT call_history_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id),
-  CONSTRAINT call_history_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES auth.users(id),
-  CONSTRAINT call_history_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.communications (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  lead_id uuid NOT NULL,
-  type character varying NOT NULL CHECK (type::text = ANY (ARRAY['email'::character varying, 'text'::character varying, 'call'::character varying]::text[])),
-  direction character varying NOT NULL CHECK (direction::text = ANY (ARRAY['inbound'::character varying, 'outbound'::character varying]::text[])),
-  subject character varying,
-  content text NOT NULL,
-  timestamp timestamp with time zone DEFAULT now(),
-  duration integer,
-  status character varying DEFAULT 'sent'::character varying CHECK (status::text = ANY (ARRAY['sent'::character varying, 'delivered'::character varying, 'read'::character varying, 'failed'::character varying]::text[])),
-  created_by uuid NOT NULL,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  organization_id uuid,
-  user_id uuid,
-  CONSTRAINT communications_pkey PRIMARY KEY (id),
-  CONSTRAINT communications_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
-  CONSTRAINT communications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT communications_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT communications_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id)
-);
-CREATE TABLE public.invoice_snapshots (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  stripe_invoice_id text,
-  period_start timestamp with time zone,
-  period_end timestamp with time zone,
-  items jsonb,
-  subtotal_cents integer,
-  tax_cents integer,
-  total_cents integer,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT invoice_snapshots_pkey PRIMARY KEY (id),
-  CONSTRAINT invoice_snapshots_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.leads (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name character varying NOT NULL,
-  email character varying NOT NULL,
-  phone character varying,
-  company character varying,
-  stage character varying NOT NULL DEFAULT 'new'::character varying CHECK (stage::text = ANY (ARRAY['new'::character varying, 'contacted'::character varying, 'qualified'::character varying, 'proposal'::character varying, 'closed-won'::character varying, 'closed-lost'::character varying]::text[])),
-  value numeric DEFAULT 0,
-  title character varying,
-  description text,
-  category character varying,
-  status character varying DEFAULT 'active'::character varying CHECK (status::text = ANY (ARRAY['active'::character varying, 'in_progress'::character varying, 'closed'::character varying]::text[])),
-  priority character varying DEFAULT 'low'::character varying CHECK (priority::text = ANY (ARRAY['low'::character varying, 'medium'::character varying, 'high'::character varying, 'critical'::character varying]::text[])),
-  tags ARRAY DEFAULT '{}'::text[],
-  last_contact date,
-  notes text,
-  organization_id uuid,
-  assigned_to uuid,
-  created_by uuid NOT NULL,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT leads_pkey PRIMARY KEY (id),
-  CONSTRAINT leads_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES auth.users(id),
-  CONSTRAINT leads_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id),
-  CONSTRAINT leads_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.notifications (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  organization_id uuid,
-  title text,
-  message text,
-  type text NOT NULL DEFAULT 'general'::text,
-  priority text NOT NULL DEFAULT 'medium'::text,
-  action_url text,
-  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-  read boolean NOT NULL DEFAULT false,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  read_at timestamp with time zone,
-  reminder_id uuid,
-  shown boolean,
-  CONSTRAINT notifications_pkey PRIMARY KEY (id),
-  CONSTRAINT notifications_reminder_id_fkey FOREIGN KEY (reminder_id) REFERENCES public.task_reminders(id)
-);
-CREATE TABLE public.org_suspensions (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  kind text NOT NULL,
-  reason text,
-  requested_by uuid,
-  effective_at timestamp with time zone NOT NULL DEFAULT now(),
-  resolved_at timestamp with time zone,
-  CONSTRAINT org_suspensions_pkey PRIMARY KEY (id),
-  CONSTRAINT org_suspensions_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.organization_invites (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  email character varying NOT NULL,
-  role character varying NOT NULL,
-  organization_id uuid NOT NULL,
-  invited_by uuid NOT NULL,
-  status character varying DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'accepted'::character varying, 'expired'::character varying, 'cancelled'::character varying]::text[])),
-  created_at timestamp with time zone DEFAULT now(),
-  expires_at timestamp with time zone DEFAULT (now() + '7 days'::interval),
-  CONSTRAINT organization_invites_pkey PRIMARY KEY (id),
-  CONSTRAINT organization_invites_invited_by_fkey1 FOREIGN KEY (invited_by) REFERENCES public.profiles(id),
-  CONSTRAINT organization_invites_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT organization_invites_invited_by_fkey FOREIGN KEY (invited_by) REFERENCES auth.users(id)
-);
-CREATE TABLE public.organizations (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  name character varying NOT NULL,
-  owner_id uuid NOT NULL,
-  max_seats integer DEFAULT 10,
-  status character varying DEFAULT 'active'::character varying CHECK (status::text = ANY (ARRAY['active'::character varying, 'inactive'::character varying, 'pending'::character varying]::text[])),
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  website text,
-  industry text,
-  ein text,
-  address_street text,
-  address_city text,
-  address_state text,
-  address_zip text,
-  address_country text,
-  stripe_customer_id text UNIQUE,
-  stripe_subscription_id text,
-  stripe_status text,
-  stripe_collection_method text,
-  stripe_latest_invoice_id text,
-  stripe_latest_invoice_status text,
-  stripe_subscription_status_reason text,
-  stripe_subscription_metadata jsonb,
-  stripe_pause_collection jsonb,
-  org_status text DEFAULT 'active'::text,
-  plan_code text DEFAULT 'starter'::text,
-  plan_price_cents integer DEFAULT 12900,
-  included_seats integer DEFAULT 1,
-  included_minutes integer DEFAULT 500,
-  included_sms integer DEFAULT 200,
-  included_emails integer DEFAULT 1000,
-  current_period_start timestamp with time zone,
-  current_period_end timestamp with time zone,
-  trial_end timestamp with time zone,
-  trial_ending_soon boolean DEFAULT false,
-  cancel_at_period_end boolean,
-  payment_action_required boolean DEFAULT false,
-  payment_retry_count integer DEFAULT 0,
-  next_payment_retry_at timestamp with time zone,
-  last_payment_failed_at timestamp with time zone,
-  payment_failure_reason text,
-  dunning_enabled boolean DEFAULT false,
-  twilio_subaccount_sid text,
-  vapi_assistant_id text,
-  tz text DEFAULT 'America/New_York'::text,
-  trusthub_profile_sid text,
-  a2p_campaign_id text,
-  a2p_campaign_status text,
-  a2p_campaign_reject_reason text,
-  tollfree_verification_status text,
-  tollfree_reject_reason text,
-  CONSTRAINT organizations_pkey PRIMARY KEY (id),
-  CONSTRAINT organizations_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.plan_catalog (
-  plan_code text NOT NULL,
-  name text NOT NULL,
-  base_price_cents integer NOT NULL,
-  included_seats integer NOT NULL,
-  included_minutes integer NOT NULL,
-  included_sms integer NOT NULL,
-  included_emails integer NOT NULL,
-  stripe_price_id text NOT NULL,
-  created_at timestamp with time zone DEFAULT now(),
-  active boolean DEFAULT true,
-  env text DEFAULT 'test'::text CHECK (env = ANY (ARRAY['test'::text, 'live'::text])),
-  CONSTRAINT plan_catalog_pkey PRIMARY KEY (plan_code)
-);
-CREATE TABLE public.profiles (
-  id uuid NOT NULL,
-  first_name text,
-  last_name text,
-  completed_onboarding boolean,
-  avatar text,
-  title text DEFAULT ''::text,
-  bio text DEFAULT ''::text,
-  phone text DEFAULT ''::text,
-  location text DEFAULT ''::text,
-  CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.seat_events (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  seat_id uuid,
-  action text NOT NULL,
-  reason text,
-  delta integer NOT NULL,
-  stripe_item_id text,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT seat_events_pkey PRIMARY KEY (id),
-  CONSTRAINT seat_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id),
-  CONSTRAINT seat_events_seat_id_fkey FOREIGN KEY (seat_id) REFERENCES public.seats(id)
-);
-CREATE TABLE public.seats (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  user_id uuid,
-  phone_sid text,
-  phone_e164 text,
-  status text NOT NULL DEFAULT 'active'::text,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT seats_pkey PRIMARY KEY (id),
-  CONSTRAINT seats_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.sms_brand_profile (
-  org_id uuid NOT NULL,
-  legal_name text NOT NULL,
-  business_type text NOT NULL,
-  ein text NOT NULL,
-  website text NOT NULL,
-  industry text NOT NULL,
-  addr_street text NOT NULL,
-  addr_city text NOT NULL,
-  addr_state text NOT NULL,
-  addr_zip text NOT NULL,
-  addr_country text NOT NULL,
-  contact_name text NOT NULL,
-  contact_email text NOT NULL,
-  contact_phone text NOT NULL,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT sms_brand_profile_pkey PRIMARY KEY (org_id),
-  CONSTRAINT sms_brand_profile_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.sms_campaign_profile (
-  org_id uuid NOT NULL,
-  use_case_description text NOT NULL,
-  opt_in_method text NOT NULL,
-  sample_msg_1 text NOT NULL,
-  sample_msg_2 text NOT NULL,
-  opt_out_text text NOT NULL,
-  help_text text NOT NULL,
-  terms_url text NOT NULL,
-  privacy_url text NOT NULL,
-  est_monthly_messages integer NOT NULL,
-  countries ARRAY NOT NULL DEFAULT '{US}'::text[],
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT sms_campaign_profile_pkey PRIMARY KEY (org_id),
-  CONSTRAINT sms_campaign_profile_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.sms_messages (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  agent_id uuid NOT NULL,
-  phone_number text NOT NULL,
-  to_number text NOT NULL,
-  from_number text NOT NULL,
-  direction text NOT NULL CHECK (direction = ANY (ARRAY['inbound'::text, 'outbound'::text])),
-  body text,
-  status text,
-  twilio_sid text UNIQUE,
-  created_at timestamp with time zone DEFAULT now(),
-  lead_id uuid,
-  archived boolean,
-  CONSTRAINT sms_messages_pkey PRIMARY KEY (id),
-  CONSTRAINT sms_messages_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id),
-  CONSTRAINT sms_messages_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.subscription_ledger (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  stripe_subscription_id text,
-  event text NOT NULL,
-  from_plan text,
-  to_plan text,
-  proration_cents integer DEFAULT 0,
-  raw jsonb,
-  occurred_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT subscription_ledger_pkey PRIMARY KEY (id),
-  CONSTRAINT subscription_ledger_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.task_reminders (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  task_id uuid NOT NULL,
-  reminder_time timestamp with time zone NOT NULL,
-  status character varying DEFAULT 'pending'::character varying CHECK (TRIM(BOTH FROM lower(status::text)) = ANY (ARRAY['pending'::text, 'delivered'::text, 'canceled'::text])),
-  notification_type character varying DEFAULT 'browser'::character varying CHECK (notification_type::text = ANY (ARRAY['browser'::character varying, 'email'::character varying, 'both'::character varying]::text[])),
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT task_reminders_pkey PRIMARY KEY (id),
-  CONSTRAINT task_reminders_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.tasks(id)
-);
-CREATE TABLE public.tasks (
-  id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  title character varying NOT NULL,
-  description text,
-  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'in_progress'::character varying, 'completed'::character varying]::text[])),
-  priority character varying NOT NULL DEFAULT 'medium'::character varying CHECK (priority::text = ANY (ARRAY['urgent'::character varying, 'high'::character varying, 'medium'::character varying, 'low'::character varying]::text[])),
-  type character varying NOT NULL DEFAULT 'general'::character varying CHECK (type::text = ANY (ARRAY['follow_up'::character varying, 'call'::character varying, 'email'::character varying, 'meeting'::character varying, 'proposal'::character varying, 'general'::character varying]::text[])),
-  due_date timestamp with time zone NOT NULL,
-  reminder_enabled boolean DEFAULT false,
-  lead_id uuid,
-  lead_name character varying,
-  organization_id uuid NOT NULL,
-  owner_id uuid NOT NULL,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  reminder_time timestamp with time zone,
-  due_timezone text NOT NULL DEFAULT 'UTC'::text,
-  CONSTRAINT tasks_pkey PRIMARY KEY (id),
-  CONSTRAINT tasks_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES public.profiles(id),
-  CONSTRAINT tasks_lead_id_fkey FOREIGN KEY (lead_id) REFERENCES public.leads(id),
-  CONSTRAINT tasks_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.team_members (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  organization_id uuid NOT NULL,
-  role text NOT NULL DEFAULT 'member'::text CHECK (role = ANY (ARRAY['owner'::text, 'admin'::text, 'member'::text])),
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT team_members_pkey PRIMARY KEY (id),
-  CONSTRAINT team_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
-  CONSTRAINT team_members_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.usage_events (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  seat_id uuid,
-  category text NOT NULL,
-  unit text NOT NULL,
-  qty numeric NOT NULL,
-  provider text,
-  raw_cost_cents integer,
-  occurred_at timestamp with time zone NOT NULL DEFAULT now(),
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT usage_events_pkey PRIMARY KEY (id),
-  CONSTRAINT usage_events_seat_id_fkey FOREIGN KEY (seat_id) REFERENCES public.seats(id),
-  CONSTRAINT usage_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.usage_period_rollups (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  period_start timestamp with time zone NOT NULL,
-  period_end timestamp with time zone NOT NULL,
-  minutes_total numeric NOT NULL DEFAULT 0,
-  sms_total numeric NOT NULL DEFAULT 0,
-  emails_total numeric NOT NULL DEFAULT 0,
-  minutes_overage numeric NOT NULL DEFAULT 0,
-  sms_overage numeric NOT NULL DEFAULT 0,
-  emails_overage numeric NOT NULL DEFAULT 0,
-  stripe_usage_push_status text DEFAULT 'pending'::text,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT usage_period_rollups_pkey PRIMARY KEY (id),
-  CONSTRAINT usage_period_rollups_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.user_notification_settings (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  organization_id uuid NOT NULL,
-  browser_notifications boolean DEFAULT true,
-  email_notifications boolean DEFAULT true,
-  push_notifications boolean DEFAULT true,
-  reminder_advance_minutes integer DEFAULT 15,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT user_notification_settings_pkey PRIMARY KEY (id),
-  CONSTRAINT user_notification_settings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT user_notification_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.user_organizations (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid,
-  organization_id uuid,
-  role character varying DEFAULT 'member'::character varying,
-  created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT user_organizations_pkey PRIMARY KEY (id),
-  CONSTRAINT user_organizations_user_id_fkey1 FOREIGN KEY (user_id) REFERENCES public.profiles(id),
-  CONSTRAINT user_organizations_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT user_organizations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
-);
-CREATE TABLE public.user_phone_numbers (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  organization_id uuid NOT NULL,
-  phone_number text UNIQUE,
-  area_code character varying,
-  provider text DEFAULT 'twilio'::text,
-  is_active boolean DEFAULT true,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  twilio_number_sid text,
-  messaging_service_sid text,
-  e164 text CHECK (e164 IS NULL OR e164 ~ '^\+[1-9][0-9]{6,14}$'::text),
-  country text,
-  capabilities ARRAY,
-  status text DEFAULT 'active'::text,
-  purchased_at timestamp with time zone DEFAULT now(),
-  voice_webhook_url text,
-  sms_webhook_url text,
-  assigned_at timestamp with time zone,
-  released_at timestamp with time zone,
-  CONSTRAINT user_phone_numbers_pkey PRIMARY KEY (id),
-  CONSTRAINT user_phone_numbers_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id),
-  CONSTRAINT user_phone_numbers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id)
-);
-CREATE TABLE public.stripe_subscription_snapshots (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  stripe_subscription_id text NOT NULL,
-  stripe_customer_id text,
-  event_type text NOT NULL,
-  status text,
-  collection_method text,
-  current_period_start timestamp with time zone,
-  current_period_end timestamp with time zone,
-  trial_end timestamp with time zone,
-  cancel_at timestamp with time zone,
-  cancel_at_period_end boolean,
-  default_payment_method_id text,
-  raw_payload jsonb NOT NULL,
-  received_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT stripe_subscription_snapshots_pkey PRIMARY KEY (id),
-  CONSTRAINT stripe_subscription_snapshots_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.stripe_invoices (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  stripe_invoice_id text NOT NULL,
-  stripe_customer_id text,
-  status text,
-  hosted_invoice_url text,
-  invoice_pdf text,
-  currency text,
-  subtotal integer,
-  tax integer,
-  total integer,
-  amount_due integer,
-  amount_paid integer,
-  amount_remaining integer,
-  period_start timestamp with time zone,
-  period_end timestamp with time zone,
-  created_at timestamp with time zone DEFAULT now(),
-  finalized_at timestamp with time zone,
-  paid_at timestamp with time zone,
-  raw_payload jsonb NOT NULL,
-  CONSTRAINT stripe_invoices_pkey PRIMARY KEY (id),
-  CONSTRAINT stripe_invoices_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
-CREATE TABLE public.payment_failure_events (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  org_id uuid NOT NULL,
-  stripe_invoice_id text,
-  error_message text,
-  retry_count integer,
-  occurred_at timestamp with time zone DEFAULT now(),
-  raw_payload jsonb,
-  CONSTRAINT payment_failure_events_pkey PRIMARY KEY (id),
-  CONSTRAINT payment_failure_events_org_id_fkey FOREIGN KEY (org_id) REFERENCES public.organizations(id)
-);
+[
+  {
+    "schema": "public",
+    "function": "calculate_call_duration",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.calculate_call_duration()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    -- Calculate duration if both start and end times are present\n    IF NEW.call_start_time IS NOT NULL AND NEW.call_end_time IS NOT NULL THEN\n        NEW.call_duration = EXTRACT(EPOCH FROM (NEW.call_end_time - NEW.call_start_time))::INTEGER;\n    END IF;\n    \n    RETURN NEW;\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "calculate_usage_cost",
+    "args": "p_service_type character varying, p_country_code character varying, p_pricing_type character varying, p_units numeric, p_organization_id uuid",
+    "definition": "CREATE OR REPLACE FUNCTION public.calculate_usage_cost(p_service_type character varying, p_country_code character varying, p_pricing_type character varying, p_units numeric, p_organization_id uuid DEFAULT NULL::uuid)\n RETURNS TABLE(twilio_cost numeric, markup_amount numeric, total_cost numeric, markup_percentage numeric)\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n  v_unit_cost DECIMAL(10,6);\n  v_markup DECIMAL(5,2) := 20.00;   -- default markup\nBEGIN\n  -- Built-in default voice rates (USD/min) compatible with our code paths\n  IF p_service_type ILIKE 'voice_tollfree%' THEN\n    v_unit_cost := CASE LOWER(p_pricing_type)\n      WHEN 'inbound'  THEN 0.0220\n      ELSE                0.0140\n    END;\n  ELSE\n    v_unit_cost := CASE LOWER(p_pricing_type)\n      WHEN 'inbound'  THEN 0.0085\n      ELSE                0.0140\n    END;\n  END IF;\n\n  -- Optional: override markup from billing_settings if present\n  IF p_organization_id IS NOT NULL THEN\n    BEGIN\n      SELECT default_markup_percentage INTO v_markup\n      FROM public.billing_settings\n      WHERE organization_id = p_organization_id;\n    EXCEPTION WHEN OTHERS THEN\n      -- keep default v_markup\n    END;\n  END IF;\n\n  RETURN QUERY SELECT\n    (p_units * v_unit_cost) AS twilio_cost,\n    (p_units * v_unit_cost * v_markup / 100.0) AS markup_amount,\n    (p_units * v_unit_cost * (1 + v_markup / 100.0)) AS total_cost,\n    v_markup::DECIMAL(5,2) AS markup_percentage;\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "cleanup_old_notifications",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.cleanup_old_notifications()\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    DELETE FROM notifications \n    WHERE created_at < NOW() - INTERVAL '90 days';\n    \n    RAISE NOTICE 'Cleaned up notifications older than 90 days';\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "create_automatic_notification",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.create_automatic_notification()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    -- Only create notification if lead is assigned to an agent\n    IF NEW.assigned_to IS NOT NULL THEN\n        -- Create notification for the assigned agent\n        INSERT INTO notifications (\n            user_id,\n            organization_id,\n            title,\n            message,\n            type,\n            priority,\n            metadata,\n            read,\n            shown,\n            created_at\n        ) VALUES (\n            NEW.assigned_to,  -- Use assigned_to instead of owner_id\n            NEW.organization_id,\n            'New Lead Assigned',\n            'You have been assigned a new lead: ' || COALESCE(NEW.first_name || ' ' || NEW.last_name, NEW.company_name, 'Unknown Lead'),\n            'lead_assignment',\n            'medium',\n            jsonb_build_object(\n                'lead_id', NEW.id,\n                'lead_name', COALESCE(NEW.first_name || ' ' || NEW.last_name, NEW.company_name, 'Unknown Lead'),\n                'lead_phone', NEW.phone_number,\n                'lead_email', NEW.email\n            ),\n            false,\n            false,\n            now()\n        );\n    END IF;\n    \n    RETURN NEW;\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "create_organization_with_admin",
+    "args": "org_name text, max_seats integer, owner_id uuid",
+    "definition": "CREATE OR REPLACE FUNCTION public.create_organization_with_admin(org_name text, max_seats integer, owner_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nDECLARE\n  org_id UUID;\nBEGIN\n  -- Create organization\n  INSERT INTO organizations (name, max_seats, owner_id, status)\n  VALUES (org_name, max_seats, owner_id, 'pending')\n  RETURNING id INTO org_id;\n\n  -- Add owner as admin investigator\n  INSERT INTO investigators (profile_id, organization_id, role)\n  VALUES (owner_id, org_id, 'admin');\n\n  RETURN org_id;\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "create_task_reminder",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.create_task_reminder()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\n   BEGIN\n       -- If reminder is enabled and reminder_time is provided, create a reminder\n       IF NEW.reminder_enabled = true AND NEW.reminder_time IS NOT NULL THEN\n           -- Delete any existing reminders for this task\n           DELETE FROM task_reminders WHERE task_id = NEW.id;\n           \n           -- Create a new reminder at the specified time\n           INSERT INTO task_reminders (task_id, reminder_time, notification_type)\n           VALUES (NEW.id, NEW.reminder_time, 'browser');\n       END IF;\n       \n       RETURN NEW;\n   END;\n   $function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "create_task_with_reminders",
+    "args": "_owner uuid, _organization uuid, _title text, _description text, _due_at timestamp with time zone, _due_timezone text, _offsets_minutes integer[]",
+    "definition": "CREATE OR REPLACE FUNCTION public.create_task_with_reminders(_owner uuid, _organization uuid, _title text, _description text, _due_at timestamp with time zone, _due_timezone text, _offsets_minutes integer[])\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  _task_id uuid := gen_random_uuid();\nbegin\n  insert into public.tasks (\n    id, title, description, status, priority, type,\n    due_date, due_timezone, owner_id, organization_id,\n    created_at, updated_at\n  ) values (\n    _task_id, _title, _description, 'pending', 'medium', 'general',\n    _due_at, _due_timezone, _owner, _organization, now(), now()\n  );\n\n  -- Build offsets = user offsets U {0}, de-duped\n  with offs as (\n    select unnest(coalesce(_offsets_minutes, '{}'))::int as o\n  ),\n  all_offs as (\n    select 0 as o\n    union\n    select distinct o from offs\n  )\n  insert into public.task_reminders (\n    id, task_id, reminder_time, status, notification_type, created_at, updated_at\n  )\n  select\n    gen_random_uuid(),\n    _task_id,\n    _due_at - make_interval(mins => o),\n    'pending',\n    'browser',\n    now(),\n    now()\n  from all_offs\n  on conflict do nothing;  -- relies on unique index above for dedupe\n\n  return _task_id;\nend;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "deliver_due_task_reminders",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.deliver_due_task_reminders()\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  _now timestamptz := now();\nbegin\n  with due as (\n    select\n      r.id              as reminder_id,\n      r.task_id,\n      r.reminder_time,\n      t.title,\n      t.due_date,\n      t.owner_id        as user_id,\n      t.organization_id as organization_id\n    from public.task_reminders r\n    join public.tasks t on t.id = r.task_id\n    where trim(lower(r.status)) = 'pending'\n      and r.reminder_time <= _now\n    for update of r skip locked\n  ),\n  unsent as (\n    select d.*\n    from due d\n    left join public.notifications n on n.reminder_id = d.reminder_id\n    where n.reminder_id is null\n  ),\n  ins as (\n    insert into public.notifications (\n      id, user_id, organization_id, title, message, type, priority,\n      action_url, metadata, created_at, reminder_id\n    )\n    select\n      gen_random_uuid(),\n      u.user_id,\n      u.organization_id,\n      coalesce(u.title, 'Task Reminder') as title,\n\n      -- -------- friendly message (no 'overdue') --------\n      case\n        when _now >= u.due_date then\n          format('\"%s\" is due now', coalesce(u.title,'Task'))\n        else\n          case\n            when (extract(epoch from (u.due_date - u.reminder_time)) / 60)::int = 1440 then\n              format('\"%s\" is due in 1 day', coalesce(u.title,'Task'))\n            when (extract(epoch from (u.due_date - u.reminder_time)) / 3600)::int >= 2\n                 and (extract(epoch from (u.due_date - u.reminder_time)) % 3600) = 0 then\n              format('\"%s\" is due in %s hours',\n                     coalesce(u.title,'Task'),\n                     (extract(epoch from (u.due_date - u.reminder_time)) / 3600)::int)\n            when (extract(epoch from (u.due_date - u.reminder_time)) / 60)::int = 60 then\n              format('\"%s\" is due in 1 hr', coalesce(u.title,'Task'))\n            when (extract(epoch from (u.due_date - u.reminder_time)) / 60)::int in (30,15,10,5) then\n              format('\"%s\" is due in %s mins',\n                     coalesce(u.title,'Task'),\n                     (extract(epoch from (u.due_date - u.reminder_time)) / 60)::int)\n            else\n              format('\"%s\" is due soon', coalesce(u.title,'Task'))\n          end\n      end as message,\n      -- -------------------------------------------------\n\n      'task_reminder',\n      'medium',\n      null,\n      jsonb_build_object(\n        'task_id', u.task_id,\n        'reminder_time', u.reminder_time,\n        'due_date', u.due_date,\n        'offset_minutes', (extract(epoch from (u.due_date - u.reminder_time)) / 60)::int\n      ),\n      now(),\n      u.reminder_id\n    from unsent u\n    on conflict (reminder_id) where reminder_id is not null do nothing\n    returning reminder_id\n  )\n  -- Mark newly notified reminders as delivered\n  update public.task_reminders r\n  set status = 'delivered', updated_at = now()\n  where r.id in (select reminder_id from ins);\n\n  -- Self-heal: if due & pending but already had a notification, mark delivered\n  update public.task_reminders r\n  set status = 'delivered', updated_at = now()\n  where trim(lower(r.status)) = 'pending'\n    and r.reminder_time <= _now\n    and exists (select 1 from public.notifications n where n.reminder_id = r.id);\nend;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "get_due_reminders",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.get_due_reminders()\n RETURNS TABLE(id uuid, task_id uuid, task_title text, due_date timestamp with time zone, reminder_time timestamp with time zone)\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nBEGIN\n    RETURN QUERY\n    SELECT \n        tr.id,\n        tr.task_id,\n        CAST(t.title AS TEXT) as task_title,  -- This fixes the type mismatch\n        t.due_date,\n        tr.reminder_time\n    FROM task_reminders tr\n    JOIN tasks t ON tr.task_id = t.id\n    WHERE tr.status = 'pending' \n    AND tr.reminder_time <= NOW()\n    AND t.status != 'completed';\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "handle_new_user",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nBEGIN\n    -- ONLY create a profile - nothing else\n    INSERT INTO public.profiles (id)\n    VALUES (NEW.id);\n    \n    RETURN NEW;\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "handle_task_reminders",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.handle_task_reminders()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nBEGIN\n    -- When a task reminder is created, schedule the notification\n    IF TG_OP = 'INSERT' THEN\n        -- The reminder service will poll this table and create notifications\n        -- This trigger just ensures the reminder is properly recorded\n        RAISE NOTICE 'Task reminder scheduled for task % at %', NEW.task_id, NEW.reminder_time;\n    END IF;\n    \n    RETURN NEW;\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "is_organization_owner",
+    "args": "org_id uuid",
+    "definition": "CREATE OR REPLACE FUNCTION public.is_organization_owner(org_id uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\nBEGIN\n    RETURN EXISTS (\n        SELECT 1 FROM organizations \n        WHERE id = org_id AND owner_id = auth.uid()\n    );\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "regenerate_task_reminders",
+    "args": "_task_id uuid, _offsets_minutes integer[]",
+    "definition": "CREATE OR REPLACE FUNCTION public.regenerate_task_reminders(_task_id uuid, _offsets_minutes integer[])\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\ndeclare\n  _due timestamptz;\nbegin\n  select due_date into _due from public.tasks where id = _task_id;\n  if _due is null then\n    raise exception 'Task % not found or has no due_date', _task_id;\n  end if;\n\n  delete from public.task_reminders\n  where task_id = _task_id\n    and trim(lower(status)) = 'pending';\n\n  insert into public.task_reminders (id, task_id, reminder_time, status, notification_type, created_at, updated_at)\n  select gen_random_uuid(), _task_id, _due - make_interval(mins => o), 'pending', 'browser', now(), now()\n  from unnest(_offsets_minutes) as o;\nend;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "set_updated_at",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nbegin\n  new.updated_at = now();\n  return new;\nend;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "touch_usage_overage_catalog_updated_at",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.touch_usage_overage_catalog_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n  NEW.updated_at := now();\n  RETURN NEW;\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "update_call_history_updated_at",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.update_call_history_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "update_monthly_billing",
+    "args": "p_organization_id uuid, p_billing_month date",
+    "definition": "CREATE OR REPLACE FUNCTION public.update_monthly_billing(p_organization_id uuid, p_billing_month date)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n  v_voice_minutes DECIMAL(8,2) := 0.00;\n  v_voice_cost DECIMAL(10,2) := 0.00;\n  v_total DECIMAL(10,2) := 0.00;\nBEGIN\n  SELECT \n    COALESCE(SUM(call_duration_minutes), 0.00),\n    COALESCE(SUM(total_cost), 0.00)\n  INTO v_voice_minutes, v_voice_cost\n  FROM public.voice_usage\n  WHERE organization_id = p_organization_id\n    AND DATE_TRUNC('month', usage_date) = DATE_TRUNC('month', p_billing_month);\n\n  v_total := v_voice_cost;\n\n  INSERT INTO public.monthly_billing (\n    organization_id, billing_month, voice_minutes, voice_cost, total_cost\n  )\n  VALUES (\n    p_organization_id, p_billing_month, v_voice_minutes, v_voice_cost, v_total\n  )\n  ON CONFLICT (organization_id, billing_month) DO UPDATE\n  SET voice_minutes = EXCLUDED.voice_minutes,\n      voice_cost    = EXCLUDED.voice_cost,\n      total_cost    = EXCLUDED.total_cost,\n      updated_at    = NOW();\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "update_task_and_regenerate_reminders",
+    "args": "_task_id uuid, _new_due timestamp with time zone, _due_timezone text, _offsets_minutes integer[], _title text, _description text, _priority text, _status text, _type text",
+    "definition": "CREATE OR REPLACE FUNCTION public.update_task_and_regenerate_reminders(_task_id uuid, _new_due timestamp with time zone, _due_timezone text, _offsets_minutes integer[], _title text DEFAULT NULL::text, _description text DEFAULT NULL::text, _priority text DEFAULT NULL::text, _status text DEFAULT NULL::text, _type text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  -- Update task metadata\n  update public.tasks\n  set\n    due_date     = coalesce(_new_due, due_date),\n    due_timezone = coalesce(_due_timezone, due_timezone),\n    title        = coalesce(_title, title),\n    description  = coalesce(_description, description),\n    priority     = coalesce(_priority, priority),\n    status       = coalesce(_status, status),\n    type         = coalesce(_type, type),\n    updated_at   = now()\n  where id = _task_id;\n\n  -- Remove existing *pending* reminders (keep delivered history)\n  delete from public.task_reminders\n  where task_id = _task_id\n    and trim(lower(status)) = 'pending';\n\n  -- Recreate reminders = user offsets U {0}, de-duped\n  with offs as (\n    select unnest(coalesce(_offsets_minutes, '{}'))::int as o\n  ),\n  all_offs as (\n    select 0 as o\n    union\n    select distinct o from offs\n  )\n  insert into public.task_reminders (\n    id, task_id, reminder_time, status, notification_type, created_at, updated_at\n  )\n  select\n    gen_random_uuid(),\n    _task_id,\n    _new_due - make_interval(mins => o),\n    'pending',\n    'browser',\n    now(),\n    now()\n  from all_offs\n  on conflict do nothing;  -- unique index prevents dup pending rows\nend;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "update_task_and_regenerate_reminders",
+    "args": "_task_id uuid, _new_due timestamp with time zone, _offsets_minutes integer[], _title text, _description text, _priority text, _status text, _type text",
+    "definition": "CREATE OR REPLACE FUNCTION public.update_task_and_regenerate_reminders(_task_id uuid, _new_due timestamp with time zone, _offsets_minutes integer[], _title text DEFAULT NULL::text, _description text DEFAULT NULL::text, _priority text DEFAULT NULL::text, _status text DEFAULT NULL::text, _type text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\nbegin\n  -- 1) Update the task fields (only those provided)\n  update public.tasks\n  set\n    due_date   = coalesce(_new_due, due_date),\n    title      = coalesce(_title, title),\n    description= coalesce(_description, description),\n    priority   = coalesce(_priority, priority),\n    status     = coalesce(_status, status),\n    type       = coalesce(_type, type),\n    updated_at = now()\n  where id = _task_id;\n\n  -- 2) Remove existing *pending* reminders (keep delivered history)\n  delete from public.task_reminders\n  where task_id = _task_id\n    and trim(lower(status)) = 'pending';\n\n  -- 3) Insert fresh pending reminders from new due date\n  insert into public.task_reminders (id, task_id, reminder_time, status, notification_type, created_at, updated_at)\n  select gen_random_uuid(),\n         _task_id,\n         _new_due - make_interval(mins => o),\n         'pending',\n         'browser',\n         now(),\n         now()\n  from unnest(_offsets_minutes) as o;\nend;\n$function$\n"
+  },
+  {
+    "schema": "public",
+    "function": "update_updated_at_column",
+    "args": "",
+    "definition": "CREATE OR REPLACE FUNCTION public.update_updated_at_column()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\nBEGIN\n    NEW.updated_at = NOW();\n    RETURN NEW;\nEND;\n$function$\n"
+  }
+]

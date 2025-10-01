@@ -131,12 +131,10 @@ export const createSetupIntent = async (req: Request, res: Response) => {
   try {
     const { customerId }: { customerId?: string } = req.body;
 
-    if (!customerId) {
-      throw new HttpError('Missing customerId', 400);
-    }
-
+    // Allow creating a SetupIntent without a customer for pre-org trial flows.
+    // The resulting PaymentMethod will be unattached and can be attached to a newly created customer during onboarding.
     const setupIntent = await stripe.setupIntents.create({
-      customer: customerId,
+      customer: customerId || undefined,
       automatic_payment_methods: { enabled: true }
     });
 

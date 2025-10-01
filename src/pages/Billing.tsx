@@ -187,6 +187,7 @@ const Billing: React.FC = () => {
   const { setTitle } = useBreadcrumbs();
   const { user } = useAuth();
   const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
+  const [voicePrice, setVoicePrice] = useState<{ id: string; unit_amount?: number | null; currency?: string | null } | null>(null);
   const [billingSettings, setBillingSettings] = useState<BillingSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'usage' | 'pricing' | 'invoices'>('overview');
@@ -268,6 +269,18 @@ const Billing: React.FC = () => {
       if (billingResponse.ok) {
         const settingsData = await billingResponse.json();
         setBillingSettings(settingsData.settings);
+      }
+
+      // Voice price (Stripe metered item) for per-unit display
+      const priceResp = await fetch(`/api/billing/voice-price`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (priceResp.ok) {
+        const p = await priceResp.json();
+        setVoicePrice({ id: p.stripe_price?.id, unit_amount: p.stripe_price?.unit_amount, currency: p.stripe_price?.currency });
       }
 
     } catch (error) {
@@ -629,9 +642,14 @@ const Billing: React.FC = () => {
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">
                         {usageSummary?.voice.minutes?.toFixed(1) || '0.0'}
                       </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {formatCurrency(usageSummary?.voice.cost || 0)}
-                      </p>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        <div>{formatCurrency(usageSummary?.voice.cost || 0)} this period</div>
+                        {voicePrice?.unit_amount != null && (
+                          <div className="text-xs">
+                            Price: {formatCurrency((voicePrice.unit_amount || 0) / 100)} per minute
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { supabase } from '../../utils/supabaseClient';
+import { getStripeClient } from '../../utils/stripe';
 
 const router = Router();
 
@@ -86,9 +87,25 @@ async function handleCallStatusUpdate(webhookData: { CallSid: string; CallStatus
       // Update existing record with status and other info
       console.log(`Updating call history record for ${CallSid} with status: ${CallStatus}`);
       
-      // Use the actual Twilio status as our call_status
+      // Map Twilio statuses to our allowed set if needed
+      const allowedStatusMap: Record<string, string> = {
+        queued: 'initiated',
+        ringing: 'ringing',
+        'in-progress': 'answered',
+        in_progress: 'answered',
+        connecting: 'ringing',
+        answered: 'answered',
+        completed: 'completed',
+        busy: 'busy',
+        'no-answer': 'no-answer',
+        no_answer: 'no-answer',
+        failed: 'failed',
+        canceled: 'canceled'
+      };
+      const normalizedStatus = allowedStatusMap[CallStatus] || CallStatus;
+
       const updateData: any = {
-        call_status: CallStatus, // Use actual Twilio status
+        call_status: normalizedStatus,
         call_end_time: new Date().toISOString()
       };
 
@@ -130,25 +147,36 @@ async function handleCallStatusUpdate(webhookData: { CallSid: string; CallStatus
               call_duration_seconds: parseInt(CallDuration)
             };
 
-            // Call billing API to track usage
-            const billingResponse = await fetch(`${process.env.PUBLIC_URL || 'http://localhost:3001'}/api/billing/voice-usage`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify(usageData)
-            });
+            // Insert voice usage without cost fields
+            const durationSeconds = parseInt(CallDuration);
+            const minutes = Math.ceil(durationSeconds / 60);
 
-            if (billingResponse.ok) {
-              const billingResult = await billingResponse.json();
-              console.info('Voice usage tracked successfully:', {
-                callId: existingRecord.id,
-                duration: CallDuration,
-                cost: billingResult.costs.total_cost
+            const { error: insertUsageErr } = await supabase
+              .from('voice_usage')
+              .insert({
+                organization_id: existingRecord.organization_id,
+                agent_id: existingRecord.agent_id,
+                call_history_id: existingRecord.id,
+                twilio_call_sid: CallSid,
+                phone_number: existingRecord.from_number,
+                to_number: existingRecord.to_number,
+                from_number: existingRecord.from_number,
+                direction: existingRecord.call_direction,
+                country_code: countryCode,
+                call_duration_seconds: durationSeconds,
+                call_duration_minutes: minutes
               });
+
+            if (insertUsageErr) {
+              console.error('Failed to insert voice_usage:', insertUsageErr);
             } else {
-              console.error('Failed to track voice usage:', await billingResponse.text());
+              console.info('Voice usage inserted:', {
+                callId: existingRecord.id,
+                duration: CallDuration
+              });
             }
+
+              // Per design: do NOT post meter events per call.
           } catch (billingError) {
             console.error('Error tracking voice usage:', billingError);
             // Don't fail the webhook if billing tracking fails

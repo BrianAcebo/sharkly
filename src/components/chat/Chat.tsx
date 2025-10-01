@@ -172,11 +172,7 @@ const Chat: React.FC = () => {
 
 	const fetchAgentPhone = async () => {
 		try {
-			// For local testing, use environment variable
-			if (import.meta.env.VITE_TWILIO_PHONE_NUMBER) {
-				setAgentPhone(import.meta.env.VITE_TWILIO_PHONE_NUMBER);
-				return;
-			}
+            // Removed global fallback; always use assigned seat number from backend
 
 			// Fallback to Supabase for production
 			const {

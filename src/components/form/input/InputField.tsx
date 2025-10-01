@@ -13,8 +13,8 @@ interface InputProps {
 	onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
 	onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void;
 	className?: string;
-	min?: string;
-	max?: string;
+    min?: string | number;
+    max?: string | number;
 	step?: number;
 	disabled?: boolean;
 	success?: boolean;

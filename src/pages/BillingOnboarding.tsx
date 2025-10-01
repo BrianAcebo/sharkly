@@ -216,6 +216,12 @@ const BillingOnboarding: React.FC = () => {
         </label>
       </div>
 
+      {state.trialSelected && (
+        <div className="max-w-2xl mx-auto mt-4 text-xs text-yellow-900 bg-yellow-50 border border-yellow-200 rounded-md p-3">
+          <strong>During your free trial</strong>, monthly plan fees are $0, but any telecom usage (voice minutes, SMS, etc.) is billed separately and due immediately. You will receive separate invoices for usage during the trial.
+        </div>
+      )}
+
       <div className="flex justify-end">
         <Button onClick={handleNext} disabled={!state.selectedPlan}>
           Next

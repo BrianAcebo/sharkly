@@ -99,66 +99,83 @@ async function resolveDialConfiguration(agentId: string, toNumber: string) {
  * - In dev, you can test with: ?dev=1&from=+E164 and -d "To=+E164".
  */
 router.post('/call', verifyTwilio, async (req: Request, res: Response) => {
-  console.log('[voice handler ENTER]', import.meta.url);
+  try {
+    console.log('[voice handler ENTER]', { url: req.originalUrl, body: req.body, headers: { host: req.headers.host, xfwd: req.headers['x-forwarded-host'], proto: req.headers['x-forwarded-proto'] } });
 
-  const devBypass = process.env.ALLOW_DEV_WEBHOOKS === 'true'
-  
-	const identityRaw =
-		(req.body?.ClientName as string | undefined) || (req.body?.From as string | undefined) || '';
-	const identity = identityRaw.replace(/^client:/, ''); // e.g. "agent_123"
+    const identityRaw =
+      (req.body?.ClientName as string | undefined) ||
+      (req.body?.Caller as string | undefined) ||
+      (req.body?.From as string | undefined) ||
+      '';
+    const identity = identityRaw.replace(/^client:/, '').trim();
+    // Accept formats:
+    //  - agent_<uuid>
+    //  - org_<org>_agent_<uuid>
+    //  - <uuid>
+    const agentMatch =
+      identity.match(/agent_([0-9a-fA-F-]{36})\b/) ||
+      identity.match(/^([0-9a-fA-F-]{36})$/);
+    let agentId = agentMatch ? agentMatch[1] : '';
+    // Fallback: derive agent by matching the assigned seat from the From number
+    if (!agentId) {
+      const fromE164 = toE164(req.body?.From);
+      if (E164.test(fromE164)) {
+        const { data: seatOwner } = await supabase
+          .from('phone_numbers')
+          .select('seat_id, seats!inner(user_id)')
+          .eq('phone_number', fromE164)
+          .eq('status', 'assigned')
+          .single();
+        agentId = (seatOwner as unknown as { seats?: { user_id?: string } }).seats?.user_id || '';
+      }
+    }
+    if (!agentId) {
+      const vr = new twilio.twiml.VoiceResponse();
+      vr.say('Unauthorized caller.');
+      return res.type('text/xml').send(vr.toString());
+    }
+    const toParam = (req.body?.To as string | undefined) || (req.body?.to as string | undefined) || '';
 
-	if (!identity || !/^agent_/.test(identity)) {
-		const vr = new twilio.twiml.VoiceResponse();
-		vr.say('Unauthorized caller.');
-		return res.type('text/xml').send(vr.toString());
-	}
+    const resolved = await resolveDialConfiguration(agentId, toParam);
+    if (!resolved || !resolved.fromNumber || !resolved.toNumber) {
+      const vr = new twilio.twiml.VoiceResponse();
+      vr.say('Unable to place call. Please configure a phone number for this seat.');
+      return res.type('text/xml').send(vr.toString());
+    }
 
-	const agentId = identity.slice(6);
+    const callerId = resolved.fromNumber;
+    const to = resolved.toNumber;
 
-	const resolved = await resolveDialConfiguration(agentId, req.body?.To);
+    const vr = new twilio.twiml.VoiceResponse();
+    if (!E164.test(to) || !E164.test(callerId)) {
+      vr.say('Invalid to or from number format.');
+      return res.type('text/xml').send(vr.toString());
+    }
 
-	if (!resolved || !resolved.fromNumber || !resolved.toNumber) {
-		const vr = new twilio.twiml.VoiceResponse();
-		vr.say('Unable to place call. Please configure a phone number for this seat.');
-		return res.type('text/xml').send(vr.toString());
-	}
+    const dial = vr.dial({ callerId, answerOnBridge: true });
 
-	const vr = new twilio.twiml.VoiceResponse();
+    const proto = (req.headers['x-forwarded-proto'] as string) || 'https';
+    const baseHost =
+      process.env.WEBHOOK_PUBLIC_HOST ||
+      process.env.NGROK_DOMAIN ||
+      (req.headers['x-forwarded-host'] as string) ||
+      (req.headers.host as string);
+    const statusCallback = `${proto}://${String(baseHost).replace(/\/+$/, '')}/api/webhooks/twilio/call-status`;
+    console.log('[voice] statusCallback:', statusCallback, 'callerId:', callerId, 'to:', to);
 
-	if (!E164.test(to) || !E164.test(callerId)) {
-		vr.say('Invalid to or from.');
-		return res.type('text/xml').send(vr.toString());
-	}
+    dial.number({
+      statusCallback,
+      statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
+      statusCallbackMethod: 'POST'
+    }, to);
 
-	// Build TwiML
-	const dial = vr.dial({
-		callerId,
-		answerOnBridge: true
-	});
-
-  const baseHost =
-  process.env.WEBHOOK_PUBLIC_HOST ||
-  process.env.NGROK_DOMAIN ||
-  (req.headers['x-forwarded-host'] as string) ||
-  (req.headers.host as string);
-
-const statusCallback = `https://${String(baseHost).replace(/\/+$/, '')}/api/webhooks/twilio/call-status`;
-
-console.log('[voice] using statusCallback:', statusCallback);
-
-	// Status callbacks belong on <Number> (not <Dial>)
-	dial.number(
-		{
-			statusCallback,
-			statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-			statusCallbackMethod: 'POST'
-		},
-		to
-	);
-
-	// Call history is now created by frontend
-
-	return res.type('text/xml').send(vr.toString());
+    return res.type('text/xml').send(vr.toString());
+  } catch (err) {
+    console.error('[voice] TwiML error:', err);
+    const vr = new twilio.twiml.VoiceResponse();
+    vr.say('An application error occurred while placing the call.');
+    return res.type('text/xml').send(vr.toString());
+  }
 });
 
 export default router;

@@ -12,6 +12,7 @@ import {
   CustomerPaymentMethodSummary
 } from '../types/billing';
 import { getStripeClient } from '../utils/stripe';
+import { getTwilioClientForSubaccount } from '../utils/twilioClient';
 import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning';
 
 const stripe = getStripeClient();
@@ -33,6 +34,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       ein,
       tz = 'America/New_York',
       address,
+      areaCode,
       paymentMethodId: paymentMethodIdFromRequest,
       useExistingPaymentMethod
     }: OrgOnboardRequest = req.body;
@@ -90,12 +92,13 @@ export const onboardOrganization = async (req: Request, res: Response) => {
 
       org = existingOrg;
     } else {
-      // Create new organization
+      // Create new organization in a pending state; membership will be added after payment/trial is confirmed
       const { data: newOrg, error: createError } = await supabase
         .from('organizations')
         .insert({
           name,
           owner_id: userId,
+          org_status: 'payment_required',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -112,22 +115,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
 
       org = newOrg;
 
-      try {
-        const provisioning = await ensureTwilioResourcesForOrganization({
-          orgId: org.id,
-          orgName: org.name,
-          twilioSubaccountSid: org.twilio_subaccount_sid,
-          twilioMessagingServiceSid: (org as OrganizationRow).twilio_messaging_service_sid ?? null
-        });
-
-        org = {
-          ...org,
-          twilio_subaccount_sid: provisioning.subaccountSid,
-          twilio_messaging_service_sid: provisioning.messagingServiceSid
-        } as OrganizationRow;
-      } catch (twilioError) {
-        console.error('Failed to provision Twilio resources during onboarding:', twilioError);
-      }
+      // Defer Twilio provisioning until payment/trial confirmation
     }
 
     // Create or get Stripe customer (ONE customer per org)
@@ -135,12 +123,16 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     if (!stripeCustomerId) {
       // Try to recover existing customer by metadata
       try {
-        // @ts-expect-error Stripe search not in older types
-        const searchResult = await (stripe.customers as any).search?.({
-          query: `metadata['organization_id']:'${org.id}'`
-        });
-        if (searchResult?.data?.length) {
-          stripeCustomerId = searchResult.data[0].id;
+        const customersObj = stripe.customers as unknown as {
+          search?: (args: { query: string }) => Promise<{ data: Array<{ id: string }> }>;
+        };
+        if (customersObj.search) {
+          const searchResult = await customersObj.search({
+            query: `metadata['organization_id']:'${org.id}'`
+          });
+          if (searchResult?.data?.length) {
+            stripeCustomerId = searchResult.data[0].id;
+          }
         }
       } catch (searchErr) {
         console.warn('Stripe search failed, fallback to list by email.', searchErr);
@@ -216,19 +208,37 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       try {
         const pm = await stripe.paymentMethods.retrieve(paymentMethodIdFromRequest);
         const pmCustomer = typeof pm.customer === 'string' ? pm.customer : null;
+        // If PM is unattached, attach it to this customer now
         if (!pmCustomer) {
-          return res.status(400).json({
-            ok: false,
-            error: 'This payment method is single-use or detached. Save it with a SetupIntent on this customer first.',
-            code: 'pm_single_use'
-          } as ApiError);
+          await stripe.paymentMethods.attach(paymentMethodIdFromRequest, { customer: stripeCustomerId });
         }
-        if (pmCustomer !== stripeCustomerId) {
-          return res.status(400).json({
-            ok: false,
-            error: 'Payment method belongs to a different customer. Please re-add it to this organization.',
-            code: 'pm_wrong_customer'
-          } as ApiError);
+        if (pmCustomer && pmCustomer !== stripeCustomerId) {
+          // Attempt safe migration if the previous customer belongs to the same user
+          try {
+            const prevCustomer = (await stripe.customers.retrieve(pmCustomer)) as Stripe.Customer;
+            const prevUserId = (prevCustomer.metadata as Record<string, string> | undefined)?.user_id || null;
+            const sameOwner = prevUserId ? prevUserId === userId : (prevCustomer.email && req.user?.email && prevCustomer.email === req.user.email);
+            if (!sameOwner) {
+              return res.status(400).json({
+                ok: false,
+                error: 'Payment method belongs to another account. Please use a different card.',
+                code: 'pm_wrong_customer'
+              } as ApiError);
+            }
+            // Detach and reattach to the new org's customer
+            await stripe.paymentMethods.detach(paymentMethodIdFromRequest);
+            await stripe.paymentMethods.attach(paymentMethodIdFromRequest, { customer: stripeCustomerId });
+          } catch (migrateError) {
+            console.error('Failed to migrate payment method to this customer:', migrateError);
+            if (!isRenewal) {
+              try {
+                await supabase.from('organizations').delete().eq('id', org.id);
+              } catch (cleanupError) {
+                console.warn('Failed to cleanup organization after PM migration error:', cleanupError);
+              }
+            }
+            return res.status(400).json({ ok: false, error: 'Failed to move payment method to this organization' } as ApiError);
+          }
         }
         await stripe.customers.update(stripeCustomerId, {
           invoice_settings: { default_payment_method: paymentMethodIdFromRequest }
@@ -236,18 +246,31 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         defaultPaymentMethodId = paymentMethodIdFromRequest;
       } catch (e) {
         console.error('Error setting default payment method from existing list:', e);
+        if (!isRenewal) {
+          try {
+            await supabase.from('organizations').delete().eq('id', org.id);
+          } catch (cleanupError) {
+            console.warn('Failed to cleanup organization after PM failure:', cleanupError);
+          }
+        }
         return res.status(400).json({ ok: false, error: 'Failed to use selected payment method' } as ApiError);
       }
     }
 
+    // Enforce a payment method for ALL subscriptions, including trials
     if (!defaultPaymentMethodId) {
-      if (!trialDays || trialDays <= 0) {
-        return res.status(400).json({
-          ok: false,
-          error: 'No payment method available for this customer. Please add a new payment method.',
-          code: 'payment_method_required'
-        } as ApiError);
+      if (!isRenewal) {
+        try {
+          await supabase.from('organizations').delete().eq('id', org.id);
+        } catch (cleanupError) {
+          console.warn('Failed to cleanup organization when no PM provided:', cleanupError);
+        }
       }
+      return res.status(400).json({
+        ok: false,
+        error: 'A valid payment method is required before creating an organization or subscription (including trials).',
+        code: 'payment_method_required'
+      } as ApiError);
     }
 
     if (shouldAttachNewPaymentMethod && defaultPaymentMethodId) {
@@ -255,21 +278,36 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         // Ensure payment method is attached to this customer
         const pm = await stripe.paymentMethods.retrieve(defaultPaymentMethodId);
         const pmCustomer = typeof pm.customer === 'string' ? pm.customer : null;
-        // Single-use or detached
+        // If unattached, attach it now to this org's customer
         if (!pmCustomer) {
-          return res.status(400).json({
-            ok: false,
-            error: 'This payment method is single-use or detached. Save it with a SetupIntent on this customer first.',
-            code: 'pm_single_use'
-          } as ApiError);
+          await stripe.paymentMethods.attach(defaultPaymentMethodId, { customer: stripeCustomerId });
         }
         // Wrong customer
-        if (pmCustomer !== stripeCustomerId) {
-          return res.status(400).json({
-            ok: false,
-            error: 'Payment method belongs to a different customer. Please re-add it to this organization.',
-            code: 'pm_wrong_customer'
-          } as ApiError);
+        if (pmCustomer && pmCustomer !== stripeCustomerId) {
+          try {
+            const prevCustomer = (await stripe.customers.retrieve(pmCustomer)) as Stripe.Customer;
+            const prevUserId = (prevCustomer.metadata as Record<string, string> | undefined)?.user_id || null;
+            const sameOwner = prevUserId ? prevUserId === userId : (prevCustomer.email && req.user?.email && prevCustomer.email === req.user.email);
+            if (!sameOwner) {
+              return res.status(400).json({
+                ok: false,
+                error: 'Payment method belongs to another account. Please use a different card.',
+                code: 'pm_wrong_customer'
+              } as ApiError);
+            }
+            await stripe.paymentMethods.detach(defaultPaymentMethodId);
+            await stripe.paymentMethods.attach(defaultPaymentMethodId, { customer: stripeCustomerId });
+          } catch (migrateError) {
+            console.error('Failed to migrate payment method (new card path):', migrateError);
+            if (!isRenewal) {
+              try {
+                await supabase.from('organizations').delete().eq('id', org.id);
+              } catch (cleanupError) {
+                console.warn('Failed to cleanup organization after PM migration error:', cleanupError);
+              }
+            }
+            return res.status(400).json({ ok: false, error: 'Failed to move payment method to this organization' } as ApiError);
+          }
         }
         await stripe.customers.update(stripeCustomerId, {
           invoice_settings: {
@@ -278,6 +316,14 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         });
       } catch (attachError) {
         console.error('Error attaching new payment method to customer:', attachError);
+        // Cleanup newly created org if this was a new flow
+        if (!isRenewal) {
+          try {
+            await supabase.from('organizations').delete().eq('id', org.id);
+          } catch (cleanupError) {
+            console.warn('Failed to cleanup organization after attach failure:', cleanupError);
+          }
+        }
         throw attachError;
       }
     }
@@ -290,6 +336,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       stripeSubscriptionId = null;
     }
     let subscriptionClientSecret: string | null = null;
+    let computedOrgStatus: OrgStatus = 'payment_required';
 
     if (!stripeSubscriptionId) {
       const subscriptionParams: Stripe.SubscriptionCreateParams = {
@@ -323,6 +370,14 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       stripeSubscriptionId = subscription.id;
 
       const invoice = subscription.latest_invoice as Stripe.Invoice;
+      // Determine org status based on subscription state
+      if (subscription.status === 'active' || subscription.status === 'trialing') {
+        computedOrgStatus = 'active';
+      } else if (subscription.status === 'past_due') {
+        computedOrgStatus = 'past_due';
+      } else {
+        computedOrgStatus = 'payment_required';
+      }
       if (invoice && (invoice as unknown as { payment_intent?: { client_secret: string } }).payment_intent) {
         const paymentIntent = (invoice as unknown as { payment_intent: { client_secret: string } }).payment_intent;
         subscriptionClientSecret = paymentIntent.client_secret;
@@ -335,7 +390,10 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         try {
           // Update subscription default payment method if not set
           const subDefault = (subscription as unknown as { default_payment_method?: string | Stripe.PaymentMethod | null }).default_payment_method;
-          const currentDefaultId = typeof subDefault === 'string' ? subDefault : (subDefault && 'id' in (subDefault as any) ? (subDefault as any).id : null);
+          const currentDefaultId =
+            typeof subDefault === 'string'
+              ? subDefault
+              : (subDefault && (subDefault as Stripe.PaymentMethod).id) || null;
           if (!currentDefaultId) {
             await stripe.subscriptions.update(subscription.id, {
               default_payment_method: defaultPaymentMethodId
@@ -343,8 +401,12 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           }
 
           // If there's a payment intent requiring a payment method, attach it
-          if (invoice && (invoice as any).payment_intent) {
-            const piId = (invoice as any).payment_intent.id ?? ((invoice as any).payment_intent as any);
+          const invoiceWithPI = invoice as unknown as { payment_intent?: { id?: string } | string };
+          if (invoiceWithPI && invoiceWithPI.payment_intent) {
+            const piId =
+              typeof invoiceWithPI.payment_intent === 'string'
+                ? invoiceWithPI.payment_intent
+                : invoiceWithPI.payment_intent.id;
             if (piId) {
               try {
                 await stripe.paymentIntents.update(piId, {
@@ -363,6 +425,42 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           console.warn('Failed to set default payment method on subscription:', subUpdateErr);
         }
       }
+
+      // If trialing, create a separate usage-only subscription (no trial) for voice overage
+      try {
+        if (trialDays && trialDays > 0) {
+          const isLive = process.env.NODE_ENV === 'production' || process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_');
+          const overageCode = isLive ? 'voice_minutes_overage' : 'voice_minutes_overage_test';
+          const { data: overage } = await supabase
+            .from('usage_overage_catalog')
+            .select('stripe_price_id')
+            .eq('overage_code', overageCode)
+            .eq('active', true)
+            .single();
+
+          if (overage?.stripe_price_id) {
+            const existingUsageSubs = await stripe.subscriptions.list({ customer: stripeCustomerId, status: 'active', limit: 100 });
+            const hasUsageOnly = existingUsageSubs.data.some((s) => (s.metadata as Record<string, string> | undefined)?.usage_only === 'voice');
+
+            if (!hasUsageOnly) {
+              const usageSubParams: Stripe.SubscriptionCreateParams = {
+                customer: stripeCustomerId,
+                items: [ { price: overage.stripe_price_id } ],
+                collection_method: 'charge_automatically',
+                payment_behavior: defaultPaymentMethodId ? 'allow_incomplete' : 'default_incomplete',
+                metadata: { organization_id: org.id, usage_only: 'voice' },
+                default_payment_method: defaultPaymentMethodId || undefined
+              };
+              const usageSub = await stripe.subscriptions.create(usageSubParams);
+              console.log('[onboarding] Created usage-only subscription for trialing org', { orgId: org.id, usageSubscriptionId: usageSub.id });
+            }
+          } else {
+            console.warn('[onboarding] No active voice overage price found for env; cannot create usage-only subscription');
+          }
+        }
+      } catch (usageSubErr) {
+        console.warn('[onboarding] Failed creating usage-only subscription for trialing org:', usageSubErr);
+      }
     }
 
     // Mirror Stripe subscription data to organization
@@ -378,15 +476,22 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       address_zip: address?.zip || null,
       address_country: address?.country || null,
       stripe_customer_id: stripeCustomerId,
-      org_status: 'active' as OrgStatus,
-      plan_code: planCode,
-      plan_price_cents: plan.base_price_cents,
-      included_seats: plan.included_seats,
-      included_minutes: plan.included_minutes,
-      included_sms: plan.included_sms,
-      included_emails: plan.included_emails,
+      org_status: computedOrgStatus,
       updated_at: new Date().toISOString()
     };
+
+    // Apply plan metadata immediately for new orgs; for renewals, defer plan application
+    if (!isRenewal) {
+      subscriptionData = {
+        ...subscriptionData,
+        plan_code: planCode,
+        plan_price_cents: plan.base_price_cents,
+        included_seats: plan.included_seats,
+        included_minutes: plan.included_minutes,
+        included_sms: plan.included_sms,
+        included_emails: plan.included_emails
+      };
+    }
 
     console.log('subscriptionData', subscriptionData);
 
@@ -429,22 +534,296 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       } as ApiError);
     }
 
-    // For new orgs, add user as owner; for renewals, the membership already exists
+    // For new orgs, add user as owner ONLY when subscription is active or in trialing state
     if (!isRenewal) {
-      const { error: userOrgError } = await supabase
-        .from('user_organizations')
-        .insert({
-          user_id: userId,
-          organization_id: org.id,
-          role: 'owner'
-        });
+      const canAttachUser =
+        (updatedOrg as OrganizationRow).stripe_status === 'active' ||
+        (updatedOrg as OrganizationRow).stripe_status === 'trialing';
 
-      if (userOrgError) {
-        console.error('Error adding user to organization:', userOrgError);
-        return res.status(500).json({ 
-          ok: false, 
-          error: 'Failed to add user to organization' 
-        } as ApiError);
+      if (canAttachUser) {
+        const { error: userOrgError } = await supabase
+          .from('user_organizations')
+          .insert({
+            user_id: userId,
+            organization_id: org.id,
+            role: 'owner'
+          });
+
+        if (userOrgError) {
+          console.error('Error adding user to organization:', userOrgError);
+          return res.status(500).json({ 
+            ok: false, 
+            error: 'Failed to add user to organization' 
+          } as ApiError);
+        }
+
+        // Now that org is confirmed (active/trial), ensure Twilio resources (subaccount + messaging service) exist
+        try {
+          const provisioning = await ensureTwilioResourcesForOrganization({
+            orgId: org.id,
+            orgName: name,
+            twilioSubaccountSid: (updatedOrg as OrganizationRow).twilio_subaccount_sid,
+            twilioMessagingServiceSid: (updatedOrg as OrganizationRow).twilio_messaging_service_sid ?? null
+          });
+
+          await supabase
+            .from('organizations')
+            .update({
+              twilio_subaccount_sid: provisioning.subaccountSid,
+              twilio_messaging_service_sid: provisioning.messagingServiceSid,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', org.id);
+
+          // Sync any pre-existing purchased numbers from the Twilio subaccount into Supabase
+          try {
+            if (provisioning.subaccountSid) {
+              const subClient = getTwilioClientForSubaccount({ accountSid: provisioning.subaccountSid });
+
+              const numbersApi = subClient as unknown as {
+                incomingPhoneNumbers: {
+                  list: (args: { limit?: number }) => Promise<Array<{
+                    sid: string;
+                    phoneNumber: string;
+                    capabilities?: { sms?: boolean; voice?: boolean; mms?: boolean };
+                  }>>;
+                };
+              };
+
+              const PUBLIC_URL = process.env.PUBLIC_URL || '';
+              const baseUrl = PUBLIC_URL.replace(/\/$/, '');
+              const smsWebhookUrl = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-inbound` : undefined;
+              const voiceWebhookUrl = baseUrl ? `${baseUrl}/api/twilio/voice/call` : undefined;
+
+              const existingNumbers = await numbersApi.incomingPhoneNumbers.list({ limit: 200 });
+
+              for (const num of existingNumbers) {
+                const { data: exists } = await supabase
+                  .from('phone_numbers')
+                  .select('id')
+                  .eq('org_id', org.id)
+                  .eq('sid', num.sid)
+                  .maybeSingle();
+
+                if (!exists) {
+                  await supabase
+                    .from('phone_numbers')
+                    .insert({
+                      org_id: org.id,
+                      seat_id: null,
+                      phone_number: num.phoneNumber,
+                      sid: num.sid,
+                      capabilities: { sms: Boolean(num.capabilities?.sms), voice: Boolean(num.capabilities?.voice), mms: Boolean(num.capabilities?.mms) },
+                      status: 'available',
+                      sms_webhook_url: smsWebhookUrl ?? null,
+                      voice_webhook_url: voiceWebhookUrl ?? null
+                    });
+                }
+              }
+            }
+          } catch (syncErr) {
+            console.error('Failed syncing existing Twilio numbers into Supabase:', syncErr);
+          }
+
+          // Ensure the org has at least `included_seats` phone numbers purchased (count only available+assigned)
+          try {
+            const { count: existingCount } = await supabase
+              .from('phone_numbers')
+              .select('id', { count: 'exact', head: true })
+              .eq('org_id', org.id)
+              .in('status', ['available', 'assigned']);
+
+            const needed = Math.max((plan.included_seats ?? 0) - (existingCount ?? 0), 0);
+
+            if (needed > 0 && provisioning.subaccountSid) {
+              const subClient = getTwilioClientForSubaccount({ accountSid: provisioning.subaccountSid });
+
+              const sub = subClient as unknown as {
+                availablePhoneNumbers: (country: string) => {
+                  local: {
+                    list: (args: { smsEnabled?: boolean; voiceEnabled?: boolean; limit?: number }) => Promise<Array<{ phoneNumber: string }>>;
+                  };
+                };
+                incomingPhoneNumbers: { create: (args: { phoneNumber: string; smsUrl?: string; statusCallback?: string; voiceUrl?: string; voiceMethod?: string }) => Promise<{ sid: string; phoneNumber: string }> };
+                messaging: { v1: { services: (sid: string) => { phoneNumbers: { create: (args: { phoneNumberSid: string }) => Promise<unknown> } } } };
+              };
+
+              const PUBLIC_URL = process.env.PUBLIC_URL || '';
+              const baseUrl = PUBLIC_URL.replace(/\/$/, '');
+              const smsWebhookUrl = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-inbound` : undefined;
+              const smsStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-status` : undefined;
+              const voiceWebhookUrl = baseUrl ? `${baseUrl}/api/twilio/voice/call` : undefined;
+
+              // Fetch candidate numbers only if needed > 0
+              const candidateArgs: { smsEnabled?: boolean; voiceEnabled?: boolean; limit?: number; areaCode?: string } = { smsEnabled: true, voiceEnabled: true, limit: needed };
+              if (!isRenewal && areaCode) candidateArgs.areaCode = areaCode;
+              const candidates = needed > 0 ? await sub.availablePhoneNumbers('US').local.list(candidateArgs) : [];
+
+              for (const cand of candidates) {
+                try {
+                  const purchased = await sub.incomingPhoneNumbers.create({
+                    phoneNumber: cand.phoneNumber,
+                    smsUrl: smsWebhookUrl,
+                    statusCallback: smsStatusCallback,
+                    voiceUrl: voiceWebhookUrl,
+                    voiceMethod: 'POST'
+                  });
+
+                  if (provisioning.messagingServiceSid) {
+                    await sub.messaging.v1
+                      .services(provisioning.messagingServiceSid)
+                      .phoneNumbers.create({ phoneNumberSid: purchased.sid });
+                  }
+
+                  await supabase
+                    .from('phone_numbers')
+                    .insert({
+                      org_id: org.id,
+                      seat_id: null,
+                      phone_number: purchased.phoneNumber,
+                      sid: purchased.sid,
+                      capabilities: { sms: true, voice: true },
+                      status: 'available',
+                      sms_webhook_url: smsWebhookUrl ?? null,
+                      voice_webhook_url: voiceWebhookUrl ?? null
+                    });
+                } catch (purchaseErr) {
+                  console.error('Failed to purchase number for org', org.id, purchaseErr);
+                }
+              }
+            }
+          } catch (ensureNumsErr) {
+            console.error('Failed ensuring included phone numbers for org:', ensureNumsErr);
+          }
+
+          // Ensure the owner has an active seat
+          let ownerSeatId: string | null = null;
+          const { data: existingSeat } = await supabase
+            .from('seats')
+            .select('id, status')
+            .eq('org_id', org.id)
+            .eq('user_id', userId)
+            .single();
+
+          if (!existingSeat) {
+            const { data: newSeat } = await supabase
+              .from('seats')
+              .insert({ org_id: org.id, user_id: userId, status: 'active', created_at: new Date().toISOString() })
+              .select('id')
+              .single();
+            ownerSeatId = newSeat?.id ?? null;
+          } else {
+            ownerSeatId = existingSeat.id;
+            if (existingSeat.status !== 'active') {
+              await supabase.from('seats').update({ status: 'active' }).eq('id', existingSeat.id);
+            }
+          }
+
+          // Ensure a phone number is assigned to the owner's seat
+          if (ownerSeatId) {
+            const { data: assigned } = await supabase
+              .from('phone_numbers')
+              .select('id')
+              .eq('org_id', org.id)
+              .eq('seat_id', ownerSeatId)
+              .eq('status', 'assigned')
+              .single();
+
+            if (!assigned) {
+              // Try to reuse an available number in this org first (numbers may have been purchased above)
+              const { data: available } = await supabase
+                .from('phone_numbers')
+                .select('id, sid, phone_number')
+                .eq('org_id', org.id)
+                .eq('status', 'available')
+                .limit(1)
+                .maybeSingle();
+
+              const orgRow = (await supabase
+                .from('organizations')
+                .select('twilio_subaccount_sid, twilio_messaging_service_sid')
+                .eq('id', org.id)
+                .single()).data as { twilio_subaccount_sid: string; twilio_messaging_service_sid: string | null };
+
+              const PUBLIC_URL = process.env.PUBLIC_URL || '';
+              const baseUrl = PUBLIC_URL.replace(/\/$/, '');
+              const smsWebhookUrl = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-inbound` : undefined;
+              const smsStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-status` : undefined;
+              const voiceWebhookUrl = baseUrl ? `${baseUrl}/api/twilio/voice/call` : undefined;
+
+              if (available?.id) {
+                // Assign existing available number to the seat
+                await supabase
+                  .from('phone_numbers')
+                  .update({ seat_id: ownerSeatId, status: 'assigned', updated_at: new Date().toISOString() })
+                  .eq('id', available.id)
+                  .eq('org_id', org.id);
+              } else if (orgRow?.twilio_subaccount_sid) {
+                // Purchase a new number on the subaccount and assign
+                try {
+                  const subClient = getTwilioClientForSubaccount({ accountSid: orgRow.twilio_subaccount_sid });
+
+                  // Search for a US local number with SMS and Voice
+                  const sub = subClient as unknown as {
+                    availablePhoneNumbers: (country: string) => {
+                      local: {
+                        list: (args: { smsEnabled?: boolean; voiceEnabled?: boolean; limit?: number }) => Promise<Array<{ phoneNumber: string }>>;
+                      };
+                    };
+                  };
+                  const cArgs: { smsEnabled?: boolean; voiceEnabled?: boolean; limit?: number; areaCode?: string } = { smsEnabled: true, voiceEnabled: true, limit: 1 };
+                  if (!isRenewal && areaCode) cArgs.areaCode = areaCode;
+                  const candidates = await sub
+                    .availablePhoneNumbers('US')
+                    .local.list(cArgs);
+
+                  if (Array.isArray(candidates) && candidates.length > 0) {
+                    const num = candidates[0];
+                    const purchased = await (subClient as unknown as { incomingPhoneNumbers: { create: (args: { phoneNumber: string; smsUrl?: string; statusCallback?: string; voiceUrl?: string; voiceMethod?: string }) => Promise<{ sid: string; phoneNumber: string }> } }).incomingPhoneNumbers.create({
+                      phoneNumber: num.phoneNumber,
+                      smsUrl: smsWebhookUrl,
+                      statusCallback: smsStatusCallback,
+                      voiceUrl: voiceWebhookUrl,
+                      voiceMethod: 'POST'
+                    });
+
+                    // Attach to messaging service if present
+                    if (orgRow.twilio_messaging_service_sid) {
+                      const msgApi = (subClient as unknown as { messaging: { v1: { services: (sid: string) => { phoneNumbers: { create: (args: { phoneNumberSid: string }) => Promise<unknown> } } } } }).messaging.v1;
+                      await msgApi.services(orgRow.twilio_messaging_service_sid).phoneNumbers.create({ phoneNumberSid: purchased.sid });
+                    }
+
+                    // Store and assign
+                    const { data: inserted } = await supabase
+                      .from('phone_numbers')
+                      .insert({
+                        org_id: org.id,
+                        seat_id: ownerSeatId,
+                        phone_number: purchased.phoneNumber,
+                        sid: purchased.sid,
+                        capabilities: { sms: true, voice: true },
+                        status: 'assigned',
+                        sms_webhook_url: smsWebhookUrl ?? null,
+                        voice_webhook_url: voiceWebhookUrl ?? null
+                      })
+                      .select('id')
+                      .single();
+
+                    if (!inserted) {
+                      console.warn('Failed to persist purchased phone number for org', org.id);
+                    }
+                  } else {
+                    console.warn('No Twilio phone numbers available for purchase');
+                  }
+                } catch (purchaseError) {
+                  console.error('Failed to purchase/assign phone number during onboarding:', purchaseError);
+                }
+              }
+            }
+          }
+        } catch (twilioError) {
+          console.error('Failed to provision Twilio resources after activation:', twilioError);
+        }
       }
     }
 

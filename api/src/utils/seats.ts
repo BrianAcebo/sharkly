@@ -165,7 +165,7 @@ export async function loadSeatSummary(orgId: string): Promise<SeatSummaryData> {
   const [{ data: seatRows, error: seatError }, { data: seatEvents, error: eventError }, assignedCountResult, { data: phoneNumbers, error: phoneError }] = await Promise.all([
     supabase
       .from('seats')
-      .select('id, org_id, user_id, status, created_at')
+      .select('id, org_id, user_id, status, created_at, profiles(first_name, last_name)')
       .eq('org_id', orgId),
     supabase
       .from('seat_events')
@@ -196,7 +196,7 @@ export async function loadSeatSummary(orgId: string): Promise<SeatSummaryData> {
     throw phoneError;
   }
 
-  const seatList: SupabaseSeatRow[] = seatRows ?? [];
+  const seatList: (SupabaseSeatRow & { profiles?: { first_name?: string | null; last_name?: string | null } | null })[] = seatRows ?? [];
   const eventList: SupabaseSeatEventRow[] = seatEvents ?? [];
   const assignedSeats = assignedCountResult.count ?? 0;
 
@@ -291,7 +291,10 @@ export async function loadSeatSummary(orgId: string): Promise<SeatSummaryData> {
 	twilioSubaccountSid: organization.twilio_subaccount_sid ?? null,
 	twilioMessagingServiceSid: organization.twilio_messaging_service_sid ?? null,
     seatEvents: eventList,
-    seats: seatList,
+    seats: seatList.map((s) => ({
+      ...s,
+      profile: s.profiles ?? null
+    })),
     phoneNumbers: (phoneNumbers ?? []).map((phone) => ({
       ...phone,
       capabilities: (phone.capabilities ?? {}) as Record<string, unknown>

@@ -2,12 +2,14 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient';
 import { emailService } from '../utils/email';
 import {
-	getSeatCapacity,
-	loadSeatSummary,
-	recordSeatEvent,
-	updateOrgMaxSeats,
-	syncExtraSeatAddon
+    getSeatCapacity,
+    loadSeatSummary,
+    recordSeatEvent,
+    updateOrgMaxSeats,
+    syncExtraSeatAddon
 } from '../utils/seats';
+import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning';
+import { getTwilioClientForSubaccount } from '../utils/twilioClient';
 
 interface InviteTeamMemberRequest {
 	email: string;
@@ -159,7 +161,7 @@ export const purchaseSeats = async (req: Request, res: Response) => {
 			reason: reason || 'manual_purchase'
 		});
 
-		let updatedSummary = await loadSeatSummary(organizationId);
+    let updatedSummary = await loadSeatSummary(organizationId);
 
 		if (updatedSummary.extraSeatAddonPriceId && updatedSummary.stripeSubscriptionId) {
 			await syncExtraSeatAddon({
@@ -172,7 +174,80 @@ export const purchaseSeats = async (req: Request, res: Response) => {
 			updatedSummary = await loadSeatSummary(organizationId);
 		}
 
-		return res.json({ summary: updatedSummary });
+        // Top up phone numbers to match new capacity (includedSeats + extraSeatsPurchased)
+        try {
+            const capacity = updatedSummary.capacity;
+            const { data: orgRow } = await supabase
+                .from('organizations')
+                .select('id, name, twilio_subaccount_sid, twilio_messaging_service_sid')
+                .eq('id', organizationId)
+                .single();
+
+            if (orgRow) {
+                const provisioning = await ensureTwilioResourcesForOrganization({
+                    orgId: orgRow.id,
+                    orgName: orgRow.name,
+                    twilioSubaccountSid: orgRow.twilio_subaccount_sid,
+                    twilioMessagingServiceSid: orgRow.twilio_messaging_service_sid
+                });
+
+                const { count: existingCount } = await supabase
+                    .from('phone_numbers')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('org_id', orgRow.id)
+                    .in('status', ['available', 'assigned']);
+
+                const needed = Math.max(capacity - (existingCount ?? 0), 0);
+
+                if (needed > 0 && provisioning.subaccountSid) {
+                    const subClient = getTwilioClientForSubaccount({ accountSid: provisioning.subaccountSid });
+                    const sub = subClient as unknown as {
+                        availablePhoneNumbers: (country: string) => { local: { list: (args: { smsEnabled?: boolean; voiceEnabled?: boolean; limit?: number }) => Promise<Array<{ phoneNumber: string }>> } };
+                        incomingPhoneNumbers: { create: (args: { phoneNumber: string; smsUrl?: string; statusCallback?: string; voiceUrl?: string; voiceMethod?: string }) => Promise<{ sid: string; phoneNumber: string }> };
+                        messaging: { v1: { services: (sid: string) => { phoneNumbers: { create: (args: { phoneNumberSid: string }) => Promise<unknown> } } } };
+                    };
+
+                    const host = (process.env.WEBHOOK_PUBLIC_HOST || process.env.NGROK_DOMAIN || process.env.PUBLIC_URL || '').replace(/\/$/, '');
+                    const smsWebhookUrl = host ? `${host}/api/webhooks/twilio/sms-inbound` : undefined;
+                    const smsStatusCallback = host ? `${host}/api/webhooks/twilio/sms-status` : undefined;
+                    const voiceWebhookUrl = host ? `${host}/api/twilio/voice/call` : undefined;
+
+                    const candidates = await sub.availablePhoneNumbers('US').local.list({ smsEnabled: true, voiceEnabled: true, limit: needed });
+                    for (const cand of candidates) {
+                        try {
+                            const purchased = await sub.incomingPhoneNumbers.create({
+                                phoneNumber: cand.phoneNumber,
+                                smsUrl: smsWebhookUrl,
+                                statusCallback: smsStatusCallback,
+                                voiceUrl: voiceWebhookUrl,
+                                voiceMethod: 'POST'
+                            });
+
+                            if (provisioning.messagingServiceSid) {
+                                await sub.messaging.v1.services(provisioning.messagingServiceSid).phoneNumbers.create({ phoneNumberSid: purchased.sid });
+                            }
+
+                            await supabase.from('phone_numbers').insert({
+                                org_id: orgRow.id,
+                                seat_id: null,
+                                phone_number: purchased.phoneNumber,
+                                sid: purchased.sid,
+                                capabilities: { sms: true, voice: true },
+                                status: 'available',
+                                sms_webhook_url: smsWebhookUrl ?? null,
+                                voice_webhook_url: voiceWebhookUrl ?? null
+                            });
+                        } catch (e) {
+                            console.error('[seats] failed to top up number', e);
+                        }
+                    }
+                }
+            }
+        } catch (topUpError) {
+            console.error('Failed to top up phone numbers after seat purchase:', topUpError);
+        }
+
+        return res.json({ summary: updatedSummary });
 	} catch (error) {
 		console.error('Error purchasing seats:', error);
 		return res.status(500).json({ error: 'Failed to purchase seats' });
@@ -429,7 +504,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 			.json({ error: 'Organization has reached its maximum number of seats' });
 	}
 
-		// Add user to organization
+        // Add user to organization
 		const { error: addError } = await supabase.from('user_organizations').insert({
 			user_id: userId,
 			organization_id: invitation.organization_id,
@@ -441,7 +516,56 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 			return res.status(500).json({ error: 'Failed to join organization' });
 		}
 
-		// Update invitation status to accepted
+        // Take a seat: ensure we haven't exceeded capacity
+        const afterAddCapacity = await getSeatCapacity(invitation.organization_id);
+        if (afterAddCapacity.assignedSeats > afterAddCapacity.capacity) {
+            // Roll back membership if over capacity
+            await supabase
+                .from('user_organizations')
+                .delete()
+                .eq('organization_id', invitation.organization_id)
+                .eq('user_id', userId);
+            return res.status(400).json({ error: 'Organization has reached its maximum number of seats' });
+        }
+
+        // Assign a phone number to the new member (reuse available first)
+        try {
+            const { data: orgRow } = await supabase
+                .from('organizations')
+                .select('id, name, twilio_subaccount_sid, twilio_messaging_service_sid')
+                .eq('id', invitation.organization_id)
+                .single();
+
+            // Ensure an active seat exists for this user
+            const { data: seat } = await supabase
+                .from('seats')
+                .insert({ org_id: invitation.organization_id, user_id: userId, status: 'active' })
+                .select('id')
+                .single();
+
+            if (orgRow && seat) {
+                // Try to reuse available number
+                const { data: available } = await supabase
+                    .from('phone_numbers')
+                    .select('id')
+                    .eq('org_id', orgRow.id)
+                    .eq('status', 'available')
+                    .limit(1)
+                    .maybeSingle();
+
+                if (available?.id) {
+                    await supabase
+                        .from('phone_numbers')
+                        .update({ seat_id: seat.id, status: 'assigned', updated_at: new Date().toISOString() })
+                        .eq('id', available.id)
+                        .eq('org_id', orgRow.id);
+                }
+            }
+        } catch (assignErr) {
+            console.error('Failed to assign phone number on invitation accept:', assignErr);
+        }
+
+        // Update invitation status to accepted
 		const { error: updateError } = await supabase
 			.from('organization_invites')
 			.update({ status: 'accepted' })
