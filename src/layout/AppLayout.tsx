@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import AppHeader from '../components/header/AppHeader';
 import AppSidebar from '../components/header/AppSidebar';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
@@ -23,6 +23,13 @@ import { isOrganizationBehindOnPayments } from '../utils/paymentStatus';
 import ReadOnlyMode from '../components/common/ReadOnlyMode';
 import { useOrganization } from '../hooks/useOrganization';
 import { OrganizationRow } from '../types/billing';
+import { useWebRTCCall } from '../hooks/useWebRTCCall';
+import PageMeta from '../components/common/PageMeta';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Button } from '../components/ui/button';
+import { BellRing } from 'lucide-react';
+import { toast } from 'sonner';
+import { NOTIFICATION_HELP_EVENT } from '../constants/events';
 
 const LayoutContent: React.FC = () => {
 	const { pathname } = useLocation();
@@ -34,11 +41,101 @@ const LayoutContent: React.FC = () => {
 	const { isPaused, isDisabled, status: orgStatus } = useOrganizationStatus();
 	const { paymentStatus } = usePaymentStatus();
 
+const { isIncomingCall, notificationsEnabled, requestNotificationPermission } = useWebRTCCall();
+
 	const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
 	const { isScreenTooSmall } = useScreenSize();
+	const [isIncomingCallTitleVisible, setIsIncomingCallTitleVisible] = useState(false);
+	const incomingCallIntervalRef = useRef<number | null>(null);
+	const previousTitleRef = useRef<string>('Paperboat CRM');
+	const [showNotificationHelp, setShowNotificationHelp] = useState(false);
+	const hasShownNotificationHelpRef = useRef(false);
+
+	const clearTitleInterval = useCallback(() => {
+		if (incomingCallIntervalRef.current !== null) {
+			clearInterval(incomingCallIntervalRef.current);
+			incomingCallIntervalRef.current = null;
+		}
+	}, []);
+
+	const handleEnableNotifications = useCallback(async () => {
+		try {
+			const granted = await requestNotificationPermission();
+			if (granted) {
+				setShowNotificationHelp(false);
+			}
+		} finally {
+			hasShownNotificationHelpRef.current = true;
+		}
+	}, [requestNotificationPermission]);
+
+	const handleCloseNotificationHelp = useCallback(() => {
+		setShowNotificationHelp(false);
+		hasShownNotificationHelpRef.current = true;
+	}, []);
+
+	const openSystemSettingsGuide = useCallback(() => {
+		if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
+
+		const platform = navigator.userAgent.toLowerCase();
+		let guideUrl = 'https://support.google.com/chrome/answer/3220216?hl=en';
+
+		if (platform.includes('mac')) {
+			guideUrl = 'https://support.apple.com/guide/mac-help/change-notifications-settings-in-mac-mh40577/mac';
+		} else if (platform.includes('win')) {
+			guideUrl = 'https://support.microsoft.com/windows/change-notification-settings-in-windows-10-6448c37f-8733-44bb-b43f-b660fdb58dff';
+		} else if (platform.includes('linux') || platform.includes('ubuntu')) {
+			guideUrl = 'https://help.ubuntu.com/stable/ubuntu-help/shell-notifications.html';
+		}
+
+		window.open(guideUrl, '_blank', 'noopener');
+	}, []);
 
 	// Initialize notifications system
 	useNotifications(session?.user?.id);
+
+	useEffect(() => {
+	if (!isIncomingCall) {
+			clearTitleInterval();
+		setIsIncomingCallTitleVisible(false);
+			if (typeof document !== 'undefined') {
+				document.title = previousTitleRef.current || 'Paperboat CRM';
+			}
+			return () => {
+				clearTitleInterval();
+			};
+		}
+
+		if (typeof document !== 'undefined') {
+			previousTitleRef.current = document.title || 'Paperboat CRM';
+		}
+	setIsIncomingCallTitleVisible(true);
+		clearTitleInterval();
+		incomingCallIntervalRef.current = window.setInterval(() => {
+			setIsIncomingCallTitleVisible((prev) => !prev);
+		}, 1000);
+
+		return () => {
+			clearTitleInterval();
+			setIsIncomingCallTitleVisible(false);
+			if (typeof document !== 'undefined') {
+				document.title = previousTitleRef.current || 'Paperboat CRM';
+			}
+		};
+	}, [clearTitleInterval, isIncomingCall]);
+
+	useEffect(() => {
+		if (typeof window === 'undefined') return;
+
+		const handleExternalOpen = () => {
+			setShowNotificationHelp(true);
+		};
+
+		window.addEventListener(NOTIFICATION_HELP_EVENT as any, handleExternalOpen);
+		return () => {
+			window.removeEventListener(NOTIFICATION_HELP_EVENT as any, handleExternalOpen);
+		};
+	}, []);
 
 	// Show loading while auth is being checked
 	if (loadingState === AuthLoadingState.LOADING) {
@@ -159,6 +256,9 @@ const LayoutContent: React.FC = () => {
 
 	return (
 		<>
+			{isIncomingCall ? (
+				<PageMeta isSmallTitle={true} title={isIncomingCallTitleVisible ? 'Incoming Call…' : ''} description="You have an incoming call" />
+			) : null}
 			<div className="app-layout-content flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
 				{isExpanded && <AppSidebar />}
 
@@ -180,6 +280,54 @@ const LayoutContent: React.FC = () => {
 				</div>
 			</div>
 			<ActiveCallBar />
+			<Dialog
+				open={showNotificationHelp}
+				onOpenChange={(open) => {
+					setShowNotificationHelp(open);
+					if (!open) {
+						hasShownNotificationHelpRef.current = true;
+					}
+				}}
+			>
+				<DialogContent className="max-w-lg space-y-5">
+					<DialogHeader>
+						<DialogTitle className="flex items-center space-x-2">
+							<BellRing className="h-5 w-5 text-amber-500" />
+							<span>Enable Notifications</span>
+						</DialogTitle>
+						<DialogDescription className="break-words leading-relaxed">
+							Stay notified about incoming calls by enabling browser notifications and allowing them in your computer’s system settings.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
+						<ol className="list-decimal space-y-2 pl-5 pr-1">
+							<li>Click <span className="font-medium">Enable Browser Notifications</span> and allow the prompt in your browser.</li>
+							<li>
+								Open your computer's notification settings and allow notifications for your browser.
+								<ul className="mt-1 list-disc space-y-1 pl-5 pr-1 text-xs text-gray-500 dark:text-gray-400">
+									<li>macOS: System Settings → Notifications → Google Chrome (or your browser)</li>
+									<li>Windows: Settings → System → Notifications & actions → Notifications</li>
+									<li>Ubuntu/Linux: Settings → Notifications → Applications → Browser</li>
+								</ul>
+							</li>
+						</ol>
+						<p className="text-xs text-gray-500 dark:text-gray-400">Tip: After changing notification settings, you may need to relaunch your browser.</p>
+					</div>
+					<DialogFooter className="flex gap-2 sm:flex-wrap sm:items-center sm:justify-center">
+						<div className="flex gap-2">
+						<Button variant="outline" onClick={handleCloseNotificationHelp} className="justify-center sm:justify-start">
+							Remind me later
+						</Button>
+						<Button onClick={handleEnableNotifications} className="justify-center sm:justify-start">
+								Enable Browser Notifications
+							</Button>
+						</div>
+						<Button variant="ghost" onClick={openSystemSettingsGuide} className="justify-center sm:justify-start">
+							More on system settings
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 };

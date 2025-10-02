@@ -102,16 +102,21 @@ router.post('/organizations/:organizationId/phone-numbers', async (req, res) => 
 			return res.status(400).json({ error: 'No available phone numbers found for the requested criteria' });
 		}
 
-		const smsWebhookUrl = BASE_WEBHOOK_DOMAIN ? `${BASE_WEBHOOK_DOMAIN}/api/webhooks/twilio/sms-inbound` : undefined;
-		const smsStatusCallback = BASE_WEBHOOK_DOMAIN ? `${BASE_WEBHOOK_DOMAIN}/api/webhooks/twilio/sms-status` : undefined;
-		const voiceWebhookUrl = BASE_WEBHOOK_DOMAIN ? `${BASE_WEBHOOK_DOMAIN}/api/twilio/voice/call` : undefined;
+		const baseWebhook = BASE_WEBHOOK_DOMAIN || process.env.PUBLIC_URL?.replace(/\/$/, '') || '';
+		const smsWebhookUrl = baseWebhook ? `${baseWebhook}/api/webhooks/twilio/sms-inbound` : undefined;
+		const smsStatusCallback = baseWebhook ? `${baseWebhook}/api/webhooks/twilio/sms-status` : undefined;
+		const voiceWebhookUrl = baseWebhook ? `${baseWebhook}/api/twilio/voice/call` : undefined;
+		const voiceStatusCallback = baseWebhook ? `${baseWebhook}/api/webhooks/twilio/call-status` : undefined;
 
 		const purchasedNumber = await subClient.incomingPhoneNumbers.create({
 			phoneNumber: numberToPurchase.phoneNumber,
 			smsUrl: smsWebhookUrl,
+			smsMethod: 'POST',
 			statusCallback: smsStatusCallback,
 			voiceUrl: voiceWebhookUrl,
-			voiceMethod: 'POST'
+			voiceMethod: 'POST',
+			voiceStatusCallback: voiceStatusCallback,
+			voiceStatusCallbackMethod: 'POST'
 		});
 
 		if (messagingServiceSid) {
@@ -174,31 +179,23 @@ router.post('/organizations/:organizationId/phone-numbers/sync', async (req, res
 		const baseUrl = PUBLIC_URL.replace(/\/$/, '');
 		const smsWebhookUrl = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-inbound` : undefined;
 		const voiceWebhookUrl = baseUrl ? `${baseUrl}/api/twilio/voice/call` : undefined;
+		const smsStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-status` : undefined;
+		const voiceStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/call-status` : undefined;
 
 		const existingNumbers = await numbersApi.incomingPhoneNumbers.list({ limit: 200 });
-		let inserted = 0;
 		for (const num of existingNumbers) {
-			const { data: exists } = await supabase
-				.from('phone_numbers')
-				.select('id')
-				.eq('org_id', organizationId)
-				.eq('sid', num.sid)
-				.maybeSingle();
-
-			if (!exists) {
-				const { error: insErr } = await supabase
-					.from('phone_numbers')
-					.insert({
-						org_id: organizationId,
-						seat_id: null,
-						phone_number: num.phoneNumber,
-						sid: num.sid,
-						capabilities: { sms: Boolean(num.capabilities?.sms), voice: Boolean(num.capabilities?.voice), mms: Boolean(num.capabilities?.mms) },
-						status: 'available',
-						sms_webhook_url: smsWebhookUrl ?? null,
-						voice_webhook_url: voiceWebhookUrl ?? null
-					});
-				if (!insErr) inserted += 1;
+			try {
+				await subClient.incomingPhoneNumbers(num.sid).update?.({
+					smsUrl: smsWebhookUrl,
+					smsMethod: 'POST',
+					statusCallback: smsStatusCallback,
+					voiceUrl: voiceWebhookUrl,
+					voiceMethod: 'POST',
+					voiceStatusCallback: voiceStatusCallback,
+					voiceStatusCallbackMethod: 'POST'
+				});
+			} catch (err) {
+				console.warn('[twilioPhone] failed to update voice status callback for', num.sid, err);
 			}
 		}
 

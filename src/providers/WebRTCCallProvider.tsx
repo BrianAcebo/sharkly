@@ -2,36 +2,40 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Device, Call } from '@twilio/voice-sdk';
 import { WebRTCCallContext } from '../contexts/WebRTCCallContext';
 import { supabase } from '../utils/supabaseClient';
+import { NOTIFICATION_HELP_EVENT } from '../constants/events';
 
 interface WebRTCCallProviderProps {
 	children: React.ReactNode;
 }
 
 interface OutboundCallContext {
-    user: { id: string };
-    organizationId: string;
-    agentNumber: string;
-    formattedNumber: string;
-    contactName: string;
-    leadId: string | null;
-    leadInfo?: { id: string; name: string; phone?: string } | null;
+	user: { id: string };
+	organizationId: string;
+	agentNumber: string;
+	formattedNumber: string;
+	contactName: string;
+	leadId: string | null;
+	leadInfo?: { id: string; name: string; phone?: string } | null;
 }
 
-const callMeta = new WeakMap<Call, { context: OutboundCallContext; callRecordCreated?: boolean; callRecordId?: string }>();
+const callMeta = new WeakMap<
+	Call,
+	{ context: OutboundCallContext; callRecordCreated?: boolean; callRecordId?: string }
+>();
 
 const waitForRegistered = (d: Device, ms = 3000) =>
 	new Promise<boolean>((resolve) => {
-        if (d.state === 'registered') return resolve(true);
-        const onReg = () => {
-            // Remove handler after firing once
-            d.off('registered', onReg as unknown as (...args: unknown[]) => void);
-            resolve(true);
-        };
-        d.on('registered', onReg as unknown as (arg0?: unknown) => void);
-        setTimeout(() => {
-            d.off('registered', onReg as unknown as (arg0?: unknown) => void);
-            resolve(d.state === 'registered');
-        }, ms);
+		if (d.state === 'registered') return resolve(true);
+		const onReg = () => {
+			// Remove handler after firing once
+			d.off('registered', onReg as unknown as (...args: unknown[]) => void);
+			resolve(true);
+		};
+		d.on('registered', onReg as unknown as (arg0?: unknown) => void);
+		setTimeout(() => {
+			d.off('registered', onReg as unknown as (arg0?: unknown) => void);
+			resolve(d.state === 'registered');
+		}, ms);
 	});
 
 export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
@@ -54,25 +58,31 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 	const [selectedSpeakerDevice, setSelectedSpeakerDevice] = useState<string | null>(null);
 	const [localAudioLevel] = useState(0);
 	const [remoteAudioLevel] = useState(0);
+	const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+	const [isIncomingCall, setIsIncomingCall] = useState(false);
 
 	const connRef = useRef<Call | null>(null);
 	const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
-const endCallRef = useRef<() => void>(() => {});
+	const endCallRef = useRef<() => void>(() => {});
 	const deviceInitRef = useRef<boolean>(false);
+	const ringtoneRef = useRef<HTMLAudioElement | null>(null);
+	const incomingNotificationRef = useRef<Notification | null>(null);
 
 	// Keep a stable reference to endCall for event handlers created once
-useEffect(() => {
-    // endCall will be assigned after its declaration; leave as is here
-}, []);
+	useEffect(() => {
+		// endCall will be assigned after its declaration; leave as is here
+	}, []);
 
 	// Helper function to create call history record with complete context
-    const createCallHistoryRecord = async (call: Call, callContext: OutboundCallContext) => {
-		console.log("history", call.parameters, call)
+	const createCallHistoryRecord = async (call: Call, callContext: OutboundCallContext) => {
+		console.log('history', call.parameters, call);
 		try {
 			// Get the actual Twilio Call SID
-            const providedSid = (call as unknown as { parameters?: Record<string, string> }).parameters?.CallSid;
-            const twilioCallSid = providedSid ?? `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+			const providedSid = (call as unknown as { parameters?: Record<string, string> }).parameters
+				?.CallSid;
+			const twilioCallSid =
+				providedSid ?? `TEMP-${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
 
 			// Debug logging
 			console.log('Creating call history record with complete context:', {
@@ -107,24 +117,36 @@ useEffect(() => {
 					fromNumber: callContext.agentNumber,
 					toNumber: callContext.formattedNumber
 				});
-                // Store the call record ID for reference in our metadata map
-                const meta = callMeta.get(call) || { context: callContext };
-                meta.callRecordId = callRecord.id;
-                callMeta.set(call, meta);
+				// Store the call record ID for reference in our metadata map
+				const meta = callMeta.get(call) || { context: callContext };
+				meta.callRecordId = callRecord.id;
+				callMeta.set(call, meta);
 			}
 		} catch (error) {
 			console.error('Failed to create call history record:', error);
 		}
 	};
 
-
+	const stopIncomingAlerts = useCallback(() => {
+		const audio = ringtoneRef.current;
+		if (audio) {
+			audio.pause();
+			audio.currentTime = 0;
+		}
+		if (incomingNotificationRef.current) {
+			incomingNotificationRef.current.close();
+			incomingNotificationRef.current = null;
+		}
+		setRemoteNumber('');
+		setRemoteName('');
+	}, []);
 
 	const endCall = useCallback(() => {
 		console.log('[WebRTC] Ending call, cleaning up media streams');
-		
+
 		// Stop all media tracks (microphone, camera, etc.)
 		if (mediaStreamRef.current) {
-			mediaStreamRef.current.getTracks().forEach(track => {
+			mediaStreamRef.current.getTracks().forEach((track) => {
 				console.log('[WebRTC] Stopping media track:', track.kind);
 				track.stop();
 			});
@@ -140,13 +162,15 @@ useEffect(() => {
 		setIsConnected(false);
 		setIsConnecting(false);
 		setIsRinging(false);
+		setIsIncomingCall(false);
 		setIsOnHold(false);
 		setCurrentCall(null);
 		setRemoteNumber('');
 		setRemoteName('');
 		setCallDuration(0);
 		setStatus('Ready');
-	}, [device]);
+		stopIncomingAlerts();
+	}, [device, stopIncomingAlerts]);
 
 	// Keep a stable reference to endCall for event handlers created once
 	useEffect(() => {
@@ -220,9 +244,13 @@ useEffect(() => {
 					setStatus('Error');
 				});
 				d.on('incoming', (connection) => {
+					const fromNumber = connection.parameters.From || 'Unknown';
 					setIsRinging(true);
-					setRemoteNumber(connection.parameters.From || 'Unknown');
-					setRemoteName(connection.parameters.From || 'Unknown');
+					setRemoteNumber(fromNumber);
+					setRemoteName(fromNumber);
+					setIsIncomingCall(true);
+					playRingtone();
+					notifyIncomingCall(fromNumber);
 					connRef.current = connection;
 
 					connection.on('accept', () => {
@@ -230,11 +258,13 @@ useEffect(() => {
 						setIsRinging(false);
 						setIsConnected(true);
 						setIsConnecting(false);
+						setIsIncomingCall(false);
+						stopIncomingAlerts();
 						setCurrentCall({
 							contactName: connection.parameters.From || 'Unknown',
 							status: 'connected'
 						});
-						
+
 						// Capture the media stream for cleanup when call ends
 						if (connection.getLocalStream) {
 							const localStream = connection.getLocalStream();
@@ -244,13 +274,24 @@ useEffect(() => {
 						}
 					});
 
-					connection.on('disconnect', () => {
+					connection.on('cancel', () => {
+						stopIncomingAlerts();
+						setIsIncomingCall(false);
+						setIsRinging(false);
+					});
+
+					connection.on('disconnect', async () => {
+						stopIncomingAlerts();
+						setIsIncomingCall(false);
+						await device?.audio?.unsetInputDevice();
 						endCallRef.current();
 					});
 
 					connection.on('error', (e: { message: string }) => {
 						console.error('Call error:', e.message);
 						setStatus('Error');
+						setIsIncomingCall(false);
+						stopIncomingAlerts();
 						endCallRef.current();
 					});
 				});
@@ -276,7 +317,9 @@ useEffect(() => {
 					'tokenExpired',
 					'stateChanged'
 				].forEach((evt) =>
-					d.on(evt as unknown as Parameters<Device['on']>[0], (...args: unknown[]) => console.log(`[voice] ${evt}`, ...args))
+					d.on(evt as unknown as Parameters<Device['on']>[0], (...args: unknown[]) =>
+						console.log(`[voice] ${evt}`, ...args)
+					)
 				);
 
 				await d.register(); // <-- important
@@ -337,7 +380,7 @@ useEffect(() => {
 		return () => {
 			console.log('[WebRTC] Component unmounting, cleaning up media streams');
 			if (mediaStreamRef.current) {
-				mediaStreamRef.current.getTracks().forEach(track => {
+				mediaStreamRef.current.getTracks().forEach((track) => {
 					console.log('[WebRTC] Stopping media track on unmount:', track.kind);
 					track.stop();
 				});
@@ -346,11 +389,138 @@ useEffect(() => {
 		};
 	}, []);
 
+	useEffect(() => {
+		if (typeof window === 'undefined') {
+			return;
+		}
+
+		const audio = new Audio('/audio/incoming-call.mp3');
+		audio.loop = true;
+		audio.preload = 'auto';
+		audio.volume = 0.6;
+		ringtoneRef.current = audio;
+
+		return () => {
+			audio.pause();
+			ringtoneRef.current = null;
+		};
+	}, []);
+
+	useEffect(() => {
+		if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+			setNotificationsEnabled(false);
+			return;
+		}
+
+		const updatePermissionState = () => {
+			setNotificationsEnabled(Notification.permission === 'granted');
+		};
+
+		updatePermissionState();
+
+		document.addEventListener('visibilitychange', updatePermissionState);
+
+		return () => {
+			document.removeEventListener('visibilitychange', updatePermissionState);
+		};
+	}, []);
+
+	const requestNotificationPermission = useCallback(async () => {
+		if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+			console.warn('Notifications are not supported in this environment.');
+			return false;
+		}
+
+		if (Notification.permission === 'granted') {
+			setNotificationsEnabled(true);
+			return true;
+		}
+
+		if (Notification.permission === 'denied') {
+			setNotificationsEnabled(false);
+			return false;
+		}
+
+		try {
+			const permission = await Notification.requestPermission();
+			const granted = permission === 'granted';
+			setNotificationsEnabled(granted);
+			return granted;
+		} catch (error) {
+			console.error('Failed to request notification permission:', error);
+			const granted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
+			setNotificationsEnabled(granted);
+			return granted;
+		}
+	}, []);
+
+	const showNotificationPrompt = useCallback(() => {
+		if (typeof window === 'undefined') return;
+		try {
+			window.dispatchEvent(new Event(NOTIFICATION_HELP_EVENT));
+		} catch (error) {
+			console.error('Failed to dispatch notification help event:', error);
+		}
+	}, []);
+
+	const playRingtone = useCallback(() => {
+		const audio = ringtoneRef.current;
+		if (!audio) return;
+		try {
+			audio.currentTime = 0;
+			const playPromise = audio.play();
+			if (playPromise) {
+				playPromise.catch((error) => {
+					console.warn('Unable to play incoming call ringtone:', error);
+				});
+			}
+		} catch (error) {
+			console.warn('Unable to start incoming call ringtone:', error);
+		}
+	}, []);
+
+	const notifyIncomingCall = useCallback(
+		(from: string | undefined) => {
+			if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+				return;
+			}
+
+			const caller = from || 'Unknown Caller';
+
+			if (Notification.permission === 'granted') {
+				try {
+					const notification = new Notification('Incoming Call', {
+						body: `Call from ${caller}`,
+						icon: '/images/logos/logo.svg',
+						tag: 'paperboat-incoming-call',
+						renotify: true,
+						requireInteraction: true,
+						silent: true
+					});
+
+					notification.onclick = () => {
+						window.focus();
+						notification.close();
+					};
+
+					incomingNotificationRef.current = notification;
+				} catch (error) {
+					console.error('Failed to show incoming call notification:', error);
+				}
+			} else if (Notification.permission === 'default') {
+				showNotificationPrompt();
+			}
+		},
+		[showNotificationPrompt]
+	);
+
 	// Call context manager to collect all necessary information
 	const collectCallContext = async (phoneNumber: string, contactName?: string, leadId?: string) => {
 		try {
 			// Get current user and organization
-			const { data: { user } } = await supabase.auth.getUser();
+			const {
+				data: { user }
+			} = await supabase.auth.getUser();
 			if (!user) {
 				console.error('[voice] user not found');
 				throw new Error('User not authenticated');
@@ -369,8 +539,8 @@ useEffect(() => {
 
 			// Get agent phone number (always from backend; no env fallback)
 			let rawAgentNumber: string | null = null;
-			console.log("userOrg", userOrg)
-			console.log("user", user.id)
+			console.log('userOrg', userOrg);
+			console.log('user', user.id);
 			const { data: seat, error: seatErr } = await supabase
 				.from('seats')
 				.select('id')
@@ -399,9 +569,9 @@ useEffect(() => {
 				rawAgentNumber = assignedPhone.phone_number;
 			}
 
-			console.log("assignedPhone", assignedPhone)
-			console.log("assignedErr", assignedErr)
-			console.log(rawAgentNumber)
+			console.log('assignedPhone', assignedPhone);
+			console.log('assignedErr', assignedErr);
+			console.log(rawAgentNumber);
 
 			// 2) Fallback: seats.phone_e164 for this user
 			if (!rawAgentNumber) {
@@ -428,14 +598,18 @@ useEffect(() => {
 			const agentDigitsOnly = rawAgentNumber.replace(/\D/g, '');
 			const normalizedAgentNumber = rawAgentNumber.startsWith('+')
 				? rawAgentNumber
-				: (agentDigitsOnly.startsWith('1') ? `+${agentDigitsOnly}` : `+1${agentDigitsOnly}`);
+				: agentDigitsOnly.startsWith('1')
+					? `+${agentDigitsOnly}`
+					: `+1${agentDigitsOnly}`;
 			const agentNumber = normalizedAgentNumber;
 
 			// Normalize destination phone number to E.164
 			const destDigitsOnly = phoneNumber.replace(/\D/g, '');
 			const formattedNumber = phoneNumber.startsWith('+')
 				? phoneNumber
-				: (destDigitsOnly.startsWith('1') ? `+${destDigitsOnly}` : `+1${destDigitsOnly}`);
+				: destDigitsOnly.startsWith('1')
+					? `+${destDigitsOnly}`
+					: `+1${destDigitsOnly}`;
 
 			// Lookup lead information if leadId is provided or if we need to find it
 			let leadInfo = null;
@@ -459,14 +633,14 @@ useEffect(() => {
 					normalizedPhone,
 					`+1${normalizedPhone}`,
 					`+${normalizedPhone}`,
-					normalizedPhone.slice(1),
+					normalizedPhone.slice(1)
 				];
 
 				const { data: lead, error: leadError } = await supabase
 					.from('leads')
 					.select('id, name, phone')
 					.eq('organization_id', userOrg.organization_id)
-					.or(phoneVariations.map(phone => `phone.eq.${phone}`).join(','))
+					.or(phoneVariations.map((phone) => `phone.eq.${phone}`).join(','))
 					.single();
 
 				if (!leadError && lead) {
@@ -488,7 +662,6 @@ useEffect(() => {
 
 			console.log('Call context collected:', callContext);
 			return callContext;
-
 		} catch (error) {
 			console.error('Error collecting call context:', error);
 			throw error;
@@ -514,10 +687,17 @@ useEffect(() => {
 			setRemoteNumber(phoneNumber);
 			setRemoteName(contactName || phoneNumber);
 
-			console.log('Making call to:', phoneNumber, 'with contact name:', contactName, 'and lead ID:', leadId);
+			console.log(
+				'Making call to:',
+				phoneNumber,
+				'with contact name:',
+				contactName,
+				'and lead ID:',
+				leadId
+			);
 
-            // Collect all call context information
-            let callContext: OutboundCallContext;
+			// Collect all call context information
+			let callContext: OutboundCallContext;
 			try {
 				callContext = await collectCallContext(phoneNumber, contactName, leadId);
 			} catch (error) {
@@ -530,30 +710,30 @@ useEffect(() => {
 			console.log('Call context:', callContext);
 
 			try {
-            const c = await device.connect({ 
-					params: { 
-						To: callContext.formattedNumber, 
-						From: callContext.agentNumber 
-					} 
+				const c = await device.connect({
+					params: {
+						To: callContext.formattedNumber,
+						From: callContext.agentNumber
+					}
 				});
 				connRef.current = c;
 
 				console.log('Call object:', c);
 
-                // Store call context in metadata map
-                callMeta.set(c, { context: callContext });
+				// Store call context in metadata map
+				callMeta.set(c, { context: callContext });
 
 				console.log('Call object created:', c);
 
 				// Create call history record when call starts ringing (for all calls)
-                c.on('ringing', async () => {
+				c.on('ringing', async () => {
 					console.log('[WebRTC] Call is ringing');
-                    const meta = callMeta.get(c);
-                    if (meta && !meta.callRecordCreated) {
-                        await createCallHistoryRecord(c, meta.context);
-                        meta.callRecordCreated = true; // Prevent duplicate creation
-                        callMeta.set(c, meta);
-                    }
+					const meta = callMeta.get(c);
+					if (meta && !meta.callRecordCreated) {
+						await createCallHistoryRecord(c, meta.context);
+						meta.callRecordCreated = true; // Prevent duplicate creation
+						callMeta.set(c, meta);
+					}
 				});
 
 				c.on('accept', async () => {
@@ -565,7 +745,7 @@ useEffect(() => {
 						contactName: contactName || phoneNumber,
 						status: 'connected'
 					});
-					
+
 					// Capture the media stream for cleanup when call ends
 					if (c.getLocalStream) {
 						const localStream = c.getLocalStream();
@@ -577,7 +757,8 @@ useEffect(() => {
 					// Call history record already created in 'ringing' event
 				});
 
-				c.on('disconnect', () => {
+				c.on('disconnect', async () => {
+					await device?.audio?.unsetInputDevice();
 					// Call history will be updated by backend webhook
 					endCall();
 				});
@@ -585,7 +766,7 @@ useEffect(() => {
 				c.on('error', async (e: { message: string }) => {
 					setStatus('Call error: ' + e.message);
 					setIsConnecting(false);
-					
+
 					// Create call history record if not already created (for failed calls)
 					const meta = callMeta.get(c);
 					if (meta && !meta.callRecordCreated) {
@@ -616,7 +797,9 @@ useEffect(() => {
 		setCurrentCall(null);
 		setRemoteNumber('');
 		setRemoteName('');
-	}, []);
+		setIsIncomingCall(false);
+		stopIncomingAlerts();
+	}, [stopIncomingAlerts]);
 
 	const toggleMute = useCallback(() => {
 		if (connRef.current) {
@@ -674,6 +857,7 @@ useEffect(() => {
 		isConnected,
 		isConnecting,
 		isRinging,
+		isIncomingCall,
 		isOnHold,
 		isMuted,
 		isSpeakerOn,
@@ -709,7 +893,12 @@ useEffect(() => {
 		remoteAudioLevel,
 
 		// Device status
-		deviceStatus: status
+		deviceStatus: status,
+
+		// Notification state
+		notificationsEnabled,
+		requestNotificationPermission,
+		showNotificationPrompt
 	};
 
 	return <WebRTCCallContext.Provider value={contextValue}>{children}</WebRTCCallContext.Provider>;

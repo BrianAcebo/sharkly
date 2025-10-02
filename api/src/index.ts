@@ -14,7 +14,6 @@ import statusWebhookRoutes from './routes/twilio/status';
 // Twilio Voice routes
 import callRoutes from './routes/twilio/calls';
 import voiceWebhookRoutes from './routes/twilio/voice';
-import callStatusWebhookRoutes from './routes/twilio/callStatus';
 
 // Twilio Client routes for WebRTC
 import clientTokenRoutes from './routes/twilio/clientTokens';
@@ -92,7 +91,6 @@ app.use('/api/webhooks/twilio', statusWebhookRoutes);
 
 // Twilio Voice routes
 app.use('/api/calls', callRoutes);
-app.use('/api/webhooks/twilio', callStatusWebhookRoutes);
 
 // Twilio Client routes for WebRTC
 app.use('/api/twilio/tokens', clientTokenRoutes);

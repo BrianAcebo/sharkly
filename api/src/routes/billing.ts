@@ -1,6 +1,8 @@
 import express from 'express';
 import { z } from 'zod';
 import { supabase } from '../utils/supabaseClient';
+import { getWalletStatus } from '../controllers/billingUsage';
+router.get('/wallet/status', getWalletStatus);
 import { getStripeClient } from '../utils/stripe';
 import type Stripe from 'stripe';
 

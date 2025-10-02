@@ -211,6 +211,7 @@ export const purchaseSeats = async (req: Request, res: Response) => {
                     const smsWebhookUrl = host ? `${host}/api/webhooks/twilio/sms-inbound` : undefined;
                     const smsStatusCallback = host ? `${host}/api/webhooks/twilio/sms-status` : undefined;
                     const voiceWebhookUrl = host ? `${host}/api/twilio/voice/call` : undefined;
+                    const voiceStatusCallback = host ? `${host}/api/webhooks/twilio/call-status` : undefined;
 
                     const candidates = await sub.availablePhoneNumbers('US').local.list({ smsEnabled: true, voiceEnabled: true, limit: needed });
                     for (const cand of candidates) {
@@ -220,7 +221,9 @@ export const purchaseSeats = async (req: Request, res: Response) => {
                                 smsUrl: smsWebhookUrl,
                                 statusCallback: smsStatusCallback,
                                 voiceUrl: voiceWebhookUrl,
-                                voiceMethod: 'POST'
+                                voiceMethod: 'POST',
+                                voiceStatusCallback: voiceStatusCallback,
+                                voiceStatusCallbackMethod: 'POST'
                             });
 
                             if (provisioning.messagingServiceSid) {

@@ -31,7 +31,7 @@ export interface ActiveCall {
   contactName: string;
   phoneNumber: string;
   direction: 'inbound' | 'outbound';
-  status: 'connecting' | 'connected' | 'on-hold' | 'transferring';
+  status: 'ringing' | 'connecting' | 'connected' | 'on-hold' | 'transferring';
   startTime: Date;
   duration: number; // in seconds
   isMuted: boolean;
@@ -41,6 +41,8 @@ export interface ActiveCall {
   isOnHold: boolean;
   recordingUrl?: string;
   notes?: string;
+  twilioCallSid?: string;
+  callHistoryId?: string;
 }
 
 export interface CallSettings {

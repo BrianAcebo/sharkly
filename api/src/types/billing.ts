@@ -12,6 +12,8 @@ export type StripeSubStatus =
 
 export type OrgStatus = 'active' | 'paused' | 'disabled' | 'deleted' | 'payment_required' | 'past_due';
 
+export type UsageResourceType = 'voice' | 'sms' | 'email' | 'other';
+
 export type PlanCode = 'starter' | 'growth' | 'scale' | 'enterprise';
 
 export interface PostalAddress {
@@ -55,6 +57,10 @@ export interface OrganizationRow {
   payment_retry_count?: number | null;
   next_payment_retry_at?: string | null;
   payment_failure_reason?: string | null;
+  usage_wallet_status?: 'active' | 'payment_required' | 'suspended';
+  wallet_threshold_cents?: number | null;
+  wallet_top_up_amount_cents?: number | null;
+  initial_top_up_required?: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -99,6 +105,25 @@ export interface OrgOnboardResponse {
   ok: true;
   org: OrganizationRow;
   subscriptionClientSecret?: string | null;
+}
+
+export interface WalletStatus {
+  wallet: {
+    status: 'active' | 'payment_required' | 'suspended';
+    balance_cents: number;
+    threshold_cents: number;
+    top_up_amount_cents: number;
+    pending_top_up_cents: number;
+    last_top_up_at: string | null;
+  } | null;
+  included: {
+    minutesRemaining?: number | null;
+    smsRemaining?: number | null;
+    emailRemaining?: number | null;
+  };
+  trialing: boolean;
+  depositRequired: boolean;
+  reason?: 'trial_requires_deposit' | 'insufficient_wallet' | 'wallet_suspended';
 }
 
 export interface ApiError {

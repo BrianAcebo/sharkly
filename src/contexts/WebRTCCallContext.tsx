@@ -3,6 +3,10 @@ import { createContext } from 'react';
 interface ActiveCall {
 	contactName: string;
 	status: string;
+	direction?: 'inbound' | 'outbound';
+	leadId?: string;
+	twilioCallSid?: string;
+	callHistoryId?: string;
 }
 
 interface WebRTCCallContextType {
@@ -13,12 +17,13 @@ interface WebRTCCallContextType {
   isOnHold: boolean;
   isMuted: boolean;
   isSpeakerOn: boolean;
+  isIncomingCall: boolean;
   
-  // Call info
-  currentCall: ActiveCall | null;
-  callDuration: number;
-  remoteNumber: string;
-  remoteName: string;
+	// Call info
+	currentCall: ActiveCall | null;
+	callDuration: number;
+	remoteNumber: string;
+	remoteName: string;
   
   // Audio devices
   audioDevices: MediaDeviceInfo[];
@@ -44,8 +49,13 @@ interface WebRTCCallContextType {
   localAudioLevel: number;
   remoteAudioLevel: number;
   
-  // Device status
-  deviceStatus: string;
+	// Device status
+	deviceStatus: string;
+
+	// Notification state
+	notificationsEnabled: boolean;
+	requestNotificationPermission: () => Promise<boolean>;
+	showNotificationPrompt: () => void;
 }
 
 export const WebRTCCallContext = createContext<WebRTCCallContextType | undefined>(undefined);

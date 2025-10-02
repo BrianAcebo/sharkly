@@ -14,6 +14,7 @@ import {
 import { getStripeClient } from '../utils/stripe';
 import { getTwilioClientForSubaccount } from '../utils/twilioClient';
 import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning';
+import { ensureWallet } from '../utils/wallet';
 
 const stripe = getStripeClient();
 
@@ -653,6 +654,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
               const smsWebhookUrl = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-inbound` : undefined;
               const smsStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-status` : undefined;
               const voiceWebhookUrl = baseUrl ? `${baseUrl}/api/twilio/voice/call` : undefined;
+              const voiceStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/call-status` : undefined;
 
               // Fetch candidate numbers only if needed > 0
               const candidateArgs: { smsEnabled?: boolean; voiceEnabled?: boolean; limit?: number; areaCode?: string } = { smsEnabled: true, voiceEnabled: true, limit: needed };
@@ -666,7 +668,9 @@ export const onboardOrganization = async (req: Request, res: Response) => {
                     smsUrl: smsWebhookUrl,
                     statusCallback: smsStatusCallback,
                     voiceUrl: voiceWebhookUrl,
-                    voiceMethod: 'POST'
+                    voiceMethod: 'POST',
+                    voiceStatusCallback: voiceStatusCallback,
+                    voiceStatusCallbackMethod: 'POST'
                   });
 
                   if (provisioning.messagingServiceSid) {
@@ -826,6 +830,8 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         }
       }
     }
+
+    await ensureWallet(updatedOrg.id);
 
     const response: OrgOnboardResponse = {
       ok: true,
