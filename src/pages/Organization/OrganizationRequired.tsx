@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 import { HttpError } from '../../utils/error';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import SeamlessBillingFlow from '../../components/billing/SeamlessBillingFlow';
+import UpfrontBillingDisclaimer from '../../components/billing/UpfrontBillingDisclaimer';
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -384,6 +385,7 @@ export default function OrganizationRequired() {
 							Check your email
 						</a>
 					</p>
+					<UpfrontBillingDisclaimer />
 				</div>
 			</div>
 

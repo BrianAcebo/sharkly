@@ -103,7 +103,7 @@ export interface CustomerPaymentMethodSummary {
 
 export interface OrgOnboardResponse {
   ok: true;
-  org: OrganizationRow;
+  org: OrganizationRow | null;
   subscriptionClientSecret?: string | null;
 }
 

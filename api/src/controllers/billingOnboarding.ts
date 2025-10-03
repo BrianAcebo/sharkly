@@ -65,9 +65,50 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       } as ApiError);
     }
 
-    // Get or create organization
+    // If renewing existing organization, continue legacy path; otherwise, for new org do payment-first flow
+    if (!orgId) {
+      // NEW ORG: Payment-first onboarding
+      // 1) Create (or get) Stripe Customer for the user
+      let stripeCustomerId: string | null = null;
+      try {
+        const existing = await stripe.customers.list({ email: req.user?.email || undefined, limit: 1 });
+        if (existing.data.length > 0) {
+          stripeCustomerId = existing.data[0].id;
+        }
+      } catch (e) {
+        console.warn('[onboard] customers.list failed', e);
+      }
+      if (!stripeCustomerId) {
+        const customer = await stripe.customers.create({
+          name,
+          email: req.user?.email || undefined,
+          metadata: { user_id: userId, org_pre_name: name, plan_code: planCode }
+        });
+        stripeCustomerId = customer.id;
+      }
+
+      // 2) Create Subscription with metadata (no org yet). Require payment confirmation.
+      const sub = await stripe.subscriptions.create({
+        customer: stripeCustomerId,
+        items: [{ price: plan.stripe_price_id }],
+        collection_method: 'charge_automatically',
+        payment_behavior: 'default_incomplete',
+        payment_settings: { save_default_payment_method: 'on_subscription' },
+        trial_period_days: trialDays && trialDays > 0 ? trialDays : undefined,
+        metadata: { user_id: userId, org_pre_name: name, plan_code: planCode },
+        expand: ['latest_invoice.payment_intent']
+      });
+
+      const invoice = sub.latest_invoice as Stripe.Invoice | null;
+      const clientSecret = invoice && (invoice as unknown as { payment_intent?: { client_secret?: string } }).payment_intent
+        ? ((invoice as unknown as { payment_intent: { client_secret?: string } }).payment_intent.client_secret || null)
+        : null;
+
+      return res.json({ ok: true, org: null, subscriptionClientSecret: clientSecret } as OrgOnboardResponse);
+    }
+
+    // Get or create organization (Renewal path)
     let org: OrganizationRow;
-    
     if (orgId) {
       // Try to fetch existing organization
       const { data: existingOrg, error: orgError } = await supabase
@@ -427,41 +468,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         }
       }
 
-      // If trialing, create a separate usage-only subscription (no trial) for voice overage
-      try {
-        if (trialDays && trialDays > 0) {
-          const isLive = process.env.NODE_ENV === 'production' || process.env.STRIPE_SECRET_KEY?.startsWith('sk_live_');
-          const overageCode = isLive ? 'voice_minutes_overage' : 'voice_minutes_overage_test';
-          const { data: overage } = await supabase
-            .from('usage_overage_catalog')
-            .select('stripe_price_id')
-            .eq('overage_code', overageCode)
-            .eq('active', true)
-            .single();
-
-          if (overage?.stripe_price_id) {
-            const existingUsageSubs = await stripe.subscriptions.list({ customer: stripeCustomerId, status: 'active', limit: 100 });
-            const hasUsageOnly = existingUsageSubs.data.some((s) => (s.metadata as Record<string, string> | undefined)?.usage_only === 'voice');
-
-            if (!hasUsageOnly) {
-              const usageSubParams: Stripe.SubscriptionCreateParams = {
-                customer: stripeCustomerId,
-                items: [ { price: overage.stripe_price_id } ],
-                collection_method: 'charge_automatically',
-                payment_behavior: defaultPaymentMethodId ? 'allow_incomplete' : 'default_incomplete',
-                metadata: { organization_id: org.id, usage_only: 'voice' },
-                default_payment_method: defaultPaymentMethodId || undefined
-              };
-              const usageSub = await stripe.subscriptions.create(usageSubParams);
-              console.log('[onboarding] Created usage-only subscription for trialing org', { orgId: org.id, usageSubscriptionId: usageSub.id });
-            }
-          } else {
-            console.warn('[onboarding] No active voice overage price found for env; cannot create usage-only subscription');
-          }
-        }
-      } catch (usageSubErr) {
-        console.warn('[onboarding] Failed creating usage-only subscription for trialing org:', usageSubErr);
-      }
+    // Removed: usage-only subscription creation. Usage is funded via wallet top-ups.
     }
 
     // Mirror Stripe subscription data to organization
@@ -654,7 +661,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
               const smsWebhookUrl = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-inbound` : undefined;
               const smsStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-status` : undefined;
               const voiceWebhookUrl = baseUrl ? `${baseUrl}/api/twilio/voice/call` : undefined;
-              const voiceStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/call-status` : undefined;
+              // Status callbacks are set via statusCallback
 
               // Fetch candidate numbers only if needed > 0
               const candidateArgs: { smsEnabled?: boolean; voiceEnabled?: boolean; limit?: number; areaCode?: string } = { smsEnabled: true, voiceEnabled: true, limit: needed };
@@ -668,9 +675,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
                     smsUrl: smsWebhookUrl,
                     statusCallback: smsStatusCallback,
                     voiceUrl: voiceWebhookUrl,
-                    voiceMethod: 'POST',
-                    voiceStatusCallback: voiceStatusCallback,
-                    voiceStatusCallbackMethod: 'POST'
+                    voiceMethod: 'POST'
                   });
 
                   if (provisioning.messagingServiceSid) {

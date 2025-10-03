@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { useToast } from './useToast';
 import { OrganizationRow } from '../types/billing';
+import { fetchWalletStatus, createWalletTopup, type WalletStatusResponse } from '../api/billing';
 
 interface PaymentStatus {
   isInGoodStanding: boolean;
@@ -27,11 +28,13 @@ export function usePaymentStatus() {
   const { toast } = useToast();
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [walletStatus, setWalletStatus] = useState<WalletStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchPaymentStatus = useCallback(async () => {
     if (!user?.organization_id) {
       setPaymentStatus(null);
+      setWalletStatus(null);
       return;
     }
 
@@ -58,6 +61,12 @@ export function usePaymentStatus() {
 
       const data = await response.json();
       setPaymentStatus(data);
+      try {
+        const ws = await fetchWalletStatus(user.organization_id);
+        setWalletStatus(ws);
+      } catch (e) {
+        // ignore wallet status error
+      }
 
     } catch (error) {
       console.error('Error fetching payment status:', error);
@@ -105,11 +114,18 @@ export function usePaymentStatus() {
     }
   }, [user?.organization_id, toast]);
 
+  const startTopup = async (amountCents?: number) => {
+    if (!user?.organization_id) throw new Error('No organization');
+    return createWalletTopup({ organizationId: user.organization_id, amountCents });
+  };
+
   return {
     paymentStatus,
+    walletStatus,
     isLoading,
     error,
     refetch: fetchPaymentStatus,
-    checkResumeEligibility
+    checkResumeEligibility,
+    startTopup
   };
 }

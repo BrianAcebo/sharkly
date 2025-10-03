@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { CreditCard, AlertTriangle, Lock } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { usePaymentStatus } from '../../hooks/usePaymentStatus';
 import { isOrganizationBehindOnPayments, getOrganizationStatusMessage } from '../../utils/paymentStatus';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 
 interface PaymentRequiredBlockProps {
   children: React.ReactNode;
@@ -11,6 +13,8 @@ interface PaymentRequiredBlockProps {
   onUpdatePayment?: () => void;
   showBanner?: boolean;
 }
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 
 export default function PaymentRequiredBlock({ 
   children, 
@@ -33,15 +37,6 @@ export default function PaymentRequiredBlock({
   if (!isBehindOnPayments) {
     return <>{children}</>;
   }
-
-  const handleUpdatePayment = () => {
-    if (onUpdatePayment) {
-      onUpdatePayment();
-    } else {
-      // Default action - redirect to billing page
-      window.location.href = '/billing';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
@@ -68,30 +63,87 @@ export default function PaymentRequiredBlock({
           </div>
           
           <div className="space-y-2">
-            <Button 
-              onClick={handleUpdatePayment}
-              className="w-full"
-              size="lg"
-            >
-              <CreditCard className="h-4 w-4 mr-2" />
-              Update Payment Method
-            </Button>
-            
+            <TopupSheet />
             <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
-              Once payment is updated, your organization will be automatically restored to full access.
+              Once deposit is successful, access will be restored automatically.
             </p>
           </div>
-
-          {org.payment_retry_count && org.payment_retry_count > 0 && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md p-3">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                <strong>Retry Attempt {org.payment_retry_count}:</strong> We've attempted to charge your payment method multiple times. 
-                Please update your payment information to avoid service interruption.
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function TopupSheet() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button 
+        onClick={() => setOpen(true)}
+        className="w-full"
+        size="lg"
+      >
+        <CreditCard className="h-4 w-4 mr-2" />
+        Deposit Funds
+      </Button>
+      {open ? (
+        <Elements stripe={stripePromise!}>
+          <TopupModal onClose={() => setOpen(false)} />
+        </Elements>
+      ) : null}
+    </>
+  );
+}
+
+function TopupModal({ onClose }: { onClose: () => void }) {
+  const { startTopup } = usePaymentStatus();
+  const stripe = useStripe();
+  const elements = useElements();
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { client_secret } = await startTopup();
+        setClientSecret(client_secret);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to start deposit');
+      }
+    })();
+  }, [startTopup]);
+
+  const onSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stripe || !elements || !clientSecret) return;
+    setLoading(true);
+    const { error } = await stripe.confirmPayment({ elements, clientSecret });
+    setLoading(false);
+    if (error) {
+      setError(error.message || 'Payment failed');
+    } else {
+      onClose();
+    }
+  }, [stripe, elements, clientSecret, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white dark:bg-gray-900 p-4 rounded-md w-full max-w-md">
+        <h3 className="text-lg font-medium mb-3">Deposit Funds</h3>
+        {error ? <div className="text-red-600 text-sm mb-2">{error}</div> : null}
+        {clientSecret ? (
+          <form onSubmit={onSubmit}>
+            <PaymentElement />
+            <div className="flex gap-2 justify-end mt-4">
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={loading}>{loading ? 'Processing...' : 'Pay'}</Button>
+            </div>
+          </form>
+        ) : (
+          <div>Preparing payment...</div>
+        )}
+      </div>
     </div>
   );
 }

@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient';
 import Stripe from 'stripe';
 import { OrganizationRow, StripeSubStatus, unixToISO, PlanCatalogRow } from '../types/billing';
+import { creditWallet, clearPendingTopUp, debitWallet } from '../utils/wallet';
+import { markTopUpStatus } from '../utils/walletTopup';
 import { deactivateExtraSeats, loadSeatSummary, recordSeatEvent, syncExtraSeatAddon, updateOrgMaxSeats } from '../utils/seats';
 import { getStripeClient } from '../utils/stripe';
 
@@ -139,6 +141,118 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
 
   try {
     switch (event.type as string) {
+      case 'payment_intent.succeeded': {
+        const pi = event.data.object as Stripe.PaymentIntent;
+        const purpose = (pi.metadata as Record<string, string> | undefined)?.purpose;
+        if (purpose === 'wallet_topup') {
+          const organizationId = (pi.metadata as Record<string, string>).organizationId;
+          const amountCents = Number((pi.metadata as Record<string, string>).amountCents || pi.amount_received || pi.amount);
+          if (organizationId && amountCents > 0) {
+            try {
+              await creditWallet(organizationId, amountCents, {
+                transactionType: 'credit_top_up',
+                referenceType: 'stripe_payment_intent',
+                referenceId: pi.id,
+                description: 'Stripe wallet top-up'
+              });
+              await clearPendingTopUp(organizationId, amountCents);
+              await markTopUpStatus(pi.id, 'succeeded');
+              console.log('[WEBHOOK] Wallet credited from top-up', { organizationId, amountCents });
+            } catch (wErr) {
+              console.error('[WEBHOOK] Failed wallet credit/clear pending for top-up', wErr);
+            }
+          }
+        }
+        break;
+      }
+
+      case 'payment_intent.payment_failed':
+      case 'payment_intent.canceled': {
+        const pi = event.data.object as Stripe.PaymentIntent;
+        const purpose = (pi.metadata as Record<string, string> | undefined)?.purpose;
+        if (purpose === 'wallet_topup') {
+          const organizationId = (pi.metadata as Record<string, string>).organizationId;
+          const amountCents = Number((pi.metadata as Record<string, string>).amountCents || pi.amount);
+          if (organizationId && amountCents > 0) {
+            try {
+              await clearPendingTopUp(organizationId, amountCents);
+              await markTopUpStatus(pi.id, event.type === 'payment_intent.canceled' ? 'canceled' : 'failed');
+              console.log('[WEBHOOK] Cleared pending top-up after PI failure/cancel', { organizationId, amountCents });
+            } catch (wErr) {
+              console.error('[WEBHOOK] Failed clearing pending after PI failure/cancel', wErr);
+            }
+          }
+        }
+        break;
+      }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        // Attempt to map back to wallet top-up via associated payment intent metadata
+        let organizationId: string | null = null;
+        let amountCents = Number(charge.amount_refunded || charge.amount || 0);
+        try {
+          if (typeof charge.payment_intent === 'string') {
+            const pi = await stripe.paymentIntents.retrieve(charge.payment_intent);
+            const purpose = (pi.metadata as Record<string, string> | undefined)?.purpose;
+            if (purpose === 'wallet_topup') {
+              organizationId = (pi.metadata as Record<string, string>).organizationId || null;
+            }
+          }
+        } catch (e) {
+          console.warn('[WEBHOOK] Failed to retrieve PI for refund mapping', e);
+        }
+
+        if (organizationId && amountCents > 0) {
+          try {
+            await debitWallet(organizationId, amountCents, {
+              transactionType: 'credit_refund',
+              referenceType: 'stripe_charge',
+              referenceId: charge.id,
+              description: 'Refund of wallet top-up'
+            });
+            await markTopUpStatus(String(charge.payment_intent || ''), 'refunded');
+            console.log('[WEBHOOK] Debited wallet for refunded top-up', { organizationId, amountCents });
+          } catch (wErr) {
+            console.error('[WEBHOOK] Failed wallet debit on refund', wErr);
+          }
+        }
+        break;
+      }
+
+      case 'charge.dispute.created': {
+        const charge = event.data.object as Stripe.Charge;
+        let organizationId: string | null = null;
+        try {
+          if (typeof charge.payment_intent === 'string') {
+            const pi = await stripe.paymentIntents.retrieve(charge.payment_intent);
+            const purpose = (pi.metadata as Record<string, string> | undefined)?.purpose;
+            if (purpose === 'wallet_topup') {
+              organizationId = (pi.metadata as Record<string, string>).organizationId || null;
+            }
+          }
+        } catch (e) {
+          console.warn('[WEBHOOK] Failed to retrieve PI for dispute mapping', e);
+        }
+
+        if (organizationId) {
+          try {
+            // Suspend the wallet immediately
+            const { error: upErr } = await supabase
+              .from('usage_wallets')
+              .update({ status: 'suspended', updated_at: new Date().toISOString() })
+              .eq('organization_id', organizationId);
+            if (upErr) {
+              console.error('[WEBHOOK] Failed to suspend wallet for dispute', upErr);
+            } else {
+              console.log('[WEBHOOK] Suspended wallet due to dispute', { organizationId });
+            }
+          } catch (e) {
+            console.error('[WEBHOOK] Exception suspending wallet for dispute', e);
+          }
+        }
+        break;
+      }
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         await handleSubscriptionEvent(event);
@@ -197,9 +311,7 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
         await handleInvoiceFinalized(event);
         break;
 
-      case 'invoice.upcoming':
-        await handleInvoiceUpcoming(event);
-        break;
+      // Removed subscription invoice usage metering; usage funded by wallet top-ups
 
       default:
         console.log(`[WEBHOOK] Unhandled event type: ${event.type}`);
@@ -218,8 +330,53 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
 
   console.log(`[WEBHOOK] Processing subscription ${incomingSubscription.id} for customer ${customerId}`);
 
-  const org = await findOrganization(incomingSubscription.id, customerId);
-  if (!org) {
+  let org = await findOrganization(incomingSubscription.id, customerId);
+  if (!org && incomingSubscription.status === 'active') {
+    // Payment-first flow: create org after successful first charge
+    const orgName = (incomingSubscription.metadata as Record<string, string> | undefined)?.org_pre_name || 'Organization';
+    const planCode = (incomingSubscription.metadata as Record<string, string> | undefined)?.plan_code || null;
+    const ownerId = (incomingSubscription.metadata as Record<string, string> | undefined)?.user_id || null;
+
+    try {
+      const { data: newOrg, error: createErr } = await supabase
+        .from('organizations')
+        .insert({
+          name: orgName,
+          owner_id: ownerId,
+          org_status: 'active',
+          stripe_customer_id: customerId,
+          stripe_subscription_id: incomingSubscription.id,
+          stripe_status: incomingSubscription.status as StripeSubStatus,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select('*')
+        .single();
+      if (createErr || !newOrg) {
+        console.error('[WEBHOOK] Failed to create organization on first payment', createErr);
+        return;
+      }
+      org = newOrg as unknown as OrganizationRow;
+      // Add owner membership
+      if (ownerId) {
+        try {
+          await supabase
+            .from('user_organizations')
+            .upsert({ user_id: ownerId, organization_id: org.id, role: 'owner' }, { onConflict: 'user_id,organization_id' });
+        } catch (mErr) {
+          console.warn('[WEBHOOK] Failed to upsert user_organizations for new org', mErr);
+        }
+      }
+      try {
+        await ensureWallet(org.id);
+      } catch (wErr) {
+        console.warn('[WEBHOOK] Failed to ensure wallet after org creation', wErr);
+      }
+    } catch (e) {
+      console.error('[WEBHOOK] Exception creating org on first payment', e);
+      return;
+    }
+  } else if (!org) {
     console.error(`[WEBHOOK] Organization not found for subscription ${incomingSubscription.id}`);
     return;
   }
@@ -599,84 +756,7 @@ const handleSubscriptionDeleted = async (event: Stripe.Event) => {
   }
 };
 
-const handleInvoiceUpcoming = async (event: Stripe.Event) => {
-  const invoice = event.data.object as Stripe.Invoice;
-  const subscriptionId = (invoice as unknown as Record<string, unknown>).subscription as string;
-  const customerId = invoice.customer as string;
-
-  console.log(`[WEBHOOK] Processing upcoming invoice for subscription ${subscriptionId}`);
-
-  const org = await findOrganization(subscriptionId, customerId);
-  if (!org) {
-    console.error(`[WEBHOOK] Organization not found for upcoming invoice ${subscriptionId}`);
-    return;
-  }
-
-  // Usage rollup: compute billed minutes since current period start
-  try {
-    // Decide whether this upcoming invoice should carry usage
-    let shouldPostUsage = false;
-    try {
-      const stripeClient = getStripeClient();
-      const sub = await stripeClient.subscriptions.retrieve(subscriptionId);
-      const isUsageOnly = ((sub.metadata as Record<string, string> | undefined)?.usage_only === 'voice');
-      const isTrialing = sub.status === 'trialing';
-      // Post usage only if this is the usage-only subscription, or if this is the main (non-trial) subscription
-      shouldPostUsage = isUsageOnly || !isTrialing;
-      if (!shouldPostUsage) {
-        console.log('[WEBHOOK] Skipping usage post for trialing main subscription');
-        return;
-      }
-    } catch (sErr) {
-      console.warn('[WEBHOOK] Failed to retrieve subscription for gating; proceeding with rollup by default', sErr);
-      shouldPostUsage = true;
-    }
-
-    // Determine current anchor window: from month start to now (simple month-based window for now)
-    const periodStart = new Date(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1).toISOString();
-    const periodEnd = new Date().toISOString();
-
-    const { data: usageRows, error: usageErr } = await supabase
-      .from('voice_usage')
-      .select('call_duration_minutes')
-      .eq('organization_id', org.id)
-      .gte('usage_date', periodStart)
-      .lte('usage_date', periodEnd);
-    if (usageErr) {
-      console.warn('[WEBHOOK] Failed to load voice usage for rollup:', usageErr);
-      return;
-    }
-
-    const totalMinutes = (usageRows || []).reduce((sum, r) => sum + Number(r.call_duration_minutes || 0), 0);
-
-    // Load included minutes from org; default to 0 if absent
-    const included = (org as unknown as { included_minutes?: number }).included_minutes ?? 0;
-    const overageMinutes = Math.max(0, Math.ceil(totalMinutes - included));
-
-    console.log('[WEBHOOK] Rollup minutes', { totalMinutes, included, overageMinutes });
-
-    if (overageMinutes > 0 && shouldPostUsage) {
-      try {
-        const stripeClient = getStripeClient();
-        await stripeClient.billing.meterEvents.create({
-          event_name: 'aggregate_by_sum',
-          timestamp: Math.floor(Date.now() / 1000),
-          payload: {
-            value: String(overageMinutes),
-            stripe_customer_id: org.stripe_customer_id as string
-          }
-        });
-        console.log('[WEBHOOK] Posted overage minutes to meter', { overageMinutes });
-      } catch (meterErr) {
-        console.warn('[WEBHOOK] Failed posting rollup to Stripe meter:', meterErr);
-      }
-    } else {
-      console.log('[WEBHOOK] No overage minutes to post');
-    }
-  } catch (rollupErr) {
-    console.warn('[WEBHOOK] Exception during usage rollup:', rollupErr);
-  }
-};
+// Removed: handleInvoiceUpcoming (usage metering into subscription). Usage is funded via wallet deposits.
 
 const handleInvoiceFinalized = async (event: Stripe.Event) => {
   const invoice = event.data.object as Stripe.Invoice;
@@ -716,14 +796,11 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
     payment_retry_count: 0,
     next_payment_retry_at: null,
     payment_failure_reason: null,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    stripe_latest_invoice_id: invoice.id,
+    stripe_latest_invoice_status: invoice.status,
+    stripe_status: 'active'
   };
-
-  if (invoice.paid || invoice.status === 'paid') {
-    updateData.stripe_latest_invoice_id = invoice.id;
-    updateData.stripe_latest_invoice_status = invoice.status;
-    updateData.stripe_status = 'active';
-  }
 
   const { error } = await supabase
     .from('organizations')

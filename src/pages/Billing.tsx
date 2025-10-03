@@ -21,6 +21,8 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { STRIPE_CUSTOMER_PORTAL_URL, canManageBilling } from '../utils/billing';
 import { useAuth } from '../hooks/useAuth';
+import { usePaymentStatus } from '../hooks/usePaymentStatus';
+import { WalletDepositModal } from '../components/billing/WalletDepositModal';
 
 type UsageRecord = Record<string, unknown>;
 
@@ -190,6 +192,8 @@ const Billing: React.FC = () => {
   const [voicePrice, setVoicePrice] = useState<{ id: string; unit_amount?: number | null; currency?: string | null } | null>(null);
   const [billingSettings, setBillingSettings] = useState<BillingSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { walletStatus, refetch: refetchPayment } = usePaymentStatus();
+  const [depositOpen, setDepositOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'usage' | 'pricing' | 'invoices'>('overview');
   const [invoices, setInvoices] = useState<StripeInvoice[] | null>(null);
   const [invoicePagination, setInvoicePagination] = useState({
@@ -453,6 +457,25 @@ const Billing: React.FC = () => {
                             'Free'
                           }
                         </p>
+              {walletStatus && (
+                <div className="mt-2 text-sm">
+                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                    walletStatus.wallet?.status === 'active'
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : walletStatus.wallet?.status === 'suspended'
+                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                  }`}>
+                    Wallet: {walletStatus.wallet?.status ?? 'missing'}
+                  </span>
+                  <span className="ml-2 text-gray-700 dark:text-gray-300">
+                    Balance: ${((walletStatus.wallet?.balance_cents ?? 0) / 100).toFixed(2)}
+                  </span>
+                  {walletStatus.depositRequired && (
+                    <Button size="sm" className="ml-2" onClick={() => setDepositOpen(true)}>Deposit</Button>
+                  )}
+                </div>
+              )}
                       </div>
                       <div className="text-right">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -502,6 +525,13 @@ const Billing: React.FC = () => {
                           <ExternalLink className="h-4 w-4 mr-2" />
                           Manage Subscription
                         </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full mt-2"
+                    onClick={() => setDepositOpen(true)}
+                  >
+                    Deposit Funds
+                  </Button>
                       )}
                       {organization && !canManageBilling(userRole) && (
                         <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
@@ -859,6 +889,8 @@ const Billing: React.FC = () => {
           </div>
         </div>
       )}
+
+      <WalletDepositModal open={depositOpen} onClose={() => { setDepositOpen(false); refetchPayment(); }} />
     </div>
   );
 };

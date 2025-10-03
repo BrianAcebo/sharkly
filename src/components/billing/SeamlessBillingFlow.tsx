@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 import PricingTable from './PricingTable';
+import UpfrontBillingDisclaimer from './UpfrontBillingDisclaimer';
 import { CustomerPaymentMethodSummary, PlanCatalogRow } from '../../types/billing';
 import { ArrowRight, ArrowLeft, CheckCircle, Users, Clock, Shield } from 'lucide-react';
 import { CreditCard as CreditCardIcon } from 'lucide-react';
@@ -132,6 +133,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           throw new Error(err.error || err.message || 'Failed to create organization');
         }
         const result = await resp.json();
+        // New policy: org may be null for new flow (created after payment via webhook)
+        // We don't update clientSecret here; parent controls it when needed
         if (result.org?.id) setOrgId(result.org.id);
       };
 
@@ -169,7 +172,27 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
         if (piErr) { onError(piErr.message ?? 'Payment failed'); return; }
 
         await onboard({ pmId: undefined, useExisting: useExistingPaymentMethod });
-        toast.success(trialSelected ? 'Organization and trial subscription created' : 'Organization and subscription created');
+        toast.success('Payment succeeded. Finalizing organization setup...');
+        // Poll current user for organization_id assignment
+        const start = Date.now();
+        const deadline = start + 60_000; // up to 60s
+        let assigned = false;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 2000));
+          try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const u = user as unknown as { user_metadata?: { organization_id?: string }; organization_id?: string } | null;
+            if (u?.user_metadata?.organization_id || u?.organization_id) {
+              assigned = true;
+              break;
+            }
+          } catch (pollErr) {
+            console.warn('Polling for organization assignment failed once', pollErr);
+          }
+        }
+        if (!assigned) {
+          toast.message('Payment confirmed. Your organization will appear shortly. You may refresh the app.');
+        }
         await onSuccess();
         return;
       }
@@ -799,6 +822,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
               trialSelected={trialSelected}
               onTrialToggle={setTrialSelected}
             />
+            <UpfrontBillingDisclaimer />
 
             <div className="flex justify-between">
               {skipOrgStep ? (
@@ -858,6 +882,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                   }
                 }}
               >
+                <UpfrontBillingDisclaimer className="mb-3" />
                 <PaymentForm
                   orgName={orgName}
                   selectedPlan={selectedPlan}

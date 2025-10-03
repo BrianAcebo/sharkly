@@ -2,7 +2,7 @@ import express from 'express';
 import { z } from 'zod';
 import { supabase } from '../utils/supabaseClient';
 import { getWalletStatus } from '../controllers/billingUsage';
-router.get('/wallet/status', getWalletStatus);
+import { postWalletTopup } from '../controllers/walletTopup';
 import { getStripeClient } from '../utils/stripe';
 import type Stripe from 'stripe';
 
@@ -669,3 +669,7 @@ router.get('/invoices', async (req, res) => {
 });
 
 export default router;
+
+// Wallet endpoints
+router.get('/wallet/status', getWalletStatus);
+router.post('/wallet/topup', postWalletTopup);

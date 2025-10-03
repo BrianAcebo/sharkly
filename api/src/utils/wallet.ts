@@ -110,13 +110,38 @@ export const debitWallet = async (
 	amountCents: number,
 	options?: WalletMutationOptions
 ): Promise<UsageWallet> => {
-	return rpc<UsageWallet>('wallet_debit', {
-		p_organization_id: organizationId,
-		p_amount_cents: amountCents,
-		p_transaction_type: options?.transactionType,
-		p_reference_type: options?.referenceType,
-		p_reference_id: options?.referenceId,
-		p_description: options?.description
-	});
+  const wallet = await rpc<UsageWallet>('wallet_debit', {
+    p_organization_id: organizationId,
+    p_amount_cents: amountCents,
+    p_transaction_type: options?.transactionType,
+    p_reference_type: options?.referenceType,
+    p_reference_id: options?.referenceId,
+    p_description: options?.description
+  });
+
+  // Auto top-up: if wallet is active, no pending top-up, and balance <= threshold, attempt to kick off auto top-up
+  try {
+    if (
+      wallet &&
+      wallet.status === 'active' &&
+      (wallet.pending_top_up_cents ?? 0) <= 0 &&
+      (wallet.balance_cents ?? 0) <= (wallet.threshold_cents ?? 0) &&
+      (wallet.top_up_amount_cents ?? 0) > 0
+    ) {
+      // Fire-and-forget: mark pending and create PI via API util
+      const { createTopUpPaymentIntent } = await import('./walletTopup');
+      createTopUpPaymentIntent({ organizationId, amountCents: wallet.top_up_amount_cents, currency: wallet.currency })
+        .then((r) => {
+          console.log('[wallet] Auto top-up initiated', { organizationId, paymentIntentId: r.paymentIntentId });
+        })
+        .catch((e) => {
+          console.warn('[wallet] Auto top-up init failed', e);
+        });
+    }
+  } catch (autoErr) {
+    console.warn('[wallet] Auto top-up check/trigger failed', autoErr);
+  }
+
+  return wallet;
 };
 
