@@ -578,7 +578,7 @@ const Billing: React.FC = () => {
 							<CardHeader>
 								<CardTitle className="flex items-center space-x-2">
 									<Clock className="h-5 w-5" />
-                                    <span>7‑Day Pay‑As‑You‑Go Trial</span>
+                                    <span>Pay-As-You-Go Trial</span>
 								</CardTitle>
 							</CardHeader>
 							<CardContent className="space-y-4">
@@ -591,7 +591,7 @@ const Billing: React.FC = () => {
 										<div className="flex items-center justify-between">
 											<div>
                                                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                                    {trialInfo.isOnTrial ? '7‑Day Pay‑As‑You‑Go Trial Active' : 'No Active Trial'}
+                                                    {trialInfo.isOnTrial ? 'Trial Active' : 'No Active Trial'}
                                                 </h3>
 												<p className="text-sm text-gray-600 dark:text-gray-400">
 													{trialInfo.statusMessage}

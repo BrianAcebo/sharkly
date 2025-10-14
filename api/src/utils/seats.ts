@@ -440,3 +440,39 @@ export async function deactivateExtraSeats(params: { orgId: string; includedSeat
     .in('id', seatsToDeactivate);
 }
 
+export async function computeMaxSeatsForPlan(
+  planCode: string | null,
+  includedSeats: number | null
+): Promise<number | null> {
+  const normalizedIncluded = includedSeats ?? 0;
+
+  const { data: plans, error } = await supabase
+    .from('plan_catalog')
+    .select('plan_code, included_seats')
+    .eq('active', true)
+    .order('included_seats', { ascending: true });
+
+  if (error) {
+    console.warn('[seats] Failed to load plan catalog for max seats', error);
+    return normalizedIncluded > 0 ? normalizedIncluded : null;
+  }
+
+  const planList = plans ?? [];
+
+  if (planList.length === 0) {
+    return normalizedIncluded > 0 ? normalizedIncluded : null;
+  }
+
+  const currentPlan = planCode ? planList.find((plan) => plan.plan_code === planCode) : null;
+  const currentIncluded = currentPlan?.included_seats ?? normalizedIncluded;
+
+  const nextPlan = planList.find((plan) => plan.included_seats > currentIncluded);
+
+  if (!nextPlan) {
+    return null;
+  }
+
+  const candidate = Math.max(currentIncluded, nextPlan.included_seats - 1);
+  return candidate > 0 ? candidate : null;
+}
+
