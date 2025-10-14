@@ -23,23 +23,7 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
     // First, get the organization and verify ownership
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select(`
-        id,
-        name,
-        owner_id,
-        stripe_customer_id,
-        stripe_subscription_id,
-        stripe_status,
-        trial_end,
-        current_period_start,
-        current_period_end,
-        plan_code,
-        plan_price_cents,
-        included_seats,
-        included_minutes,
-        included_sms,
-        included_emails
-      `)
+      .select()
       .eq('id', organizationId)
       .single();
 
@@ -120,16 +104,7 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
     }
 
     const response = {
-      organization: {
-        id: org.id,
-        name: org.name,
-        plan_code: org.plan_code,
-        plan_price_cents: org.plan_price_cents,
-        included_seats: org.included_seats,
-        included_minutes: org.included_minutes,
-        included_sms: org.included_sms,
-        included_emails: org.included_emails,
-      },
+      organization: {...org},
       subscription: {
         id: org.stripe_subscription_id,
         status: org.stripe_status,

@@ -105,6 +105,7 @@ export interface OrgOnboardResponse {
   ok: true;
   org: OrganizationRow | null;
   subscriptionClientSecret?: string | null;
+  setupClientSecret?: string | null;
 }
 
 export interface WalletStatus {

@@ -6,11 +6,26 @@ import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisionin
 
 const router = Router();
 
-const BASE_WEBHOOK_DOMAIN =
-	process.env.PUBLIC_URL?.replace(/\/$/, '') ??
-	process.env.WEBHOOK_PUBLIC_HOST?.replace(/\/$/, '') ??
-	process.env.NGROK_DOMAIN?.replace(/\/$/, '') ??
-	'';
+// Webhooks are set at Messaging Service and TwiML App; avoid per-number overrides
+
+// List available phone numbers (parent account only, no provisioning)
+router.get('/organizations/:organizationId/phone-numbers/available', async (req, res) => {
+  try {
+    const { areaCode, tollFree } = req.query as { areaCode?: string; tollFree?: string };
+
+    const search: Record<string, unknown> = {};
+    if (areaCode) search.areaCode = String(areaCode);
+
+    const numbers = String(tollFree) === 'true'
+      ? await twilioClient.availablePhoneNumbers('US').tollFree.list(search as never)
+      : await twilioClient.availablePhoneNumbers('US').local.list(search as never);
+
+    res.json({ available: (numbers || []).map((n) => ({ phoneNumber: n.phoneNumber })) });
+  } catch (error) {
+    console.error('[twilioPhone] list available error', error);
+    res.status(500).json({ error: 'Failed to list available numbers' });
+  }
+});
 
 router.use(requireAuth);
 
@@ -18,9 +33,9 @@ router.get('/organizations/:organizationId/phone-numbers', async (req, res) => {
 	const { organizationId } = req.params;
 
 	try {
-		const { data: organization, error: orgError } = await supabase
-			.from('organizations')
-			.select('id, name, twilio_subaccount_sid, twilio_messaging_service_sid')
+    const { data: organization, error: orgError } = await supabase
+      .from('organizations')
+      .select('id, name, twilio_subaccount_sid, twilio_messaging_service_sid, twilio_twiml_app_sid, twilio_api_key_sid, twilio_api_key_secret')
 			.eq('id', organizationId)
 			.single();
 
@@ -69,14 +84,21 @@ router.post('/organizations/:organizationId/phone-numbers', async (req, res) => 
 			return res.status(404).json({ error: 'Organization not found' });
 		}
 
-		const { subaccountSid, messagingServiceSid } = await ensureTwilioResourcesForOrganization({
+    const { subaccountSid, messagingServiceSid, twimlAppSid, apiKeySid, apiKeySecret } = await ensureTwilioResourcesForOrganization({
 			orgId: organization.id,
 			orgName: organization.name,
 			twilioSubaccountSid: organization.twilio_subaccount_sid,
-			twilioMessagingServiceSid: organization.twilio_messaging_service_sid
+			twilioMessagingServiceSid: organization.twilio_messaging_service_sid,
+			twilioTwimlAppSid: organization.twilio_twiml_app_sid,
+			twilioApiKeySid: (organization as any).twilio_api_key_sid,
+			twilioApiKeySecret: (organization as any).twilio_api_key_secret
 		});
 
-		const subClient = getTwilioClientForSubaccount({ accountSid: subaccountSid });
+    const subClient = getTwilioClientForSubaccount({
+      accountSid: subaccountSid,
+      apiKeySid: apiKeySid || undefined,
+      apiKeySecret: apiKeySecret || undefined
+    });
 
 		const searchCapabilities = {
 			smsEnabled: capabilities?.sms !== false,
@@ -92,9 +114,9 @@ router.post('/organizations/:organizationId/phone-numbers', async (req, res) => 
 			numberSearchParams.areaCode = areaCode.trim();
 		}
 
-		const availableNumbers = tollFree
-			? await twilioClient.availablePhoneNumbers('US').tollFree.list(numberSearchParams as never)
-			: await twilioClient.availablePhoneNumbers('US').local.list(numberSearchParams as never);
+    const availableNumbers = tollFree
+      ? await twilioClient.availablePhoneNumbers('US').tollFree.list(numberSearchParams as never)
+      : await twilioClient.availablePhoneNumbers('US').local.list(numberSearchParams as never);
 
 		const numberToPurchase = availableNumbers?.[0];
 
@@ -108,26 +130,21 @@ router.post('/organizations/:organizationId/phone-numbers', async (req, res) => 
 		const voiceWebhookUrl = baseWebhook ? `${baseWebhook}/api/twilio/voice/call` : undefined;
 		const voiceStatusCallback = baseWebhook ? `${baseWebhook}/api/webhooks/twilio/call-status` : undefined;
 
-		const purchasedNumber = await subClient.incomingPhoneNumbers.create({
-			phoneNumber: numberToPurchase.phoneNumber,
-			smsUrl: smsWebhookUrl,
-			smsMethod: 'POST',
-			statusCallback: smsStatusCallback,
-			voiceUrl: voiceWebhookUrl,
-			voiceMethod: 'POST',
-			voiceStatusCallback: voiceStatusCallback,
-			voiceStatusCallbackMethod: 'POST'
-		});
+    const purchasedNumber = await (subClient as any).incomingPhoneNumbers.create({
+      phoneNumber: numberToPurchase.phoneNumber,
+      // Use TwiML App for voice webhooks; no per-number overrides
+      voiceApplicationSid: twimlAppSid || organization.twilio_twiml_app_sid || undefined
+    } as never);
 
-		if (messagingServiceSid) {
-			await subClient.messaging.v1
-				.services(messagingServiceSid)
-				.phoneNumbers.create({ phoneNumberSid: purchasedNumber.sid });
-		}
+    if (messagingServiceSid) {
+      await (subClient as any).messaging.v1
+        .services(messagingServiceSid)
+        .phoneNumbers.create({ phoneNumberSid: purchasedNumber.sid });
+    }
 
 		const { data: inserted, error: insertError } = await supabase
 			.from('phone_numbers')
-			.insert({
+      .insert({
 				org_id: organization.id,
 				seat_id: null,
 				phone_number: purchasedNumber.phoneNumber,
@@ -138,8 +155,8 @@ router.post('/organizations/:organizationId/phone-numbers', async (req, res) => 
 					mms: searchCapabilities.mmsEnabled
 				},
 				status: 'available',
-				sms_webhook_url: smsWebhookUrl ?? null,
-				voice_webhook_url: voiceWebhookUrl ?? null
+        sms_webhook_url: null,
+        voice_webhook_url: null
 			})
 			.select()
 			.single();
@@ -159,16 +176,20 @@ router.post('/organizations/:organizationId/phone-numbers', async (req, res) => 
 router.post('/organizations/:organizationId/phone-numbers/sync', async (req, res) => {
 	const { organizationId } = req.params;
 	try {
-		const { data: organization, error: orgError } = await supabase
+  const { data: organization, error: orgError } = await supabase
 			.from('organizations')
-			.select('id, twilio_subaccount_sid, twilio_messaging_service_sid')
+    .select('id, twilio_subaccount_sid, twilio_messaging_service_sid, twilio_api_key_sid, twilio_api_key_secret')
 			.eq('id', organizationId)
 			.single();
 		if (orgError || !organization?.twilio_subaccount_sid) {
 			return res.status(400).json({ error: 'Organization missing Twilio subaccount' });
 		}
 
-		const subClient = getTwilioClientForSubaccount({ accountSid: organization.twilio_subaccount_sid });
+  const subClient = getTwilioClientForSubaccount({
+    accountSid: organization.twilio_subaccount_sid,
+    apiKeySid: (organization as any).twilio_api_key_sid || undefined,
+    apiKeySecret: (organization as any).twilio_api_key_secret || undefined
+  });
 		const numbersApi = subClient as unknown as {
 			incomingPhoneNumbers: {
 				list: (args: { limit?: number }) => Promise<Array<{ sid: string; phoneNumber: string; capabilities?: { sms?: boolean; voice?: boolean; mms?: boolean } }>>;
@@ -182,24 +203,25 @@ router.post('/organizations/:organizationId/phone-numbers/sync', async (req, res
 		const smsStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/sms-status` : undefined;
 		const voiceStatusCallback = baseUrl ? `${baseUrl}/api/webhooks/twilio/call-status` : undefined;
 
-		const existingNumbers = await numbersApi.incomingPhoneNumbers.list({ limit: 200 });
+    const existingNumbers = await numbersApi.incomingPhoneNumbers.list({ limit: 200 });
 		for (const num of existingNumbers) {
 			try {
-				await subClient.incomingPhoneNumbers(num.sid).update?.({
-					smsUrl: smsWebhookUrl,
-					smsMethod: 'POST',
-					statusCallback: smsStatusCallback,
-					voiceUrl: voiceWebhookUrl,
-					voiceMethod: 'POST',
-					voiceStatusCallback: voiceStatusCallback,
-					voiceStatusCallbackMethod: 'POST'
-				});
+        // SMS handled by Messaging Service; ensure per-number overrides are cleared
+        await (subClient as any).incomingPhoneNumbers(num.sid).update?.({
+          smsUrl: null,
+          smsMethod: null,
+          statusCallback: null,
+          voiceUrl: null,
+          voiceMethod: null,
+          voiceStatusCallback: null,
+          voiceStatusCallbackMethod: null
+        });
 			} catch (err) {
 				console.warn('[twilioPhone] failed to update voice status callback for', num.sid, err);
 			}
 		}
 
-		return res.json({ ok: true, synced: existingNumbers.length, inserted });
+    return res.json({ ok: true, synced: existingNumbers.length });
 	} catch (error) {
 		console.error('[twilioPhone] error syncing numbers', error);
 		return res.status(500).json({ error: 'Failed to sync numbers' });

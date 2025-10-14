@@ -1,10 +1,11 @@
 import express from 'express';
 import { z } from 'zod';
-import { supabase } from '../utils/supabaseClient';
+import { supabase as sb } from '../utils/supabaseClient';
 import { getWalletStatus } from '../controllers/billingUsage';
 import { postWalletTopup } from '../controllers/walletTopup';
 import { getStripeClient } from '../utils/stripe';
 import type Stripe from 'stripe';
+import { supabase } from '../utils/supabaseClient';
 
 const stripe = getStripeClient();
 
@@ -673,3 +674,48 @@ export default router;
 // Wallet endpoints
 router.get('/wallet/status', getWalletStatus);
 router.post('/wallet/topup', postWalletTopup);
+
+// Auto-recharge settings API
+router.get('/wallet/auto-recharge/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    if (!organizationId) return res.status(400).json({ error: 'organizationId is required' });
+    const { data, error } = await sb
+      .from('usage_wallet_auto_recharge')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    if (error) return res.status(500).json({ error: 'Failed to load auto-recharge' });
+    res.json({ settings: data || null });
+  } catch (e) {
+    console.error('auto-recharge get error', e);
+    res.status(500).json({ error: 'Failed to load auto-recharge' });
+  }
+});
+
+router.put('/wallet/auto-recharge/:organizationId', async (req, res) => {
+  try {
+    const { organizationId } = req.params;
+    const { enabled, amount_cents, threshold_cents, payment_method_id } = req.body as {
+      enabled?: boolean;
+      amount_cents?: number;
+      threshold_cents?: number;
+      payment_method_id?: string | null;
+    };
+    if (!organizationId) return res.status(400).json({ error: 'organizationId is required' });
+
+    // Use RPC for validation and upsert logic
+    const { data, error } = await sb.rpc('upsert_usage_wallet_auto_recharge', {
+      p_organization_id: organizationId,
+      p_enabled: Boolean(enabled),
+      p_amount_cents: amount_cents,
+      p_threshold_cents: threshold_cents,
+      p_payment_method_id: payment_method_id ?? null
+    });
+    if (error) return res.status(400).json({ error: error.message || 'Failed to save auto-recharge' });
+    res.json({ settings: data });
+  } catch (e) {
+    console.error('auto-recharge put error', e);
+    res.status(500).json({ error: 'Failed to save auto-recharge' });
+  }
+});

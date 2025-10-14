@@ -13,16 +13,22 @@ if (!twilioAccountSid || !twilioAuthToken) {
 // Initialize Twilio client for master account
 export const twilioClient = twilio(twilioAccountSid, twilioAuthToken);
 
-export const getTwilioClientForSubaccount = (params: { accountSid: string; authToken?: string }) => {
-	const { accountSid, authToken } = params;
+export const getTwilioClientForSubaccount = (params: { accountSid: string; authToken?: string; apiKeySid?: string; apiKeySecret?: string }) => {
+    const { accountSid, authToken, apiKeySid, apiKeySecret } = params;
 	if (!accountSid) {
 		throw new HttpError('Missing subaccount SID', 500);
 	}
 
-	if (!authToken) {
-		// Fallback to master auth token if subaccount auth token is not provided
-		return twilio(twilioAccountSid, twilioAuthToken, { accountSid });
-	}
+    // Prefer API key pair when provided (recommended for client tokens and scoped auth)
+    if (apiKeySid && apiKeySecret) {
+        return twilio(apiKeySid, apiKeySecret, { accountSid });
+    }
 
-	return twilio(accountSid, authToken);
+    // Otherwise allow direct subaccount auth token if supplied
+    if (authToken) {
+        return twilio(accountSid, authToken);
+    }
+
+    // Fallback to parent credentials scoped to the subaccount
+    return twilio(twilioAccountSid, twilioAuthToken, { accountSid });
 };

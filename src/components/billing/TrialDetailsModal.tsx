@@ -94,7 +94,7 @@ export const TrialDetailsModal: React.FC<TrialDetailsModalProps> = ({
       return 'Payment Method Required';
     }
     if (isOnTrial) {
-      return 'Free Trial Active';
+      return '7‑Day Pay‑As‑You‑Go Trial Active';
     }
     return 'Subscription Status';
   };
@@ -113,7 +113,7 @@ export const TrialDetailsModal: React.FC<TrialDetailsModalProps> = ({
           return `Your trial ends in ${daysRemaining} days.`;
         }
       }
-      return 'You are currently on a free trial.';
+      return 'You are currently on a 7‑day pay‑as‑you‑go trial.';
     }
     return 'You have an active subscription.';
   };
@@ -123,7 +123,7 @@ export const TrialDetailsModal: React.FC<TrialDetailsModalProps> = ({
       const planName = organization.plan_code.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
       return planName;
     }
-    return 'Free Trial';
+    return '7‑Day Trial';
   };
 
   const getPlanFeatures = () => {

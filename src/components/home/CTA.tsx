@@ -56,7 +56,7 @@ const CTA: React.FC = () => {
 					{/* CTA Buttons */}
 					<div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
 						<button className="text-brand-600 shadow-theme-xl inline-flex items-center rounded-lg bg-white px-8 py-4 text-lg font-semibold transition-all duration-200 hover:scale-105 hover:bg-gray-100">
-							Start Free Trial
+                            Start 7‑Day Trial
 							<ArrowRight className="ml-2 h-5 w-5" />
 						</button>
 						<button className="inline-flex items-center rounded-lg border-2 border-white/30 px-8 py-4 text-lg font-semibold text-white transition-all duration-200 hover:border-white/50 hover:bg-white/10">

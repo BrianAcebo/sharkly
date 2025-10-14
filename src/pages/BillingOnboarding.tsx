@@ -212,13 +212,13 @@ const BillingOnboarding: React.FC = () => {
           onCheckedChange={handleTrialToggle}
         />
         <label htmlFor="trial" className="text-sm text-gray-700 dark:text-gray-300">
-          Start with a 14-day free trial
+          Start with a 7‑day pay‑as‑you‑go trial
         </label>
       </div>
 
       {state.trialSelected && (
         <div className="max-w-2xl mx-auto mt-4 text-xs text-yellow-900 bg-yellow-50 border border-yellow-200 rounded-md p-3">
-          <strong>During your free trial</strong>, monthly plan fees are $0, but any telecom usage (voice minutes, SMS, etc.) is billed separately and due immediately. You will receive separate invoices for usage during the trial.
+          <strong>During your 7‑day pay‑as‑you‑go trial</strong>, monthly plan fees are $0, but any telecom usage (voice minutes, SMS, etc.) is billed separately and due immediately. You will receive separate invoices for usage during the trial.
         </div>
       )}
 
@@ -374,7 +374,7 @@ const BillingOnboarding: React.FC = () => {
           Your organization is now set up with the {state.selectedPlan} plan.
           {state.trialSelected && (
             <span className="block mt-2">
-              <Badge variant="secondary">14-day free trial active</Badge>
+              <Badge variant="secondary">7‑day pay‑as‑you‑go trial active</Badge>
             </span>
           )}
         </p>

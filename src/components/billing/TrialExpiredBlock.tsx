@@ -91,7 +91,7 @@ export const TrialExpiredBlock: React.FC<TrialExpiredBlockProps> = ({
       return {
         icon: <AlertTriangle className="h-8 w-8 text-red-600" />,
         title: 'Trial Ended Today',
-        description: 'Your free trial has ended today.',
+        description: 'Your 7‑day pay‑as‑you‑go trial has ended today.',
         actionText: 'View Billing',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
@@ -101,7 +101,7 @@ export const TrialExpiredBlock: React.FC<TrialExpiredBlockProps> = ({
       return {
         icon: <Lock className="h-8 w-8 text-red-600" />,
         title: 'Trial Expired',
-        description: `Your free trial ended ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? '' : 's'} ago.`,
+        description: `Your 7‑day pay‑as‑you‑go trial ended ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? '' : 's'} ago.`,
         actionText: 'View Billing',
         bgColor: 'bg-red-50',
         borderColor: 'border-red-200',
@@ -111,7 +111,7 @@ export const TrialExpiredBlock: React.FC<TrialExpiredBlockProps> = ({
       return {
         icon: <Calendar className="h-8 w-8 text-amber-600" />,
         title: 'Trial Ending Soon',
-        description: `Your free trial ends in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}.`,
+        description: `Your 7‑day pay‑as‑you‑go trial ends in ${daysRemaining} day${daysRemaining === 1 ? '' : 's'}.`,
         actionText: 'View Billing',
         bgColor: 'bg-amber-50',
         borderColor: 'border-amber-200',
@@ -147,7 +147,7 @@ export const TrialExpiredBlock: React.FC<TrialExpiredBlockProps> = ({
       return organization.plan_code.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase());
     }
 
-    return 'Free Trial';
+  return '7‑Day Trial';
   };
 
   return (

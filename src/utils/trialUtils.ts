@@ -9,7 +9,7 @@ export interface TrialStatus {
 }
 
 /**
- * Check if an organization is currently on a free trial
+ * Check if an organization is currently on a 7‑day pay‑as‑you‑go trial
  * Uses Stripe data as source of truth with proper trial detection logic
  */
 export function getTrialStatus(organization: OrganizationRow | null): TrialStatus {
@@ -74,7 +74,7 @@ export function getTrialStatusMessage(organization: OrganizationRow | null): str
   
   // Trial has ended (regardless of status)
   if (status.isExpired) {
-    return 'Your free trial has ended. Please update your subscription to continue using the service.';
+    return 'Your 7‑day pay‑as‑you‑go trial has ended. Please update your subscription to continue using the service.';
   }
   
   // Not on trial
@@ -88,13 +88,13 @@ export function getTrialStatusMessage(organization: OrganizationRow | null): str
   }
 
   if (status.daysRemaining <= 0) {
-    return 'Your free trial ends today!';
+    return 'Your 7‑day pay‑as‑you‑go trial ends today!';
   } else if (status.daysRemaining === 1) {
-    return 'Your free trial ends tomorrow!';
+    return 'Your 7‑day pay‑as‑you‑go trial ends tomorrow!';
   } else if (status.daysRemaining <= 7) {
-    return `Your free trial ends in ${status.daysRemaining} days.`;
+    return `Your 7‑day pay‑as‑you‑go trial ends in ${status.daysRemaining} days.`;
   } else {
-    return `Your free trial ends on ${status.trialEndFormatted}.`;
+    return `Your 7‑day pay‑as‑you‑go trial ends on ${status.trialEndFormatted}.`;
   }
 }
 

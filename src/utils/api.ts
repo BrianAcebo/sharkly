@@ -18,7 +18,7 @@ export const api = {
 		endpoint: string,
 		options: {
 			method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-			data?: RequestData;
+			data?: unknown;
 			organizationId?: string;
 		} = {}
 	): Promise<T> {
@@ -35,11 +35,10 @@ export const api = {
 			const { method = 'GET', data, organizationId } = options;
 
 			// Prepare the request body
-			const body = data
-				? {
-						...data,
-						organization: organizationId ? { id: organizationId } : undefined
-					}
+			const body = data !== undefined
+				? (typeof data === 'object' && data !== null
+					? { ...(data as Record<string, unknown>), organization: organizationId ? { id: organizationId } : undefined }
+					: data)
 				: undefined;
 
 			const fullUrl = buildApiUrl(endpoint);

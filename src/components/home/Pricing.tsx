@@ -81,7 +81,7 @@ const Pricing: React.FC = () => {
             Simple, Transparent Pricing
           </h2>
           <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
-            Choose the plan that fits your team's needs. All plans include a 7-day free trial.
+            Choose the plan that fits your team's needs. All plans include a 7‑day pay‑as‑you‑go trial.
           </p>
         </div>
 
@@ -169,7 +169,7 @@ const Pricing: React.FC = () => {
                       : 'bg-gray-900 hover:bg-gray-800 text-white dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
                   }`}
                 >
-                  Start Free Trial
+                  Start 7‑Day Trial
                 </Button>
               </CardContent>
             </Card>
@@ -180,7 +180,7 @@ const Pricing: React.FC = () => {
         <div className="text-center mt-12">
           <div className="inline-flex items-center space-x-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 px-6 py-3 rounded-lg">
             <CheckCircle className="h-5 w-5" />
-            <span className="font-medium">7-day free trial on all plans</span>
+            <span className="font-medium">7‑day pay‑as‑you‑go trial on all plans</span>
           </div>
         </div>
       </div>

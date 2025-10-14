@@ -90,7 +90,7 @@ const Hero: React.FC<HeroProps> = ({ isLoading = false }) => {
 					{/* CTA Buttons */}
 					<div className="mb-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
 						<button className="bg-brand-500 hover:bg-brand-600 shadow-theme-lg hover:shadow-theme-xl inline-flex items-center rounded-lg px-8 py-4 text-lg font-semibold text-white transition-all duration-200 hover:scale-105">
-							Start Free Trial
+                            Start 7‑Day Trial
 							<ArrowRight className="ml-2 h-5 w-5" />
 						</button>
 						<button className="hover:border-brand-500 dark:hover:border-brand-400 hover:text-brand-500 dark:hover:text-brand-400 inline-flex items-center rounded-lg border-2 border-gray-300 px-8 py-4 text-lg font-semibold text-gray-700 transition-all duration-200 dark:border-gray-600 dark:text-gray-300">

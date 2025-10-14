@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Device, Call } from '@twilio/voice-sdk';
 import { WebRTCCallContext } from '../contexts/WebRTCCallContext';
 import { supabase } from '../utils/supabaseClient';
+import { useOrganization } from '../hooks/useOrganization';
 import { NOTIFICATION_HELP_EVENT } from '../constants/events';
 
 interface WebRTCCallProviderProps {
@@ -39,6 +40,7 @@ const waitForRegistered = (d: Device, ms = 3000) =>
 	});
 
 export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
+    const { organization } = useOrganization();
 	const [device, setDevice] = useState<Device | null>(null);
 	const [status, setStatus] = useState('Loading…');
 	const [isConnected, setIsConnected] = useState(false);
@@ -177,7 +179,7 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 		endCallRef.current = endCall;
 	}, [endCall]);
 
-	// Initialize Twilio Device (guarded to run once per mount)
+    // Initialize Twilio Device (guarded to run once per mount)
 	useEffect(() => {
 		if (deviceInitRef.current) {
 			return;
@@ -185,6 +187,11 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 		deviceInitRef.current = true;
 		(async () => {
 			try {
+                // Hard gate: only attempt token generation when org is active
+                if (organization?.org_status !== 'active') {
+                    setStatus('Unavailable');
+                    return;
+                }
 				// Get the current session token
 				const {
 					data: { session }
