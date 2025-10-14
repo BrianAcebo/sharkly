@@ -117,7 +117,7 @@ const PaymentForm: React.FC<{
 			
 			if (trialSelected) {
 				toast.success('Organization and trial subscription created successfully');
-				toast.success('Your 7-day free trial has begun!');
+                toast.success('Your 7-day pay-as-you-go trial has begun!');
 			} else {
 				toast.success('Organization and subscription created successfully');
 			}
@@ -142,7 +142,7 @@ const PaymentForm: React.FC<{
 					<p className="text-gray-600 dark:text-gray-400">
 						You're about to create <strong>{orgName}</strong> with the{' '}
 						<strong>{selectedPlan.name}</strong> plan.
-						{trialSelected && ' This includes a 7-day free trial.'}
+                        {trialSelected && ' This includes a 7-day pay-as-you-go trial.'}
 					</p>
 				</div>
 
@@ -546,7 +546,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose }) =>
 							</h2>
 							<p className="text-gray-600 dark:text-gray-400">
 								Your organization has been created successfully.
-								{trialSelected && ' Enjoy your 7-day free trial!'}
+                                {trialSelected && ' Enjoy your 7-day pay-as-you-go trial!'}
 							</p>
 						</div>
 						<Button onClick={handleGoToDashboard} size="lg">

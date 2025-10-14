@@ -35,7 +35,7 @@ interface SeamlessBillingFlowProps {
   } | null;
 }
 
-type FlowStep = 'organization' | 'plan' | 'payment' | 'sms-verification' | 'success';
+type FlowStep = 'organization' | 'plan' | 'payment' | 'area-code' | 'sms-verification' | 'success';
 type OrgMode = 'new' | 'renewal';
 
 interface PaymentFormProps {
@@ -51,8 +51,6 @@ interface PaymentFormProps {
   setOrgId: (id: string) => void;
   existingOrgId?: string | null;
   setupClientSecret?: string | null;
-  useExistingPaymentMethod: boolean;
-  preOnboarded?: boolean;
 }
 
 interface ExistingPaymentMethodFormProps {
@@ -95,7 +93,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
   setOrgId,
   existingOrgId,
   setupClientSecret,
-  useExistingPaymentMethod,
   
 }) => {
   const stripe = useStripe();
@@ -125,6 +122,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             tz: 'America/New_York',
             address: { street: '', city: '', state: '', zip: '', country: 'US' },
             paymentMethodId: opts.pmId,
+            // Only allow using an existing default payment method when explicitly chosen by the user
             useExistingPaymentMethod: Boolean(opts.useExisting)
           })
         });
@@ -170,29 +168,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
           redirect: 'if_required'
         });
         if (piErr) { onError(piErr.message ?? 'Payment failed'); return; }
-
-        await onboard({ pmId: undefined, useExisting: useExistingPaymentMethod });
+        // The subscription and PI were created in the previous step.
+        // Do NOT call /onboard again here or you'll create a second subscription that auto-pays.
         toast.success('Payment succeeded. Finalizing organization setup...');
-        // Poll current user for organization_id assignment
-        const start = Date.now();
-        const deadline = start + 60_000; // up to 60s
-        let assigned = false;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 2000));
-          try {
-            const { data: { user } } = await supabase.auth.getUser();
-            const u = user as unknown as { user_metadata?: { organization_id?: string }; organization_id?: string } | null;
-            if (u?.user_metadata?.organization_id || u?.organization_id) {
-              assigned = true;
-              break;
-            }
-          } catch (pollErr) {
-            console.warn('Polling for organization assignment failed once', pollErr);
-          }
-        }
-        if (!assigned) {
-          toast.message('Payment confirmed. Your organization will appear shortly. You may refresh the app.');
-        }
         await onSuccess();
         return;
       }
@@ -328,7 +306,7 @@ const PlanSummary: React.FC<PlanSummaryProps> = ({ orgName, selectedPlan, trialS
       <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Complete Your Setup</h3>
       <p className="text-gray-600 dark:text-gray-400">
         You're about to create <strong>{orgName}</strong> with the <strong>{selectedPlan.name}</strong> plan.
-        {trialSelected && ' This includes a 7-day free trial.'}
+        {trialSelected && ' This includes a 7‑day pay‑as‑you‑go trial.'}
       </p>
     </div>
 
@@ -399,19 +377,21 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [setupSecret, setSetupSecret] = useState<string | null>(null);
   const [orgId, setOrgId] = useState<string>('');
-  const [preOnboarded] = useState<boolean>(false);
 
   const [orgName, setOrgName] = useState(
     existingOrganization?.name || user?.organization?.name || ''
   );
   const [selectedPlan, setSelectedPlan] = useState<PlanCatalogRow | null>(null);
-  const [trialSelected, setTrialSelected] = useState(mode === 'new');
+  const [trialSelected, setTrialSelected] = useState(false);
+  const [areaCode, setAreaCode] = useState<string>('');
+  const [provisioning, setProvisioning] = useState<{ running: boolean; error?: string | null }>({ running: false });
 
   const [savedPaymentMethod, setSavedPaymentMethod] = useState<CustomerPaymentMethodSummary | null>(null);
   const [savedPaymentMethods, setSavedPaymentMethods] = useState<CustomerPaymentMethodSummary[]>([]);
   const [selectedSavedPaymentMethodId, setSelectedSavedPaymentMethodId] = useState<string | null>(null);
   const [hasDefaultPaymentMethod, setHasDefaultPaymentMethod] = useState(false);
-  const [useExistingPaymentMethod, setUseExistingPaymentMethod] = useState(mode === 'renewal');
+  // Do not auto-select saved PM; user must explicitly opt-in
+  const [useExistingPaymentMethod, setUseExistingPaymentMethod] = useState(false);
   // const [loadingDefaultPaymentMethod, setLoadingDefaultPaymentMethod] = useState(false);
 
   useEffect(() => {
@@ -484,7 +464,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       if (data.hasDefault) {
         setSavedPaymentMethod(data.defaultPaymentMethod as CustomerPaymentMethodSummary);
         setHasDefaultPaymentMethod(true);
-        setUseExistingPaymentMethod(true);
+        // only enable when user explicitly selects
         setSelectedSavedPaymentMethodId((data.defaultPaymentMethod as CustomerPaymentMethodSummary).id);
       } else {
         setSavedPaymentMethod(null);
@@ -595,13 +575,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useExistingPaymentMethod, currentStep]);
 
-  // If new org onboarding produced no intent (e.g., free trial), advance immediately
-  useEffect(() => {
-    if (currentStep === 'payment' && mode === 'new' && preOnboarded && !clientSecret && !setupSecret) {
-      handleSuccess();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preOnboarded, clientSecret, setupSecret, currentStep, mode]);
+  
 
   const handleNext = async () => {
     if (currentStep === 'organization') {
@@ -625,19 +599,50 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
 
       setLoading(true);
       try {
-        if (mode === 'renewal' && !hasDefaultPaymentMethod) {
-          // New card for renewal: only need SetupIntent
+        if (mode === 'renewal' && !useExistingPaymentMethod) {
+          // Renewal with new card: prepare SetupIntent
           await createSetupOnly();
         } else if (mode === 'new') {
-          // For new orgs, ALWAYS collect a payment method first (via SetupIntent)
-          await createSetupOnly();
+          // New org: create pending org + subscription first to get PaymentIntent client secret
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) throw new Error('Not authenticated');
+          const resp = await fetch('/api/billing/orgs/onboard', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+            body: JSON.stringify({
+              name: orgName,
+              planCode: selectedPlan.plan_code,
+              trialDays: trialSelected ? 7 : 0,
+              tz: 'America/New_York',
+              address: { street: '', city: '', state: '', zip: '', country: 'US' }
+            })
+          });
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || 'Failed to start subscription');
+          }
+          const data = await resp.json();
+          if (data?.org?.id) setOrgId(data.org.id);
+          if (data?.subscriptionClientSecret) setClientSecret(data.subscriptionClientSecret);
+          if (data?.setupClientSecret) setSetupSecret(data.setupClientSecret);
+
+          // Deterministic step transition for new orgs: proceed when we have either PI or SI secret
+          if (data?.subscriptionClientSecret || data?.setupClientSecret) {
+            setCurrentStep('payment');
+            setError(null);
+            return;
+          }
+          // No secret returned: treat as an error; user must confirm payment before proceeding
+          setError('We couldn’t prepare your payment. Please try again.');
+          return;
         } else {
           // Renewal using saved card path - no client-side intent required
         }
-
-        setCompletedSteps((prev) => Array.from(new Set([...prev, 'payment'])));
-        setCurrentStep('payment');
-        setError(null);
+        if (mode === 'renewal') {
+          setCompletedSteps((prev) => Array.from(new Set([...prev, 'payment'])));
+          setCurrentStep('payment');
+          setError(null);
+        }
       } catch (err) {
         console.error('Error preparing payment:', err);
         setError((err as { message?: string })?.message || 'Failed to prepare payment');
@@ -683,7 +688,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
     }
 
     setCompletedSteps(['organization', 'plan', 'payment']);
-    setCurrentStep('sms-verification');
+    setCurrentStep('area-code');
     toast.success('Organization created successfully!');
   };
 
@@ -778,6 +783,72 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
 
   const renderStepContent = () => {
     switch (currentStep) {
+      case 'area-code':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Choose Preferred Area Code</h3>
+              <p className="text-gray-600 dark:text-gray-400">We’ll provision your phone numbers using this area code.</p>
+            </div>
+            <div className="mx-auto mb-4 max-w-md">
+              <Label htmlFor="areaCode">Area Code</Label>
+              <Input
+                id="areaCode"
+                value={areaCode}
+                onChange={(e) => setAreaCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
+                placeholder="e.g. 415"
+                required
+              />
+            </div>
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setCurrentStep('payment')} disabled={provisioning.running}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <Button
+                onClick={async () => {
+                  if (!orgId) {
+                    setError('Missing organization ID');
+                    return;
+                  }
+                  if (!areaCode || areaCode.length !== 3) {
+                    setError('Please enter a valid 3-digit area code');
+                    return;
+                  }
+                  setProvisioning({ running: true });
+                  setError(null);
+                  try {
+                    const { data: { session } } = await supabase.auth.getSession();
+                    if (!session?.access_token) throw new Error('Not authenticated');
+                    const resp = await fetch('/api/billing/orgs/provision', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+                      body: JSON.stringify({ orgId, areaCode })
+                    });
+                    if (resp.status === 409) {
+                      // payment pending
+                      throw new Error('Payment not confirmed yet. Please wait a moment and try again.');
+                    }
+                    if (!resp.ok) {
+                      const err = await resp.json().catch(() => ({}));
+                      throw new Error(err.error || 'Provisioning failed');
+                    }
+                    toast.success('Phone system provisioned');
+                    setCompletedSteps(['organization', 'plan', 'payment', 'area-code']);
+                    setCurrentStep('sms-verification');
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : 'Provisioning failed');
+                  } finally {
+                    setProvisioning({ running: false });
+                  }
+                }}
+                disabled={provisioning.running || !areaCode || areaCode.length !== 3}
+              >
+                {provisioning.running ? 'Provisioning…' : 'Provision & Continue'}
+              </Button>
+            </div>
+          </div>
+        );
       case 'organization':
         return (
           <div className="space-y-6">
@@ -894,19 +965,18 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                   setIsLoading={setLoading}
                   clientSecret={(clientSecret ?? '')}
                   setOrgId={setOrgId}
-                  existingOrgId={existingOrganization?.id || null}
+                  existingOrgId={orgId || existingOrganization?.id || null}
                   setupClientSecret={(setupSecret ?? '')}
-                  useExistingPaymentMethod={useExistingPaymentMethod}
-                  preOnboarded={preOnboarded}
                 />
               </Elements>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-200">
-                  Preparing payment session...
+                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200">
+                  We couldn’t prepare your payment session. Go back and try again.
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  If this takes too long, go back and reselect your plan or try again.
+                <div className="flex justify-between">
+                  <Button variant="outline" onClick={handleBack}>Back</Button>
+                  <Button onClick={handleNext}>Retry</Button>
                 </div>
               </div>
             )}
@@ -961,7 +1031,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                 {mode === 'renewal'
                   ? 'Access has been restored. You can continue using Paperboat CRM.'
                   : 'Your organization has been created successfully.'}
-                {mode === 'new' && trialSelected && ' Enjoy your 7-day free trial!'}
+                {mode === 'new' && trialSelected && ' Enjoy your 7‑day pay‑as‑you‑go trial!'}
               </p>
             </div>
             <Button onClick={handleGoToDashboard} size="lg">

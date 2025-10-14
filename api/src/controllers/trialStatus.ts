@@ -42,20 +42,20 @@ function getTrialStatus(organization: OrganizationRow | null): TrialStatusRespon
   let statusMessage = 'No active trial found.';
   if (isOnTrial) {
     if (daysRemaining === 0) {
-      statusMessage = 'Your free trial ends today!';
+      statusMessage = 'Your 7-day pay-as-you-go trial ends today!';
     } else if (daysRemaining === 1) {
-      statusMessage = 'Your free trial ends tomorrow!';
+      statusMessage = 'Your 7-day pay-as-you-go trial ends tomorrow!';
     } else if (daysRemaining <= 7) {
-      statusMessage = `Your free trial ends in ${daysRemaining} days.`;
+      statusMessage = `Your 7-day pay-as-you-go trial ends in ${daysRemaining} days.`;
     } else {
-      statusMessage = `Your free trial ends on ${trialEndDate.toLocaleDateString('en-US', {
+      statusMessage = `Your 7-day pay-as-you-go trial ends on ${trialEndDate.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       })}.`;
     }
   } else if (isExpired) {
-    statusMessage = 'Your free trial has ended. Please update your subscription to continue using the service.';
+    statusMessage = 'Your 7-day pay-as-you-go trial has ended. Please update your subscription to continue using the service.';
   }
 
   const isEndingSoon = isOnTrial && daysRemaining !== null && daysRemaining <= 3;

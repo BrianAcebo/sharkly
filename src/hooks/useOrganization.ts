@@ -90,7 +90,9 @@ export function useOrganization() {
         stripe_customer_id: null,
         stripe_subscription_id: data.subscription.id,
         stripe_status: data.subscription.status,
-        org_status: 'active',
+        // Use server-reported org_status; fall back to 'pending' if missing
+        org_status:
+          (data.organization as unknown as { org_status?: string })?.org_status || 'pending',
         plan_code: data.organization.plan_code,
         plan_price_cents: data.organization.plan_price_cents,
         included_seats: data.organization.included_seats,

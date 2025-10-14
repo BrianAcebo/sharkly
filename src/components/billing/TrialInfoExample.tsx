@@ -55,7 +55,7 @@ export const TrialInfoExample: React.FC = () => {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             {getIcon()}
-            <span>Free Trial Status</span>
+            <span>7‑Day Pay‑As‑You‑Go Trial Status</span>
           </div>
           <Badge variant={getBadgeVariant()}>
             {isEndingSoon ? 'Ending Soon' : 'Active'}

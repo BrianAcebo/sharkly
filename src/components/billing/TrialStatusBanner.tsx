@@ -70,7 +70,7 @@ export const TrialStatusBanner: React.FC<TrialStatusBannerProps> = ({
   };
 
   const getTitle = () => {
-    return needsPayment ? 'Payment Method Required' : 'Free Trial Active';
+    return needsPayment ? 'Payment Method Required' : '7‑Day Pay‑As‑You‑Go Trial Active';
   };
 
   const getButtonLabel = () => {

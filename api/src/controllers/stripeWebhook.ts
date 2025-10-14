@@ -101,11 +101,11 @@ const logSubscriptionChange = async (orgId: string, event: string, fromPlan: str
 };
 
 // Stub function for usage rollup (to be implemented later)
-const triggerUsageRollup = async (organizationId: string, subscriptionId: string) => {
-  console.log(`[USAGE_ROLLUP] Triggering rollup for org ${organizationId}, subscription ${subscriptionId}`);
-  // TODO: Implement actual usage rollup logic
-  // This should aggregate usage for the current period and push metered usage to Stripe
-};
+// const triggerUsageRollup = async (organizationId: string, subscriptionId: string) => {
+//   console.log(`[USAGE_ROLLUP] Triggering rollup for org ${organizationId}, subscription ${subscriptionId}`);
+//   // TODO: Implement actual usage rollup logic
+//   // This should aggregate usage for the current period and push metered usage to Stripe
+// };
 
 export const handleStripeWebhook = async (req: Request, res: Response) => {
   const sig = req.headers['stripe-signature'] as string;
@@ -141,6 +141,47 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
 
   try {
     switch (event.type as string) {
+      case 'setup_intent.succeeded': {
+        const si = event.data.object as Stripe.SetupIntent;
+        const customerId = si.customer as string;
+        const pmId = typeof si.payment_method === 'string' ? si.payment_method : null;
+        if (customerId && pmId) {
+          try {
+            await stripe.customers.update(customerId, {
+              invoice_settings: { default_payment_method: pmId },
+            });
+          } catch (e) {
+            console.warn('[WEBHOOK] Failed to set default payment method on customer after SI success', e);
+          }
+          try {
+            const subs = await stripe.subscriptions.list({ customer: customerId, status: 'all', limit: 10 });
+            await Promise.all(
+              subs.data
+                .filter((s) => ['trialing', 'incomplete', 'active', 'past_due'].includes(s.status))
+                .map((s) => stripe.subscriptions.update(s.id, { default_payment_method: pmId }))
+            );
+          } catch (e) {
+            console.warn('[WEBHOOK] Failed to update subscriptions with default payment method after SI success', e);
+          }
+          // Flip pending org to active when card is added during trial onboarding
+          try {
+            const { data: org } = await supabase
+              .from('organizations')
+              .select('id, org_status')
+              .eq('stripe_customer_id', customerId)
+              .single();
+            if (org?.id) {
+              await supabase
+                .from('organizations')
+                .update({ org_status: 'active', updated_at: new Date().toISOString() })
+                .eq('id', org.id);
+            }
+          } catch (upErr) {
+            console.warn('[WEBHOOK] Failed to set org active after SI success', upErr);
+          }
+        }
+        break;
+      }
       case 'payment_intent.succeeded': {
         const pi = event.data.object as Stripe.PaymentIntent;
         const purpose = (pi.metadata as Record<string, string> | undefined)?.purpose;
@@ -190,7 +231,7 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
         const charge = event.data.object as Stripe.Charge;
         // Attempt to map back to wallet top-up via associated payment intent metadata
         let organizationId: string | null = null;
-        let amountCents = Number(charge.amount_refunded || charge.amount || 0);
+        const amountCents = Number(charge.amount_refunded || charge.amount || 0);
         try {
           if (typeof charge.payment_intent === 'string') {
             const pi = await stripe.paymentIntents.retrieve(charge.payment_intent);
@@ -330,53 +371,8 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
 
   console.log(`[WEBHOOK] Processing subscription ${incomingSubscription.id} for customer ${customerId}`);
 
-  let org = await findOrganization(incomingSubscription.id, customerId);
-  if (!org && incomingSubscription.status === 'active') {
-    // Payment-first flow: create org after successful first charge
-    const orgName = (incomingSubscription.metadata as Record<string, string> | undefined)?.org_pre_name || 'Organization';
-    const planCode = (incomingSubscription.metadata as Record<string, string> | undefined)?.plan_code || null;
-    const ownerId = (incomingSubscription.metadata as Record<string, string> | undefined)?.user_id || null;
-
-    try {
-      const { data: newOrg, error: createErr } = await supabase
-        .from('organizations')
-        .insert({
-          name: orgName,
-          owner_id: ownerId,
-          org_status: 'active',
-          stripe_customer_id: customerId,
-          stripe_subscription_id: incomingSubscription.id,
-          stripe_status: incomingSubscription.status as StripeSubStatus,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select('*')
-        .single();
-      if (createErr || !newOrg) {
-        console.error('[WEBHOOK] Failed to create organization on first payment', createErr);
-        return;
-      }
-      org = newOrg as unknown as OrganizationRow;
-      // Add owner membership
-      if (ownerId) {
-        try {
-          await supabase
-            .from('user_organizations')
-            .upsert({ user_id: ownerId, organization_id: org.id, role: 'owner' }, { onConflict: 'user_id,organization_id' });
-        } catch (mErr) {
-          console.warn('[WEBHOOK] Failed to upsert user_organizations for new org', mErr);
-        }
-      }
-      try {
-        await ensureWallet(org.id);
-      } catch (wErr) {
-        console.warn('[WEBHOOK] Failed to ensure wallet after org creation', wErr);
-      }
-    } catch (e) {
-      console.error('[WEBHOOK] Exception creating org on first payment', e);
-      return;
-    }
-  } else if (!org) {
+  const org = await findOrganization(incomingSubscription.id, customerId);
+  if (!org) {
     console.error(`[WEBHOOK] Organization not found for subscription ${incomingSubscription.id}`);
     return;
   }
@@ -462,13 +458,7 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
     updateData.cancel_at_period_end = subscription.cancel_at_period_end;
   }
 
-  if (subscription.current_period_start) {
-    updateData.current_period_start = unixToISO(subscription.current_period_start);
-  }
-
-  if (subscription.current_period_end) {
-    updateData.current_period_end = unixToISO(subscription.current_period_end);
-  }
+  // Basil API doesn't expose current_period_start/end
 
   if (subscription.collection_method) {
     updateData.stripe_collection_method = subscription.collection_method;
@@ -485,8 +475,8 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
     updateData.stripe_latest_invoice_id = subscription.latest_invoice;
   }
 
-  if (subscription.metadata && Object.keys(subscription.metadata).length > 0) {
-    updateData.stripe_subscription_metadata = subscription.metadata;
+  if (subscription.metadata && Object.keys(subscription.metadata as Record<string, unknown>).length > 0) {
+    updateData.stripe_subscription_metadata = subscription.metadata as Record<string, unknown>;
   }
 
   console.log('[WEBHOOK] Prepared organization update payload', {
@@ -500,6 +490,11 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
   // These would need to be tracked separately or retrieved from Stripe API if needed
 
   // Update organization with subscription data
+  // Stage status mapping: pending -> provisioning when payment confirmed
+  if (subscription.status === 'active' || subscription.status === 'trialing') {
+    (updateData as { org_status?: string }).org_status = 'provisioning';
+  }
+
   const { error } = await supabase
     .from('organizations')
     .update(updateData)
@@ -742,7 +737,9 @@ const handleSubscriptionDeleted = async (event: Stripe.Event) => {
       for (const inv of invoices.data) {
         // If invoice looks like the usage-only one (no plan items, has metered item), we can void it
         try {
-          await stripeClient.invoices.voidInvoice(inv.id);
+          if (inv.id) {
+            await stripeClient.invoices.voidInvoice(inv.id);
+          }
           console.log('[WEBHOOK] Voided draft invoice on cancellation', { invoiceId: inv.id });
         } catch (voidErr) {
           console.warn('[WEBHOOK] Failed to void draft invoice:', voidErr);
