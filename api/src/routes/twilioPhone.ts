@@ -76,7 +76,7 @@ router.post('/organizations/:organizationId/phone-numbers', async (req, res) => 
 	try {
 		const { data: organization, error: orgError } = await supabase
 			.from('organizations')
-			.select('id, name, twilio_subaccount_sid, twilio_messaging_service_sid')
+			.select('id, name, twilio_subaccount_sid, twilio_messaging_service_sid, twilio_twiml_app_sid')
 			.eq('id', organizationId)
 			.single();
 
@@ -124,11 +124,9 @@ router.post('/organizations/:organizationId/phone-numbers', async (req, res) => 
 			return res.status(400).json({ error: 'No available phone numbers found for the requested criteria' });
 		}
 
-		const baseWebhook = BASE_WEBHOOK_DOMAIN || process.env.PUBLIC_URL?.replace(/\/$/, '') || '';
-		const smsWebhookUrl = baseWebhook ? `${baseWebhook}/api/webhooks/twilio/sms-inbound` : undefined;
-		const smsStatusCallback = baseWebhook ? `${baseWebhook}/api/webhooks/twilio/sms-status` : undefined;
-		const voiceWebhookUrl = baseWebhook ? `${baseWebhook}/api/twilio/voice/call` : undefined;
-		const voiceStatusCallback = baseWebhook ? `${baseWebhook}/api/webhooks/twilio/call-status` : undefined;
+		const BASE_WEBHOOK_DOMAIN = (process.env.WEBHOOK_PUBLIC_HOST || process.env.NGROK_DOMAIN || process.env.PUBLIC_URL || '').replace(/\/*$/, '');
+		const smsWebhookUrl = BASE_WEBHOOK_DOMAIN ? `${BASE_WEBHOOK_DOMAIN}/api/webhooks/twilio/sms-inbound` : undefined;
+		const voiceWebhookUrl = BASE_WEBHOOK_DOMAIN ? `${BASE_WEBHOOK_DOMAIN}/api/twilio/voice/call` : undefined;
 
     const purchasedNumber = await (subClient as any).incomingPhoneNumbers.create({
       phoneNumber: numberToPurchase.phoneNumber,

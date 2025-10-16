@@ -553,7 +553,7 @@ const handleSubscriptionScheduleEvent = async (event: Stripe.Event) => {
 };
 
 const handleInvoicePaid = async (event: Stripe.Event) => {
-  const invoice = event.data.object as Stripe.Invoice;
+  const invoice = event.data.object as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null; last_payment_error?: { message?: string } | null };
   const subscriptionId = (invoice.subscription ?? null) as string | null;
   const customerId = invoice.customer as string | null;
 
@@ -587,7 +587,7 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 };
 
 const handleInvoicePaymentFailed = async (event: Stripe.Event) => {
-  const invoice = event.data.object as Stripe.Invoice;
+  const invoice = event.data.object as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null; last_payment_error?: { message?: string } | null };
   const subscriptionId = (invoice.subscription ?? null) as string | null;
   const customerId = invoice.customer as string | null;
 
@@ -627,7 +627,7 @@ const handleInvoicePaymentFailed = async (event: Stripe.Event) => {
 };
 
 const handleInvoicePaymentActionRequired = async (event: Stripe.Event) => {
-  const invoice = event.data.object as Stripe.Invoice;
+  const invoice = event.data.object as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null; last_payment_error?: { message?: string } | null };
   const subscriptionId = (invoice.subscription ?? null) as string | null;
   const customerId = invoice.customer as string | null;
 
@@ -679,7 +679,7 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
   }
 
   try {
-    switch (event.type) {
+    switch (event.type as Stripe.Event['type']) {
       case 'payment_intent.succeeded':
       case 'payment_intent.canceled':
       case 'payment_intent.payment_failed':
@@ -704,13 +704,13 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
       case 'customer.subscription.resumed':
         await handleSubscriptionResumed(event);
         break;
-      case 'customer.subscription.past_due':
+      case 'customer.subscription.past_due' as any:
         await handleSubscriptionPastDue(event);
         break;
-      case 'customer.subscription.schedule.created':
-      case 'customer.subscription.schedule.updated':
-      case 'customer.subscription.schedule.canceled':
-      case 'customer.subscription.schedule.completed':
+      case 'customer.subscription.schedule.created' as any:
+      case 'customer.subscription.schedule.updated' as any:
+      case 'customer.subscription.schedule.canceled' as any:
+      case 'customer.subscription.schedule.completed' as any:
         await handleSubscriptionScheduleEvent(event);
         break;
       case 'invoice.paid':

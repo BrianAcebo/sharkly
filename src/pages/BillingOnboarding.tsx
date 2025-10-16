@@ -123,7 +123,7 @@ const BillingOnboarding: React.FC = () => {
         address: Object.values(state.address).some(v => v) ? state.address : undefined
       };
 
-      const response = await api.post('/api/billing/orgs/onboard', request as Record<string, unknown>) as OrgOnboardResponse;
+      const response = await api.post('/api/billing/orgs/onboard', request as unknown as Record<string, unknown>) as OrgOnboardResponse;
       
       if (response.ok) {
         setState(prev => ({ ...prev, success: true, loading: false }));

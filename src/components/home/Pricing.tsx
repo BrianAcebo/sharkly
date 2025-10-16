@@ -1,79 +1,84 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { CheckCircle, Users, Clock, MessageSquare, Mail } from 'lucide-react';
+import { toast } from 'sonner';
+
+interface PlanCatalogEntry {
+	plan_code: string;
+	name: string;
+	description: string | null;
+	included_seats: number;
+	included_minutes: number;
+	included_sms: number;
+	included_emails: number;
+	base_price_cents: number;
+}
+
+type FeatureType = 'seats' | 'minutes' | 'sms' | 'emails';
+
+const featureIcon: Record<FeatureType, typeof Users> = {
+	seats: Users,
+	minutes: Clock,
+	sms: MessageSquare,
+	emails: Mail
+};
+
+const formatCurrency = (cents: number) => {
+	return `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 0 })}`;
+};
+
+const describeFeature = (plan: PlanCatalogEntry, type: FeatureType) => {
+	switch (type) {
+		case 'seats':
+			return `${plan.included_seats.toLocaleString()} seat${plan.included_seats === 1 ? '' : 's'}`;
+		case 'minutes':
+			return `${plan.included_minutes.toLocaleString()} minutes`; 
+		case 'sms':
+			return `${plan.included_sms.toLocaleString()} SMS`;
+		case 'emails':
+			return plan.included_emails > 0 ? `${plan.included_emails.toLocaleString()} emails` : 'Unlimited emails';
+		default:
+			return '';
+	}
+};
 
 const Pricing: React.FC = () => {
-  const plans = [
-    {
-      name: 'Starter',
-      price: 119,
-      period: 'month',
-      description: 'Perfect for small teams getting started',
-      features: [
-        { icon: Users, text: '1 seat' },
-        { icon: Clock, text: '500 minutes' },
-        { icon: MessageSquare, text: '200 SMS' },
-        { icon: Mail, text: '1,000 emails' }
-      ],
-      overages: [
-        '$0.18/min overage',
-        '$0.04/SMS overage',
-        '$0.01/email overage'
-      ],
-      allInCost: 62.35,
-      margin: 56.65,
-      percentage: 48,
-      popular: false
-    },
-    {
-      name: 'Growth',
-      price: 499,
-      period: 'month',
-      description: 'Ideal for growing teams',
-      effectivePrice: '$100/seat',
-      features: [
-        { icon: Users, text: '5 seats' },
-        { icon: Clock, text: '3,000 minutes' },
-        { icon: MessageSquare, text: '1,000 SMS' },
-        { icon: Mail, text: '5,000 emails' }
-      ],
-      overages: [
-        '$0.18/min overage',
-        '$0.04/SMS overage',
-        '$0.01/email overage'
-      ],
-      allInCost: 293,
-      margin: 206,
-      percentage: 41,
-      popular: true
-    },
-    {
-      name: 'Scale',
-      price: 899,
-      period: 'month',
-      description: 'Built for enterprise teams',
-      effectivePrice: '$90/seat',
-      features: [
-        { icon: Users, text: '10 seats' },
-        { icon: Clock, text: '6,000 minutes' },
-        { icon: MessageSquare, text: '2,000 SMS' },
-        { icon: Mail, text: '10,000 emails' }
-      ],
-      overages: [
-        '$0.18/min overage',
-        '$0.04/SMS overage',
-        '$0.01/email overage'
-      ],
-      allInCost: 530,
-      margin: 369,
-      percentage: 41,
-      popular: false
-    }
-  ];
+	const [plans, setPlans] = useState<PlanCatalogEntry[] | null>(null);
+	const [loading, setLoading] = useState(false);
 
-  return (
+	useEffect(() => {
+		const fetchPlans = async () => {
+			try {
+				setLoading(true);
+				const resp = await fetch('/api/billing/public/plans');
+				if (!resp.ok) {
+					throw new Error('Failed to load pricing');
+				}
+				const data: PlanCatalogEntry[] = await resp.json();
+				setPlans(data);
+			} catch (error) {
+				console.error('Failed to load plans', error);
+				toast.error('Pricing is temporarily unavailable.');
+				setPlans([]);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchPlans();
+	}, []);
+
+	const enrichedPlans = useMemo(() => {
+		if (!plans) return [];
+		return plans.map((plan, index) => ({
+			...plan,
+			popular: index === 1
+		}));
+	}, [plans]);
+
+	return (
     <section id="pricing" className="py-24 bg-gray-50 dark:bg-gray-900">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
@@ -85,8 +90,8 @@ const Pricing: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {plans.map((plan) => (
+				<div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+					{enrichedPlans.map((plan) => (
             <Card
               key={plan.name}
               className={`relative transition-all duration-200 hover:shadow-lg ${
@@ -107,17 +112,12 @@ const Pricing: React.FC = () => {
                 <CardTitle className="text-2xl font-semibold">{plan.name}</CardTitle>
                 <div className="mt-4">
                   <div className="text-4xl font-bold text-gray-900 dark:text-white">
-                    ${plan.price}
-                    <span className="text-lg font-normal text-gray-500">/{plan.period}</span>
+                    {formatCurrency(plan.base_price_cents)}
+                    <span className="text-lg font-normal text-gray-500">/month</span>
                   </div>
-                  {plan.effectivePrice && (
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      {plan.effectivePrice} effective
-                    </div>
-                  )}
                 </div>
                 <p className="text-gray-600 dark:text-gray-400 mt-2">
-                  {plan.description}
+                  {plan.description ?? 'Everything you need to grow with pay-as-you-go usage.'}
                 </p>
               </CardHeader>
 
@@ -127,12 +127,15 @@ const Pricing: React.FC = () => {
                   <h4 className="font-medium text-sm text-gray-700 dark:text-gray-300">
                     Bundled:
                   </h4>
-                  {plan.features.map((feature, index) => (
-                    <div key={index} className="flex justify-center text-left items-center text-sm text-gray-600 dark:text-gray-400">
-                      <feature.icon className="h-4 w-4 mr-3 text-red-500" />
-                      {feature.text}
-                    </div>
-                  ))}
+                  {(['seats', 'minutes', 'sms', 'emails'] as FeatureType[]).map((type) => {
+                    const Icon = featureIcon[type];
+                    return (
+                      <div key={type} className="flex justify-center text-left items-center text-sm text-gray-600 dark:text-gray-400">
+                        <Icon className="h-4 w-4 mr-3 text-red-500" />
+                        {describeFeature(plan, type)}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {/* Overages */}
@@ -140,23 +143,27 @@ const Pricing: React.FC = () => {
                   <h4 className="font-medium text-sm text-gray-700 dark:text-gray-300">
                     Overages:
                   </h4>
-                  {plan.overages.map((overage, index) => (
-                    <div key={index} className="text-xs text-gray-500 dark:text-gray-400">
-                      {overage}
-                    </div>
-                  ))}
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Voice minutes billed at wallet rates
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    SMS usage billed at wallet rates
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Emails currently free
+                  </div>
                 </div>
 
                 {/* Cost Breakdown */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="space-y-2 text-xs">
+                  <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">All-in cost:</span>
-                      <span className="font-medium">${plan.allInCost}</span>
+                      <span>Included seats</span>
+                      <span className="font-medium">{plan.included_seats}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600 dark:text-gray-400">Margin:</span>
-                      <span className="font-medium text-green-600">${plan.margin} (~{plan.percentage}%)</span>
+                      <span>Additional seats</span>
+                      <span className="font-medium">Pay-as-you-go via wallet</span>
                     </div>
                   </div>
                 </div>

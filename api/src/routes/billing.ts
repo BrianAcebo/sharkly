@@ -2,13 +2,25 @@ import express from 'express';
 
 import { requireAuth } from '../middleware/auth';
 import { getWalletStatus, getUsageCatalog } from '../controllers/billingUsage';
+import billingPublicRoutes from './billingPublic';
 import { getStripeClient } from '../utils/stripe';
 import { supabase } from '../utils/supabaseClient';
+import { listActivePlans } from '../controllers/billingPublic';
 
 const router = express.Router();
 const stripe = getStripeClient();
 
-router.use(requireAuth);
+// router.use('/public', billingPublicRoutes);
+
+router.use((req, res, next) => {
+  if (req.path === '/public') {
+    next();
+  } else {
+    requireAuth(req, res, next);
+  }
+});
+
+router.get('/public/plans', listActivePlans);
 
 router.get('/wallet/status', getWalletStatus);
 router.get('/usage-catalog', getUsageCatalog);
@@ -79,18 +91,12 @@ router.post('/wallet/topup/:organizationId/intent', async (req, res) => {
       amount_cents: amountCents,
       auto_confirm: autoConfirm,
       purpose,
-      metadata,
-      included_minutes_per_dollar: includedMinutesPerDollar,
-      included_sms_per_dollar: includedSmsPerDollar,
-      included_emails_per_dollar: includedEmailsPerDollar
+      metadata
     } = req.body as {
 		amount_cents?: number;
 		auto_confirm?: boolean;
 		purpose?: 'wallet_topup' | 'wallet_auto_recharge';
 		metadata?: Record<string, string>;
-      included_minutes_per_dollar?: number | null;
-      included_sms_per_dollar?: number | null;
-      included_emails_per_dollar?: number | null;
 	};
 
     if (!organizationId) {
@@ -104,10 +110,7 @@ router.post('/wallet/topup/:organizationId/intent', async (req, res) => {
       amountCents,
       autoConfirm,
       purpose: purpose ?? 'wallet_topup',
-      metadata,
-      includedMinutesPerDollar,
-      includedSmsPerDollar,
-      includedEmailsPerDollar
+      metadata
     });
 
     return res.json({

@@ -14,6 +14,9 @@ import type { PhoneNumberRecord } from '../../types/phone';
 import type { SeatSummary } from '../../types/organization';
 import { supabase } from '../../utils/supabaseClient';
 
+type SeatAssignmentRecord = SeatSummary['seats'][number];
+type PhoneNumberListResponse = { numbers: Array<{ phone_number: string; status: string }> };
+
 interface PhoneSmsState {
 	isLoading: boolean;
 	numbers: PhoneNumberRecord[];
@@ -90,15 +93,16 @@ export default function PhoneSmsPage() {
 		setState((prev) => ({ ...prev, isLoading: true }));
 		try {
 			const [numbersResp, seatSummaryData] = await Promise.all([
-				fetchPhoneNumbers(organizationId),
+				fetch(`/api/twilio/phone/organizations/${organizationId}/phone-numbers`),
 				fetchSeatSummary(organizationId)
 			]);
 
-			setState({
-				isLoading: false,
-				numbers: numbersResp.data.numbers,
-				seatSummary: seatSummaryData
-			});
+      const numbersData: PhoneNumberListResponse = await numbersResp.json();
+      setState({
+        isLoading: false,
+        numbers: (numbersData as any)?.numbers ?? [],
+        seatSummary: seatSummaryData
+      });
 		} catch (error) {
 			console.error('Error loading phone & SMS data', error);
 			toast.error('Failed to load phone numbers. Please try again later.');
@@ -229,9 +233,18 @@ export default function PhoneSmsPage() {
 							<TableCell>{formatPhoneNumber(number.phone_number) ?? number.phone_number}</TableCell>
 							<TableCell className="capitalize">{number.status}</TableCell>
 							<TableCell>
-								{number.seat_id
-									? state.seatSummary?.seats.find((seat) => seat.id === number.seat_id)?.name ?? number.seat_id
-									: 'Unassigned'}
+                {number.seat_id
+                  ? (() => {
+                      const seat = state.seatSummary?.seats.find((s) => s.id === number.seat_id);
+                      const displayName =
+                        seat?.profile?.first_name || seat?.profile?.last_name
+                          ? [seat?.profile?.first_name, seat?.profile?.last_name]
+                              .filter(Boolean)
+                              .join(' ')
+                          : seat?.profile?.email;
+                      return displayName || seat?.id || number.seat_id;
+                    })()
+                  : 'Unassigned'}
 							</TableCell>
 							<TableCell className="flex justify-end gap-2">
 								<Button size="sm" variant="outline" onClick={() => handleAssignClick(number)}>
@@ -370,11 +383,17 @@ export default function PhoneSmsPage() {
 								onChange={(event) => setSelectedSeatId(event.target.value)}
 							>
 								<option value="">Select a seat</option>
-								{availableSeats.map((seat) => (
-									<option key={seat.id} value={seat.id}>
-										{seat.name ?? seat.email ?? seat.id}
-									</option>
-								))}
+                  {availableSeats.map((seat) => {
+                    const seatName =
+                      seat.profile?.first_name || seat.profile?.last_name
+                        ? [seat.profile?.first_name, seat.profile?.last_name].filter(Boolean).join(' ')
+                        : seat.profile?.email;
+                    return (
+                      <option key={seat.id} value={seat.id}>
+                        {seatName || seat.id}
+                      </option>
+                    );
+                  })}
 							</select>
 						</div>
 					</div>

@@ -30,7 +30,6 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword from './pages/Auth/ResetPassword';
-import NumberSettingsPage from './pages/settings/number';
 import LeadSmsPage from './pages/leads/[leadId]/sms';
 import Calls from './pages/Calls';
 import Billing from './pages/Billing';
@@ -53,8 +52,7 @@ export default function App() {
 					<Route element={<AppLayout />}>
 						<Route index path="/pipeline" element={<Pipeline />} />
 						<Route path="/profile" element={<Profile />} />
-						<Route path="/settings" element={<Settings />} />
-						<Route path="/settings/number" element={<NumberSettingsPage />} />
+                        <Route path="/settings" element={<Settings />} />
 						<Route path="/notifications" element={<Notifications />} />
 						<Route path="/tasks" element={<Tasks />} />
 						<Route path="/tasks/:id" element={<Tasks />} />

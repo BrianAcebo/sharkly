@@ -91,7 +91,11 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
     } catch (error) {
       console.error('Error fetching payment status:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch payment status');
-      toast.error(error instanceof Error ? error.message : 'Failed to fetch payment status');
+      toast({
+        variant: 'destructive',
+        title: 'Payment status error',
+        description: error instanceof Error ? error.message : 'Failed to fetch payment status'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -133,7 +137,11 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
 
     } catch (error) {
       console.error('Error checking resume eligibility:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to check resume eligibility');
+      toast({
+        variant: 'destructive',
+        title: 'Resume eligibility error',
+        description: error instanceof Error ? error.message : 'Failed to check resume eligibility'
+      });
       return false;
     }
   }, [user?.organization_id, toast]);

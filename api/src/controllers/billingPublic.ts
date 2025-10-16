@@ -1,0 +1,25 @@
+import type { Request, Response } from 'express';
+import { supabase } from '../utils/supabaseClient';
+
+export const listActivePlans = async (_req: Request, res: Response) => {
+	try {
+		const { data, error } = await supabase
+			.from('plan_catalog')
+			.select(
+				'plan_code, name, description, included_seats, included_minutes, included_sms, included_emails, base_price_cents'
+			)
+			.eq('active', true)
+			.order('base_price_cents', { ascending: true });
+
+		if (error) {
+			console.error('Failed to load plan catalog', error);
+			return res.status(500).json({ error: 'Failed to load pricing' });
+		}
+
+		return res.json(data ?? []);
+	} catch (error) {
+		console.error('listActivePlans error', error);
+		return res.status(500).json({ error: 'Failed to load pricing' });
+	}
+};
+

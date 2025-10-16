@@ -11,7 +11,9 @@ import {
 	LogOut,
 	Calendar,
 	Phone,
-	PhoneCall
+	PhoneCall,
+	BarChart3,
+	HelpCircle
 } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';

@@ -215,12 +215,17 @@ async function handleInboundCall(req: Request, res: Response, statusCallback: st
   const dial = vr.dial({
     answerOnBridge: true,
     timeout: 45,
-    statusCallback,
-    statusCallbackEvent: ['initiated', 'ringing', 'answered', 'completed'],
-    statusCallbackMethod: 'POST'
+    ...(statusCallback ? { action: statusCallback, method: 'POST' } : {})
   });
 
-  const client = dial.client(identity);
+  const clientOptions: Record<string, unknown> = {};
+  if (statusCallback) {
+    clientOptions.statusCallback = statusCallback;
+    clientOptions.statusCallbackEvent = ['answered', 'completed'];
+    clientOptions.statusCallbackMethod = 'POST';
+  }
+
+  const client = dial.client(clientOptions as any, identity);
   client.parameter({ name: 'direction', value: 'inbound' });
   client.parameter({ name: 'from_number', value: fromNumber });
   client.parameter({ name: 'twilio_call_sid', value: callSid });

@@ -9,8 +9,7 @@ import {
 	Search,
 	Building2,
 	Mail,
-	RefreshCw,
-	AlertTriangle
+	RefreshCw
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -132,7 +131,7 @@ const Calls: React.FC = () => {
 						(payload) => {
 							console.log('General call history change received:', payload);
 							// Check if this change is for the current user
-							if (payload.new?.agent_id === user.id || payload.old?.agent_id === user.id) {
+							if ((payload.new as any)?.agent_id === user.id || (payload.old as any)?.agent_id === user.id) {
 								console.log('Change is for current user, refreshing...');
 								fetchCallHistory();
 							}

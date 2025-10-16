@@ -14,7 +14,7 @@ import { useScreenSize } from '../hooks/useScreenSize';
 import ScreenSizeWarning from '../components/common/ScreenSizeWarning';
 import { useNotifications } from '../hooks/useNotifications';
 import { ActiveCallBar } from '../components/calls/ActiveCallBar';
-import { TrialBanner } from '../components/billing/TrialBanner';
+import TrialBanner from '../components/billing/TrialBanner';
 import PaymentStatusBanner from '../components/billing/PaymentStatusBanner';
 import { useTrial } from '../hooks/useTrial';
 import { useOrganizationStatus } from '../hooks/useOrganizationStatus';
