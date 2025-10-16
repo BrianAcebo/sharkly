@@ -151,13 +151,11 @@ export default function Leads() {
       if (!user?.organization_id) {
         throw new Error('No organization ID available');
       }
-      
-      // Use current filters and fetch all leads for export
       const { getAllLeadsForExport } = await import('../../utils/leadService');
       const leads = await getAllLeadsForExport(user.organization_id, combinedFilters());
       return leads;
     } catch (error) {
-      // Silent error handling
+      return [];
     }
   };
 

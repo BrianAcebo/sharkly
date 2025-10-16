@@ -21,11 +21,14 @@ export const requireUsageWalletForVoice = async (req: Request, res: Response, ne
 
     req.params.organizationId = membership.organization_id;
 
-    const reqClone = {
-      ...req,
-      params: { ...req.params },
-      query: { orgId: membership.organization_id }
-    } as Request;
+    const fakeReq = {
+      params: req.params,
+      query: req.query,
+      headers: req.headers,
+      get: req.get.bind(req),
+      header: req.header.bind(req),
+      body: req.body
+    } as unknown as Request;
 
     const responseRecorder: { body?: unknown; status?: number } = {};
 
@@ -40,7 +43,7 @@ export const requireUsageWalletForVoice = async (req: Request, res: Response, ne
       }
     } as Response;
 
-    await getWalletStatus(reqClone, resClone);
+    await getWalletStatus(fakeReq, resClone);
     const statusPayload = responseRecorder.body as { depositRequired?: boolean; reason?: string } | undefined;
 
     if (statusPayload?.depositRequired) {

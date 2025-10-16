@@ -5,7 +5,7 @@ import Input from '../form/input/InputField';
 import Label from '../form/Label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Checkbox } from '../ui/checkbox';
-import { AlertCircle, Info, MessageSquare, Send } from 'lucide-react';
+import { AlertCircle, Info, MessageSquare, Send, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
 import { OptInMethod } from '../../types/smsVerification';

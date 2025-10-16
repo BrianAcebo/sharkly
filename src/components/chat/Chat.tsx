@@ -14,7 +14,6 @@ import {
 	X,
 	Archive,
 	Trash2,
-	Ban,
 	Info
 } from 'lucide-react';
 import { Button } from '../ui/button';

@@ -16,10 +16,20 @@ interface BrandFormProps {
   userRole?: string;
 }
 
+type BrandRegistration = {
+  legal_name: string;
+  business_type: BusinessType | '';
+  ein: string;
+  website: string;
+  industry: Industry | '';
+  address: Address;
+  contact: ComplianceContact;
+};
+
 const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState({
+  const initialBrandForm: BrandRegistration = {
     legal_name: '',
     business_type: '' as BusinessType | '',
     ein: '',
@@ -37,7 +47,8 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
       email: '',
       phone: ''
     } as ComplianceContact
-  });
+  };
+  const [brandForm, setBrandForm] = useState<BrandRegistration>(initialBrandForm);
 
   useEffect(() => {
     if (orgId) {
@@ -79,21 +90,44 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
   };
 
   const handleInputChange = (field: string, value: string) => {
-    if (field.includes('.')) {
-      const [parent, child] = field.split('.');
-      setFormData(prev => ({
+    if (field.startsWith('address.')) {
+      const child = field.split('.')[1] as keyof Address;
+      setBrandForm((prev) => ({
         ...prev,
-        [parent]: {
-          ...prev[parent as keyof typeof prev],
+        address: {
+          ...prev.address,
           [child]: value
         }
       }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [field]: value
-      }));
+      return;
     }
+
+    if (field.startsWith('contact.')) {
+      const child = field.split('.')[1] as keyof ComplianceContact;
+      setBrandForm((prev) => ({
+        ...prev,
+        contact: {
+          ...prev.contact,
+          [child]: value
+        }
+      }));
+      return;
+    }
+
+    setBrandForm((prev) => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleContactChange = (field: keyof ComplianceContact, value: string) => {
+    setBrandForm((prev) => ({
+      ...prev,
+      contact: {
+        ...prev.contact,
+        [field]: value
+      }
+    }));
   };
 
   const handleSave = async () => {
@@ -103,10 +137,10 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
       return;
     }
 
-    if (!formData.legal_name || !formData.business_type || !formData.ein || 
-        !formData.website || !formData.industry || !formData.address.street || 
-        !formData.address.city || !formData.address.state || !formData.address.zip || 
-        !formData.contact.name || !formData.contact.email || !formData.contact.phone) {
+    if (!brandForm.legal_name || !brandForm.business_type || !brandForm.ein || 
+        !brandForm.website || !brandForm.industry || !brandForm.address.street || 
+        !brandForm.address.city || !brandForm.address.state || !brandForm.address.zip || 
+        !brandForm.contact.name || !brandForm.contact.email || !brandForm.contact.phone) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -127,7 +161,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
         },
         body: JSON.stringify({
           orgId,
-          ...formData
+          ...brandForm
         })
       });
 
@@ -212,7 +246,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
             <Label htmlFor="legal_name">Legal Business Name *</Label>
             <Input
               id="legal_name"
-              value={formData.legal_name}
+              value={brandForm.legal_name}
               onChange={(e) => handleInputChange('legal_name', e.target.value)}
               placeholder="Enter your legal business name"
               required
@@ -223,7 +257,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
           <div>
             <Label htmlFor="business_type">Business Type *</Label>
             <Select
-              value={formData.business_type}
+              value={brandForm.business_type}
               onValueChange={(value) => handleInputChange('business_type', value)}
             >
               <SelectTrigger>
@@ -251,7 +285,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
             </Label>
             <Input
               id="ein"
-              value={formData.ein}
+              value={brandForm.ein}
               onChange={(e) => handleInputChange('ein', e.target.value)}
               placeholder="XX-XXXXXXX"
               required
@@ -263,7 +297,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
             <Label htmlFor="website">Website *</Label>
             <Input
               id="website"
-              value={formData.website}
+              value={brandForm.website}
               onChange={(e) => handleInputChange('website', e.target.value)}
               placeholder="https://example.com"
               type="url"
@@ -275,7 +309,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
           <div>
             <Label htmlFor="industry">Industry *</Label>
             <Select
-              value={formData.industry}
+              value={brandForm.industry}
               onValueChange={(value) => handleInputChange('industry', value)}
             >
               <SelectTrigger>
@@ -300,7 +334,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
               <Label htmlFor="address.street">Street Address *</Label>
               <Input
                 id="address.street"
-                value={formData.address.street}
+                value={brandForm.address.street}
                 onChange={(e) => handleInputChange('address.street', e.target.value)}
                 placeholder="123 Main Street"
                 required
@@ -310,7 +344,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
               <Label htmlFor="address.city">City *</Label>
               <Input
                 id="address.city"
-                value={formData.address.city}
+                value={brandForm.address.city}
                 onChange={(e) => handleInputChange('address.city', e.target.value)}
                 placeholder="New York"
                 required
@@ -320,7 +354,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
               <Label htmlFor="address.state">State *</Label>
               <Input
                 id="address.state"
-                value={formData.address.state}
+                value={brandForm.address.state}
                 onChange={(e) => handleInputChange('address.state', e.target.value)}
                 placeholder="NY"
                 required
@@ -330,7 +364,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
               <Label htmlFor="address.zip">ZIP Code *</Label>
               <Input
                 id="address.zip"
-                value={formData.address.zip}
+                value={brandForm.address.zip}
                 onChange={(e) => handleInputChange('address.zip', e.target.value)}
                 placeholder="10001"
                 required
@@ -339,7 +373,7 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
             <div>
               <Label htmlFor="address.country">Country *</Label>
               <Select
-                value={formData.address.country}
+                value={brandForm.address.country}
                 onValueChange={(value) => handleInputChange('address.country', value)}
               >
                 <SelectTrigger>
@@ -362,8 +396,8 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
               <Label htmlFor="contact.name">Contact Name *</Label>
               <Input
                 id="contact.name"
-                value={formData.contact.name}
-                onChange={(e) => handleInputChange('contact.name', e.target.value)}
+                value={brandForm.contact.name}
+                onChange={(e) => handleContactChange('name', e.target.value)}
                 placeholder="John Doe"
                 required
               />
@@ -372,8 +406,8 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
               <Label htmlFor="contact.email">Contact Email *</Label>
               <Input
                 id="contact.email"
-                value={formData.contact.email}
-                onChange={(e) => handleInputChange('contact.email', e.target.value)}
+                value={brandForm.contact.email}
+                onChange={(e) => handleContactChange('email', e.target.value)}
                 placeholder="john@example.com"
                 type="email"
                 required
@@ -383,8 +417,8 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
               <Label htmlFor="contact.phone">Contact Phone *</Label>
               <Input
                 id="contact.phone"
-                value={formData.contact.phone}
-                onChange={(e) => handleInputChange('contact.phone', e.target.value)}
+                value={brandForm.contact.phone}
+                onChange={(e) => handleContactChange('phone', e.target.value)}
                 placeholder="+1 (555) 123-4567"
                 required
               />

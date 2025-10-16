@@ -4,8 +4,9 @@ import { HttpError } from '../error/httpError';
 
 export const organizationRequired = async (req: Request, res: Response, next: NextFunction) => {
 	try {
-		if (!req.user) {
-			throw new HttpError('Authentication required', 401);
+		const { user } = req as any;
+		if (!user?.id) {
+			return res.status(401).json({ error: 'Unauthorized' });
 		}
 
 		const organizationId = req.body.organization?.id;
@@ -14,20 +15,18 @@ export const organizationRequired = async (req: Request, res: Response, next: Ne
 			throw new HttpError('Organization ID is required', 400);
 		}
 
-		// Check if user is a member of the organization
-		const { data: teamMember, error } = await supabase
+		const { data: membership, error } = await supabase
 			.from('user_organizations')
-			.select('*')
-			.eq('user_id', req.user.id)
+			.select('role, organization_id')
+			.eq('user_id', user.id)
 			.eq('organization_id', organizationId)
 			.single();
 
-		if (error || !teamMember) {
+		if (error || !membership) {
 			throw new HttpError('You do not have access to this organization', 403);
 		}
 
-		// Add the team member data to the request for use in route handlers
-		req.teamMember = teamMember;
+		(res.locals as any).organizationMembership = membership;
 		next();
 	} catch (error) {
 		if (error instanceof HttpError) {
@@ -38,13 +37,13 @@ export const organizationRequired = async (req: Request, res: Response, next: Ne
 					message: err.message
 				}
 			});
-		} else {
-			console.error('An unexpected error occurred:', error);
-			return res.status(500).json({
-				error: {
-					message: 'Internal server error'
-				}
-			});
 		}
+
+		console.error('An unexpected error occurred:', error);
+		return res.status(500).json({
+			error: {
+				message: 'Internal server error'
+			}
+		});
 	}
 };

@@ -11,7 +11,6 @@ import {
 	Mail,
 	AlertCircle,
 	CreditCard,
-	Clock,
 	Users,
 	Calendar,
 	ExternalLink,
@@ -226,47 +225,7 @@ const Billing: React.FC = () => {
 	]);
 
 	const fetchBillingData = async () => {
-		try {
-			setIsLoading(true);
-
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
-			if (!session?.access_token) {
-				toast.error('User not authenticated');
-				return;
-			}
-
-			const {
-				data: { user }
-			} = await supabase.auth.getUser();
-			if (!user) {
-				toast.error('User not authenticated');
-				return;
-			}
-
-			const { data: userOrg } = await supabase
-				.from('user_organizations')
-				.select('organization_id')
-				.eq('user_id', user.id)
-				.single();
-
-			if (!userOrg) {
-				toast.error('No organization found');
-				return;
-			}
-
-			const organizationId = userOrg.organization_id;
-
-			// Legacy usage summary and voice price APIs have been removed.
-
-			setIsLoading(false);
-		} catch (error) {
-			console.error('Error fetching billing data:', error);
-			toast.error('Failed to fetch billing data');
-		} finally {
-			setIsLoading(false);
-		}
+		setIsLoading(false);
 	};
 
 	const fetchInvoices = async (

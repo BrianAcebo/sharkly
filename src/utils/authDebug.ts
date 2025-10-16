@@ -1,5 +1,4 @@
-import { AuthChangeEvent, Session } from "@supabase/supabase-js";
-import { UserProfile } from "../contexts/AuthContext";
+export {};
 
 // Auth debugging utilities - only active in development
 export const authDebug = {

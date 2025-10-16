@@ -196,7 +196,12 @@ export async function loadSeatSummary(orgId: string): Promise<SeatSummaryData> {
     throw phoneError;
   }
 
-  const seatList: (SupabaseSeatRow & { profiles?: { first_name?: string | null; last_name?: string | null } | null })[] = seatRows ?? [];
+  const seatList: (SupabaseSeatRow & { profiles?: { first_name?: string | null; last_name?: string | null } | null })[] =
+    seatRows?.map((seat) => {
+      const profileData = (seat as any).profiles;
+      const profile = Array.isArray(profileData) ? profileData[0] : profileData;
+      return { ...seat, profiles: profile ?? null };
+    }) ?? [];
   const eventList: SupabaseSeatEventRow[] = seatEvents ?? [];
   const assignedSeats = assignedCountResult.count ?? 0;
 

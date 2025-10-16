@@ -5,7 +5,6 @@ import { supabase } from '../utils/supabaseClient';
 import { useOrganization } from '../hooks/useOrganization';
 import { NOTIFICATION_HELP_EVENT } from '../constants/events';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
-import { toast } from 'sonner';
 
 interface WebRTCCallProviderProps {
 	children: React.ReactNode;
@@ -462,22 +461,24 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 			return false;
 		}
 
-		if (Notification.permission === 'granted') {
-			setNotificationsEnabled(true);
-			return true;
-		}
+	const currentPermission = Notification.permission as NotificationPermission;
 
-		if (Notification.permission === 'denied') {
-			setNotificationsEnabled(false);
-			return false;
-		}
+	if (currentPermission === 'granted') {
+		setNotificationsEnabled(true);
+		return true;
+	}
 
-		try {
-			const permission = await Notification.requestPermission();
-			const granted = permission === 'granted';
-			setNotificationsEnabled(granted);
-			return granted;
-		} catch (error) {
+	if (currentPermission === 'denied') {
+		setNotificationsEnabled(false);
+		return false;
+	}
+
+	try {
+		const permission = await Notification.requestPermission();
+		const granted = permission === 'granted';
+		setNotificationsEnabled(granted);
+		return granted;
+	} catch (error) {
 			console.error('Failed to request notification permission:', error);
 			const granted = typeof Notification !== 'undefined' && Notification.permission === 'granted';
 			setNotificationsEnabled(granted);
@@ -524,7 +525,6 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 						body: `Call from ${caller}`,
 						icon: '/images/logos/logo.svg',
 						tag: 'paperboat-incoming-call',
-						renotify: true,
 						requireInteraction: true,
 						silent: true
 					});

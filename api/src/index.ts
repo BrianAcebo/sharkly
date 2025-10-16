@@ -37,7 +37,7 @@ import subscriptionStatusRoutes from './routes/subscriptionStatus';
 
 // Payment Status routes
 import paymentStatusRoutes from './routes/paymentStatus';
-import emailRoutes from './routes/email';
+// import emailRoutes from './routes/email';
 
 
 
@@ -98,7 +98,7 @@ app.use('/api/twilio/tokens', clientTokenRoutes);
 
 // Billing routes
 app.use('/api/billing', billingRoutes);
-app.use('/api/email', emailRoutes);
+// app.use('/api/email', emailRoutes);
 
 // Organization status routes
 app.use('/api/organizations', organizationStatusRoutes);

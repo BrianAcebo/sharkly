@@ -10,18 +10,11 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 interface PaymentRequiredBlockProps {
   children: React.ReactNode;
   organization?: any; // OrganizationRow type
-  onUpdatePayment?: () => void;
-  showBanner?: boolean;
 }
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 
-export default function PaymentRequiredBlock({ 
-  children, 
-  organization, 
-  onUpdatePayment,
-  showBanner = true 
-}: PaymentRequiredBlockProps) {
+export default function PaymentRequiredBlock({ children, organization }: PaymentRequiredBlockProps) {
   const { paymentStatus, isLoading } = usePaymentStatus();
   
   // Use provided organization or payment status organization
@@ -118,7 +111,14 @@ function TopupModal({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     if (!stripe || !elements || !clientSecret) return;
     setLoading(true);
-    const { error } = await stripe.confirmPayment({ elements, clientSecret });
+    const { error } = await stripe.confirmPayment({
+      elements,
+      clientSecret,
+      confirmParams: {
+        return_url: window.location.href
+      },
+      redirect: 'if_required'
+    });
     setLoading(false);
     if (error) {
       setError(error.message || 'Payment failed');

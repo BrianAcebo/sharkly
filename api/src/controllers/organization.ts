@@ -221,10 +221,8 @@ export const purchaseSeats = async (req: Request, res: Response) => {
                                 smsUrl: smsWebhookUrl,
                                 statusCallback: smsStatusCallback,
                                 voiceUrl: voiceWebhookUrl,
-                                voiceMethod: 'POST',
-                                voiceStatusCallback: voiceStatusCallback,
-                                voiceStatusCallbackMethod: 'POST'
-                            });
+                                voiceMethod: 'POST'
+                            } as { phoneNumber: string; smsUrl?: string; statusCallback?: string; voiceUrl?: string; voiceMethod?: string });
 
                             if (provisioning.messagingServiceSid) {
                                 await sub.messaging.v1.services(provisioning.messagingServiceSid).phoneNumbers.create({ phoneNumberSid: purchased.sid });
