@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Play, MessageSquare, Users, Zap, Database, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router';
 
 const Demo: React.FC = () => {
 	const [activeStep, setActiveStep] = useState(0);
@@ -178,10 +179,12 @@ const Demo: React.FC = () => {
 							</div>
 
 							<div className="mt-6 border-t border-gray-200 pt-6 dark:border-gray-700">
+								<Link to="/signup" className="w-full">
 								<button className="bg-brand-500 hover:bg-brand-600 inline-flex w-full items-center justify-center rounded-lg px-6 py-3 font-medium text-white transition-colors">
-									Start Live Demo
+									Get Started
 									<ArrowRight className="ml-2 h-4 w-4" />
 								</button>
+								</Link>
 							</div>
 						</div>
 					</div>

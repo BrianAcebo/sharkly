@@ -1,12 +1,19 @@
+import type Stripe from 'stripe';
+
 import { supabase } from './supabaseClient';
 import { getStripeClient } from './stripe';
-import { markTopUpPending, clearPendingTopUp, getWalletByOrg, type UsageWallet } from './wallet';
+import { markTopUpPending, clearPendingTopUp, getWalletByOrg, ensureWallet, type UsageWallet } from './wallet';
+
+type TopUpPurpose = 'wallet_topup' | 'wallet_auto_recharge';
 
 export interface CreateTopUpParams {
-  organizationId: string;
-  amountCents?: number;
-  currency?: string;
-  paymentMethodId?: string;
+	organizationId: string;
+	amountCents?: number;
+	currency?: string;
+	paymentMethodId?: string | null;
+	autoConfirm?: boolean;
+	purpose?: TopUpPurpose;
+	metadata?: Record<string, string>;
 }
 
 export interface CreateTopUpResult {
@@ -22,16 +29,19 @@ export async function createTopUpPaymentIntent(params: CreateTopUpParams): Promi
     .from('organizations')
     .select('id, stripe_customer_id, wallet_top_up_amount_cents')
     .eq('id', organizationId)
-    .single();
+    .maybeSingle();
 
   if (orgErr || !org) {
-    throw new Error('Organization not found');
+    throw orgErr ?? new Error('Organization not found');
   }
 
-  const wallet = await getWalletByOrg(organizationId);
-  if (!wallet) {
-    throw new Error('Wallet not found for organization');
-  }
+	let wallet = await getWalletByOrg(organizationId);
+	if (!wallet) {
+		wallet = await ensureWallet(organizationId, {
+			thresholdCents: org.wallet_top_up_amount_cents ?? undefined,
+			topUpAmountCents: org.wallet_top_up_amount_cents ?? undefined
+		});
+	}
 
   const amountCents = params.amountCents ?? wallet.top_up_amount_cents ?? org.wallet_top_up_amount_cents ?? 0;
   if (!amountCents || amountCents <= 0) {
@@ -39,28 +49,64 @@ export async function createTopUpPaymentIntent(params: CreateTopUpParams): Promi
   }
 
   const currency = params.currency || wallet.currency || 'usd';
+  const purpose: TopUpPurpose = params.purpose ?? 'wallet_topup';
 
   // Mark pending atomically in DB so concurrent attempts are guarded
-  let pendingWallet: UsageWallet | null = null;
-  try {
-    pendingWallet = await markTopUpPending(organizationId, amountCents);
-  } catch (e) {
-    throw e;
-  }
+  const pendingWallet = await markTopUpPending(organizationId, amountCents);
 
   const stripe = getStripeClient();
 
+  let paymentMethodId = params.paymentMethodId ?? null;
+  const shouldAutoConfirm = Boolean(paymentMethodId || params.autoConfirm);
+
+  if (shouldAutoConfirm && !paymentMethodId) {
+    if (!org.stripe_customer_id) {
+      throw new Error('Stripe customer missing from organization');
+    }
+
+    try {
+      const customer = await stripe.customers.retrieve(org.stripe_customer_id, {
+        expand: ['invoice_settings.default_payment_method']
+      });
+
+      if ((customer as Stripe.DeletedCustomer).deleted) {
+        throw new Error('Stripe customer is deleted');
+      }
+
+      const defaultPaymentMethod = (customer as Stripe.Customer).invoice_settings?.default_payment_method;
+
+      if (typeof defaultPaymentMethod === 'string') {
+        paymentMethodId = defaultPaymentMethod;
+      } else if (defaultPaymentMethod && 'id' in defaultPaymentMethod) {
+        paymentMethodId = defaultPaymentMethod.id;
+      }
+    } catch (err) {
+      console.error('[walletTopup] Failed to load default payment method', err);
+      throw new Error('Failed to locate default payment method. Update it from the billing page.');
+    }
+
+    if (!paymentMethodId) {
+      throw new Error('No default payment method on file. Update it from the billing page.');
+    }
+  }
+
   try {
+    const metadata: Record<string, string> = {
+      organizationId,
+      purpose,
+      amountCents: String(amountCents),
+      ...params.metadata
+    };
+
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountCents,
       currency,
       customer: org.stripe_customer_id || undefined,
-      automatic_payment_methods: { enabled: true },
-      metadata: {
-        organizationId,
-        purpose: 'wallet_topup',
-        amountCents: String(amountCents)
-      }
+      payment_method: paymentMethodId || undefined,
+      automatic_payment_methods: paymentMethodId || shouldAutoConfirm ? undefined : { enabled: true },
+      confirm: shouldAutoConfirm,
+      off_session: shouldAutoConfirm,
+      metadata
     });
 
     // Best-effort record in usage_topups if table exists
@@ -70,6 +116,7 @@ export async function createTopUpPaymentIntent(params: CreateTopUpParams): Promi
         stripe_payment_intent_id: paymentIntent.id,
         amount_cents: amountCents,
         currency,
+        purpose,
         status: 'pending'
       });
     } catch (insertErr) {

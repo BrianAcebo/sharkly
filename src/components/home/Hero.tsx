@@ -1,11 +1,119 @@
-import React from 'react';
-import { MessageSquare, Users, Zap, ArrowRight } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MessageSquare, Users, Zap, ArrowRight, Play, Pause, Volume2, VolumeX, RotateCcw } from 'lucide-react';
+import { Lightbox } from '../ui/Lightbox';
 
 interface HeroProps {
 	isLoading?: boolean;
 }
 
 const Hero: React.FC<HeroProps> = ({ isLoading = false }) => {
+	const [introOpen, setIntroOpen] = useState(false);
+	const videoRef = useRef<HTMLVideoElement | null>(null);
+	const [isPlaying, setIsPlaying] = useState(true);
+	const [isMuted, setIsMuted] = useState(false);
+	const [progress, setProgress] = useState(0);
+	const [duration, setDuration] = useState(0);
+	const [volume, setVolume] = useState(1);
+	const previousVolumeRef = useRef(1);
+
+	const closeIntro = useCallback(() => {
+		const video = videoRef.current;
+		if (video) {
+			video.pause();
+			video.currentTime = 0;
+		}
+		setIsPlaying(false);
+		setIntroOpen(false);
+	}, []);
+
+	const formattedTime = useMemo(() => {
+		const remaining = Math.max(duration - progress, 0);
+		const minutes = Math.floor(remaining / 60)
+			.toString()
+			.padStart(2, '0');
+		const seconds = Math.floor(remaining % 60)
+			.toString()
+			.padStart(2, '0');
+		return `${minutes}:${seconds}`;
+	}, [duration, progress]);
+
+	const handleTimeUpdate = useCallback(() => {
+		const video = videoRef.current;
+		if (!video) return;
+		setProgress(video.currentTime);
+	}, []);
+
+	const handleLoadedMetadata = useCallback(() => {
+		const video = videoRef.current;
+		if (!video) return;
+		setDuration(video.duration);
+		setProgress(video.currentTime);
+		setIsPlaying(!video.paused);
+		setIsMuted(video.muted);
+		setVolume(video.volume ?? 1);
+		previousVolumeRef.current = video.volume ?? 1;
+	}, []);
+
+	const togglePlay = useCallback(() => {
+		const video = videoRef.current;
+		if (!video) return;
+		if (video.paused) {
+			void video.play();
+			setIsPlaying(true);
+		} else {
+			video.pause();
+			setIsPlaying(false);
+		}
+	}, []);
+
+	const toggleMute = useCallback(() => {
+		const video = videoRef.current;
+		if (!video) return;
+		if (video.muted || volume === 0) {
+			const restore = previousVolumeRef.current > 0 ? previousVolumeRef.current : 0.5;
+			video.muted = false;
+			video.volume = restore;
+			setVolume(restore);
+			setIsMuted(false);
+		} else {
+			previousVolumeRef.current = volume;
+			video.muted = true;
+			setIsMuted(true);
+		}
+	}, [volume]);
+
+	const handleScrub = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+		const video = videoRef.current;
+		if (!video) return;
+		const newTime = Number(event.target.value);
+		video.currentTime = newTime;
+		setProgress(newTime);
+	}, []);
+
+	const handleVolumeChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+		const video = videoRef.current;
+		if (!video) return;
+		const value = Number(event.target.value);
+		video.volume = value;
+		setVolume(value);
+		if (value === 0) {
+			video.muted = true;
+			setIsMuted(true);
+		} else {
+			video.muted = false;
+			setIsMuted(false);
+			previousVolumeRef.current = value;
+		}
+	}, []);
+
+	const handleReplay = useCallback(() => {
+		const video = videoRef.current;
+		if (!video) return;
+		video.currentTime = 0;
+		void video.play();
+		setIsPlaying(true);
+	}, []);
+
 	if (isLoading) {
 		return (
 			<section className="relative overflow-hidden pt-24 pb-16">
@@ -93,8 +201,19 @@ const Hero: React.FC<HeroProps> = ({ isLoading = false }) => {
                             Start 7‑Day Trial
 							<ArrowRight className="ml-2 h-5 w-5" />
 						</button>
-						<button className="hover:border-brand-500 dark:hover:border-brand-400 hover:text-brand-500 dark:hover:text-brand-400 inline-flex items-center rounded-lg border-2 border-gray-300 px-8 py-4 text-lg font-semibold text-gray-700 transition-all duration-200 dark:border-gray-600 dark:text-gray-300">
-							Watch Demo
+						<button
+							className="hover:border-brand-500 dark:hover:border-brand-400 hover:text-brand-500 dark:hover:text-brand-400 inline-flex items-center gap-3 rounded-lg border-2 border-gray-300 px-8 py-4 text-lg font-semibold text-gray-700 transition-all duration-200 dark:border-gray-600 dark:text-gray-300"
+							onClick={() => {
+								setIntroOpen(true);
+								const video = videoRef.current;
+								if (video) {
+									void video.play();
+								}
+								setIsPlaying(true);
+							}}
+						>
+							<Play className="h-5 w-5" />
+							Watch Intro
 						</button>
 					</div>
 
@@ -132,6 +251,72 @@ const Hero: React.FC<HeroProps> = ({ isLoading = false }) => {
 					</div>
 				</div>
 			</div>
+			<Lightbox open={introOpen} onClose={closeIntro} ariaLabel="Paperboat intro video">
+				<div className="flex flex-col">
+					<video
+						ref={videoRef}
+						src="/videos/paperboatcrm-intro.mp4"
+						autoPlay
+						playsInline
+						onTimeUpdate={handleTimeUpdate}
+						onLoadedMetadata={handleLoadedMetadata}
+						onPause={() => setIsPlaying(false)}
+						onPlay={() => setIsPlaying(true)}
+						className="aspect-video w-full bg-black"
+					/>
+					<div className="flex items-center justify-between gap-4 bg-gradient-to-r from-gray-950 via-gray-900 to-black px-6 py-4">
+						<div className="flex items-center gap-3">
+							<button
+								type="button"
+								onClick={togglePlay}
+								className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-900 transition hover:bg-brand-500 hover:text-white"
+								aria-label={isPlaying ? 'Pause intro video' : 'Play intro video'}
+							>
+								{isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+							</button>
+							<button
+								type="button"
+								onClick={toggleMute}
+								className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 text-white transition hover:border-brand-400 hover:text-brand-300"
+								aria-label={isMuted ? 'Unmute intro video' : 'Mute intro video'}
+							>
+								{isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+							</button>
+							<input
+								type="range"
+								min={0}
+								max={1}
+								step={0.05}
+								value={volume}
+								onChange={handleVolumeChange}
+								className="h-1 w-28 accent-brand-400"
+								aria-label="Volume"
+							/>
+							<button
+								type="button"
+								onClick={handleReplay}
+								className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 text-white transition hover:border-brand-400 hover:text-brand-300"
+								aria-label="Replay intro video"
+							>
+								<RotateCcw className="h-5 w-5" />
+							</button>
+						</div>
+						<div className="flex flex-1 items-center gap-4">
+							<input
+								type="range"
+								min={0}
+								max={duration || 0}
+								step={0.1}
+								value={progress}
+								onChange={handleScrub}
+								className="flex-1 accent-brand-400"
+								aria-label="Video progress"
+							/>
+							<span className="w-16 text-right text-sm font-medium text-white/80">{formattedTime}</span>
+						</div>
+					</div>
+				</div>
+			</Lightbox>
 		</section>
 	);
 };

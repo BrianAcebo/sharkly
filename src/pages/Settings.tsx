@@ -453,7 +453,7 @@ export default function SettingsPage() {
 		{ id: 'profile', label: 'Profile', icon: User },
 		{ id: 'security', label: 'Security', icon: Shield },
 		{ id: 'notifications', label: 'Notifications', icon: Bell },
-		{ id: 'sms', label: 'SMS', icon: Phone },
+		// { id: 'sms', label: 'SMS', icon: Phone },
 		{ id: 'danger', label: 'Danger Zone', icon: AlertTriangle }
 	];
 
@@ -1037,25 +1037,25 @@ export default function SettingsPage() {
 					</Card>
 				);
 
-			case 'sms':
-				return (
-					<div className="space-y-6">
-						<Card>
-							<CardHeader>
-								<CardTitle className="flex items-center gap-2">
-									<Phone className="h-5 w-5" />
-									SMS Management
-								</CardTitle>
-								<CardDescription>
-									Manage your business phone number for SMS communications
-								</CardDescription>
-							</CardHeader>
-							<CardContent>
-								<MyNumberCard />
-							</CardContent>
-						</Card>
-					</div>
-				);
+			// case 'sms':
+			// 	return (
+			// 		<div className="space-y-6">
+			// 			<Card>
+			// 				<CardHeader>
+			// 					<CardTitle className="flex items-center gap-2">
+			// 						<Phone className="h-5 w-5" />
+			// 						SMS Management
+			// 					</CardTitle>
+			// 					<CardDescription>
+			// 						Manage your business phone number for SMS communications
+			// 					</CardDescription>
+			// 				</CardHeader>
+			// 				<CardContent>
+			// 					<MyNumberCard />
+			// 				</CardContent>
+			// 			</Card>
+			// 		</div>
+			// 	);
 
 			default:
 				return null;

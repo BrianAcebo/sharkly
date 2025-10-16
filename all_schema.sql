@@ -127,6 +127,12 @@
   },
   {
     "schema": "public",
+    "function": "wallet_auto_recharge_result",
+    "args": "p_payment_intent_id text, p_status text, p_amount_cents integer, p_failure_reason text",
+    "definition": "CREATE OR REPLACE FUNCTION public.wallet_auto_recharge_result(p_payment_intent_id text, p_status text, p_amount_cents integer, p_failure_reason text DEFAULT NULL::text)\n RETURNS void\n LANGUAGE plpgsql\nAS $function$\nDECLARE\n  v_org_id uuid;\nBEGIN\n  SELECT organization_id\n    INTO v_org_id\n    FROM usage_topups\n   WHERE stripe_payment_intent_id = p_payment_intent_id\n   ORDER BY created_at DESC\n   LIMIT 1;\n\n  IF v_org_id IS NULL THEN\n    RETURN;\n  END IF;\n\n  INSERT INTO usage_wallet_auto_recharge_events (\n    organization_id,\n    payment_intent_id,\n    status,\n    amount_cents,\n    failure_reason\n  ) VALUES (\n    v_org_id,\n    p_payment_intent_id,\n    p_status,\n    p_amount_cents,\n    p_failure_reason\n  );\nEND;\n$function$\n"
+  },
+  {
+    "schema": "public",
     "function": "wallet_clear_pending",
     "args": "p_organization_id uuid, p_amount_cents bigint",
     "definition": "CREATE OR REPLACE FUNCTION public.wallet_clear_pending(p_organization_id uuid, p_amount_cents bigint)\n RETURNS usage_wallets\n LANGUAGE plpgsql\nAS $function$\ndeclare\n  v_wallet usage_wallets;\nbegin\n  if p_amount_cents <= 0 then\n    raise exception 'TOPUP_AMOUNT_INVALID';\n  end if;\n\n  update usage_wallets\n  set\n    pending_top_up_cents = greatest(pending_top_up_cents - p_amount_cents, 0),\n    updated_at = now()\n  where organization_id = p_organization_id\n  returning * into v_wallet;\n\n  if not found then\n    raise exception 'WALLET_NOT_FOUND';\n  end if;\n\n  update organizations\n  set updated_at = now()\n  where id = p_organization_id;\n\n  return v_wallet;\nend;\n$function$\n"

@@ -14,7 +14,8 @@ import {
 	Clock,
 	Users,
 	Calendar,
-	ExternalLink
+	ExternalLink,
+	Wallet
 } from 'lucide-react';
 import PricingCalculator from '../components/billing/PricingCalculator';
 import { Button } from '../components/ui/button';
@@ -182,16 +183,19 @@ const Billing: React.FC = () => {
 	const trialInfo = useTrial();
 	const { setTitle } = useBreadcrumbs();
 	const { user } = useAuth();
-	const [usageSummary, setUsageSummary] = useState<UsageSummary | null>(null);
-	const [voicePrice, setVoicePrice] = useState<{
+	// Removed legacy usage summary and voice price fetches (deprecated APIs)
+	const [usageSummary] = useState<UsageSummary | null>(null);
+	const [voicePrice] = useState<{
 		id: string;
 		unit_amount?: number | null;
 		currency?: string | null;
 	} | null>(null);
-// Removed legacy Billing Settings modal (markup/cycle/email)
+	// Removed legacy Billing Settings modal (markup/cycle/email)
 	const [isLoading, setIsLoading] = useState(true);
-	const { walletStatus, refetch: refetchPayment } = usePaymentStatus();
+	const { walletStatus, autoRecharge, refetch: refetchPayment } = usePaymentStatus();
+	const walletAutoRecharge = autoRecharge ?? null;
 	const [depositOpen, setDepositOpen] = useState(false);
+	const [autoRechargeOpen, setAutoRechargeOpen] = useState(false);
 	const [activeTab, setActiveTab] = useState<'overview' | 'usage' | 'pricing' | 'invoices'>(
 		'overview'
 	);
@@ -233,7 +237,9 @@ const Billing: React.FC = () => {
 				return;
 			}
 
-			const { data: { user } } = await supabase.auth.getUser();
+			const {
+				data: { user }
+			} = await supabase.auth.getUser();
 			if (!user) {
 				toast.error('User not authenticated');
 				return;
@@ -252,44 +258,9 @@ const Billing: React.FC = () => {
 
 			const organizationId = userOrg.organization_id;
 
-			const now = new Date();
-			const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-			const endDate = now.toISOString().split('T')[0];
+			// Legacy usage summary and voice price APIs have been removed.
 
-			const usageResponse = await fetch(
-				`/api/billing/usage-summary/${organizationId}?startDate=${startDate}&endDate=${endDate}`,
-				{
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-						'Content-Type': 'application/json'
-					}
-				}
-			);
-
-			if (usageResponse.ok) {
-				const usageData = await usageResponse.json();
-				setUsageSummary(usageData.summary);
-			} else {
-				setUsageSummary(null);
-			}
-
-            // Legacy billing settings removed; no fetch
-
-			// Voice price (Stripe metered item) for per-unit display
-			const priceResp = await fetch(`/api/billing/voice-price`, {
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				}
-			});
-			if (priceResp.ok) {
-				const p = await priceResp.json();
-				setVoicePrice({
-					id: p.stripe_price?.id,
-					unit_amount: p.stripe_price?.unit_amount,
-					currency: p.stripe_price?.currency
-				});
-			}
+			setIsLoading(false);
 		} catch (error) {
 			console.error('Error fetching billing data:', error);
 			toast.error('Failed to fetch billing data');
@@ -435,7 +406,39 @@ const Billing: React.FC = () => {
 			{/* Tab Content */}
 			{activeTab === 'overview' && (
 				<div className="space-y-6">
-					{/* Current Plan & Subscription Status */}
+					{!trialInfo.loading && (
+						<div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200">
+							<div className="flex items-center justify-between">
+								<div>
+									<p className="font-semibold">
+										{trialInfo.isOnTrial ? 'Pay-As-You-Go Trial Active' : 'No Active Trial'}
+									</p>
+									<p className="text-xs text-blue-700 dark:text-blue-300">
+										{trialInfo.statusMessage}
+									</p>
+								</div>
+								{trialInfo.isOnTrial && trialInfo.trialEndFormatted && (
+									<div className="text-right text-xs">
+										<div className="flex items-center justify-end space-x-1">
+											<Calendar className="h-4 w-4" />
+											<span>{trialInfo.trialEndFormatted}</span>
+										</div>
+										{trialInfo.daysRemaining !== null && (
+											<p className="mt-0.5">
+												{trialInfo.daysRemaining === 0
+													? 'Ends today'
+													: trialInfo.daysRemaining === 1
+														? 'Ends tomorrow'
+														: `${trialInfo.daysRemaining} days remaining`}
+											</p>
+										)}
+									</div>
+								)}
+							</div>
+						</div>
+					)}
+
+					{/* Current Plan & Wallet */}
 					<div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 						{/* Current Plan Card */}
 						<Card>
@@ -466,34 +469,6 @@ const Billing: React.FC = () => {
 														? `$${(organization.plan_price_cents / 100).toFixed(2)}/month`
 														: 'Free'}
 												</p>
-												{walletStatus && (
-													<div className="mt-2 text-sm">
-														<span
-															className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-																walletStatus.wallet?.status === 'active'
-																	? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-																	: walletStatus.wallet?.status === 'suspended'
-																		? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-																		: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-															}`}
-														>
-															Wallet: {walletStatus.wallet?.status ?? 'missing'}
-														</span>
-														<span className="ml-2 text-gray-700 dark:text-gray-300">
-															Balance: $
-															{((walletStatus.wallet?.balance_cents ?? 0) / 100).toFixed(2)}
-														</span>
-														{walletStatus.depositRequired && (
-															<Button
-																size="sm"
-																className="ml-2"
-																onClick={() => setDepositOpen(true)}
-															>
-																Deposit
-															</Button>
-														)}
-													</div>
-												)}
 											</div>
 											<div className="text-right">
 												<span
@@ -548,13 +523,6 @@ const Billing: React.FC = () => {
 														<ExternalLink className="mr-2 h-4 w-4" />
 														Manage Subscription
 													</Button>
-													<Button
-														variant="secondary"
-														className="mt-2 w-full"
-														onClick={() => setDepositOpen(true)}
-													>
-														Deposit Funds
-													</Button>
 												</>
 											)}
 											{organization && !canManageBilling(userRole) && (
@@ -577,71 +545,90 @@ const Billing: React.FC = () => {
 						<Card>
 							<CardHeader>
 								<CardTitle className="flex items-center space-x-2">
-									<Clock className="h-5 w-5" />
-                                    <span>Pay-As-You-Go Trial</span>
+									<Wallet className="h-5 w-5" />
+									<span>Usage Wallet</span>
 								</CardTitle>
 							</CardHeader>
 							<CardContent className="space-y-4">
-								{trialInfo.loading ? (
-									<div className="flex items-center justify-center py-8">
-										<div className="h-6 w-6 animate-spin rounded-full border-b-2 border-red-500"></div>
+								{walletStatus && walletStatus.wallet ? (
+									<div className="text-sm">
+										<span
+											className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+												walletStatus.wallet.status === 'active'
+													? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+													: walletStatus.wallet.status === 'suspended'
+														? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+														: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+											}`}
+										>
+											Wallet: {walletStatus.wallet.status}
+										</span>
+										<span className="ml-2 text-gray-700 dark:text-gray-300">
+											Balance: ${((walletStatus.wallet.balance_cents ?? 0) / 100).toFixed(2)}
+										</span>
+										{walletStatus.depositRequired && (
+											<Button size="sm" className="ml-2" onClick={() => setDepositOpen(true)}>
+												Deposit
+											</Button>
+										)}
 									</div>
-								) : (
-									<>
-										<div className="flex items-center justify-between">
-											<div>
-                                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                                    {trialInfo.isOnTrial ? 'Trial Active' : 'No Active Trial'}
-                                                </h3>
-												<p className="text-sm text-gray-600 dark:text-gray-400">
-													{trialInfo.statusMessage}
+								) : null}
+								<div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-800/60">
+									<div>
+										<p className="font-medium text-gray-900 dark:text-white">
+											Auto-recharge status
+										</p>
+										{walletStatus ? (
+											walletAutoRecharge?.enabled ? (
+												<p className="text-xs text-gray-600 dark:text-gray-300">
+													Enabled · ${((walletAutoRecharge.amount_cents ?? 0) / 100).toFixed(2)}{' '}
+													added when balance dips below $
+													{((walletAutoRecharge.threshold_cents ?? 0) / 100).toFixed(2)}
 												</p>
-											</div>
-											<div className="text-right">
-												<span
-													className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
-														trialInfo.isOnTrial
-															? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-															: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-													}`}
-												>
-													{trialInfo.isOnTrial ? 'Active' : 'Inactive'}
-												</span>
-											</div>
-										</div>
-
-										{trialInfo.isOnTrial && trialInfo.trialEndFormatted && (
-											<div className="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
-												<div className="flex items-center space-x-2">
-													<Calendar className="h-4 w-4 text-blue-600" />
-													<span className="text-sm font-medium text-blue-800 dark:text-blue-200">
-														Trial ends: {trialInfo.trialEndFormatted}
-													</span>
-												</div>
-												{trialInfo.daysRemaining !== null && (
-													<p className="mt-1 text-sm text-blue-600 dark:text-blue-300">
-														{trialInfo.daysRemaining === 0
-															? 'Trial ends today'
-															: trialInfo.daysRemaining === 1
-																? 'Trial ends tomorrow'
-																: `${trialInfo.daysRemaining} days remaining`}
-													</p>
-												)}
-											</div>
+											) : (
+												<p className="text-xs text-gray-500 dark:text-gray-400">
+													Currently disabled
+												</p>
+											)
+										) : (
+											<p className="text-xs text-gray-500 dark:text-gray-400">
+												Loading current settings…
+											</p>
 										)}
-
-										{trialInfo.isOnTrial && (
-											<div className="border-t border-gray-200 pt-4 dark:border-gray-700">
-												<Button
-													className="w-full bg-red-600 text-white hover:bg-red-700"
-													onClick={() => setActiveTab('pricing')}
-												>
-													Upgrade Plan
-												</Button>
-											</div>
-										)}
-									</>
-								)}
+									</div>
+									<Button size="sm" variant="outline" onClick={() => setAutoRechargeOpen(true)}>
+										Manage
+									</Button>
+								</div>
+								<div className="rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+									<p className="font-medium text-gray-900 dark:text-white">
+										How auto-recharge works
+									</p>
+									<ul className="mt-2 list-inside list-disc space-y-1">
+										<li>Choose the amount we add to your wallet when the balance drops too low.</li>
+										<li>Pick a threshold that triggers the top-up so you stay live.</li>
+										<li>
+											All charges use your default payment method (update it under Billing
+											settings).
+										</li>
+									</ul>
+								</div>
+								<div className="mt-2 grid grid-cols-1 gap-2">
+									<Button
+										variant="secondary"
+										className="w-full"
+										onClick={() => setDepositOpen(true)}
+									>
+										Deposit Funds
+									</Button>
+									<Button
+										variant="outline"
+										className="w-full"
+										onClick={() => setAutoRechargeOpen(true)}
+									>
+										Manage Auto-Recharge
+									</Button>
+								</div>
 							</CardContent>
 						</Card>
 					</div>
@@ -740,7 +727,7 @@ const Billing: React.FC = () => {
 			)}
 
 			{/* Pricing Calculator Tab */}
-            {activeTab === 'pricing' && <PricingCalculator />}
+			{activeTab === 'pricing' && <PricingCalculator />}
 
 			{activeTab === 'invoices' && (
 				<Card>
@@ -834,12 +821,20 @@ const Billing: React.FC = () => {
 				</Card>
 			)}
 
-            {/* Legacy Billing Settings modal removed */}
+			{/* Legacy Billing Settings modal removed */}
 
 			<WalletDepositModal
 				open={depositOpen}
 				onClose={() => {
 					setDepositOpen(false);
+					refetchPayment();
+				}}
+			/>
+			<WalletDepositModal
+				open={autoRechargeOpen}
+				forceAutoStep
+				onClose={() => {
+					setAutoRechargeOpen(false);
 					refetchPayment();
 				}}
 			/>

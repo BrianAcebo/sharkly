@@ -22,6 +22,7 @@ import {
   X as CloseIcon,
   AlertTriangle
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const isPhoneNumber = (text: string): boolean => /^[+\-\s()\d]+$/.test(text);
 
@@ -168,6 +169,7 @@ export const ActiveCallBar: React.FC = () => {
     requestNotificationPermission,
     showNotificationPrompt
   } = useWebRTCCall();
+  const walletReady = deviceStatus !== 'Wallet required' && deviceStatus !== 'Wallet empty';
 
   const [isMinimized, setIsMinimized] = useState(false);
   const [showDialPad, setShowDialPad] = useState(false);
@@ -333,6 +335,10 @@ export const ActiveCallBar: React.FC = () => {
   };
 
   const toggleDialPad = () => {
+    if (!walletReady) {
+      toast.error('Add wallet credit to place calls');
+      return;
+    }
     setShowDialPad((prev) => !prev);
     if (showDialPad) {
       setDialedNumber('');

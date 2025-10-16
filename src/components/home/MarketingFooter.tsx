@@ -62,7 +62,7 @@ const Footer: React.FC = () => {
 									Pricing
 								</a>
 							</li>
-							<li>
+							{/* <li>
 								<a href="#" className="text-gray-300 transition-colors hover:text-white">
 									API Documentation
 								</a>
@@ -71,7 +71,7 @@ const Footer: React.FC = () => {
 								<a href="#" className="text-gray-300 transition-colors hover:text-white">
 									Integrations
 								</a>
-							</li>
+							</li> */}
 						</ul>
 					</div>
 
@@ -99,7 +99,7 @@ const Footer: React.FC = () => {
 				<div className="mt-12 border-t border-gray-900 pt-8">
 					<div className="flex flex-col items-center justify-between md:flex-row">
 						<div className="mb-4 text-sm text-gray-400 md:mb-0">
-							© 2025 Paperboat CRM. All rights reserved.
+							© 2025 Paperboat CRM, LLC. All rights reserved.
 						</div>
 						<div className="flex items-center space-x-6 text-sm">
 							<Link to="/privacy" className="text-gray-400 transition-colors hover:text-white">
@@ -108,9 +108,6 @@ const Footer: React.FC = () => {
 							<Link to="/terms" className="text-gray-400 transition-colors hover:text-white">
 								Terms of Service
 							</Link>
-							<a href="#" className="text-gray-400 transition-colors hover:text-white">
-								Security
-							</a>
 						</div>
 					</div>
 				</div>

@@ -130,7 +130,12 @@ export const debitWallet = async (
     ) {
       // Fire-and-forget: mark pending and create PI via API util
       const { createTopUpPaymentIntent } = await import('./walletTopup');
-      createTopUpPaymentIntent({ organizationId, amountCents: wallet.top_up_amount_cents, currency: wallet.currency })
+      createTopUpPaymentIntent({
+        organizationId,
+        amountCents: wallet.top_up_amount_cents,
+        currency: wallet.currency,
+        purpose: 'wallet_auto_recharge'
+      })
         .then((r) => {
           console.log('[wallet] Auto top-up initiated', { organizationId, paymentIntentId: r.paymentIntentId });
         })

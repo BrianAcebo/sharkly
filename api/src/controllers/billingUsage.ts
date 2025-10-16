@@ -5,7 +5,9 @@ import type { WalletStatus } from '../types/billing';
 
 const getOrgUsageSnapshot = async (organizationId: string): Promise<OrgUsageSnapshot | null> => {
 	const { data, error } = await supabase
-		.rpc('usage_included_remaining', { p_organization_id: organizationId })
+		.from('organizations')
+		.select('stripe_status, trial_end, included_minutes, included_sms, included_emails')
+		.eq('id', organizationId)
 		.single();
 
 	if (error) {
@@ -15,45 +17,61 @@ const getOrgUsageSnapshot = async (organizationId: string): Promise<OrgUsageSnap
 		throw error;
 	}
 
-	return data as OrgUsageSnapshot;
+	if (!data) {
+		return null;
+	}
+
+	return {
+		organization_id: organizationId,
+		stripe_status: data.stripe_status,
+		trial_end: data.trial_end,
+		included_minutes_remaining: data.included_minutes ?? null,
+		included_sms_remaining: data.included_sms ?? null,
+		included_emails_remaining: data.included_emails ?? null
+	} as OrgUsageSnapshot;
 };
 
-const isTrialActive = (snapshot: OrgUsageSnapshot | null): boolean => {
-	if (!snapshot) return false;
-	if (snapshot.stripe_status === 'trialing') return true;
-	if (!snapshot.trial_end) return false;
-	return new Date(snapshot.trial_end).getTime() > Date.now();
+
+
+const isTrialActive = (snapshot: OrgUsageSnapshot | null, organization?: { org_status?: string | null; trial_end?: string | null; stripe_status?: string | null }): boolean => {
+	const trialEnd = snapshot?.trial_end || organization?.trial_end || null;
+	const stripeStatus = snapshot?.stripe_status;
+	const orgStatus = organization?.org_status;
+
+	if (stripeStatus === 'trialing') return true;
+	if (orgStatus === 'trialing') return true;
+	if (organization?.stripe_status === 'trialing') return true;
+	if (!trialEnd) return false;
+	return new Date(trialEnd).getTime() > Date.now();
 };
 
 const buildWalletStatus = (
   snapshot: OrgUsageSnapshot | null,
-  wallet: UsageWallet | null
+  wallet: UsageWallet | null,
+  organization?: { org_status?: string | null; trial_end?: string | null; stripe_status?: string | null; wallet_threshold_cents?: number | null; wallet_top_up_amount_cents?: number | null }
 ): WalletStatus => {
-	const trialing = isTrialActive(snapshot);
-	const minutesRemaining = snapshot?.included_minutes_remaining ?? null;
-	const smsRemaining = snapshot?.included_sms_remaining ?? null;
-	const emailsRemaining = snapshot?.included_emails_remaining ?? null;
+  const trialing = isTrialActive(snapshot, organization);
 
   const included = {
-    minutesRemaining,
-    smsRemaining,
-    emailRemaining: emailsRemaining
+    minutesRemaining: snapshot?.included_minutes_remaining ?? null,
+    smsRemaining: snapshot?.included_sms_remaining ?? null,
+    emailRemaining: snapshot?.included_emails_remaining ?? null
   };
 
-	if (!wallet) {
-		return {
-			wallet: null,
-			included,
-			trialing,
-			depositRequired: true,
-			reason: trialing ? 'trial_requires_deposit' : 'insufficient_wallet'
-		};
-	}
+  if (!wallet) {
+    return {
+      wallet: null,
+      included,
+      trialing,
+      depositRequired: true,
+      reason: trialing ? 'trial_requires_deposit' : 'insufficient_wallet'
+    };
+  }
 
-	const hasIncluded =
-		(minutesRemaining ?? 0) > 0 ||
-		(smsRemaining ?? 0) > 0 ||
-		(emailsRemaining ?? 0) > 0;
+  const hasIncluded =
+    (included.minutesRemaining ?? 0) > 0 ||
+    (included.smsRemaining ?? 0) > 0 ||
+    (included.emailRemaining ?? 0) > 0;
 
 	if (wallet.status === 'suspended') {
 		return {
@@ -73,7 +91,7 @@ const buildWalletStatus = (
 	}
 
   if (trialing) {
-    const depositRequired = wallet.balance_cents <= 0;
+    const depositRequired = (wallet.balance_cents ?? 0) <= 0;
     return {
       wallet: {
         status: wallet.status,
@@ -130,16 +148,70 @@ export const getWalletStatus = async (req: Request, res: Response) => {
 			return res.status(400).json({ error: 'organizationId is required' });
 		}
 
-		const [snapshot, wallet] = await Promise.all([
-      getOrgUsageSnapshot(organizationId),
-      getWalletByOrg(organizationId)
-		]);
+	   const { data: organization, error: orgError } = await supabase
+	     .from('organizations')
+	     .select('id, org_status, stripe_status, trial_end, wallet_threshold_cents, wallet_top_up_amount_cents')
+	     .eq('id', organizationId)
+	     .maybeSingle();
 
-    const status = buildWalletStatus(snapshot, wallet);
-		return res.json(status);
+	   if (orgError) {
+	     console.warn('Failed to load organization for wallet status', { organizationId, orgError });
+	   }
+
+	   const [snapshot, wallet] = await Promise.all([
+	     getOrgUsageSnapshot(organizationId),
+	     getWalletByOrg(organizationId)
+	   ]);
+
+	   const status = buildWalletStatus(snapshot, wallet, organization ?? undefined);
+	   return res.json(status);
 	} catch (error) {
 		console.error('Failed to fetch wallet status:', error);
 		return res.status(500).json({ error: 'Failed to fetch wallet status' });
+	}
+};
+
+export const getUsageCatalog = async (req: Request, res: Response) => {
+	try {
+		const env = process.env.NODE_ENV === 'development' ? 'test' : 'live';
+
+		const { data, error } = await supabase
+			.from('usage_overage_catalog')
+			.select('overage_code, unit, stripe_price_id, price_cents')
+			.eq('active', true)
+			.eq('env', env);
+
+		if (error) {
+			console.error('Failed to load usage overage catalog', error);
+			return res.status(500).json({ error: 'Failed to fetch usage pricing' });
+		}
+
+		const records = data ?? [];
+
+		const normalize = (code: string) => code.replace(/_test$/i, '');
+
+		const voice = records.find((row) => normalize(row.overage_code ?? '').includes('voice_minutes'));
+		const sms = records.find((row) => normalize(row.overage_code ?? '').includes('sms_overage'));
+
+		return res.json({
+			voice: voice
+				? {
+					stripe_price_id: voice.stripe_price_id,
+					amountCents: voice.price_cents ?? null,
+					unit: voice.unit
+				}
+				: null,
+			sms: sms
+				? {
+					stripe_price_id: sms.stripe_price_id,
+					amountCents: sms.price_cents ?? null,
+					unit: sms.unit
+				}
+				: null
+		});
+	} catch (error) {
+		console.error('Error fetching usage pricing catalog', error);
+		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
 

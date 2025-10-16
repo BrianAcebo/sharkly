@@ -9,7 +9,8 @@ import {
 	Search,
 	Building2,
 	Mail,
-	RefreshCw
+	RefreshCw,
+	AlertTriangle
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';

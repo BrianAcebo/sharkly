@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Device, Call } from '@twilio/voice-sdk';
 import { WebRTCCallContext } from '../contexts/WebRTCCallContext';
 import { supabase } from '../utils/supabaseClient';
 import { useOrganization } from '../hooks/useOrganization';
 import { NOTIFICATION_HELP_EVENT } from '../constants/events';
+import { usePaymentStatus } from '../hooks/usePaymentStatus';
+import { toast } from 'sonner';
 
 interface WebRTCCallProviderProps {
 	children: React.ReactNode;
@@ -41,6 +43,8 @@ const waitForRegistered = (d: Device, ms = 3000) =>
 
 export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
     const { organization } = useOrganization();
+  const { lastWalletStatus, refreshWallet } = usePaymentStatus({ autoRefresh: true });
+	const [walletReady, setWalletReady] = useState(false);
 	const [device, setDevice] = useState<Device | null>(null);
 	const [status, setStatus] = useState('Loading…');
 	const [isConnected, setIsConnected] = useState(false);
@@ -179,21 +183,34 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 		endCallRef.current = endCall;
 	}, [endCall]);
 
-    // Initialize Twilio Device (guarded to run once per mount)
+	const computedWalletReady = useMemo(() => {
+		if (!lastWalletStatus?.wallet) {
+			return false;
+		}
+		const wallet = lastWalletStatus.wallet;
+		return wallet.status === 'active' && (wallet.balance_cents ?? 0) > 0;
+	}, [lastWalletStatus]);
+
+	useEffect(() => {
+		setWalletReady(computedWalletReady);
+		if (!computedWalletReady) {
+			setStatus('Wallet required');
+		} else if (status === 'Wallet required') {
+			setStatus('Ready');
+		}
+	}, [computedWalletReady, status]);
+
 	useEffect(() => {
 		if (deviceInitRef.current) {
+			return;
+		}
+		if (!computedWalletReady) {
 			return;
 		}
 		deviceInitRef.current = true;
 		(async () => {
 			try {
-                // Hard gate: only attempt token generation when org is active
-                if (organization?.org_status !== 'active') {
-                    setStatus('Unavailable');
-                    return;
-                }
-				// Get the current session token
-				const {
+	                const {
 					data: { session }
 				} = await supabase.auth.getSession();
 				if (!session?.access_token) {
@@ -359,7 +376,14 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 				setStatus('Failed to initialize');
 			}
 		})();
-	}, [endCall]);
+	}, [computedWalletReady, endCall, refreshWallet]);
+
+	useEffect(() => {
+		if (!walletReady && device) {
+			setStatus('Wallet required');
+			device.disconnectAll();
+		}
+	}, [walletReady, device]);
 
 	// Call duration timer
 	useEffect(() => {
@@ -678,6 +702,11 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 	const makeCall = useCallback(
 		async (phoneNumber: string, contactName?: string, leadId?: string) => {
 			if (!device) return;
+			if (!walletReady) {
+				setStatus('Wallet required');
+				await refreshWallet().catch(() => undefined);
+				return;
+			}
 
 			// ✅ Use the SDK state, not your string
 			if (device.state !== 'registered') {
@@ -787,7 +816,7 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 				setIsConnecting(false);
 			}
 		},
-		[device, endCall]
+		[device, endCall, refreshWallet, walletReady]
 	);
 
 	const answerCall = useCallback(() => {
