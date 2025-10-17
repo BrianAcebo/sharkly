@@ -1,3 +1,4 @@
+import React from 'react';
 import { AlertTriangle, CreditCard, Clock, XCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';

@@ -152,6 +152,44 @@ const buildWalletStatus = (
 	};
 };
 
+export const loadUsageCatalog = async () => {
+	const env = process.env.NODE_ENV === 'development' ? 'test' : 'live';
+
+	const { data, error } = await supabase
+		.from('usage_overage_catalog')
+		.select('overage_code, unit, stripe_price_id, price_cents')
+		.eq('active', true)
+		.eq('env', env);
+
+	if (error) {
+		throw error;
+	}
+
+	const records = data ?? [];
+
+	const normalize = (code: string) => code.replace(/_test$/i, '');
+
+	const voice = records.find((row) => normalize(row.overage_code ?? '').includes('voice_minutes'));
+	const sms = records.find((row) => normalize(row.overage_code ?? '').includes('sms_overage'));
+
+	return {
+		voice: voice
+			? {
+				stripe_price_id: voice.stripe_price_id,
+				amountCents: voice.price_cents ?? null,
+				unit: voice.unit
+			}
+			: null,
+		sms: sms
+			? {
+				stripe_price_id: sms.stripe_price_id,
+				amountCents: sms.price_cents ?? null,
+				unit: sms.unit
+			}
+			: null
+	};
+};
+
 export const getWalletStatus = async (req: Request, res: Response) => {
 	try {
 		const organizationId = (req.query.orgId || req.params.organizationId) as string | undefined;
@@ -184,49 +222,13 @@ export const getWalletStatus = async (req: Request, res: Response) => {
 	}
 };
 
-export const getUsageCatalog = async (req: Request, res: Response) => {
+export const getUsageCatalog = async (_req: Request, res: Response) => {
 	try {
-		const env = process.env.NODE_ENV === 'development' ? 'test' : 'live';
-
-		const { data, error } = await supabase
-			.from('usage_overage_catalog')
-			.select('overage_code, unit, stripe_price_id, price_cents')
-			.eq('active', true)
-			.eq('env', env);
-
-		if (error) {
-			console.error('Failed to load usage overage catalog', error);
-			return res.status(500).json({ error: 'Failed to fetch usage pricing' });
-		}
-
-		const records = data ?? [];
-
-		const normalize = (code: string) => code.replace(/_test$/i, '');
-
-		const voice = records.find((row) =>
-			normalize(row.overage_code ?? '').includes('voice_minutes')
-		);
-		const sms = records.find((row) => normalize(row.overage_code ?? '').includes('sms_overage'));
-
-		return res.json({
-			voice: voice
-				? {
-						stripe_price_id: voice.stripe_price_id,
-						amountCents: voice.price_cents ?? null,
-						unit: voice.unit
-					}
-				: null,
-			sms: sms
-				? {
-						stripe_price_id: sms.stripe_price_id,
-						amountCents: sms.price_cents ?? null,
-						unit: sms.unit
-					}
-				: null
-		});
+		const catalog = await loadUsageCatalog();
+		return res.json(catalog);
 	} catch (error) {
-		console.error('Error fetching usage pricing catalog', error);
-		return res.status(500).json({ error: 'Internal server error' });
+		console.error('Failed to load usage overage catalog', error);
+		return res.status(500).json({ error: 'Failed to fetch usage pricing' });
 	}
 };
 

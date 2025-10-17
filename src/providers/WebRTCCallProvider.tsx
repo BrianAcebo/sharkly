@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { Device, Call } from '@twilio/voice-sdk';
 import { WebRTCCallContext } from '../contexts/WebRTCCallContext';
 import { supabase } from '../utils/supabaseClient';
-import { useOrganization } from '../hooks/useOrganization';
 import { NOTIFICATION_HELP_EVENT } from '../constants/events';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
 
@@ -41,7 +40,6 @@ const waitForRegistered = (d: Device, ms = 3000) =>
 	});
 
 export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
-    const { organization } = useOrganization();
   const { lastWalletStatus, refreshWallet } = usePaymentStatus({ autoRefresh: true });
 	const [walletReady, setWalletReady] = useState(false);
 	const [device, setDevice] = useState<Device | null>(null);
@@ -50,11 +48,12 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 	const [isConnecting, setIsConnecting] = useState(false);
 	const [isRinging, setIsRinging] = useState(false);
 	const [isOnHold, setIsOnHold] = useState(false);
+	const [isEnding, setIsEnding] = useState(false);
 	const [isMuted, setIsMuted] = useState(false);
 	const [isSpeakerOn, setIsSpeakerOn] = useState(false);
-	const [currentCall, setCurrentCall] = useState<{ contactName: string; status: string } | null>(
-		null
-	);
+	const [currentCall, setCurrentCall] = useState<
+		{ contactName: string; status: string; direction?: 'inbound' | 'outbound'; phoneNumber?: string } | null
+	>(null);
 	const [callDuration, setCallDuration] = useState(0);
 	const [remoteNumber, setRemoteNumber] = useState('');
 	const [remoteName, setRemoteName] = useState('');
@@ -146,6 +145,18 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 		setRemoteName('');
 	}, []);
 
+	const completeCall = useCallback(() => {
+		setIsConnected(false);
+		setIsConnecting(false);
+		setIsRinging(false);
+		setIsIncomingCall(false);
+		setIsOnHold(false);
+		setCurrentCall(null);
+		setRemoteNumber('');
+		setRemoteName('');
+		setCallDuration(0);
+	}, []);
+
 	const endCall = useCallback(() => {
 		console.log('[WebRTC] Ending call, cleaning up media streams');
 
@@ -164,23 +175,22 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 		}
 		device?.disconnectAll();
 
-		setIsConnected(false);
-		setIsConnecting(false);
-		setIsRinging(false);
-		setIsIncomingCall(false);
-		setIsOnHold(false);
-		setCurrentCall(null);
-		setRemoteNumber('');
-		setRemoteName('');
-		setCallDuration(0);
+		completeCall();
+		setIsEnding(true);
 		setStatus('Ready');
 		stopIncomingAlerts();
-	}, [device, stopIncomingAlerts]);
+	}, [completeCall, device, stopIncomingAlerts]);
 
 	// Keep a stable reference to endCall for event handlers created once
 	useEffect(() => {
 		endCallRef.current = endCall;
 	}, [endCall]);
+
+	useEffect(() => {
+		if (!isEnding) return;
+		const timeout = setTimeout(() => setIsEnding(false), 1000);
+		return () => clearTimeout(timeout);
+	}, [isEnding]);
 
 	const computedWalletReady = useMemo(() => {
 		if (!lastWalletStatus?.wallet) {
@@ -774,13 +784,15 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 
 				c.on('accept', async () => {
 					console.log('[WebRTC] Call accepted, capturing media stream');
-					setStatus('On call');
-					setIsConnecting(false);
-					setIsConnected(true);
-					setCurrentCall({
-						contactName: contactName || phoneNumber,
-						status: 'connected'
-					});
+		setStatus('On call');
+		setIsConnecting(false);
+		setIsConnected(true);
+		setCurrentCall({
+			contactName: contactName || phoneNumber,
+			status: 'connected',
+			direction: 'outbound',
+			phoneNumber: phoneNumber
+		});
 
 					// Capture the media stream for cleanup when call ends
 					if (c.getLocalStream) {
@@ -830,12 +842,9 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 			connRef.current.reject();
 		}
 		setIsRinging(false);
-		setCurrentCall(null);
-		setRemoteNumber('');
-		setRemoteName('');
-		setIsIncomingCall(false);
+		completeCall();
 		stopIncomingAlerts();
-	}, [stopIncomingAlerts]);
+	}, [completeCall, stopIncomingAlerts]);
 
 	const toggleMute = useCallback(() => {
 		if (connRef.current) {
@@ -893,6 +902,7 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 		isConnected,
 		isConnecting,
 		isRinging,
+	isEnding,
 		isIncomingCall,
 		isOnHold,
 		isMuted,
@@ -929,7 +939,7 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 		remoteAudioLevel,
 
 		// Device status
-		deviceStatus: status,
+	deviceStatus: status,
 
 		// Notification state
 		notificationsEnabled,

@@ -1,5 +1,9 @@
-export default function UpfrontBillingDisclaimer() {
-  return null;
+import React from 'react';
+
+export default function UpfrontBillingDisclaimer({ className = '' }: { className?: string }) {
+  return (
+    <></>
+  );
 }
 
 

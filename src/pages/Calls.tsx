@@ -10,16 +10,18 @@ import { AlertTriangle } from 'lucide-react';
 export default function CallsPage() {
 	const { setTitle } = useBreadcrumbs();
 	const { walletStatus, refreshWallet } = usePaymentStatus({ autoRefresh: true });
-  const [depositOpen, setDepositOpen] = useState(false);
+	const [depositOpen, setDepositOpen] = useState(false);
+	const [needsDeposit, setNeedsDeposit] = useState(false);
+	const [walletChecked, setWalletChecked] = useState(false);
 
-	const needsDeposit = useMemo(() => {
-		if (!walletStatus) {
-			return true;
-		}
-		if (!walletStatus.wallet || walletStatus.wallet.status !== 'active') {
-			return true;
-		}
-		return (walletStatus.wallet.balance_cents ?? 0) <= 0;
+	useEffect(() => {
+		if (!walletStatus) return;
+		setWalletChecked(true);
+		const requiresDeposit =
+			!walletStatus.wallet ||
+			walletStatus.wallet.status !== 'active' ||
+			(walletStatus.wallet.balance_cents ?? 0) <= 0;
+		setNeedsDeposit(requiresDeposit);
 	}, [walletStatus]);
 
 	useEffect(() => {
@@ -33,7 +35,7 @@ export default function CallsPage() {
 	return (
 		<>
 			<PageMeta title="Calls" description="Manage your calls and contacts" />
-			{needsDeposit ? (
+			{walletChecked && needsDeposit ? (
 				<div className="flex h-full flex-col items-center justify-center gap-6 rounded-lg border border-dashed border-red-200 bg-red-50/60 p-8 text-center dark:border-red-900 dark:bg-red-950/40">
 					<div className="flex items-center justify-center rounded-full bg-red-100 p-3 text-red-600 dark:bg-red-900/40 dark:text-red-300">
 						<AlertTriangle className="h-8 w-8" />

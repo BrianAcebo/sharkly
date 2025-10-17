@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useWebRTCCall } from '../../hooks/useWebRTCCall';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../ui/button';
@@ -152,8 +152,13 @@ export const ActiveCallBar: React.FC = () => {
     endCall,
     toggleMute,
     toggleSpeaker,
+    holdCall,
+    resumeCall,
     currentCall,
+    isConnected,
+    isConnecting,
     isRinging,
+    isEnding,
     isMuted,
     isSpeakerOn,
     callDuration,
@@ -176,13 +181,13 @@ export const ActiveCallBar: React.FC = () => {
   const activeCall = currentCall;
 
   useEffect(() => {
-    if (!isRinging) {
+    if (!isRinging && isEnding) {
       const timeout = setTimeout(() => {
-        endCall();
-      }, 2000);
+        setShowDialPad(false);
+      }, 800);
       return () => clearTimeout(timeout);
     }
-  }, [isRinging, endCall]);
+  }, [isRinging, isEnding]);
 
   useEffect(() => {
     if (!isRinging) {
@@ -353,7 +358,7 @@ export const ActiveCallBar: React.FC = () => {
     return 'Unknown Caller';
   }, [incomingLeadName, remoteName, remoteNumber]);
 
-  if (isRinging && !activeCall) {
+  if (isRinging || (isEnding && !activeCall)) {
     return (
       <div className="fixed right-4 bottom-4 z-50 transition-all duration-200 ease-in-out">
         <IncomingCallCard
@@ -362,7 +367,7 @@ export const ActiveCallBar: React.FC = () => {
           leadState={incomingLookupState}
           onAccept={answerCall}
           onDecline={rejectCall}
-          isEnding={false}
+          isEnding={isEnding && !isRinging}
         />
       </div>
     );
@@ -556,7 +561,7 @@ export const ActiveCallBar: React.FC = () => {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">{activeCall.contactName}</p>
-                  <p className="text-xs text-red-100 opacity-80">{formatPhoneNumber(remoteNumber ?? '')}</p>
+                  <p className="text-xs text-red-100 opacity-80">{formatPhoneNumber(activeCall.phoneNumber)}</p>
                 </div>
               </div>
               <Button

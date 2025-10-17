@@ -4,6 +4,7 @@ interface ActiveCall {
 	contactName: string;
 	status: string;
 	direction?: 'inbound' | 'outbound';
+	phoneNumber?: string;
 	leadId?: string;
 	twilioCallSid?: string;
 	callHistoryId?: string;
@@ -14,6 +15,7 @@ interface WebRTCCallContextType {
   isConnected: boolean;
   isConnecting: boolean;
   isRinging: boolean;
+  isEnding: boolean;
   isOnHold: boolean;
   isMuted: boolean;
   isSpeakerOn: boolean;

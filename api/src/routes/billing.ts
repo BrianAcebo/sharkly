@@ -4,14 +4,10 @@ import { requireAuth } from '../middleware/auth';
 import { getWalletStatus, getUsageCatalog } from '../controllers/billingUsage';
 import { getStripeClient } from '../utils/stripe';
 import { supabase } from '../utils/supabaseClient';
-import { listActivePlans } from '../controllers/billingPublic';
+import billingPublicRoutes from './billingPublic';
 
 const router = express.Router();
 const stripe = getStripeClient();
-
-router.use('/public', (req, _res, next) => {
-  next();
-});
 
 router.use((req, res, next) => {
   if (req.path.startsWith('/public')) {
@@ -21,7 +17,7 @@ router.use((req, res, next) => {
   }
 });
 
-router.get('/public/plans', listActivePlans);
+router.use('/public', billingPublicRoutes);
 
 router.get('/wallet/status', getWalletStatus);
 router.get('/usage-catalog', getUsageCatalog);

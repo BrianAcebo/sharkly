@@ -48,5 +48,5 @@ export function normalizePhoneNumber(phone: string): string {
 // Validation schema
 export const makeCallSchema = z.object({
 	to: z.string().min(1, 'Recipient phone number is required'),
-	from: z.string().min(1, 'From phone number is required')
+	from: z.string().optional()
 });

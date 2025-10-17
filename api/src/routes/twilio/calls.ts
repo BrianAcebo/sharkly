@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { twilioClient } from '../../utils/twilioClient';
 import { requireAuth } from '../../middleware/auth';
 import { makeCallSchema, normalizePhoneNumber } from '../../utils/utils';
+import { resolveAgentDialConfig } from '../../utils/voiceDialConfig';
 
 const router = Router();
 
@@ -14,7 +15,17 @@ router.post('/make', requireAuth, async (req: Request, res: Response) => {
 
     // Normalize phone numbers
     const normalizedTo = normalizePhoneNumber(to);
-    const normalizedFrom = normalizePhoneNumber(from);
+    let normalizedFrom: string;
+
+    if (from) {
+      normalizedFrom = normalizePhoneNumber(from);
+    } else {
+      const dialConfig = await resolveAgentDialConfig(agentId);
+      if (!dialConfig) {
+        return res.status(400).json({ error: 'No active seat with an assigned phone number' });
+      }
+      normalizedFrom = dialConfig.agentNumber;
+    }
 
     console.info(`Initiating call from ${normalizedFrom} to ${normalizedTo} for agent ${agentId}`);
 

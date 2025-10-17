@@ -13,6 +13,8 @@ import Label from '../form/Label';
 import { motion, AnimatePresence } from 'framer-motion';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import PricingTable from './PricingTable';
+import UpfrontBillingDisclaimer from './UpfrontBillingDisclaimer';
 import { CustomerPaymentMethodSummary, PlanCatalogRow } from '../../types/billing';
 import { ArrowRight, ArrowLeft, CheckCircle, Users, Clock, Shield } from 'lucide-react';
 import { CreditCard as CreditCardIcon } from 'lucide-react';
@@ -951,6 +953,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                   }
                 }}
               >
+                <UpfrontBillingDisclaimer className="mb-3" />
                 <PaymentForm
                   orgName={orgName}
                   selectedPlan={selectedPlan}
