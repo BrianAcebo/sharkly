@@ -151,10 +151,10 @@ if (!process.env.VERCEL) {
     console.log(`Local API listening on http://localhost:${port}`);
   });
 }
-
 /**
  * ✅ Vercel serverless export
  * This default export is what Vercel calls at /api/index
  * Your routes remain mounted under /api/<...>
  */
 export default serverless(app);
+
