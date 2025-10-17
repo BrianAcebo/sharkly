@@ -458,7 +458,7 @@ export async function emailLeadsExport(
     }
 
     // Call the API endpoint
-    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001'}/api/leads/export-email`, {
+    const response = await fetch('/api/leads/export-email', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -56,7 +56,7 @@ router.post('/sms-status', async (req: Request, res: Response) => {
             message_count: 1
           };
 
-          await fetch(`${process.env.PUBLIC_URL || 'http://localhost:3001'}/api/billing/sms-usage`, {
+          await fetch('/api/billing/sms-usage', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(usageData)

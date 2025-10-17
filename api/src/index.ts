@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import serverless from 'serverless-http';
+
 import { paymentRoutes } from './routes/payment';
 import organizationRoutes from './routes/organization';
 import leadsRoutes from './routes/leads';
@@ -37,9 +39,6 @@ import subscriptionStatusRoutes from './routes/subscriptionStatus';
 
 // Payment Status routes
 import paymentStatusRoutes from './routes/paymentStatus';
-// import emailRoutes from './routes/email';
-
-
 
 dotenv.config();
 
@@ -51,36 +50,43 @@ app.use(express.urlencoded({ extended: false }));
 console.log('[api] PID', process.pid);
 
 app.use((req, _res, next) => {
-	console.log('[hit]', req.method, req.originalUrl, 'host=', req.headers.host, 'pid=', process.pid);
-	next();
+  console.log('[hit]', req.method, req.originalUrl, 'host=', req.headers.host, 'pid=', process.pid);
+  next();
 });
 
-// Middleware
+// CORS
 app.use(
-	cors({
-		origin: true, // Allow all origins - we'll handle this dynamically
-		credentials: true
-	})
+  cors({
+    origin: true,
+    credentials: true,
+  })
 );
 
-// Mount webhook routes first (before JSON parsing) – handled inside routers via raw body checks
-
-// Parse JSON bodies for all other routes (excluding webhooks)
-app.use((req, res, next) => {
-	// Skip JSON parsing for webhook routes
-	if (req.originalUrl === '/api/billing/stripe/webhook' || 
-		req.originalUrl === '/api/payments/webhook') {
-		next();
-	} else {
-		express.json()(req, res, next);
-	}
+/**
+ * ✅ Webhooks MUST be defined BEFORE express.json()
+ * Use express.raw for providers like Stripe.
+ * Do this per-route so other routes still get JSON parsing.
+ */
+app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (req, res, next) => {
+  // your existing Stripe webhook handler middleware/route goes here
+  // if it's currently inside billingRoutes, expose the webhook handler here
+  // OR keep it in a router that already expects raw body
+  next();
 });
+app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res, next) => {
+  // your payments webhook handler
+  next();
+});
+
+// Parse JSON bodies for the rest
+app.use(express.json());
 
 // Routes
 app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/leads', leadsRoutes);
-// IMPORTANT: Mount Twilio Voice webhook (no auth) before other /api/twilio routes
+
+// Voice webhook (public) before other /api/twilio routes
 app.use('/api/twilio/voice', voiceWebhookRoutes);
 app.use('/api/twilio', twilioPhoneRoutes);
 
@@ -92,68 +98,63 @@ app.use('/api/webhooks/twilio', statusWebhookRoutes);
 // Twilio Voice routes
 app.use('/api/calls', callRoutes);
 
-// Twilio Client routes for WebRTC
+// Twilio Client tokens
 app.use('/api/twilio/tokens', clientTokenRoutes);
 
-// Billing routes – mount PUBLIC/general billing first so '/public/*' never hits onboarding router
+// Billing routes – public/general before onboarding
 app.use('/api/billing', billingRoutes);
-// Onboarding/secure billing routes after general billing
 app.use('/api/billing', billingOnboardingRoutes);
-// app.use('/api/email', emailRoutes);
 
-// Organization status routes
+// Organization status
 app.use('/api/organizations', organizationStatusRoutes);
 
-// SMS Verification routes
+// SMS verification
 app.use('/api/sms', smsVerificationRoutes);
 
-// Trial Status routes
+// Trial/subscription/payment status
 app.use('/api/trial', trialStatusRoutes);
-
-// Subscription Status routes
 app.use('/api/subscription', subscriptionStatusRoutes);
-
-// Payment Status routes
 app.use('/api', paymentStatusRoutes);
 
-
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-	res.json({ status: 'ok' });
+// Health
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
 
 app.get('/__whoami', (_req, res) => {
-	res.json({
-		pid: process.pid,
-		cwd: process.cwd(),
-		main: process.mainModule?.filename || 'esm',
-		indexFile: import.meta.url, // proves this file
-		startedAt: new Date().toISOString()
-	});
+  res.json({
+    pid: process.pid,
+    cwd: process.cwd(),
+    main: process.mainModule?.filename || 'esm',
+    indexFile: import.meta.url,
+    startedAt: new Date().toISOString(),
+  });
 });
 
-// Error handling middleware
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-	if (err instanceof HttpError) {
-		const error = err as { message: string; statusCode: number };
-		console.error(`Error ${error.statusCode}: ${error.message}`);
-		return res.status(error.statusCode).json({
-			error: {
-				message: error.message
-			}
-		});
-	}
-
-	console.error('An unexpected error occurred:', err);
-	return res.status(500).json({
-		error: {
-			message: 'Internal server error'
-		}
-	});
+// Error handler
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err instanceof HttpError) {
+    const e = err as { message: string; statusCode: number };
+    console.error(`Error ${e.statusCode}: ${e.message}`);
+    return res.status(e.statusCode).json({ error: { message: e.message } });
+  }
+  console.error('Unexpected error:', err);
+  return res.status(500).json({ error: { message: 'Internal server error' } });
 });
 
-app.listen(port, () => {
-	console.log(`Server is running on port ${port}`);
-});
+/**
+ * ⛳ LOCAL ONLY: start a server when not running on Vercel.
+ * Vercel sets VERCEL=1 in the serverless runtime.
+ */
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Local API listening on http://localhost:${port}`);
+  });
+}
+
+/**
+ * ✅ Vercel serverless export
+ * This default export is what Vercel calls at /api/index
+ * Your routes remain mounted under /api/<...>
+ */
+export default serverless(app);

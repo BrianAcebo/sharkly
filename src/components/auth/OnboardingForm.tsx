@@ -136,36 +136,6 @@ export default function OnboardingForm() {
 
 			console.log('Profile update successful:', updateData);
 
-			// Provision phone number for the agent
-			console.log('Provisioning phone number...');
-			try {
-				// Get the current session token
-				const { data: { session } } = await supabase.auth.getSession();
-				if (!session?.access_token) {
-					throw new Error('No active session');
-				}
-
-				const response = await fetch(`${import.meta.env.VITE_TWILIO_API_URL || 'http://localhost:3001'}/internal/seat-created`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${session.access_token}`
-					},
-					body: JSON.stringify({
-						agentId: user.id,
-					})
-				});
-
-				if (response.ok) {
-					const result = await response.json();
-					console.log('Phone number provisioned:', result.phoneNumber);
-				} else {
-					console.warn('Phone number provisioning failed, but continuing with onboarding');
-				}
-			} catch (error) {
-				console.warn('Phone number provisioning error, but continuing with onboarding:', error);
-			}
-
 			console.log('Calling updateUser()...');
 			// Update the user state with new profile information
 			await updateUser();
