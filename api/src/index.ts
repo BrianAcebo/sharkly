@@ -63,8 +63,7 @@ app.use(
 	})
 );
 
-// Mount webhook routes first (before JSON parsing)
-app.use('/api/billing', billingOnboardingRoutes);
+// Mount webhook routes first (before JSON parsing) – handled inside routers via raw body checks
 
 // Parse JSON bodies for all other routes (excluding webhooks)
 app.use((req, res, next) => {
@@ -96,8 +95,10 @@ app.use('/api/calls', callRoutes);
 // Twilio Client routes for WebRTC
 app.use('/api/twilio/tokens', clientTokenRoutes);
 
-// Billing routes
+// Billing routes – mount PUBLIC/general billing first so '/public/*' never hits onboarding router
 app.use('/api/billing', billingRoutes);
+// Onboarding/secure billing routes after general billing
+app.use('/api/billing', billingOnboardingRoutes);
 // app.use('/api/email', emailRoutes);
 
 // Organization status routes
@@ -126,7 +127,7 @@ app.get('/__whoami', (_req, res) => {
 	res.json({
 		pid: process.pid,
 		cwd: process.cwd(),
-		main: (process as any).mainModule?.filename || 'esm',
+		main: process.mainModule?.filename || 'esm',
 		indexFile: import.meta.url, // proves this file
 		startedAt: new Date().toISOString()
 	});

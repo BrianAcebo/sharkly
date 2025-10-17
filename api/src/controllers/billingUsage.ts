@@ -31,9 +31,14 @@ const getOrgUsageSnapshot = async (organizationId: string): Promise<OrgUsageSnap
 	} as OrgUsageSnapshot;
 };
 
-
-
-const isTrialActive = (snapshot: OrgUsageSnapshot | null, organization?: { org_status?: string | null; trial_end?: string | null; stripe_status?: string | null }): boolean => {
+const isTrialActive = (
+	snapshot: OrgUsageSnapshot | null,
+	organization?: {
+		org_status?: string | null;
+		trial_end?: string | null;
+		stripe_status?: string | null;
+	}
+): boolean => {
 	const trialEnd = snapshot?.trial_end || organization?.trial_end || null;
 	const stripeStatus = snapshot?.stripe_status;
 	const orgStatus = organization?.org_status;
@@ -46,32 +51,38 @@ const isTrialActive = (snapshot: OrgUsageSnapshot | null, organization?: { org_s
 };
 
 const buildWalletStatus = (
-  snapshot: OrgUsageSnapshot | null,
-  wallet: UsageWallet | null,
-  organization?: { org_status?: string | null; trial_end?: string | null; stripe_status?: string | null; wallet_threshold_cents?: number | null; wallet_top_up_amount_cents?: number | null }
+	snapshot: OrgUsageSnapshot | null,
+	wallet: UsageWallet | null,
+	organization?: {
+		org_status?: string | null;
+		trial_end?: string | null;
+		stripe_status?: string | null;
+		wallet_threshold_cents?: number | null;
+		wallet_top_up_amount_cents?: number | null;
+	}
 ): WalletStatus => {
-  const trialing = isTrialActive(snapshot, organization);
+	const trialing = isTrialActive(snapshot, organization);
 
-  const included = {
-    minutesRemaining: snapshot?.included_minutes_remaining ?? null,
-    smsRemaining: snapshot?.included_sms_remaining ?? null,
-    emailRemaining: snapshot?.included_emails_remaining ?? null
-  };
+	const included = {
+		minutesRemaining: snapshot?.included_minutes_remaining ?? null,
+		smsRemaining: snapshot?.included_sms_remaining ?? null,
+		emailRemaining: snapshot?.included_emails_remaining ?? null
+	};
 
-  if (!wallet) {
-    return {
-      wallet: null,
-      included,
-      trialing,
-      depositRequired: true,
-      reason: trialing ? 'trial_requires_deposit' : 'insufficient_wallet'
-    };
-  }
+	if (!wallet) {
+		return {
+			wallet: null,
+			included,
+			trialing,
+			depositRequired: true,
+			reason: trialing ? 'trial_requires_deposit' : 'insufficient_wallet'
+		};
+	}
 
-  const hasIncluded =
-    (included.minutesRemaining ?? 0) > 0 ||
-    (included.smsRemaining ?? 0) > 0 ||
-    (included.emailRemaining ?? 0) > 0;
+	const hasIncluded =
+		(included.minutesRemaining ?? 0) > 0 ||
+		(included.smsRemaining ?? 0) > 0 ||
+		(included.emailRemaining ?? 0) > 0;
 
 	if (wallet.status === 'suspended') {
 		return {
@@ -90,25 +101,25 @@ const buildWalletStatus = (
 		};
 	}
 
-  if (trialing) {
-    const depositRequired = (wallet.balance_cents ?? 0) <= 0;
-    return {
-      wallet: {
-        status: wallet.status,
-        balance_cents: wallet.balance_cents,
-        threshold_cents: wallet.threshold_cents,
-        top_up_amount_cents: wallet.top_up_amount_cents,
-        pending_top_up_cents: wallet.pending_top_up_cents,
-        last_top_up_at: wallet.last_top_up_at
-      },
-      included,
-      trialing: true,
-      depositRequired,
-      reason: depositRequired ? 'trial_requires_deposit' : undefined
-    };
-  }
+	if (trialing) {
+		const depositRequired = (wallet.balance_cents ?? 0) <= 0;
+		return {
+			wallet: {
+				status: wallet.status,
+				balance_cents: wallet.balance_cents,
+				threshold_cents: wallet.threshold_cents,
+				top_up_amount_cents: wallet.top_up_amount_cents,
+				pending_top_up_cents: wallet.pending_top_up_cents,
+				last_top_up_at: wallet.last_top_up_at
+			},
+			included,
+			trialing: true,
+			depositRequired,
+			reason: depositRequired ? 'trial_requires_deposit' : undefined
+		};
+	}
 
-  if (hasIncluded) {
+	if (hasIncluded) {
 		return {
 			wallet: {
 				status: wallet.status,
@@ -130,7 +141,7 @@ const buildWalletStatus = (
 			status: wallet.status,
 			balance_cents: wallet.balance_cents,
 			threshold_cents: wallet.threshold_cents,
-			 top_up_amount_cents: wallet.top_up_amount_cents,
+			top_up_amount_cents: wallet.top_up_amount_cents,
 			pending_top_up_cents: wallet.pending_top_up_cents,
 			last_top_up_at: wallet.last_top_up_at
 		},
@@ -148,23 +159,25 @@ export const getWalletStatus = async (req: Request, res: Response) => {
 			return res.status(400).json({ error: 'organizationId is required' });
 		}
 
-	   const { data: organization, error: orgError } = await supabase
-	     .from('organizations')
-	     .select('id, org_status, stripe_status, trial_end, wallet_threshold_cents, wallet_top_up_amount_cents')
-	     .eq('id', organizationId)
-	     .maybeSingle();
+		const { data: organization, error: orgError } = await supabase
+			.from('organizations')
+			.select(
+				'id, org_status, stripe_status, trial_end, wallet_threshold_cents, wallet_top_up_amount_cents'
+			)
+			.eq('id', organizationId)
+			.maybeSingle();
 
-	   if (orgError) {
-	     console.warn('Failed to load organization for wallet status', { organizationId, orgError });
-	   }
+		if (orgError) {
+			console.warn('Failed to load organization for wallet status', { organizationId, orgError });
+		}
 
-	   const [snapshot, wallet] = await Promise.all([
-	     getOrgUsageSnapshot(organizationId),
-	     getWalletByOrg(organizationId)
-	   ]);
+		const [snapshot, wallet] = await Promise.all([
+			getOrgUsageSnapshot(organizationId),
+			getWalletByOrg(organizationId)
+		]);
 
-	   const status = buildWalletStatus(snapshot, wallet, organization ?? undefined);
-	   return res.json(status);
+		const status = buildWalletStatus(snapshot, wallet, organization ?? undefined);
+		return res.json(status);
 	} catch (error) {
 		console.error('Failed to fetch wallet status:', error);
 		return res.status(500).json({ error: 'Failed to fetch wallet status' });
@@ -190,23 +203,25 @@ export const getUsageCatalog = async (req: Request, res: Response) => {
 
 		const normalize = (code: string) => code.replace(/_test$/i, '');
 
-		const voice = records.find((row) => normalize(row.overage_code ?? '').includes('voice_minutes'));
+		const voice = records.find((row) =>
+			normalize(row.overage_code ?? '').includes('voice_minutes')
+		);
 		const sms = records.find((row) => normalize(row.overage_code ?? '').includes('sms_overage'));
 
 		return res.json({
 			voice: voice
 				? {
-					stripe_price_id: voice.stripe_price_id,
-					amountCents: voice.price_cents ?? null,
-					unit: voice.unit
-				}
+						stripe_price_id: voice.stripe_price_id,
+						amountCents: voice.price_cents ?? null,
+						unit: voice.unit
+					}
 				: null,
 			sms: sms
 				? {
-					stripe_price_id: sms.stripe_price_id,
-					amountCents: sms.price_cents ?? null,
-					unit: sms.unit
-				}
+						stripe_price_id: sms.stripe_price_id,
+						amountCents: sms.price_cents ?? null,
+						unit: sms.unit
+					}
 				: null
 		});
 	} catch (error) {
@@ -236,5 +251,3 @@ export const getPublicPlans = async (_req: Request, res: Response) => {
 		return res.status(500).json({ error: 'Failed to load pricing' });
 	}
 };
-
-

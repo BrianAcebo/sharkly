@@ -877,13 +877,25 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       case 'plan':
         return (
           <div className="space-y-6">
-            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-              Plan selection UI temporarily disabled for deployment.
-            </div>
+            <PricingTable
+              plans={plans}
+              selectedPlan={selectedPlan?.plan_code || null}
+              onSelectPlan={(planCode) => {
+                const plan = plans.find((p) => p.plan_code === planCode);
+                if (plan) {
+                  setSelectedPlan(plan);
+                  setError(null);
+                }
+              }}
+              showTrialOption={mode === 'new'}
+              trialSelected={trialSelected}
+              onTrialToggle={setTrialSelected}
+            />
+            <UpfrontBillingDisclaimer />
 
             <div className="flex justify-between">
               {skipOrgStep ? (
-                <></>
+                <div />
               ) : (
                 <Button variant="outline" onClick={handleBack}>
                   <ArrowLeft className="mr-2 h-4 w-4" />

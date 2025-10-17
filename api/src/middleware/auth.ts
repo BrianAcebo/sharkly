@@ -22,7 +22,7 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
     // Add user info to request
     req.userId = user.id;
-    req.user = { id: user.id } as any;
+    req.user = { id: user.id } as Request['user'];
 
     next();
   } catch (error) {

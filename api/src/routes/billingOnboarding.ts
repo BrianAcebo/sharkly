@@ -15,13 +15,11 @@ router.use((req, res, next) => {
   return jsonParser(req, res, next);
 });
 
-// All routes except webhook require authentication
 router.use((req, res, next) => {
-  if (req.path === '/stripe/webhook') {
-    next();
-  } else {
-    requireAuth(req, res, next);
+  if (req.path === '/stripe/webhook' || req.path.startsWith('/public')) {
+    return next();
   }
+  return requireAuth(req, res, next);
 });
 
 // Get plan catalog

@@ -34,7 +34,6 @@ async function createSetupIntentForCustomer(opts: { customerId: string; organiza
 
 export const onboardOrganization = async (req: Request, res: Response) => {
   try {
-    console.log('[provision] start', { orgId: req.body?.orgId, areaCode: req.body?.areaCode, readOnly: req.body?.readOnly, userId: req.user?.id });
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ ok: false, error: 'Unauthorized' } as ApiError);
@@ -55,8 +54,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     }: OrgOnboardRequest = req.body;
 
     const isRenewal = Boolean(orgId);
-
-    console.log('renewal', isRenewal);
 
     // Validate required fields
     if (!name || !planCode) {
@@ -81,11 +78,8 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       } as ApiError);
     }
 
-    console.log('1');
-
     // Stage 1: Always create a pending organization first if orgId is not provided
     if (!orgId) {
-      console.log('2');
       // Reuse any existing pending org owned by this user
       let pendingOrg: OrganizationRow | null = null;
       try {
@@ -101,8 +95,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       } catch (lookupErr) {
         console.warn('[onboard] failed to lookup existing pending org (continuing)', lookupErr);
       }
-
-      console.log('3');
 
       if (!pendingOrg) {
         const { data: created, error: pendingErr } = await supabase
@@ -123,16 +115,12 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           .select('*')
           .single();
 
-        console.log('4');
-
         if (pendingErr || !created) {
           console.error('Error creating pending organization:', pendingErr);
           return res.status(500).json({ ok: false, error: 'Failed to create organization' } as ApiError);
         }
         pendingOrg = created as unknown as OrganizationRow;
       }
-
-      console.log('5');
 
       // Upsert owner membership
       try {
@@ -142,8 +130,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       } catch (mErr) {
         console.warn('[onboard] membership upsert warning', mErr);
       }
-
-      console.log('6');
 
       // Create Stripe Customer for new org's
       let stripeCustomerId: string | null = null;
@@ -168,7 +154,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           status: 'all',
           limit: 10
         });
-        console.log('7');
         const candidate = existingList.data.find((s) =>
           pendingOrg && s.metadata?.organization_id === pendingOrg.id &&
           ['incomplete','trialing','active','past_due'].includes(s.status)
@@ -209,8 +194,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         console.warn('[onboard] subscription reuse check failed (continuing to create new)', reuseErr);
       }
 
-      console.log('11');
-
       // Create subscription requiring client confirmation
       const sub = await stripe.subscriptions.create(
         {
@@ -228,8 +211,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         }
       );
 
-      console.log('12');
-
       // Mirror subscription id and status on org
       try {
         await supabase
@@ -239,8 +220,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       } catch (e) {
         console.warn('[onboard] failed to mirror subscription on org', e);
       }
-
-      console.log('13');
 
       const invoice = sub.latest_invoice as Stripe.Invoice | null;
       let clientSecret: string | null = null;
@@ -354,7 +333,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           }
         });
         stripeCustomerId = customer.id;
-        console.log('[billing] new-org created stripe customer', { orgId: org.id, customerId: stripeCustomerId });
       }
 
       // Persist to organizations if missing
@@ -654,15 +632,11 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       };
     }
 
-    console.log('subscriptionData', subscriptionData);
-
     // If subscription was created, mirror subscription data
     if (stripeSubscriptionId) {
       try {
         const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
 
-        console.log('subscription', subscription);
-        
         subscriptionData = {
           ...subscriptionData,
           stripe_subscription_id: subscription.id,

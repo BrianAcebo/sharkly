@@ -2,7 +2,6 @@ import express from 'express';
 
 import { requireAuth } from '../middleware/auth';
 import { getWalletStatus, getUsageCatalog } from '../controllers/billingUsage';
-import billingPublicRoutes from './billingPublic';
 import { getStripeClient } from '../utils/stripe';
 import { supabase } from '../utils/supabaseClient';
 import { listActivePlans } from '../controllers/billingPublic';
@@ -10,10 +9,12 @@ import { listActivePlans } from '../controllers/billingPublic';
 const router = express.Router();
 const stripe = getStripeClient();
 
-// router.use('/public', billingPublicRoutes);
+router.use('/public', (req, _res, next) => {
+  next();
+});
 
 router.use((req, res, next) => {
-  if (req.path === '/public') {
+  if (req.path.startsWith('/public')) {
     next();
   } else {
     requireAuth(req, res, next);
