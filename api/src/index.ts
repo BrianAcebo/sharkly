@@ -146,15 +146,12 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
  * ⛳ LOCAL ONLY: start a server when not running on Vercel.
  * Vercel sets VERCEL=1 in the serverless runtime.
  */
-if (!process.env.VERCEL) {
-  app.listen(port, () => {
-    console.log(`Local API listening on http://localhost:${port}`);
-  });
-}
-/**
- * ✅ Vercel serverless export
- * This default export is what Vercel calls at /api/index
- * Your routes remain mounted under /api/<...>
- */
-export default serverless(app);
+const isServerless = process.env.VERCEL === '1';
 
+if (!isServerless) {
+	app.listen(port, () => {
+		console.log(`Server is running on port ${port}`);
+	});
+}
+
+export default isServerless ? serverless(app) : undefined;
