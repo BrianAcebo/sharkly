@@ -54,6 +54,16 @@ app.use((req, _res, next) => {
   next();
 });
 
+app.use((req, _res, next) => {
+	// On Vercel the serverless function is mounted under /api/*,
+	// so Express receives "/billing/..." etc. Add "/api" so our
+	// mounts like "/api/billing" still match.
+	if (process.env.VERCEL && !req.url.startsWith('/api/')) {
+	  req.url = '/api' + req.url;
+	}
+	next();
+});
+
 // CORS
 app.use(
   cors({
@@ -63,25 +73,22 @@ app.use(
 );
 
 /**
- * ✅ Webhooks MUST be defined BEFORE express.json()
- * Use express.raw for providers like Stripe.
- * Do this per-route so other routes still get JSON parsing.
+ * Webhooks BEFORE json() (e.g., Stripe). If your handlers are inside
+ * routers that already manage raw body, you can remove these stubs.
  */
-app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (req, res, next) => {
-  // your existing Stripe webhook handler middleware/route goes here
-  // if it's currently inside billingRoutes, expose the webhook handler here
-  // OR keep it in a router that already expects raw body
-  next();
+app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (req, res) => {
+  // TODO: call your actual webhook handler here (or keep handled inside router).
+  res.status(200).end();
 });
-app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res, next) => {
-  // your payments webhook handler
-  next();
+app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res) => {
+  // TODO: call your actual webhook handler here (or keep handled inside router).
+  res.status(200).end();
 });
 
-// Parse JSON bodies for the rest
+// Parse JSON for everything else
 app.use(express.json());
 
-// Routes
+// ---------------------- Routes (unchanged) ----------------------
 app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/leads', leadsRoutes);
@@ -125,16 +132,17 @@ app.get('/__whoami', (_req, res) => {
   res.json({
     pid: process.pid,
     cwd: process.cwd(),
-    main: process.mainModule?.filename || 'esm',
+    main: (process as any).mainModule?.filename || 'esm',
     indexFile: import.meta.url,
     startedAt: new Date().toISOString(),
   });
 });
 
 // Error handler
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof HttpError) {
-    const e = err as { message: string; statusCode: number };
+    const e = err as unknown as { message: string; statusCode: number };
     console.error(`Error ${e.statusCode}: ${e.message}`);
     return res.status(e.statusCode).json({ error: { message: e.message } });
   }
@@ -142,16 +150,12 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   return res.status(500).json({ error: { message: 'Internal server error' } });
 });
 
-/**
- * ⛳ LOCAL ONLY: start a server when not running on Vercel.
- * Vercel sets VERCEL=1 in the serverless runtime.
- */
-const isServerless = process.env.VERCEL === '1';
-
-if (!isServerless) {
-	app.listen(port, () => {
-		console.log(`Server is running on port ${port}`);
-	});
+// ----------------- Local only listen; Vercel uses serverless -----------------
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Local API listening on http://localhost:${port}`);
+  });
 }
 
-export default isServerless ? serverless(app) : undefined;
+// Vercel serverless handler
+export default serverless(app);
