@@ -47,115 +47,56 @@ const port = process.env.PORT || 3001;
 
 app.use(express.urlencoded({ extended: false }));
 
-console.log('[api] PID', process.pid);
-
 app.use((req, _res, next) => {
-  console.log('[hit]', req.method, req.originalUrl, 'host=', req.headers.host, 'pid=', process.pid);
+  console.log('[hit]', req.method, req.originalUrl);
   next();
 });
 
-app.use((req, _res, next) => {
-	// On Vercel the serverless function is mounted under /api/*,
-	// so Express receives "/billing/..." etc. Add "/api" so our
-	// mounts like "/api/billing" still match.
-	if (process.env.VERCEL && !req.url.startsWith('/api/')) {
-	  req.url = '/api' + req.url;
-	}
-	next();
-});
-
 // CORS
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
+app.use(cors({ origin: true, credentials: true }));
 
-/**
- * Webhooks BEFORE json() (e.g., Stripe). If your handlers are inside
- * routers that already manage raw body, you can remove these stubs.
- */
-app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (req, res) => {
-  // TODO: call your actual webhook handler here (or keep handled inside router).
-  res.status(200).end();
-});
-app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res) => {
-  // TODO: call your actual webhook handler here (or keep handled inside router).
-  res.status(200).end();
-});
+/** Webhooks BEFORE json() (if you really need raw body, wire the real handlers here) */
+app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (_req, res) => res.sendStatus(200));
+app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (_req, res) => res.sendStatus(200));
 
-// Parse JSON for everything else
+// JSON for everything else
 app.use(express.json());
 
-// ---------------------- Routes (unchanged) ----------------------
+/** Your routes (UNCHANGED — keep the /api/... mounts) */
 app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/leads', leadsRoutes);
-
-// Voice webhook (public) before other /api/twilio routes
 app.use('/api/twilio/voice', voiceWebhookRoutes);
 app.use('/api/twilio', twilioPhoneRoutes);
-
-// Twilio SMS routes
 app.use('/api/sms', sendSmsRoutes);
 app.use('/api/webhooks/twilio', inboundWebhookRoutes);
 app.use('/api/webhooks/twilio', statusWebhookRoutes);
-
-// Twilio Voice routes
 app.use('/api/calls', callRoutes);
-
-// Twilio Client tokens
 app.use('/api/twilio/tokens', clientTokenRoutes);
-
-// Billing routes – public/general before onboarding
 app.use('/api/billing', billingRoutes);
 app.use('/api/billing', billingOnboardingRoutes);
-
-// Organization status
 app.use('/api/organizations', organizationStatusRoutes);
-
-// SMS verification
 app.use('/api/sms', smsVerificationRoutes);
-
-// Trial/subscription/payment status
 app.use('/api/trial', trialStatusRoutes);
 app.use('/api/subscription', subscriptionStatusRoutes);
 app.use('/api', paymentStatusRoutes);
 
-// Health
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
-});
-
-app.get('/__whoami', (_req, res) => {
-  res.json({
-    pid: process.pid,
-    cwd: process.cwd(),
-    main: (process as any).mainModule?.filename || 'esm',
-    indexFile: import.meta.url,
-    startedAt: new Date().toISOString(),
-  });
-});
+app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 // Error handler
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err instanceof HttpError) {
-    const e = err as unknown as { message: string; statusCode: number };
-    console.error(`Error ${e.statusCode}: ${e.message}`);
-    return res.status(e.statusCode).json({ error: { message: e.message } });
+    const { message, statusCode } = err as any;
+    console.error(`Error ${statusCode}: ${message}`);
+    return res.status(statusCode).json({ error: { message } });
   }
   console.error('Unexpected error:', err);
   return res.status(500).json({ error: { message: 'Internal server error' } });
 });
 
-// ----------------- Local only listen; Vercel uses serverless -----------------
+// Local only; Vercel uses the serverless handler
 if (!process.env.VERCEL) {
-  app.listen(port, () => {
-    console.log(`Local API listening on http://localhost:${port}`);
-  });
+  app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
 }
 
-// Vercel serverless handler
 export default serverless(app);
