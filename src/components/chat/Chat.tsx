@@ -20,6 +20,7 @@ import { Button } from '../ui/button';
 import { supabase } from '../../utils/supabaseClient';
 import { toast } from 'sonner';
 import { useWebRTCCall } from '../../hooks/useWebRTCCall';
+import { apiPost } from '../../utils/api';
 
 interface SmsContact {
 	phone_number: string;
@@ -394,22 +395,16 @@ const Chat: React.FC = () => {
 				leadId = contactLeadData.id;
 			}
 
-			const response = await fetch('/api/sms/send', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${session.access_token}`
-				},
-				body: JSON.stringify({
-					to: selectedContact.phone_number,
-					body: newMessage.trim(),
-					lead_id: leadId
-				})
-			});
+			const payload = {
+				to: selectedContact.phone_number,
+				body: newMessage.trim(),
+				lead_id: leadId
+			};
 
-			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.error || 'Failed to send SMS');
+			const response = await apiPost('/api/sms/send', payload);
+
+			if (response.error) {
+				throw new Error(response.error || 'Failed to send SMS');
 			}
 
 			// Clear the message on success
@@ -435,22 +430,16 @@ const Chat: React.FC = () => {
 				throw new Error('No active session');
 			}
 
-			const response = await fetch('/api/sms/send', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${session.access_token}`
-				},
-				body: JSON.stringify({
-					to: message.to_number,
-					body: message.body,
-					lead_id: message.lead_id
-				})
-			});
+			const payload = {
+				to: message.to_number,
+				body: message.body,
+				lead_id: message.lead_id
+			};
 
-			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.error || 'Failed to resend SMS');
+			const response = await apiPost('/api/sms/send', payload);
+
+			if (response.error) {
+				throw new Error(response.error || 'Failed to resend SMS');
 			}
 
 			// Refresh messages to show the new one
@@ -491,22 +480,16 @@ const Chat: React.FC = () => {
 				leadId = messageLeadData.id;
 			}
 
-			const response = await fetch('/api/sms/send', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${session.access_token}`
-				},
-				body: JSON.stringify({
-					to: newMessagePhone,
-					body: newMessageBody.trim(),
-					lead_id: leadId
-				})
-			});
+			const payload = {
+				to: newMessagePhone,
+				body: newMessageBody.trim(),
+				lead_id: leadId
+			};
 
-			if (!response.ok) {
-				const errorData = await response.json();
-				throw new Error(errorData.error || 'Failed to send SMS');
+			const response = await apiPost('/api/sms/send', payload);
+
+			if (response.error) {
+				throw new Error(response.error || 'Failed to send SMS');
 			}
 
 			// Clear the form and close modal

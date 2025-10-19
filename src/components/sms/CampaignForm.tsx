@@ -9,6 +9,7 @@ import { AlertCircle, Info, MessageSquare, Send, CheckCircle } from 'lucide-reac
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
 import { OptInMethod } from '../../types/smsVerification';
+import { apiPost } from '../../utils/api';
 
 interface CampaignFormProps {
   orgId: string;
@@ -133,22 +134,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({ orgId, onSave, onSubmit10DL
         return;
       }
 
-      const response = await fetch('/api/sms/save-campaign', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          orgId,
-          ...formData
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save campaign data');
-      }
+      await apiPost('/api/sms/save-campaign', formData);
 
       const data = await response.json();
       if (data.ok) {
@@ -187,14 +173,7 @@ const CampaignForm: React.FC<CampaignFormProps> = ({ orgId, onSave, onSubmit10DL
         return;
       }
 
-      const response = await fetch('/api/sms/submit-10dlc', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ orgId })
-      });
+      const response = await apiPost('/api/sms/submit-10dlc', { orgId });
 
       if (!response.ok) {
         const errorData = await response.json();

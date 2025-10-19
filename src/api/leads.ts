@@ -1,3 +1,4 @@
+import { apiDelete, apiGet, apiPost, apiPut } from '../utils/api';
 import { supabase } from '../utils/supabaseClient';
 import { Lead, CreateLeadData, UpdateLeadData, TeamMember } from '../types/leads';
 import { TEAM_MEMBER_ROLES } from '../utils/constants';
@@ -458,25 +459,11 @@ export async function emailLeadsExport(
     }
 
     // Call the API endpoint
-    const response = await fetch('/api/leads/export-email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      },
-      body: JSON.stringify({
-        email,
-        filters
-      })
+    const response = await apiPost('/api/leads/export-email', {
+      email,
+      filters,
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || 'Failed to send email export');
-    }
-
-    const result = await response.json();
-    return result;
+    return response as void;
   } catch (error) {
     throw parseSupabaseError(error);
   }

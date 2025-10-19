@@ -23,6 +23,7 @@ import { STRIPE_CUSTOMER_PORTAL_URL, canManageBilling } from '../utils/billing';
 import { useAuth } from '../hooks/useAuth';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { WalletDepositModal } from '../components/billing/WalletDepositModal';
+import { apiGet } from '../utils/api';
 
 type UsageRecord = Record<string, unknown>;
 
@@ -247,22 +248,13 @@ const Billing: React.FC = () => {
 			if (startingAfter) query.append('starting_after', startingAfter);
 			if (endingBefore) query.append('ending_before', endingBefore);
 
-			const response = await fetch(`/api/billing/invoices?${query.toString()}`, {
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				}
-			});
-
-			if (!response.ok) {
-				throw new Error('Failed to fetch invoices');
-			}
-
-			const data = await response.json();
+			const data = await apiGet<{ data: StripeInvoice[]; has_more: boolean }>(
+				`/api/billing/invoices?${query.toString()}`
+			);
 			setInvoices(data.data || []);
 			setInvoicePagination((prev) => ({
 				...prev,
-				hasMore: data.has_more || false
+				hasMore: data.has_more || false,
 			}));
 		} catch (error) {
 			console.error('Error fetching invoices:', error);

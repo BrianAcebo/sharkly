@@ -1,4 +1,5 @@
 import { supabase } from '../utils/supabaseClient';
+import { apiGet, apiPost } from '../utils/api';
 
 export interface GoogleCalendarEvent {
 	id: string;
@@ -92,15 +93,7 @@ class GoogleCalendarService {
 		try {
 			if (!this.refreshToken) throw new Error('No refresh token available');
 
-			const response = await fetch('/api/google/refresh-token', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					refresh_token: this.refreshToken,
-				}),
-			});
+			const response = await apiPost('/api/google/refresh-token', { refreshToken: this.refreshToken });
 
 			if (!response.ok) throw new Error('Failed to refresh token');
 
@@ -142,14 +135,7 @@ class GoogleCalendarService {
 		try {
 			if (!this.accessToken) throw new Error('No access token');
 
-			const response = await fetch(
-				'https://www.googleapis.com/calendar/v3/users/me/calendarList',
-				{
-					headers: {
-						Authorization: `Bearer ${this.accessToken}`,
-					},
-				}
-			);
+			const response = await apiGet('/api/google/calendarList', { accessToken: this.accessToken });
 
 			if (!response.ok) throw new Error('Failed to fetch calendar list');
 
@@ -178,16 +164,7 @@ class GoogleCalendarService {
 			if (timeMin) params.append('timeMin', timeMin);
 			if (timeMax) params.append('timeMax', timeMax);
 
-			const response = await fetch(
-				`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-					calendarId
-				)}/events?${params}`,
-				{
-					headers: {
-						Authorization: `Bearer ${this.accessToken}`,
-					},
-				}
-			);
+			const response = await apiGet(`/api/google/events?calendarId=${encodeURIComponent(calendarId)}&${params.toString()}`, { accessToken: this.accessToken });
 
 			if (!response.ok) throw new Error('Failed to fetch events');
 
@@ -205,19 +182,12 @@ class GoogleCalendarService {
 		try {
 			if (!this.accessToken) throw new Error('No access token');
 
-			const response = await fetch(
-				`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-					calendarId
-				)}/events`,
-				{
-					method: 'POST',
-					headers: {
-						Authorization: `Bearer ${this.accessToken}`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify(event),
-				}
-			);
+			const payload = {
+				calendarId,
+				event,
+				accessToken: this.accessToken,
+			};
+			const response = await apiPost('/api/google/events/create', payload);
 
 			if (!response.ok) throw new Error('Failed to create event');
 
@@ -236,19 +206,13 @@ class GoogleCalendarService {
 		try {
 			if (!this.accessToken) throw new Error('No access token');
 
-			const response = await fetch(
-				`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-					calendarId
-				)}/events/${eventId}`,
-				{
-					method: 'PATCH',
-					headers: {
-						Authorization: `Bearer ${this.accessToken}`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify(event),
-				}
-			);
+			const payload = {
+				calendarId,
+				eventId,
+				event,
+				accessToken: this.accessToken,
+			};
+			const response = await apiPost('/api/google/events/update', payload);
 
 			if (!response.ok) throw new Error('Failed to update event');
 
@@ -263,17 +227,12 @@ class GoogleCalendarService {
 		try {
 			if (!this.accessToken) throw new Error('No access token');
 
-			const response = await fetch(
-				`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
-					calendarId
-				)}/events/${eventId}`,
-				{
-					method: 'DELETE',
-					headers: {
-						Authorization: `Bearer ${this.accessToken}`,
-					},
-				}
-			);
+			const payload = {
+				calendarId,
+				eventId,
+				accessToken: this.accessToken,
+			};
+			const response = await apiPost('/api/google/events/delete', payload);
 
 			return response.ok;
 		} catch {

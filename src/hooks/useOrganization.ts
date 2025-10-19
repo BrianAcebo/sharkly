@@ -3,7 +3,7 @@ import { useAuth } from './useAuth';
 import { OrganizationRow } from '../types/billing';
 import type { SeatSummary, SeatSummaryResponse } from '../types/organization';
 import { supabase } from '../utils/supabaseClient';
-import { api } from '../utils/api';
+import { apiGet } from '../utils/api';
 import type { PlanCode, StripeSubStatus } from '../types/billing';
 
 interface SubscriptionStatusResponse {
@@ -59,19 +59,16 @@ export function useOrganization() {
         return;
       }
 
-      const response = await fetch(`/api/subscription/${user.organization_id}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const subscriptionData = await apiGet<SubscriptionStatusResponse>(
+        `/api/subscription/${user.organization_id}`
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json();
+      if (!subscriptionData.ok) {
+        const errorData = subscriptionData.json();
         throw new Error(errorData.error || 'Failed to fetch subscription status');
       }
 
-      const data: SubscriptionStatusResponse = await response.json();
+      const data: SubscriptionStatusResponse = subscriptionData.json();
       
       // Convert API response to OrganizationRow format
       const orgData: OrganizationRow = {
@@ -115,7 +112,9 @@ export function useOrganization() {
       setOrganization(orgData);
 
       try {
-        const seatResponse = await api.get<SeatSummaryResponse>(`/api/organizations/${data.organization.id}/seats`);
+        const seatResponse = await apiGet<SeatSummaryResponse>(
+          `/api/organizations/${subscriptionData.organization.id}/seats`
+        );
         setSeatSummary(seatResponse.summary);
       } catch (seatError) {
         console.error('Failed to load seat summary', seatError);

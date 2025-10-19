@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Send, Loader2, Phone } from 'lucide-react';
 import { supabase } from '../../utils/supabaseClient';
+import { apiPost } from '../../utils/api';
 
 interface SmsComposerProps {
   leadPhone: string;
@@ -58,19 +59,12 @@ const SmsComposer: React.FC<SmsComposerProps> = ({ leadPhone, onSent, disabled =
         throw new Error('No active session');
       }
 
-      const response = await fetch('/api/sms/send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ to: leadPhone, body: message.trim() })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to send SMS');
-      }
+      const payload = {
+        to: leadPhone,
+        body: message.trim()
+      };
+
+      await apiPost('/api/sms/send', payload);
       
       // Clear the message on success
       setMessage('');

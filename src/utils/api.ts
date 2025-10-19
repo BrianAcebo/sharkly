@@ -1,6 +1,3 @@
-import { supabase } from './supabaseClient';
-import { buildApiUrl } from './urls';
-
 export class ApiError extends Error {
 	status: number;
 
@@ -11,71 +8,66 @@ export class ApiError extends Error {
 	}
 }
 
-type RequestData = Record<string, unknown>;
+export const API_BASE = import.meta.env.PROD
+	? (import.meta.env.VITE_API_BASE as string)
+	: 'http://localhost:3000';
 
-export const api = {
-	async request<T>(
-		endpoint: string,
-		options: {
-			method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-			data?: unknown;
-			organizationId?: string;
-		} = {}
-	): Promise<T> {
-		try {
-			// Get the current session
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
+const buildUrl = (endpoint: string): string =>
+	`${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
-			if (!session) {
-				throw new ApiError('Not authenticated', 401);
-			}
+export interface ApiRequestOptions extends RequestInit {
+	json?: unknown;
+}
 
-			const { method = 'GET', data, organizationId } = options;
+export async function apiRequest<T = unknown>(
+	endpoint: string,
+	options: ApiRequestOptions = {}
+): Promise<T> {
+	const { json, headers, ...rest } = options;
 
-			// Prepare the request body
-			const body = data !== undefined
-				? (typeof data === 'object' && data !== null
-					? { ...(data as Record<string, unknown>), organization: organizationId ? { id: organizationId } : undefined }
-					: data)
-				: undefined;
+	const init: RequestInit = {
+		credentials: 'include',
+		...rest,
+		headers: {
+			...(headers ?? {}),
+		},
+	};
 
-			const fullUrl = buildApiUrl(endpoint);
-
-			const response = await fetch(fullUrl, {
-				method,
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				},
-				body: body ? JSON.stringify(body) : undefined
-			});
-
-			try {
-				return await response.json();
-			} catch (parseError) {
-				throw new Error('Invalid JSON response');
-			}
-		} catch (error) {
-			throw error;
-		}
-	},
-
-	// Convenience methods
-	async get<T>(endpoint: string, organizationId?: string): Promise<T> {
-		return this.request<T>(endpoint, { method: 'GET', organizationId });
-	},
-
-	async post<T>(endpoint: string, data: RequestData, organizationId?: string): Promise<T> {
-		return this.request<T>(endpoint, { method: 'POST', data, organizationId });
-	},
-
-	async put<T>(endpoint: string, data: RequestData, organizationId?: string): Promise<T> {
-		return this.request<T>(endpoint, { method: 'PUT', data, organizationId });
-	},
-
-	async delete<T>(endpoint: string, organizationId?: string): Promise<T> {
-		return this.request<T>(endpoint, { method: 'DELETE', organizationId });
+	if (json !== undefined) {
+		init.headers = {
+			'Content-Type': 'application/json',
+			...init.headers,
+		};
+		init.body = JSON.stringify(json);
 	}
-};
+
+	const response = await fetch(buildUrl(endpoint), init);
+
+	if (!response.ok) {
+		const message = (await response.text().catch(() => response.statusText)) || response.statusText;
+		throw new ApiError(message, response.status);
+	}
+
+	if (response.status === 204) {
+		return undefined as T;
+	}
+
+	const contentType = response.headers.get('content-type') ?? '';
+	if (contentType.includes('application/json')) {
+		return (await response.json()) as T;
+	}
+
+	return (await response.text()) as unknown as T;
+}
+
+export const apiGet = <T = unknown>(endpoint: string, options?: ApiRequestOptions) =>
+	apiRequest<T>(endpoint, { ...(options ?? {}), method: 'GET' });
+
+export const apiPost = <T = unknown>(endpoint: string, json?: unknown, options?: ApiRequestOptions) =>
+	apiRequest<T>(endpoint, { ...(options ?? {}), method: 'POST', json });
+
+export const apiPut = <T = unknown>(endpoint: string, json?: unknown, options?: ApiRequestOptions) =>
+	apiRequest<T>(endpoint, { ...(options ?? {}), method: 'PUT', json });
+
+export const apiDelete = <T = unknown>(endpoint: string, options?: ApiRequestOptions) =>
+	apiRequest<T>(endpoint, { ...(options ?? {}), method: 'DELETE' });

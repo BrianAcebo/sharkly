@@ -21,6 +21,7 @@ import BrandForm from '../components/sms/BrandForm';
 import CampaignForm from '../components/sms/CampaignForm';
 import TollFreeForm from '../components/sms/TollFreeForm';
 import { VerificationStatusResponse } from '../types/smsVerification';
+import { apiGet, apiPost } from '../utils/api';
 
 const PhoneSmsVerification: React.FC = () => {
   const { user } = useAuth();
@@ -47,12 +48,7 @@ const PhoneSmsVerification: React.FC = () => {
         return;
       }
 
-      const response = await fetch(`/api/sms/verification-status?orgId=${user.organization_id}`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await apiGet(`/api/sms/verification-status?orgId=${user.organization_id}`);
 
       if (!response.ok) {
         throw new Error('Failed to fetch verification status');
@@ -83,14 +79,7 @@ const PhoneSmsVerification: React.FC = () => {
         return;
       }
 
-      const response = await fetch('/api/sms/refresh-status', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ orgId: user.organization_id })
-      });
+      await apiPost('/api/sms/refresh-status', {});
 
       if (!response.ok) {
         throw new Error('Failed to refresh status');

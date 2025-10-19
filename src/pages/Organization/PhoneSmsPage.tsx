@@ -13,6 +13,7 @@ import { assignPhoneNumber, fetchPhoneNumbers, purchasePhoneNumber, releasePhone
 import type { PhoneNumberRecord } from '../../types/phone';
 import type { SeatSummary } from '../../types/organization';
 import { supabase } from '../../utils/supabaseClient';
+import { apiGet, apiPost } from '../../utils/api';
 
 type SeatAssignmentRecord = SeatSummary['seats'][number];
 type PhoneNumberListResponse = { numbers: Array<{ phone_number: string; status: string }> };
@@ -66,12 +67,7 @@ export default function PhoneSmsPage() {
 				return null;
 			}
 
-			const response = await fetch(`/api/organizations/${orgId}/seats`, {
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				}
-			});
+			const response = await apiGet(`/api/organizations/${orgId}/seats`);
 
 			if (!response.ok) {
 				const err = await response.json().catch(() => ({}));
@@ -93,7 +89,7 @@ export default function PhoneSmsPage() {
 		setState((prev) => ({ ...prev, isLoading: true }));
 		try {
 			const [numbersResp, seatSummaryData] = await Promise.all([
-				fetch(`/api/twilio/phone/organizations/${organizationId}/phone-numbers`),
+				apiGet(`/api/twilio/phone/organizations/${organizationId}/phone-numbers`),
 				fetchSeatSummary(organizationId)
 			]);
 

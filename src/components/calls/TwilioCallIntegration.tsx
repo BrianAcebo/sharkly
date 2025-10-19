@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '../ui/button';
 import { Loader2, Phone } from 'lucide-react';
-import { supabase } from '../../utils/supabaseClient';
+import { apiPost } from '../../utils/apiClient';
 
 interface TwilioCallIntegrationProps {
   phoneNumber: string;
@@ -15,7 +15,7 @@ const TwilioCallIntegration: React.FC<TwilioCallIntegrationProps> = ({
   phoneNumber,
   contactName,
   onCallInitiated,
-  onCallFailed
+  onCallFailed,
 }) => {
   const [isCalling, setIsCalling] = useState(false);
 
@@ -26,38 +26,24 @@ const TwilioCallIntegration: React.FC<TwilioCallIntegrationProps> = ({
     }
 
     setIsCalling(true);
-    
-    try {
-      // Get the current session token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        throw new Error('No active session');
-      }
 
-      const response = await fetch('/api/calls/make', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({ to: phoneNumber })
-      });
-      
-      const responseData = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(responseData.error || 'Failed to initiate call');
-      }
-      
-      if (responseData.success) {
-        const message = contactName 
+    try {
+      const responseData = await apiPost<{ success: boolean; callSid: string; error?: string }>(
+        '/api/calls/make',
+        { to: phoneNumber }
+      );
+
+      if (responseData?.success) {
+        const message = contactName
           ? `Call initiated to ${contactName}`
           : `Call initiated to ${phoneNumber}`;
-        
+
         toast.success(message);
-        onCallInitiated?.(responseData.callSid);
+        if (responseData.callSid) {
+          onCallInitiated?.(responseData.callSid);
+        }
       } else {
-        throw new Error(responseData.error || 'Failed to initiate call');
+        throw new Error(responseData?.error || 'Failed to initiate call');
       }
     } catch (error) {
       console.error('Error making call:', error);
@@ -89,7 +75,7 @@ const TwilioCallIntegration: React.FC<TwilioCallIntegrationProps> = ({
           </>
         )}
       </Button>
-      
+
       <div className="text-xs text-gray-500 dark:text-gray-400">
         {contactName ? `Will call ${contactName}` : `Will call ${phoneNumber}`}
       </div>

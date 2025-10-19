@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AlertCircle, Info, Phone } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
+import { apiPost } from '../../utils/api';
 
 interface TollFreeFormProps {
   orgId: string;
@@ -68,19 +69,8 @@ const TollFreeForm: React.FC<TollFreeFormProps> = ({ orgId, onSubmit, userRole }
         return;
       }
 
-      const response = await fetch('/api/sms/submit-tollfree', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ orgId })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to submit Toll-Free verification');
-      }
+      const payload = { orgId };
+      await apiPost('/api/sms/submit-tollfree', payload);
 
       const data = await response.json();
       if (data.ok) {

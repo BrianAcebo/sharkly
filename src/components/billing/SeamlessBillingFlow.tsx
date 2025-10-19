@@ -22,6 +22,7 @@ import { SiVisa, SiMastercard, SiAmericanexpress, SiDiscover, SiDinersclub, SiJc
 import BrandForm from '../sms/BrandForm';
 import CampaignForm from '../sms/CampaignForm';
 import TollFreeForm from '../sms/TollFreeForm';
+import { apiGet, apiPost } from '../../utils/api';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 
@@ -415,13 +416,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
         return;
       }
 
-      const response = await fetch('/api/billing/plans', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
+      const response = await apiGet('/api/billing/plans');
       const data = await response.json();
       const { plans } = data;
 
@@ -450,11 +445,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       }
 
       const params = new URLSearchParams({ orgId });
-      const response = await fetch(`/api/billing/orgs/payment-methods/default?${params.toString()}`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`
-        }
-      });
+      const response = await apiGet(`/api/billing/orgs/payment-methods/default?${params.toString()}`);
 
       if (!response.ok) {
         throw new Error('Failed to load saved payment method');
@@ -489,9 +480,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       } = await supabase.auth.getSession();
       if (!session?.access_token) return;
       const params = new URLSearchParams({ orgId });
-      const res = await fetch(`/api/billing/orgs/payment-methods?${params.toString()}`, {
-        headers: { Authorization: `Bearer ${session.access_token}` }
-      });
+      const res = await apiGet(`/api/billing/orgs/payment-methods?${params.toString()}`);
       if (!res.ok) return;
       const data = await res.json();
       setSavedPaymentMethods(Array.isArray(data.paymentMethods) ? data.paymentMethods : []);
@@ -515,21 +504,14 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
     // Ensure we have a Stripe customerId for this org (recover/create if missing)
     let customerId = existingOrganization?.stripe_customer_id || null;
     if (!customerId && existingOrganization?.id && selectedPlan) {
-      const ensureResp = await fetch('/api/billing/orgs/onboard', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          orgId: existingOrganization.id,
-          name: orgName,
-          planCode: selectedPlan.plan_code,
-          trialDays: trialSelected ? 7 : 0,
-          tz: 'America/New_York',
-          address: { street: '', city: '', state: '', zip: '', country: 'US' },
-          useExistingPaymentMethod: false
-        })
+      const ensureResp = await apiPost('/api/billing/orgs/onboard', {
+        orgId: existingOrganization.id,
+        name: orgName,
+        planCode: selectedPlan.plan_code,
+        trialDays: trialSelected ? 7 : 0,
+        tz: 'America/New_York',
+        address: { street: '', city: '', state: '', zip: '', country: 'US' },
+        useExistingPaymentMethod: false
       });
       if (ensureResp.ok) {
         const data = await ensureResp.json();
@@ -541,13 +523,8 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       }
     }
 
-    const response = await fetch('/api/payments/create-setup-intent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`
-      },
-      body: JSON.stringify({ customerId: customerId || undefined })
+    const response = await apiPost('/api/payments/create-setup-intent', {
+      customerId: customerId || undefined
     });
     if (!response.ok) {
       throw new Error('Failed to create setup intent');
@@ -606,16 +583,12 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
           // New org: create pending org + subscription first to get PaymentIntent client secret
           const { data: { session } } = await supabase.auth.getSession();
           if (!session?.access_token) throw new Error('Not authenticated');
-          const resp = await fetch('/api/billing/orgs/onboard', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({
-              name: orgName,
-              planCode: selectedPlan.plan_code,
-              trialDays: trialSelected ? 7 : 0,
-              tz: 'America/New_York',
-              address: { street: '', city: '', state: '', zip: '', country: 'US' }
-            })
+          const resp = await apiPost('/api/billing/orgs/onboard', {
+            name: orgName,
+            planCode: selectedPlan.plan_code,
+            trialDays: trialSelected ? 7 : 0,
+            tz: 'America/New_York',
+            address: { street: '', city: '', state: '', zip: '', country: 'US' }
           });
           if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
@@ -820,10 +793,9 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                   try {
                     const { data: { session } } = await supabase.auth.getSession();
                     if (!session?.access_token) throw new Error('Not authenticated');
-                    const resp = await fetch('/api/billing/orgs/provision', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                      body: JSON.stringify({ orgId, areaCode })
+                    const resp = await apiPost('/api/billing/orgs/provision', {
+                      orgId,
+                      areaCode,
                     });
                     if (resp.status === 409) {
                       // payment pending
