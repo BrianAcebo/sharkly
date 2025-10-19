@@ -1,73 +1,36 @@
-export class ApiError extends Error {
-	status: number;
+import { buildApiUrl } from './urls';
 
-	constructor(message: string, status: number) {
-		super(message);
-		this.status = status;
-		this.name = 'ApiError';
-	}
-}
+export const api = {
+  request(endpoint: string, options: RequestInit & { data?: unknown } = {}): Promise<Response> {
+    const { data, ...init } = options;
 
-export const API_BASE = import.meta.env.PROD
-	? (import.meta.env.VITE_API_BASE as string)
-	: 'http://localhost:3000';
+    if (data !== undefined && init.body === undefined) {
+      const isString = typeof data === 'string';
+      init.body = isString ? (data as string) : JSON.stringify(data);
 
-const buildUrl = (endpoint: string): string =>
-	`${API_BASE}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+      const headers = new Headers(init.headers ?? {});
+      if (!headers.has('Content-Type')) {
+        headers.set('Content-Type', isString ? 'text/plain' : 'application/json');
+      }
+      init.headers = headers;
+    }
 
-export interface ApiRequestOptions extends RequestInit {
-	json?: unknown;
-}
+    return fetch(buildApiUrl(endpoint), init);
+  },
 
-export async function apiRequest<T = unknown>(
-	endpoint: string,
-	options: ApiRequestOptions = {}
-): Promise<T> {
-	const { json, headers, ...rest } = options;
+  get(endpoint: string, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
+    return this.request(endpoint, { ...(options ?? {}), method: 'GET' });
+  },
 
-	const init: RequestInit = {
-		credentials: 'include',
-		...rest,
-		headers: {
-			...(headers ?? {}),
-		},
-	};
+  post(endpoint: string, data?: unknown, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
+    return this.request(endpoint, { ...(options ?? {}), method: 'POST', data });
+  },
 
-	if (json !== undefined) {
-		init.headers = {
-			'Content-Type': 'application/json',
-			...init.headers,
-		};
-		init.body = JSON.stringify(json);
-	}
+  put(endpoint: string, data?: unknown, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
+    return this.request(endpoint, { ...(options ?? {}), method: 'PUT', data });
+  },
 
-	const response = await fetch(buildUrl(endpoint), init);
-
-	if (!response.ok) {
-		const message = (await response.text().catch(() => response.statusText)) || response.statusText;
-		throw new ApiError(message, response.status);
-	}
-
-	if (response.status === 204) {
-		return undefined as T;
-	}
-
-	const contentType = response.headers.get('content-type') ?? '';
-	if (contentType.includes('application/json')) {
-		return (await response.json()) as T;
-	}
-
-	return (await response.text()) as unknown as T;
-}
-
-export const apiGet = <T = unknown>(endpoint: string, options?: ApiRequestOptions) =>
-	apiRequest<T>(endpoint, { ...(options ?? {}), method: 'GET' });
-
-export const apiPost = <T = unknown>(endpoint: string, json?: unknown, options?: ApiRequestOptions) =>
-	apiRequest<T>(endpoint, { ...(options ?? {}), method: 'POST', json });
-
-export const apiPut = <T = unknown>(endpoint: string, json?: unknown, options?: ApiRequestOptions) =>
-	apiRequest<T>(endpoint, { ...(options ?? {}), method: 'PUT', json });
-
-export const apiDelete = <T = unknown>(endpoint: string, options?: ApiRequestOptions) =>
-	apiRequest<T>(endpoint, { ...(options ?? {}), method: 'DELETE' });
+  delete(endpoint: string, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
+    return this.request(endpoint, { ...(options ?? {}), method: 'DELETE' });
+  }
+};

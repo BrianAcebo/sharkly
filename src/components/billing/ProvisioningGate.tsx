@@ -5,7 +5,6 @@ import Label from '../form/Label';
 import { toast } from 'sonner';
 import { fetchPhoneNumbers } from '../../api/phone';
 import { supabase } from '../../utils/supabaseClient';
-import { apiPost } from '../../utils/api';
 
 interface ProvisioningGateProps {
   organizationId: string;
@@ -41,9 +40,11 @@ export const ProvisioningGate: React.FC<ProvisioningGateProps> = ({ organization
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Not authenticated');
-      const resp = await apiPost('/api/billing/orgs/provision', {
-        orgId: organizationId,
-        readOnly: true,
+      const resp = await fetch('/api/billing/orgs/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        // Only ensure Twilio resources on mount; do not purchase/attach numbers automatically
+        body: JSON.stringify({ orgId: organizationId, readOnly: true })
       });
       if (resp.status === 409) {
         throw new Error('Payment not confirmed yet. Please wait and try again.');
@@ -89,9 +90,10 @@ export const ProvisioningGate: React.FC<ProvisioningGateProps> = ({ organization
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Not authenticated');
-      const resp = await apiPost('/api/billing/orgs/provision', {
-        orgId: organizationId,
-        areaCode,
+      const resp = await fetch('/api/billing/orgs/provision', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ orgId: organizationId, areaCode })
       });
       if (resp.status === 409) throw new Error('Payment not confirmed yet. Please wait and try again.');
       if (!resp.ok) {

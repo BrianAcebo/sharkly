@@ -4,7 +4,6 @@ import { WebRTCCallContext } from '../contexts/WebRTCCallContext';
 import { supabase } from '../utils/supabaseClient';
 import { NOTIFICATION_HELP_EVENT } from '../constants/events';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
-import { apiPost } from '../utils/api';
 
 interface WebRTCCallProviderProps {
 	children: React.ReactNode;
@@ -227,7 +226,25 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 					throw new Error('No active session');
 				}
 
-				const { token } = await apiPost<{ token: string }>('/api/twilio/tokens/generate-token');
+				const r = await fetch(`/api/twilio/tokens/generate-token`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${session.access_token}`
+					}
+				});
+
+				if (!r.ok) {
+					console.error('Token generation failed:', {
+						status: r.status,
+						statusText: r.statusText,
+						timestamp: new Date().toISOString()
+					});
+					throw new Error(`Token generation failed: ${r.status} ${r.statusText}`);
+				}
+
+				const responseData = await r.json();
+				const { token } = responseData;
 
 				const d = new Device(token, {
 					logLevel: import.meta.env.NODE_ENV === 'development' ? 'debug' : undefined

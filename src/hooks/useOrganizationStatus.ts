@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 import { OrgStatus } from '../types/billing';
-import { apiGet } from '../utils/api';
 
 interface OrganizationStatusData {
   org_status: OrgStatus;
@@ -26,7 +25,12 @@ export function useOrganizationStatus() {
         return null;
       }
 
-      const response = await apiGet(`/api/organizations/${user.organization_id}/status`);
+      const response = await fetch(`/api/organizations/${user.organization_id}/status`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

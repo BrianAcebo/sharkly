@@ -9,7 +9,6 @@ import {
   type WalletStatusResponse,
   type AutoRechargeSettings
 } from '../api/billing';
-import { apiGet, apiPost, apiPut } from '../utils/api';
 
 interface PaymentStatus {
   isInGoodStanding: boolean;
@@ -59,7 +58,12 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
         throw new Error('Not authenticated');
       }
 
-      const response = await apiGet(`/api/organizations/${user.organization_id}/payment-status`);
+      const response = await fetch(`/api/organizations/${user.organization_id}/payment-status`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -116,7 +120,12 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
         throw new Error('Not authenticated');
       }
 
-      const response = await apiGet(`/api/organizations/${user.organization_id}/resume-eligibility`);
+      const response = await fetch(`/api/organizations/${user.organization_id}/resume-eligibility`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -233,7 +242,14 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
         throw new Error('Not authenticated');
       }
 
-      const resp = await apiPut(`/api/organizations/${user.organization_id}/wallet`, { top_up_amount_cents: amountCents });
+      const resp = await fetch(`/api/organizations/${user.organization_id}/wallet`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ top_up_amount_cents: amountCents })
+      });
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
@@ -259,7 +275,14 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
         throw new Error('Not authenticated');
       }
 
-      const resp = await apiPut(`/api/organizations/${user.organization_id}/wallet`, { threshold_cents: thresholdCents });
+      const resp = await fetch(`/api/organizations/${user.organization_id}/wallet`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ threshold_cents: thresholdCents })
+      });
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));

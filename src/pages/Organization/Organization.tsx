@@ -28,7 +28,7 @@ import { toast } from 'sonner';
 // import { Modal } from '../../components/ui/modal';
 import { supabase } from '../../utils/supabaseClient';
 import { HttpError } from '../../utils/error';
-import { api, apiGet, apiPost } from '../../utils/api';
+import { api } from '../../utils/api';
 import { useOrganizationStatus } from '../../hooks/useOrganizationStatus';
 import { usePaymentStatus } from '../../hooks/usePaymentStatus';
 import { getOrganizationStatusMessage } from '../../utils/paymentStatus';
@@ -147,10 +147,20 @@ export default function OrganizationPage() {
 		if (!user?.organization_id) return;
 
 		try {
-			const response = await apiGet(`/api/sms/verification-status?orgId=${user.organization_id}`);
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			if (!session?.access_token) return;
+
+			const response = await fetch(`/api/sms/verification-status?orgId=${user.organization_id}`, {
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				}
+			});
 
 			if (response.ok) {
-				const data = response.data;
+				const data = await response.json();
 				if (data.ok) {
 					setSmsVerificationStatus(data.data);
 				}
@@ -164,16 +174,30 @@ export default function OrganizationPage() {
 		setIsSeatSummaryLoading(true);
 		setSeatError(null);
 		try {
-			const response = await apiGet(`/api/organizations/${orgId}/seats`);
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+
+			if (!session?.access_token) {
+				setSeatError('Not authenticated');
+				return null;
+			}
+
+			const response = await fetch(`/api/organizations/${orgId}/seats`, {
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				}
+			});
 
 			if (!response.ok) {
-				const err = response.error || {};
+				const err = await response.json().catch(() => ({}));
 				setSeatError(err?.error || 'Failed to load seat summary');
 				setSeatSummary(null);
 				return null;
 			}
 
-			const data = response.data as { summary: SeatSummary };
+			const data = (await response.json()) as { summary: SeatSummary };
 			setSeatSummary(data.summary);
 			return data.summary;
 		} catch (error) {
@@ -191,14 +215,31 @@ export default function OrganizationPage() {
 		payload: { quantity: number; reason: string }
 	) => {
 		try {
-			const response = await apiPost(path, payload);
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			if (!session?.access_token) {
+				toast.error('Not authenticated');
+				return null;
+			}
+
+			setIsSeatActionLoading(true);
+
+			const response = await fetch(path, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify(payload)
+			});
 
 			if (!response.ok) {
-				const err = response.error || {};
+				const err = await response.json().catch(() => ({}));
 				throw new Error(err?.error || 'Seat update failed');
 			}
 
-			const data = response.data as { summary: SeatSummary };
+			const data = (await response.json()) as { summary: SeatSummary };
 			setSeatSummary(data.summary);
 			return data.summary;
 		} catch (error) {
@@ -419,18 +460,35 @@ export default function OrganizationPage() {
 			}
 
 			// Get the organization for the current user (owner or member)
-			const org = await apiGet(`/api/organizations/${user?.organization_id}`);
+			const { data: org, error: orgError } = await supabase
+				.from('organizations')
+				.select(
+					`
+					id,
+					name,
+					maxSeats: max_seats,
+					createdAt: created_at,
+					ownerId: owner_id,
+					updatedAt: updated_at,
+					status: org_status
+				`
+				)
+				.eq('id', user?.organization_id || '')
+				.single();
 
-			if (org.error || !org.data) throw new HttpError('No organization found', 404);
-			setOrganization(org.data);
+			if (orgError || !org) throw new HttpError('No organization found', 404);
+			setOrganization(org);
 
 			// Get all team members for the organization directly from Supabase
-			const members = await apiGet(`/api/organizations/${org.data.id}/members`);
+			const { data: members, error: membersError } = await supabase
+				.from('user_organizations')
+				.select('*, profile:profiles(*)')
+				.eq('organization_id', org.id);
 
-			if (members.error) throw new HttpError('Failed to fetch team members', 500);
+			if (membersError) throw new HttpError('Failed to fetch team members', 500);
 
 			setTeamMembers(
-				members.data.map((member) => {
+				members.map((member) => {
 					let avatarUrl = '';
 					if (member.profile?.avatar) {
 						const { data: imageUrl } = supabase.storage
@@ -446,13 +504,30 @@ export default function OrganizationPage() {
 			);
 
 			// Get pending invitations for the organization
-			const invites = await apiGet(`/api/organizations/${org.data.id}/invites`);
+			const { data: invites, error: invitesError } = await supabase
+				.from('organization_invites')
+				.select(
+					`
+					id,
+					email,
+					role,
+					status,
+					created_at,
+					invited_by,
+					inviter:profiles(
+						first_name,
+						last_name
+					)
+				`
+				)
+				.eq('organization_id', org.id)
+				.eq('status', 'pending');
 
-			if (invites.error) {
-				console.error('Error fetching invitations:', invites.error);
+			if (invitesError) {
+				console.error('Error fetching invitations:', invitesError);
 			} else {
 				// Transform the data to match our interface
-				const transformedInvites: PendingInvitation[] = (invites.data || []).map(
+				const transformedInvites: PendingInvitation[] = (invites || []).map(
 					(invite: {
 						id: string;
 						email: string;
@@ -476,8 +551,8 @@ export default function OrganizationPage() {
 				setPendingInvitations(transformedInvites);
 			}
 
-			if (org.data.id) {
-				fetchSeatSummary(org.data.id);
+			if (org.id) {
+				fetchSeatSummary(org.id);
 			}
 		} catch (error) {
 			if (error instanceof HttpError) {
@@ -537,7 +612,7 @@ export default function OrganizationPage() {
 				return;
 			}
 
-			await apiPost('/api/organizations/invite', {
+			await api.post('/api/organizations/invite', {
 				email: inviteEmail,
 				role: inviteRole
 			});

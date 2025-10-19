@@ -15,7 +15,6 @@ import { HttpError } from '../../utils/error';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import SeamlessBillingFlow from '../../components/billing/SeamlessBillingFlow';
 import UpfrontBillingDisclaimer from '../../components/billing/UpfrontBillingDisclaimer';
-import { apiPost } from '../../utils/api';
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -128,8 +127,16 @@ const SubscriptionForm = ({
 		setErrorMessage(undefined);
 
 		try {
-			const response = await apiPost<{ clientSecret: string }>('/api/payments/create-intent', {
-				email: user?.email,
+			const response = await fetch('/api/payments/create-intent', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${session.access_token}`
+				},
+				body: JSON.stringify({
+					amount: 2000, // $20.00 in cents
+					currency: 'usd'
+				})
 			});
 
 			if (!response.ok) {

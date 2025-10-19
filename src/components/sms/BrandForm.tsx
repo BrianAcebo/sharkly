@@ -9,7 +9,6 @@ import { Tooltip } from '../ui/tooltip';
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
 import { BusinessType, Industry, Address, ComplianceContact } from '../../types/smsVerification';
-import { apiGet, apiPost } from '../../utils/api';
 
 interface BrandFormProps {
   orgId: string;
@@ -66,7 +65,12 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
         return;
       }
 
-      const response = await apiGet(`/api/sms/verification-status?orgId=${orgId}`);
+      const response = await fetch(`/api/sms/verification-status?orgId=${orgId}`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
 
       if (!response.ok) {
         // Brand data might not exist yet, which is fine
@@ -149,11 +153,17 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
         return;
       }
 
-      const payload = {
-        orgId,
-        ...brandForm
-      };
-      const response = await apiPost('/api/sms/save-brand', payload);
+      const response = await fetch('/api/sms/save-brand', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          orgId,
+          ...brandForm
+        })
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

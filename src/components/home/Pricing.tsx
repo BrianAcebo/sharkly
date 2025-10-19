@@ -5,7 +5,7 @@ import { Badge } from '../ui/badge';
 import { CheckCircle, Users, Clock, MessageSquare, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PlanCatalogRow } from '../../types/billing';
-import { apiGet } from '../../utils/api';
+import { api } from '../../utils/api';
 
 interface UsageRate {
 	voice?: {
@@ -57,10 +57,21 @@ const Pricing: React.FC = () => {
 		const fetchPricing = async () => {
 			try {
 				setLoading(true);
-				const [planData, rateData] = await Promise.all([
-					apiGet<PlanCatalogRow[]>('/api/billing/public/plans'),
-					apiGet<UsageRate>('/api/billing/public/usage-catalog'),
+				const [planResp, ratesResp] = await Promise.all([
+					api.get('/api/billing/public/plans'),
+					api.get('/api/billing/public/usage-catalog')
 				]);
+
+				if (!planResp.ok) {
+					throw new Error('Failed to load plans');
+				}
+				if (!ratesResp.ok) {
+					throw new Error('Failed to load usage rates');
+				}
+
+				const planData: PlanCatalogRow[] = await planResp.json();
+				const rateData: UsageRate = await ratesResp.json();
+
 				setPlans(planData);
 				setUsageRates(rateData);
 			} catch (error) {

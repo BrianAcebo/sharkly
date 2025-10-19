@@ -9,7 +9,7 @@ import { Badge } from '../components/ui/badge';
 import { CheckCircle, ArrowRight, ArrowLeft, Users, Clock, MessageSquare, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
-import { apiGet, apiPost } from '../utils/api';
+import { api } from '../utils/api';
 import PageMeta from '../components/common/PageMeta';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { 
@@ -56,9 +56,10 @@ const BillingOnboarding: React.FC = () => {
 
   const fetchPlans = async () => {
     try {
-      const response = await apiGet('/api/billing/plans');
-      if (response.plans) {
-        setPlans(response.plans);
+      const response = await fetch('/api/billing/plans');
+      const data = await response.json();
+      if (data.plans) {
+        setPlans(data.plans);
       }
     } catch (error) {
       console.error('Error fetching plans:', error);
@@ -122,10 +123,7 @@ const BillingOnboarding: React.FC = () => {
         address: Object.values(state.address).some(v => v) ? state.address : undefined
       };
 
-      const response = await apiPost('/api/billing/orgs/onboard', {
-        ...request,
-        email: user?.email,
-      });
+      const response = await api.post('/api/billing/orgs/onboard', request as unknown as Record<string, unknown>) as OrgOnboardResponse;
       
       if (response.ok) {
         setState(prev => ({ ...prev, success: true, loading: false }));
