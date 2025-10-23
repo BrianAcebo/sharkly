@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { Device, Call } from '@twilio/voice-sdk';
 import { WebRTCCallContext } from '../contexts/WebRTCCallContext';
 import { supabase } from '../utils/supabaseClient';
+import { api } from '../utils/api';
 import { NOTIFICATION_HELP_EVENT } from '../constants/events';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
 
@@ -226,13 +227,16 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 					throw new Error('No active session');
 				}
 
-				const r = await fetch(`/api/twilio/tokens/generate-token`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: `Bearer ${session.access_token}`
+				const r = await api.post(
+					`/api/twilio/tokens/generate-token`,
+					undefined,
+					{
+						headers: {
+							'Content-Type': 'application/json',
+							Authorization: `Bearer ${session.access_token}`
+						}
 					}
-				});
+				);
 
 				if (!r.ok) {
 					console.error('Token generation failed:', {

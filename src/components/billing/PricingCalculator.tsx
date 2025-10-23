@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calculator } from 'lucide-react';
 import { useOrganization } from '../../hooks/useOrganization';
 import { supabase } from '../../utils/supabaseClient';
+import { api } from '../../utils/api';
 
 interface VoiceCostBreakdown {
   serviceType: 'voice';
@@ -29,8 +30,8 @@ const PricingCalculator: React.FC = () => {
   const fetchVoicePrice = async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch('/api/billing/voice-price', {
-        headers: session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : undefined
+      const response = await api.get('/api/billing/voice-price', {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined
       });
       if (response.ok) {
         const data = await response.json();

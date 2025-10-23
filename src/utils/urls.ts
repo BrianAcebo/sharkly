@@ -17,18 +17,12 @@ export const getBaseUrl = (): string => {
 export const getApiUrl = (): string => {
 	if (typeof window !== 'undefined') {
 		const base = import.meta.env.VITE_API_BASE as string | undefined;
-		if (base) {
-			return base;
-		}
-		// Determine fallback based on current origin (dev vs prod)
-		const currentPort = window.location.port;
-		if (currentPort === '5173' || currentPort === '3000') {
-			return `${window.location.protocol}//${window.location.hostname}:3001`;
-		}
+		if (base) return base;
+		// Default to same-origin; in dev Vite proxies '/api' to target per vite.config
 		return window.location.origin;
 	}
 
-	return process.env.VITE_API_BASE || process.env.API_BASE_URL || 'http://localhost:3001';
+	return process.env.VITE_API_BASE || process.env.API_BASE_URL || 'http://localhost:3000';
 };
 
 // Build full URL for a given path

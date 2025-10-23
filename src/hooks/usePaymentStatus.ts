@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './useAuth';
 import { useToast } from './useToast';
+import { api } from '../utils/api';
 import {
   fetchWalletStatus,
   createWalletTopupIntent,
@@ -58,9 +59,9 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`/api/organizations/${user.organization_id}/payment-status`, {
+      const response = await api.get(`/api/organizations/${user.organization_id}/payment-status`, {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -84,7 +85,7 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
           accessToken: session.access_token
         });
         setAutoRecharge(settings);
-      } catch (e) {
+      } catch {
         // ignore wallet status error
       }
 
@@ -120,9 +121,9 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`/api/organizations/${user.organization_id}/resume-eligibility`, {
+      const response = await api.get(`/api/organizations/${user.organization_id}/resume-eligibility`, {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -242,14 +243,16 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
         throw new Error('Not authenticated');
       }
 
-      const resp = await fetch(`/api/organizations/${user.organization_id}/wallet`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ top_up_amount_cents: amountCents })
-      });
+      const resp = await api.put(
+        `/api/organizations/${user.organization_id}/wallet`,
+        { top_up_amount_cents: amountCents },
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
@@ -275,14 +278,16 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
         throw new Error('Not authenticated');
       }
 
-      const resp = await fetch(`/api/organizations/${user.organization_id}/wallet`, {
-        method: 'PUT',
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ threshold_cents: thresholdCents })
-      });
+      const resp = await api.put(
+        `/api/organizations/${user.organization_id}/wallet`,
+        { threshold_cents: thresholdCents },
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));

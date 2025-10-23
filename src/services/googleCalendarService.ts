@@ -1,4 +1,5 @@
 import { supabase } from '../utils/supabaseClient';
+import { api } from '../utils/api';
 
 export interface GoogleCalendarEvent {
 	id: string;
@@ -92,15 +93,11 @@ class GoogleCalendarService {
 		try {
 			if (!this.refreshToken) throw new Error('No refresh token available');
 
-			const response = await fetch('/api/google/refresh-token', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					refresh_token: this.refreshToken,
-				}),
-			});
+			const response = await api.post(
+				'/api/google/refresh-token',
+				{ refresh_token: this.refreshToken },
+				{ headers: { 'Content-Type': 'application/json' } }
+			);
 
 			if (!response.ok) throw new Error('Failed to refresh token');
 

@@ -127,17 +127,16 @@ const SubscriptionForm = ({
 		setErrorMessage(undefined);
 
 		try {
-			const response = await fetch('/api/payments/create-intent', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${session.access_token}`
-				},
-				body: JSON.stringify({
-					amount: 2000, // $20.00 in cents
-					currency: 'usd'
-				})
-			});
+            const response = await api.post(
+                '/api/payments/create-intent',
+                { amount: 2000, currency: 'usd' },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${session.access_token}`
+                    }
+                }
+            );
 
 			if (!response.ok) {
 				throw new HttpError(response.statusText, response.status);

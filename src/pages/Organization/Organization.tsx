@@ -152,10 +152,10 @@ export default function OrganizationPage() {
 			} = await supabase.auth.getSession();
 			if (!session?.access_token) return;
 
-			const response = await fetch(`/api/sms/verification-status?orgId=${user.organization_id}`, {
+            const response = await api.get(`/api/sms/verification-status?orgId=${user.organization_id}`, {
 				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
 				}
 			});
 
@@ -183,10 +183,10 @@ export default function OrganizationPage() {
 				return null;
 			}
 
-			const response = await fetch(`/api/organizations/${orgId}/seats`, {
+            const response = await api.get(`/api/organizations/${orgId}/seats`, {
 				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
 				}
 			});
 
@@ -225,14 +225,12 @@ export default function OrganizationPage() {
 
 			setIsSeatActionLoading(true);
 
-			const response = await fetch(path, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify(payload)
-			});
+            const response = await api.post(path, payload, {
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
 
 			if (!response.ok) {
 				const err = await response.json().catch(() => ({}));

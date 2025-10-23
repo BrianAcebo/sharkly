@@ -1,4 +1,5 @@
 import { supabase } from '../utils/supabaseClient';
+import { api } from '../utils/api';
 import { Lead, CreateLeadData, UpdateLeadData, TeamMember } from '../types/leads';
 import { TEAM_MEMBER_ROLES } from '../utils/constants';
 import { parseSupabaseError } from '../utils/error';
@@ -458,17 +459,11 @@ export async function emailLeadsExport(
     }
 
     // Call the API endpoint
-    const response = await fetch('/api/leads/export-email', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      },
-      body: JSON.stringify({
-        email,
-        filters
-      })
-    });
+    const response = await api.post(
+      '/api/leads/export-email',
+      { email, filters },
+      { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` } }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();

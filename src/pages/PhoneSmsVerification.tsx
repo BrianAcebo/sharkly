@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { supabase } from '../utils/supabaseClient';
+import { api } from '../utils/api';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -47,9 +48,9 @@ const PhoneSmsVerification: React.FC = () => {
         return;
       }
 
-      const response = await fetch(`/api/sms/verification-status?orgId=${user.organization_id}`, {
+      const response = await api.get(`/api/sms/verification-status?orgId=${user.organization_id}`, {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -83,14 +84,16 @@ const PhoneSmsVerification: React.FC = () => {
         return;
       }
 
-      const response = await fetch('/api/sms/refresh-status', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ orgId: user.organization_id })
-      });
+      const response = await api.post(
+        '/api/sms/refresh-status',
+        { orgId: user.organization_id },
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to refresh status');

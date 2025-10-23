@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { supabase } from '../../utils/supabaseClient';
+import { api } from '../../utils/api';
 import { toast } from 'sonner';
 import { useWebRTCCall } from '../../hooks/useWebRTCCall';
 
@@ -394,18 +395,20 @@ const Chat: React.FC = () => {
 				leadId = contactLeadData.id;
 			}
 
-			const response = await fetch('/api/sms/send', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${session.access_token}`
-				},
-				body: JSON.stringify({
-					to: selectedContact.phone_number,
-					body: newMessage.trim(),
-					lead_id: leadId
-				})
-			});
+      const response = await api.post(
+        '/api/sms/send',
+        {
+          to: selectedContact.phone_number,
+          body: newMessage.trim(),
+          lead_id: leadId
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`
+          }
+        }
+      );
 
 			if (!response.ok) {
 				const errorData = await response.json();
@@ -435,18 +438,20 @@ const Chat: React.FC = () => {
 				throw new Error('No active session');
 			}
 
-			const response = await fetch('/api/sms/send', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${session.access_token}`
-				},
-				body: JSON.stringify({
-					to: message.to_number,
-					body: message.body,
-					lead_id: message.lead_id
-				})
-			});
+      const response = await api.post(
+        '/api/sms/send',
+        {
+          to: message.to_number,
+          body: message.body,
+          lead_id: message.lead_id
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`
+          }
+        }
+      );
 
 			if (!response.ok) {
 				const errorData = await response.json();
@@ -491,18 +496,20 @@ const Chat: React.FC = () => {
 				leadId = messageLeadData.id;
 			}
 
-			const response = await fetch('/api/sms/send', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${session.access_token}`
-				},
-				body: JSON.stringify({
-					to: newMessagePhone,
-					body: newMessageBody.trim(),
-					lead_id: leadId
-				})
-			});
+      const response = await api.post(
+        '/api/sms/send',
+        {
+          to: newMessagePhone,
+          body: newMessageBody.trim(),
+          lead_id: leadId
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`
+          }
+        }
+      );
 
 			if (!response.ok) {
 				const errorData = await response.json();

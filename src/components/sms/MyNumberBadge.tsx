@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, Loader2 } from 'lucide-react';
 import { supabase } from '../../utils/supabaseClient';
+import { api } from '../../utils/api';
 
 interface MyNumberBadgeProps {
   onNumberChange?: (phoneNumber: string) => void;
@@ -33,9 +34,9 @@ const MyNumberBadge: React.FC<MyNumberBadgeProps> = ({ onNumberChange, className
         throw new Error('No active session');
       }
 
-      const response = await fetch('/me/number', {
+      const response = await api.get('/me/number', {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`
+          Authorization: `Bearer ${session.access_token}`
         }
       });
       
