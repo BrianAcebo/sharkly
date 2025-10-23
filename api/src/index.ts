@@ -25,10 +25,11 @@ dotenv.config();
 const app = express();
 const isFly = Boolean(process.env.FLY_APP_NAME);
 const PORT = Number(process.env.PORT ?? 3000);
+const allowedOrigins = ['http://localhost:5173', 'https://paperboatcrm.com', 'https://www.paperboatcrm.com'];
 
 // CORS: allow local dev + production domains via env
 app.use(cors({
-  origin: (process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:5173']),
+  origin: allowedOrigins,
   credentials: true
 }));
 
