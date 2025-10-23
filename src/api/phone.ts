@@ -1,5 +1,7 @@
+import { api } from '../utils/api';
+
 export const fetchPhoneNumbers = async (orgId: string) => {
-  const response = await fetch(`/api/twilio/phone/organizations/${orgId}/phone-numbers`);
+  const response = await api.get(`/api/twilio/phone/organizations/${orgId}/phone-numbers`);
   if (!response.ok) {
     throw new Error('Failed to fetch phone numbers');
   }
@@ -7,11 +9,7 @@ export const fetchPhoneNumbers = async (orgId: string) => {
 };
 
 export const purchasePhoneNumber = async (orgId: string, payload: Record<string, unknown>) => {
-  const response = await fetch(`/api/twilio/phone/organizations/${orgId}/phone-numbers`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  const response = await api.post(`/api/twilio/phone/organizations/${orgId}/phone-numbers`, payload);
   if (!response.ok) {
     throw new Error('Failed to purchase phone number');
   }
@@ -19,11 +17,10 @@ export const purchasePhoneNumber = async (orgId: string, payload: Record<string,
 };
 
 export const assignPhoneNumber = async (orgId: string, phoneNumberId: string, payload: Record<string, unknown>) => {
-  const response = await fetch(`/api/twilio/phone/organizations/${orgId}/phone-numbers/${phoneNumberId}/assign`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
+  const response = await api.post(
+    `/api/twilio/phone/organizations/${orgId}/phone-numbers/${phoneNumberId}/assign`,
+    payload
+  );
   if (!response.ok) {
     throw new Error('Failed to assign phone number');
   }
@@ -31,10 +28,10 @@ export const assignPhoneNumber = async (orgId: string, phoneNumberId: string, pa
 };
 
 export const releasePhoneNumber = async (orgId: string, phoneNumberId: string) => {
-  const response = await fetch(`/api/twilio/phone/organizations/${orgId}/phone-numbers/${phoneNumberId}/release`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' }
-  });
+  const response = await api.post(
+    `/api/twilio/phone/organizations/${orgId}/phone-numbers/${phoneNumberId}/release`,
+    {}
+  );
   if (!response.ok) {
     throw new Error('Failed to release phone number');
   }
