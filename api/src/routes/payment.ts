@@ -11,4 +11,4 @@ router.post('/create-setup-intent', requireAuth, createSetupIntent);
 // Webhook route doesn't need authentication as it's called by Stripe
 router.post('/webhook', express.raw({ type: 'application/json' }), handleWebhook);
 
-export const paymentRoutes = router;
+export default router;

@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-import { paymentRoutes } from './routes/payment';
+import paymentRoutes from './routes/payment';
 import organizationRoutes from './routes/organization';
 import leadsRoutes from './routes/leads';
 import sendSmsRoutes from './routes/twilio/sendSms';
