@@ -54,8 +54,14 @@ const OrganizationAnalytics: React.FC<Props> = ({ orgId }) => {
             try {
                 setLoading(true);
                 setError(null);
-                const res = await api.get<AnalyticsResponse>(`/api/billing/voice-analytics/${orgId}`);
-                if (!cancelled) setData(res);
+                const res = await api.get(`/api/billing/voice-analytics/${orgId}`);
+                if (!cancelled) {
+                    if (!res.ok) {
+                        throw new Error('Failed to load analytics');
+                    }
+                    const json = (await res.json()) as AnalyticsResponse;
+                    setData(json);
+                }
             } catch {
                 if (!cancelled) setError('Failed to load analytics');
             } finally {

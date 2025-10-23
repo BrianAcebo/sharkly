@@ -3,6 +3,7 @@ import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { useOrganization } from '../hooks/useOrganization';
 import { useTrial } from '../hooks/useTrial';
 import { supabase } from '../utils/supabaseClient';
+import { api } from '../utils/api';
 import { toast } from 'sonner';
 import {
 	DollarSign,
@@ -247,12 +248,12 @@ const Billing: React.FC = () => {
 			if (startingAfter) query.append('starting_after', startingAfter);
 			if (endingBefore) query.append('ending_before', endingBefore);
 
-			const response = await fetch(`/api/billing/invoices?${query.toString()}`, {
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				}
-			});
+            const response = await api.get(`/api/billing/invoices?${query.toString()}`, {
+                headers: {
+                    Authorization: `Bearer ${session.access_token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
 
 			if (!response.ok) {
 				throw new Error('Failed to fetch invoices');

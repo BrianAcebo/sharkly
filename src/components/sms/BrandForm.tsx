@@ -8,6 +8,7 @@ import { AlertCircle, Info, Building2 } from 'lucide-react';
 import { Tooltip } from '../ui/tooltip';
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
+import { api } from '../../utils/api';
 import { BusinessType, Industry, Address, ComplianceContact } from '../../types/smsVerification';
 
 interface BrandFormProps {
@@ -65,9 +66,9 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
         return;
       }
 
-      const response = await fetch(`/api/sms/verification-status?orgId=${orgId}`, {
+      const response = await api.get(`/api/sms/verification-status?orgId=${orgId}`, {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -153,17 +154,19 @@ const BrandForm: React.FC<BrandFormProps> = ({ orgId, onSave, userRole }) => {
         return;
       }
 
-      const response = await fetch('/api/sms/save-brand', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const response = await api.post(
+        '/api/sms/save-brand',
+        {
           orgId,
           ...brandForm
-        })
-      });
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();

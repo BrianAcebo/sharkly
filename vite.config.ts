@@ -25,7 +25,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3000',
         changeOrigin: true
       }
     }
@@ -33,7 +33,7 @@ export default defineConfig({
   preview: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3000',
         changeOrigin: true
       }
     }

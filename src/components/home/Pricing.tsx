@@ -5,6 +5,7 @@ import { Badge } from '../ui/badge';
 import { CheckCircle, Users, Clock, MessageSquare, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PlanCatalogRow } from '../../types/billing';
+import { api } from '../../utils/api';
 
 interface UsageRate {
 	voice?: {
@@ -57,8 +58,8 @@ const Pricing: React.FC = () => {
 			try {
 				setLoading(true);
 				const [planResp, ratesResp] = await Promise.all([
-					fetch('/api/billing/public/plans'),
-					fetch('/api/billing/public/usage-catalog')
+					api.get('/api/billing/public/plans'),
+					api.get('/api/billing/public/usage-catalog')
 				]);
 
 				if (!planResp.ok) {

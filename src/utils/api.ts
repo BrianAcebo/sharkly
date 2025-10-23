@@ -1,81 +1,36 @@
-import { supabase } from './supabaseClient';
 import { buildApiUrl } from './urls';
 
-export class ApiError extends Error {
-	status: number;
-
-	constructor(message: string, status: number) {
-		super(message);
-		this.status = status;
-		this.name = 'ApiError';
-	}
-}
-
-type RequestData = Record<string, unknown>;
-
 export const api = {
-	async request<T>(
-		endpoint: string,
-		options: {
-			method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-			data?: unknown;
-			organizationId?: string;
-		} = {}
-	): Promise<T> {
-		try {
-			// Get the current session
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
+  request(endpoint: string, options: RequestInit & { data?: unknown } = {}): Promise<Response> {
+    const { data, ...init } = options;
 
-			if (!session) {
-				throw new ApiError('Not authenticated', 401);
-			}
+    if (data !== undefined && init.body === undefined) {
+      const isString = typeof data === 'string';
+      init.body = isString ? (data as string) : JSON.stringify(data);
 
-			const { method = 'GET', data, organizationId } = options;
+      const headers = new Headers(init.headers ?? {});
+      if (!headers.has('Content-Type')) {
+        headers.set('Content-Type', isString ? 'text/plain' : 'application/json');
+      }
+      init.headers = headers;
+    }
 
-			// Prepare the request body
-			const body = data !== undefined
-				? (typeof data === 'object' && data !== null
-					? { ...(data as Record<string, unknown>), organization: organizationId ? { id: organizationId } : undefined }
-					: data)
-				: undefined;
+    return fetch(buildApiUrl(endpoint), init);
+  },
 
-			const fullUrl = buildApiUrl(endpoint);
+  get(endpoint: string, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
+    return this.request(endpoint, { ...(options ?? {}), method: 'GET' });
+  },
 
-			const response = await fetch(fullUrl, {
-				method,
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				},
-				body: body ? JSON.stringify(body) : undefined
-			});
+  post(endpoint: string, data?: unknown, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
+    return this.request(endpoint, { ...(options ?? {}), method: 'POST', data });
+  },
 
-			try {
-				return await response.json();
-			} catch (parseError) {
-				throw new Error('Invalid JSON response');
-			}
-		} catch (error) {
-			throw error;
-		}
-	},
+  put(endpoint: string, data?: unknown, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
+    return this.request(endpoint, { ...(options ?? {}), method: 'PUT', data });
+  },
 
-	// Convenience methods
-	async get<T>(endpoint: string, organizationId?: string): Promise<T> {
-		return this.request<T>(endpoint, { method: 'GET', organizationId });
-	},
-
-	async post<T>(endpoint: string, data: RequestData, organizationId?: string): Promise<T> {
-		return this.request<T>(endpoint, { method: 'POST', data, organizationId });
-	},
-
-	async put<T>(endpoint: string, data: RequestData, organizationId?: string): Promise<T> {
-		return this.request<T>(endpoint, { method: 'PUT', data, organizationId });
-	},
-
-	async delete<T>(endpoint: string, organizationId?: string): Promise<T> {
-		return this.request<T>(endpoint, { method: 'DELETE', organizationId });
-	}
+  delete(endpoint: string, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
+    return this.request(endpoint, { ...(options ?? {}), method: 'DELETE' });
+  }
 };

@@ -1,6 +1,6 @@
 // Test Stripe webhook with raw body
 const testStripeWebhook = async () => {
-  const webhookUrl = 'http://localhost:3001/api/billing/stripe/webhook';
+  const webhookUrl = 'http://localhost:3000/api/billing/stripe/webhook';
   
   // Test subscription created event with raw body
   const subscriptionCreatedEvent = {

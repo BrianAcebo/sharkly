@@ -1,5 +1,5 @@
 {
-  "name": "vite-react-typescript-starter",
+  "name": "Paperboat CRM",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -8,13 +8,27 @@
     "dev:frontend": "vite",
     "dev:server": "tsx watch api/src/index.ts",
     "dev:ngrok": "node scripts/ngrok-serve.mjs",
-    "build": "tsc -b && vite build",
-    "start": "concurrently \"npm run start:frontend\" \"npm run start:server\"",
+
+    "// note": "---- API build/run (for Fly & local preview) ----",
+    "api:watch": "tsc -p api/tsconfig.json -w",
+    "api:start": "node server-dist/index.js",
+
+    "// note2": "---- Full build: Vite + API (outputs server-dist/) ----",
+    "build": "tsc -b && vite build && tsc -p api/tsconfig.json",
+    "build:api": "tsc -p api/tsconfig.json",
+
+    "// note3": "---- Local preview of built artifacts ----",
+    "start": "concurrently -n web,api -c green,cyan \"npm run start:frontend\" \"npm run start:server\"",
     "start:frontend": "vite preview",
-    "start:server": "tsx watch api/src/index.ts",
-    "stop": "tsx scripts/stop-dev.ts 3001",
+    "start:server": "node server-dist/index.js",
+
+    "// note4": "---- Utilities ----",
+    "stop": "tsx scripts/stop-dev.ts 3000",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+
+    "// note5": "---- Optional: one-liner to deploy API on Fly ----",
+    "fly:deploy": "fly deploy"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

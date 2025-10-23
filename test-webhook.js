@@ -2,7 +2,7 @@
 // Run with: node test-webhook.js
 
 const testWebhook = async () => {
-  const webhookUrl = 'http://localhost:3001/api/billing/stripe/webhook';
+  const webhookUrl = 'http://localhost:3000/api/billing/stripe/webhook';
   
   // Test subscription created event
   const subscriptionCreatedEvent = {
@@ -42,7 +42,7 @@ const testWebhook = async () => {
 
 // Test invoice upcoming event
 const testInvoiceUpcoming = async () => {
-  const webhookUrl = 'http://localhost:3001/api/billing/stripe/webhook';
+  const webhookUrl = 'http://localhost:3000/api/billing/stripe/webhook';
   
   const invoiceUpcomingEvent = {
     id: 'evt_test_invoice_upcoming',

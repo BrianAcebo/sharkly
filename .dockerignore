@@ -4,3 +4,9 @@
 .env
 Dockerfile
 fly.toml
+node_modules
+server-dist
+.git
+.gitignore
+.vscode
+.DS_Store

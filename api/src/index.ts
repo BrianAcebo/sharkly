@@ -1,68 +1,43 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import serverless from 'serverless-http';
 
 import { paymentRoutes } from './routes/payment';
 import organizationRoutes from './routes/organization';
 import leadsRoutes from './routes/leads';
-import { HttpError } from './error/httpError';
-
-// Twilio SMS routes
 import sendSmsRoutes from './routes/twilio/sendSms';
 import inboundWebhookRoutes from './routes/twilio/inbound';
 import statusWebhookRoutes from './routes/twilio/status';
-
-// Twilio Voice routes
 import callRoutes from './routes/twilio/calls';
 import voiceWebhookRoutes from './routes/twilio/voice';
-
-// Twilio Client routes for WebRTC
 import clientTokenRoutes from './routes/twilio/clientTokens';
-
-// Billing routes
 import billingRoutes from './routes/billing';
 import billingOnboardingRoutes from './routes/billingOnboarding';
 import twilioPhoneRoutes from './routes/twilioPhone';
-
-// Organization status routes
 import organizationStatusRoutes from './routes/organizationStatus';
-
-// SMS Verification routes
 import smsVerificationRoutes from './routes/smsVerification';
-
-// Trial Status routes
 import trialStatusRoutes from './routes/trialStatus';
-
-// Subscription Status routes
 import subscriptionStatusRoutes from './routes/subscriptionStatus';
-
-// Payment Status routes
 import paymentStatusRoutes from './routes/paymentStatus';
 
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT || 3001);
+
+// CORS: allow local dev + production domains via env
+app.use(cors({
+  origin: (process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:5173']),
+  credentials: true
+}));
+
+// Webhooks BEFORE JSON parsing (replace stubs with real handlers if needed)
+app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (_req, res) => res.sendStatus(200));
+app.post('/api/payments/webhook',       express.raw({ type: '*/*' }), (_req, res) => res.sendStatus(200));
 
 app.use(express.urlencoded({ extended: false }));
-
-app.use((req, _res, next) => {
-  console.log('[hit]', req.method, req.originalUrl);
-  next();
-});
-
-// CORS
-app.use(cors({ origin: true, credentials: true }));
-
-/** Webhooks BEFORE json() (if you really need raw body, wire the real handlers here) */
-app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (_req, res) => res.sendStatus(200));
-app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (_req, res) => res.sendStatus(200));
-
-// JSON for everything else
 app.use(express.json());
 
-/** Your routes (UNCHANGED — keep the /api/... mounts) */
 app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/leads', leadsRoutes);
@@ -85,18 +60,19 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  if (err instanceof HttpError) {
-    const { message, statusCode } = err as any;
-    console.error(`Error ${statusCode}: ${message}`);
-    return res.status(statusCode).json({ error: { message } });
+  const e = err as any;
+  if (typeof e?.statusCode === 'number') {
+    return res.status(e.statusCode).json({ error: { message: e.message } });
   }
-  console.error('Unexpected error:', err);
-  return res.status(500).json({ error: { message: 'Internal server error' } });
+  console.error(err);
+  res.status(500).json({ error: { message: 'Internal server error' } });
 });
 
-// Local only; Vercel uses the serverless handler
-if (!process.env.VERCEL) {
-  app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
-}
+// ==== Listener: local vs Fly ====
+const isFly = !!process.env.FLY_APP_NAME;
+const LISTEN_PORT = isFly ? PORT : 3000;           // local = 3000
+const LISTEN_HOST = isFly ? '0.0.0.0' : 'localhost';
 
-export default serverless(app);
+app.listen(LISTEN_PORT, LISTEN_HOST, () => {
+  console.log(`API listening on http://${LISTEN_HOST}:${LISTEN_PORT}`);
+});

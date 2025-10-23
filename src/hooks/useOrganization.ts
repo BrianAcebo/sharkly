@@ -59,9 +59,9 @@ export function useOrganization() {
         return;
       }
 
-      const response = await fetch(`/api/subscription/${user.organization_id}`, {
+      const response = await api.get(`/api/subscription/${user.organization_id}`, {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
         }
       });
@@ -115,8 +115,12 @@ export function useOrganization() {
       setOrganization(orgData);
 
       try {
-        const seatResponse = await api.get<SeatSummaryResponse>(`/api/organizations/${data.organization.id}/seats`);
-        setSeatSummary(seatResponse.summary);
+        const seatResp = await api.get(`/api/organizations/${data.organization.id}/seats`);
+        if (!seatResp.ok) {
+          throw new Error('Failed to load seat summary');
+        }
+        const seatData: SeatSummaryResponse = await seatResp.json();
+        setSeatSummary(seatData.summary);
       } catch (seatError) {
         console.error('Failed to load seat summary', seatError);
         setSeatSummary(null);

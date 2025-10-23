@@ -56,7 +56,7 @@ const BillingOnboarding: React.FC = () => {
 
   const fetchPlans = async () => {
     try {
-      const response = await fetch('/api/billing/plans');
+      const response = await api.get('/api/billing/plans');
       const data = await response.json();
       if (data.plans) {
         setPlans(data.plans);
@@ -123,14 +123,17 @@ const BillingOnboarding: React.FC = () => {
         address: Object.values(state.address).some(v => v) ? state.address : undefined
       };
 
-      const response = await api.post('/api/billing/orgs/onboard', request as unknown as Record<string, unknown>) as OrgOnboardResponse;
-      
-      if (response.ok) {
-        setState(prev => ({ ...prev, success: true, loading: false }));
-        toast.success('Billing setup completed successfully!');
-      } else {
-        throw new Error((response as any).error || 'Failed to setup billing');
+      const resp = await api.post('/api/billing/orgs/onboard', request as unknown as Record<string, unknown>);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error((err as { error?: string; message?: string }).error || (err as { message?: string }).message || 'Failed to setup billing');
       }
+      const data = (await resp.json()) as OrgOnboardResponse;
+      if ((data as unknown as { error?: string }).error) {
+        throw new Error((data as unknown as { error?: string }).error || 'Failed to setup billing');
+      }
+      setState(prev => ({ ...prev, success: true, loading: false }));
+      toast.success('Billing setup completed successfully!');
     } catch (error) {
       console.error('Error setting up billing:', error);
       setState(prev => ({ 

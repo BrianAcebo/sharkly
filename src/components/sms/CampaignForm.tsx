@@ -8,6 +8,7 @@ import { Checkbox } from '../ui/checkbox';
 import { AlertCircle, Info, MessageSquare, Send, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
+import { api } from '../../utils/api';
 import { OptInMethod } from '../../types/smsVerification';
 
 interface CampaignFormProps {
@@ -133,17 +134,19 @@ const CampaignForm: React.FC<CampaignFormProps> = ({ orgId, onSave, onSubmit10DL
         return;
       }
 
-      const response = await fetch('/api/sms/save-campaign', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      const response = await api.post(
+        '/api/sms/save-campaign',
+        {
           orgId,
           ...formData
-        })
-      });
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -187,14 +190,16 @@ const CampaignForm: React.FC<CampaignFormProps> = ({ orgId, onSave, onSubmit10DL
         return;
       }
 
-      const response = await fetch('/api/sms/submit-10dlc', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ orgId })
-      });
+      const response = await api.post(
+        '/api/sms/submit-10dlc',
+        { orgId },
+        {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json();

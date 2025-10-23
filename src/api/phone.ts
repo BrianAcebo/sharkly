@@ -1,31 +1,44 @@
-import { api } from '../utils/api';
-import type {
-	PhoneNumberListResponse,
-	PhoneNumberPurchaseRequest,
-	PhoneNumberAssignRequest,
-	PhoneNumberRecord
-} from '../types/phone';
-
 export const fetchPhoneNumbers = async (orgId: string) => {
-    return api.get<PhoneNumberListResponse>(`/api/twilio/organizations/${orgId}/phone-numbers`);
+  const response = await fetch(`/api/twilio/phone/organizations/${orgId}/phone-numbers`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch phone numbers');
+  }
+  return response.json();
 };
 
-export const purchasePhoneNumber = async (orgId: string, payload: PhoneNumberPurchaseRequest) => {
-    return api.post<{ number: PhoneNumberRecord }>(`/api/twilio/organizations/${orgId}/phone-numbers`, payload as unknown as Record<string, unknown>);
+export const purchasePhoneNumber = async (orgId: string, payload: Record<string, unknown>) => {
+  const response = await fetch(`/api/twilio/phone/organizations/${orgId}/phone-numbers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error('Failed to purchase phone number');
+  }
+  return response.json();
 };
 
-export const assignPhoneNumber = async (orgId: string, phoneNumberId: string, payload: PhoneNumberAssignRequest) => {
-    return api.post<{ number: PhoneNumberRecord }>(
-        `/api/twilio/organizations/${orgId}/phone-numbers/${phoneNumberId}/assign`,
-        payload as unknown as Record<string, unknown>
-    );
+export const assignPhoneNumber = async (orgId: string, phoneNumberId: string, payload: Record<string, unknown>) => {
+  const response = await fetch(`/api/twilio/phone/organizations/${orgId}/phone-numbers/${phoneNumberId}/assign`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    throw new Error('Failed to assign phone number');
+  }
+  return response.json();
 };
 
 export const releasePhoneNumber = async (orgId: string, phoneNumberId: string) => {
-    return api.post<{ ok: boolean }>(
-        `/api/twilio/organizations/${orgId}/phone-numbers/${phoneNumberId}/release`,
-		{}
-	);
+  const response = await fetch(`/api/twilio/phone/organizations/${orgId}/phone-numbers/${phoneNumberId}/release`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' }
+  });
+  if (!response.ok) {
+    throw new Error('Failed to release phone number');
+  }
+  return response.json();
 };
 
 

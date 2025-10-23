@@ -22,6 +22,7 @@ import { SiVisa, SiMastercard, SiAmericanexpress, SiDiscover, SiDinersclub, SiJc
 import BrandForm from '../sms/BrandForm';
 import CampaignForm from '../sms/CampaignForm';
 import TollFreeForm from '../sms/TollFreeForm';
+import { api } from '../../utils/api';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 
@@ -111,10 +112,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       if (!session?.access_token) { onError('Not authenticated'); return; }
 
       const onboard = async (opts: { pmId?: string; useExisting?: boolean }) => {
-        const resp = await fetch('/api/billing/orgs/onboard', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-          body: JSON.stringify({
+        const resp = await api.post(
+          '/api/billing/orgs/onboard',
+          {
             orgId: existingOrgId ?? undefined,
             name: orgName,
             planCode: selectedPlan.plan_code,
@@ -124,8 +124,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
             paymentMethodId: opts.pmId,
             // Only allow using an existing default payment method when explicitly chosen by the user
             useExistingPaymentMethod: Boolean(opts.useExisting)
-          })
-        });
+          },
+          { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` } }
+        );
         if (!resp.ok) {
           const err = await resp.json().catch(() => ({}));
           throw new Error(err.error || err.message || 'Failed to create organization');
@@ -222,13 +223,9 @@ const ExistingPaymentMethodForm: React.FC<ExistingPaymentMethodFormProps> = ({
         return;
       }
 
-      const response = await fetch('/api/billing/orgs/onboard', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
+      const response = await api.post(
+        '/api/billing/orgs/onboard',
+        {
           orgId: existingOrgId ?? undefined,
           name: orgName,
           planCode: selectedPlan.plan_code,
@@ -246,8 +243,14 @@ const ExistingPaymentMethodForm: React.FC<ExistingPaymentMethodFormProps> = ({
           },
           useExistingPaymentMethod: true,
           paymentMethodId: selectedPaymentMethodId || savedPaymentMethod.id
-        })
-      });
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`
+          }
+        }
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -415,7 +418,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
         return;
       }
 
-      const response = await fetch('/api/billing/plans', {
+      const response = await api.get('/api/billing/plans', {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
           'Content-Type': 'application/json'
@@ -450,7 +453,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       }
 
       const params = new URLSearchParams({ orgId });
-      const response = await fetch(`/api/billing/orgs/payment-methods/default?${params.toString()}`, {
+      const response = await api.get(`/api/billing/orgs/payment-methods/default?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`
         }
@@ -489,7 +492,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       } = await supabase.auth.getSession();
       if (!session?.access_token) return;
       const params = new URLSearchParams({ orgId });
-      const res = await fetch(`/api/billing/orgs/payment-methods?${params.toString()}`, {
+      const res = await api.get(`/api/billing/orgs/payment-methods?${params.toString()}`, {
         headers: { Authorization: `Bearer ${session.access_token}` }
       });
       if (!res.ok) return;
@@ -515,13 +518,9 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
     // Ensure we have a Stripe customerId for this org (recover/create if missing)
     let customerId = existingOrganization?.stripe_customer_id || null;
     if (!customerId && existingOrganization?.id && selectedPlan) {
-      const ensureResp = await fetch('/api/billing/orgs/onboard', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
+      const ensureResp = await api.post(
+        '/api/billing/orgs/onboard',
+        {
           orgId: existingOrganization.id,
           name: orgName,
           planCode: selectedPlan.plan_code,
@@ -529,8 +528,14 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
           tz: 'America/New_York',
           address: { street: '', city: '', state: '', zip: '', country: 'US' },
           useExistingPaymentMethod: false
-        })
-      });
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`
+          }
+        }
+      );
       if (ensureResp.ok) {
         const data = await ensureResp.json();
         customerId = data?.org?.stripe_customer_id || null;
@@ -541,14 +546,16 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       }
     }
 
-    const response = await fetch('/api/payments/create-setup-intent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`
-      },
-      body: JSON.stringify({ customerId: customerId || undefined })
-    });
+    const response = await api.post(
+      '/api/payments/create-setup-intent',
+      { customerId: customerId || undefined },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`
+        }
+      }
+    );
     if (!response.ok) {
       throw new Error('Failed to create setup intent');
     }
@@ -606,17 +613,17 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
           // New org: create pending org + subscription first to get PaymentIntent client secret
           const { data: { session } } = await supabase.auth.getSession();
           if (!session?.access_token) throw new Error('Not authenticated');
-          const resp = await fetch('/api/billing/orgs/onboard', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-            body: JSON.stringify({
+          const resp = await api.post(
+            '/api/billing/orgs/onboard',
+            {
               name: orgName,
               planCode: selectedPlan.plan_code,
               trialDays: trialSelected ? 7 : 0,
               tz: 'America/New_York',
               address: { street: '', city: '', state: '', zip: '', country: 'US' }
-            })
-          });
+            },
+            { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` } }
+          );
           if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
             throw new Error(err.error || 'Failed to start subscription');
@@ -820,11 +827,11 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                   try {
                     const { data: { session } } = await supabase.auth.getSession();
                     if (!session?.access_token) throw new Error('Not authenticated');
-                    const resp = await fetch('/api/billing/orgs/provision', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-                      body: JSON.stringify({ orgId, areaCode })
-                    });
+                    const resp = await api.post(
+                      '/api/billing/orgs/provision',
+                      { orgId, areaCode },
+                      { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` } }
+                    );
                     if (resp.status === 409) {
                       // payment pending
                       throw new Error('Payment not confirmed yet. Please wait a moment and try again.');

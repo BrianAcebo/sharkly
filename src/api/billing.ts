@@ -1,4 +1,5 @@
 import type { CustomerPaymentMethodSummary } from '../types/billing';
+import { api } from '../utils/api';
 
 export interface WalletStatusResponse {
   wallet: {
@@ -26,7 +27,7 @@ const jsonHeaders = (accessToken: string) => ({
 
 export async function fetchWalletStatus(params: { organizationId: string; accessToken: string }): Promise<WalletStatusResponse> {
   const { organizationId, accessToken } = params;
-  const resp = await fetch(`/api/billing/wallet/status?orgId=${encodeURIComponent(organizationId)}`, {
+  const resp = await api.get(`/api/billing/wallet/status?orgId=${encodeURIComponent(organizationId)}`, {
     headers: jsonHeaders(accessToken)
   });
   if (!resp.ok) {
@@ -58,16 +59,18 @@ export async function createWalletTopupIntent(params: {
     purpose,
     metadata
   } = params;
-  const resp = await fetch(`/api/billing/wallet/topup/${encodeURIComponent(organizationId)}/intent`, {
-    method: 'POST',
-    headers: jsonHeaders(accessToken),
-    body: JSON.stringify({
+  const resp = await api.post(
+    `/api/billing/wallet/topup/${encodeURIComponent(organizationId)}/intent`,
+    {
       amount_cents: amountCents,
       auto_confirm: autoConfirm,
       purpose,
       metadata
-    })
-  });
+    },
+    {
+      headers: jsonHeaders(accessToken)
+    }
+  );
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err?.error || 'Failed to create wallet top-up intent');
@@ -87,7 +90,7 @@ export interface AutoRechargeSettings {
 
 export async function fetchAutoRechargeSettings(params: { organizationId: string; accessToken: string }): Promise<AutoRechargeSettings | null> {
   const { organizationId, accessToken } = params;
-  const resp = await fetch(`/api/billing/wallet/auto-recharge/${encodeURIComponent(organizationId)}`, {
+  const resp = await api.get(`/api/billing/wallet/auto-recharge/${encodeURIComponent(organizationId)}`, {
     headers: jsonHeaders(accessToken)
   });
   if (!resp.ok) {
@@ -107,11 +110,13 @@ export async function updateAutoRechargeSettings(params: {
   payment_method_id?: string | null;
 }): Promise<AutoRechargeSettings> {
   const { organizationId, accessToken, ...payload } = params;
-  const resp = await fetch(`/api/billing/wallet/auto-recharge/${encodeURIComponent(organizationId)}`, {
-    method: 'PUT',
-    headers: jsonHeaders(accessToken),
-    body: JSON.stringify(payload)
-  });
+  const resp = await api.put(
+    `/api/billing/wallet/auto-recharge/${encodeURIComponent(organizationId)}`,
+    payload,
+    {
+      headers: jsonHeaders(accessToken)
+    }
+  );
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({}));
     throw new Error(err?.error || 'Failed to save auto-recharge settings');
@@ -141,7 +146,7 @@ export async function listInvoices<T = Record<string, unknown>>(params: {
   if (starting_after) query.append('starting_after', starting_after);
   if (ending_before) query.append('ending_before', ending_before);
 
-  const resp = await fetch(`/api/billing/invoices?${query.toString()}`, {
+  const resp = await api.get(`/api/billing/invoices?${query.toString()}`, {
     headers: jsonHeaders(accessToken)
   });
 
@@ -166,7 +171,7 @@ export async function fetchDefaultPaymentMethodSummary(params: {
 }> {
   const { organizationId, accessToken } = params;
   const query = new URLSearchParams({ orgId: organizationId });
-  const resp = await fetch(`/api/billing/orgs/payment-methods/default?${query.toString()}`, {
+  const resp = await api.get(`/api/billing/orgs/payment-methods/default?${query.toString()}`, {
     headers: jsonHeaders(accessToken)
   });
   if (!resp.ok) {
@@ -188,7 +193,7 @@ export interface UsageCatalogPricing {
 }
 
 export async function fetchUsageCatalogPricing(accessToken: string): Promise<UsageCatalogPricing> {
-  const resp = await fetch('/api/billing/usage-catalog', {
+  const resp = await api.get('/api/billing/usage-catalog', {
     headers: jsonHeaders(accessToken)
   });
 
