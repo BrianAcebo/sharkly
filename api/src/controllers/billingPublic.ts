@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
-import { loadUsageCatalog } from './billingUsage';
+import { supabase } from '../utils/supabaseClient.js';
+import { loadUsageCatalog } from './billingUsage.js';
 
 export const listActivePlans = async (_req: Request, res: Response) => {
 	try {

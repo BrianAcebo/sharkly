@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
-import { UsageWallet, getWalletByOrg, OrgUsageSnapshot } from '../utils/wallet';
-import type { WalletStatus } from '../types/billing';
+import { supabase } from '../utils/supabaseClient.js';
+import { UsageWallet, getWalletByOrg, OrgUsageSnapshot } from '../utils/wallet.js';
+import type { WalletStatus } from '../types/billing.js';
 
 const getOrgUsageSnapshot = async (organizationId: string): Promise<OrgUsageSnapshot | null> => {
 	const { data, error } = await supabase

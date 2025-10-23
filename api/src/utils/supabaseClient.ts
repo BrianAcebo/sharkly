@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import 'dotenv/config';
-import { HttpError } from '../error/httpError';
+import { HttpError } from '../error/httpError.js';
 
 // Supabase URL and Anon Key for user authentication
 const supabaseUrl = process.env.PUBLIC_SUPABASE_URL;

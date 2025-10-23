@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createTopUpPaymentIntent } from '../utils/walletTopup';
+import { createTopUpPaymentIntent } from '../utils/walletTopup.js';
 
 export const postWalletTopup = async (req: Request, res: Response) => {
   try {

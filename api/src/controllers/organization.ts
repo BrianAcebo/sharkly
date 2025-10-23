@@ -1,15 +1,15 @@
 import { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
-import { emailService } from '../utils/email';
+import { supabase } from '../utils/supabaseClient.js';
+import { emailService } from '../utils/email.js';
 import {
     getSeatCapacity,
     loadSeatSummary,
     recordSeatEvent,
     updateOrgMaxSeats,
     syncExtraSeatAddon
-} from '../utils/seats';
-import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning';
-import { getTwilioClientForSubaccount } from '../utils/twilioClient';
+} from '../utils/seats.js';
+import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning.js';
+import { getTwilioClientForSubaccount } from '../utils/twilioClient.js';
 
 interface InviteTeamMemberRequest {
 	email: string;

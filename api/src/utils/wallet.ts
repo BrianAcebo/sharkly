@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient';
+import { supabase } from './supabaseClient.js';
 
 export interface OrgUsageSnapshot {
 	organization_id: string;
@@ -129,7 +129,7 @@ export const debitWallet = async (
       (wallet.top_up_amount_cents ?? 0) > 0
     ) {
       // Fire-and-forget: mark pending and create PI via API util
-      const { createTopUpPaymentIntent } = await import('./walletTopup');
+      const { createTopUpPaymentIntent } = await import('./walletTopup.js');
       createTopUpPaymentIntent({
         organizationId,
         amountCents: wallet.top_up_amount_cents,

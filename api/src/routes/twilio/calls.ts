@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { twilioClient } from '../../utils/twilioClient';
-import { requireAuth } from '../../middleware/auth';
-import { makeCallSchema, normalizePhoneNumber } from '../../utils/utils';
-import { resolveAgentDialConfig } from '../../utils/voiceDialConfig';
+import { twilioClient } from '../../utils/twilioClient.js';
+import { requireAuth } from '../../middleware/auth.js';
+import { makeCallSchema, normalizePhoneNumber } from '../../utils/utils.js';
+import { resolveAgentDialConfig } from '../../utils/voiceDialConfig.js';
 
 const router = Router();
 

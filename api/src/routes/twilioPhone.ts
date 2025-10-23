@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import { supabase } from '../utils/supabaseClient';
-import { requireAuth } from '../middleware/auth';
-import { getTwilioClientForSubaccount, twilioClient } from '../utils/twilioClient';
-import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning';
+import { supabase } from '../utils/supabaseClient.js';
+import { requireAuth } from '../middleware/auth.js';
+import { getTwilioClientForSubaccount, twilioClient } from '../utils/twilioClient.js';
+import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning.js';
 
 const router = Router();
 

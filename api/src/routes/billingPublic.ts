@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listActivePlans, getPublicUsageRates } from '../controllers/billingPublic';
+import { listActivePlans, getPublicUsageRates } from '../controllers/billingPublic.js';
 
 const router = Router();
 

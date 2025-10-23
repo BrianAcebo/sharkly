@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
-import { OrgStatus } from '../types/billing';
-import { isOrganizationInGoodStanding, isOrganizationBehindOnPayments } from '../utils/paymentStatus';
+import { supabase } from '../utils/supabaseClient.js';
+import { OrgStatus } from '../types/billing.js';
+import { isOrganizationInGoodStanding, isOrganizationBehindOnPayments } from '../utils/paymentStatus.js';
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {

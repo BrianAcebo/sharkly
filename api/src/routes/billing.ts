@@ -1,10 +1,10 @@
 import express from 'express';
 
-import { requireAuth } from '../middleware/auth';
-import { getWalletStatus, getUsageCatalog } from '../controllers/billingUsage';
-import { getStripeClient } from '../utils/stripe';
-import { supabase } from '../utils/supabaseClient';
-import billingPublicRoutes from './billingPublic';
+import { requireAuth } from '../middleware/auth.js';
+import { getWalletStatus, getUsageCatalog } from '../controllers/billingUsage.js';
+import { getStripeClient } from '../utils/stripe.js';
+import { supabase } from '../utils/supabaseClient.js';
+import billingPublicRoutes from './billingPublic.js';
 
 const router = express.Router();
 const stripe = getStripeClient();
@@ -100,7 +100,7 @@ router.post('/wallet/topup/:organizationId/intent', async (req, res) => {
       return res.status(400).json({ error: 'organizationId is required' });
     }
 
-    const { createTopUpPaymentIntent } = await import('../utils/walletTopup');
+    const { createTopUpPaymentIntent } = await import('../utils/walletTopup.js');
 
     const intent = await createTopUpPaymentIntent({
       organizationId,

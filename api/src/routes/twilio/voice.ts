@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import 'dotenv/config';
 import twilio from 'twilio';
-import { supabase } from '../../utils/supabaseClient';
-import { verifyTwilio } from '../../middleware/twilio';
-import { isEmergencyNumber } from '../../utils/utils';
+import { supabase } from '../../utils/supabaseClient.js';
+import { verifyTwilio } from '../../middleware/twilio.js';
+import { isEmergencyNumber } from '../../utils/utils.js';
 
 console.log('[voice router LOADED]', import.meta.url);
 

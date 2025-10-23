@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth.js';
 import {
 	createOrganization,
 	inviteTeamMember,
@@ -9,7 +9,7 @@ import {
 	getSeatSummary,
 	purchaseSeats,
 	releaseSeats
-} from '../controllers/organization';
+} from '../controllers/organization.js';
 
 const router = express.Router();
 

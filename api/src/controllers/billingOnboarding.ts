@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
+import { supabase } from '../utils/supabaseClient.js';
 import Stripe from 'stripe';
 import { 
   StripeSubStatus, 
@@ -10,11 +10,11 @@ import {
   ApiError, 
   unixToISO,
   CustomerPaymentMethodSummary
-} from '../types/billing';
-import { getStripeClient } from '../utils/stripe';
-import { getTwilioClientForSubaccount } from '../utils/twilioClient';
-import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning';
-import { ensureWallet } from '../utils/wallet';
+} from '../types/billing.js';
+import { getStripeClient } from '../utils/stripe.js';
+import { getTwilioClientForSubaccount } from '../utils/twilioClient.js';
+import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning.js';
+import { ensureWallet } from '../utils/wallet.js';
 
 const stripe = getStripeClient();
 

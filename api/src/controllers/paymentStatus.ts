@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
-import { isOrganizationInGoodStanding, isOrganizationBehindOnPayments, getOrganizationStatusMessage, getOrganizationIssueReason } from '../utils/paymentStatus';
+import { supabase } from '../utils/supabaseClient.js';
+import { isOrganizationInGoodStanding, isOrganizationBehindOnPayments, getOrganizationStatusMessage, getOrganizationIssueReason } from '../utils/paymentStatus.js';
 
 /**
  * Get payment status for an organization

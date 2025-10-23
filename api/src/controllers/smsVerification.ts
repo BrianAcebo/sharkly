@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
+import { supabase } from '../utils/supabaseClient.js';
 import { 
   SaveBrandRequest, 
   SaveCampaignRequest, 
@@ -7,7 +7,7 @@ import {
   ApiResponse,
   SmsBrandProfile,
   SmsCampaignProfile
-} from '../types/smsVerification';
+} from '../types/smsVerification.js';
 
 // Helper function to verify organization ownership
 const verifyOwnership = async (orgId: string, userId: string): Promise<boolean> => {

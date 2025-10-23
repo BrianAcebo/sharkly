@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { supabase } from '../utils/supabaseClient';
-import { getWalletStatus } from './billingUsage';
+import { supabase } from '../utils/supabaseClient.js';
+import { getWalletStatus } from './billingUsage.js';
 
 export const requireUsageWalletForVoice = async (req: Request, res: Response, next: NextFunction) => {
   try {

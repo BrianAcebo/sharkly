@@ -1,6 +1,6 @@
 import twilio from 'twilio';
 import 'dotenv/config';
-import { HttpError } from '../error/httpError';
+import { HttpError } from '../error/httpError.js';
 
 // Twilio environment variables for master account
 const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;

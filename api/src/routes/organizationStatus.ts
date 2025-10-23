@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/auth';
-import { updateOrganizationStatus, getOrganizationStatus } from '../controllers/organizationStatus';
+import { requireAuth } from '../middleware/auth.js';
+import { updateOrganizationStatus, getOrganizationStatus } from '../controllers/organizationStatus.js';
 
 const router = Router();
 

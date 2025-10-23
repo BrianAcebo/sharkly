@@ -1,7 +1,7 @@
 import express from 'express';
-import { requireAuth } from '../middleware/auth';
-import { onboardOrganization, getPlanCatalog, getCustomerPaymentMethodSummary, getCustomerPaymentMethods, provisionOrganization } from '../controllers/billingOnboarding';
-import { handleStripeWebhook } from '../controllers/stripeWebhook';
+import { requireAuth } from '../middleware/auth.js';
+import { onboardOrganization, getPlanCatalog, getCustomerPaymentMethodSummary, getCustomerPaymentMethods, provisionOrganization } from '../controllers/billingOnboarding.js';
+import { handleStripeWebhook } from '../controllers/stripeWebhook.js';
 
 const router = express.Router();
 

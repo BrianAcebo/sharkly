@@ -1,8 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { supabase } from '../../utils/supabaseClient';
-import { getTwilioClientForSubaccount } from '../../utils/twilioClient';
-import { requireAuth } from '../../middleware/auth';
+import { supabase } from '../../utils/supabaseClient.js';
+import { getTwilioClientForSubaccount } from '../../utils/twilioClient.js';
+import { requireAuth } from '../../middleware/auth.js';
 
 // Phone number normalization utility
 function normalizePhoneNumber(phone: string): string {

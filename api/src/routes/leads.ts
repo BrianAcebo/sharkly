@@ -1,7 +1,7 @@
 import express from 'express';
-import { requireAuth } from '../middleware/auth';
-import { emailService } from '../utils/email';
-import { supabase } from '../utils/supabaseClient';
+import { requireAuth } from '../middleware/auth.js';
+import { emailService } from '../utils/email.js';
+import { supabase } from '../utils/supabaseClient.js';
 
 const router = express.Router();
 

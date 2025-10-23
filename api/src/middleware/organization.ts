@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { supabase } from '../utils/supabaseClient';
-import { HttpError } from '../error/httpError';
+import { supabase } from '../utils/supabaseClient.js';
+import { HttpError } from '../error/httpError.js';
 
 export const organizationRequired = async (req: Request, res: Response, next: NextFunction) => {
 	try {

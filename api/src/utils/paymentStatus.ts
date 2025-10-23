@@ -1,4 +1,4 @@
-import { OrganizationRow, OrgStatus } from '../types/billing';
+import { OrganizationRow, OrgStatus } from '../types/billing.js';
 
 /**
  * Check if an organization is in good standing (can access all features)

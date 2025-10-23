@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth } from '../middleware/auth.js';
 import { 
   getVerificationStatus,
   saveBrand,
@@ -7,7 +7,7 @@ import {
   submit10DLC,
   submitTollFree,
   refreshStatus
-} from '../controllers/smsVerification';
+} from '../controllers/smsVerification.js';
 
 const router = express.Router();
 

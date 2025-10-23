@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
+import { supabase } from '../utils/supabaseClient.js';
 import Stripe from 'stripe';
-import { unixToISO } from '../types/billing';
+import { unixToISO } from '../types/billing.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-07-30.basil',

@@ -1,6 +1,6 @@
 import express from 'express';
-import { getPaymentStatus, checkResumeEligibility, getOrganizationsNeedingPaymentAttention } from '../controllers/paymentStatus';
-import { requireAuth } from '../middleware/auth';
+import { getPaymentStatus, checkResumeEligibility, getOrganizationsNeedingPaymentAttention } from '../controllers/paymentStatus.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 

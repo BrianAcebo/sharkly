@@ -1,6 +1,6 @@
 import express from 'express';
-import { createPaymentIntent, handleWebhook, createSetupIntent } from '../controllers/payment';
-import { requireAuth } from '../middleware/auth';
+import { createPaymentIntent, handleWebhook, createSetupIntent } from '../controllers/payment.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 

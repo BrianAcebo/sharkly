@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
-import { supabase } from '../../utils/supabaseClient';
-import { requireAuth } from '../../middleware/auth';
-import { ensureTwilioResourcesForOrganization } from '../../utils/twilioProvisioning';
+import { supabase } from '../../utils/supabaseClient.js';
+import { requireAuth } from '../../middleware/auth.js';
+import { ensureTwilioResourcesForOrganization } from '../../utils/twilioProvisioning.js';
 import twilio from 'twilio';
 
 const router = Router();

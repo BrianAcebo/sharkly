@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
-import { OrganizationRow } from '../types/billing';
+import { supabase } from '../utils/supabaseClient.js';
+import { OrganizationRow } from '../types/billing.js';
 
 export interface TrialStatusResponse {
   isOnTrial: boolean;

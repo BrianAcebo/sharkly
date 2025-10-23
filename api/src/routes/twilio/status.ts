@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { supabase } from '../../utils/supabaseClient';
+import { supabase } from '../../utils/supabaseClient.js';
 
 const router = Router();
 

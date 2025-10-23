@@ -1,5 +1,5 @@
-import { supabase } from './supabaseClient';
-import { twilioClient, getTwilioClientForSubaccount } from './twilioClient';
+import { supabase } from './supabaseClient.js';
+import { twilioClient, getTwilioClientForSubaccount } from './twilioClient.js';
 import twilio from 'twilio';
 
 const PUBLIC_URL = process.env.PUBLIC_URL;

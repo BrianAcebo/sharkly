@@ -1,7 +1,7 @@
-import { supabase } from './supabaseClient';
-import { HttpError } from '../error/httpError';
-import type { PlanCatalogRow } from '../types/billing';
-import { getStripeClient } from './stripe';
+import { supabase } from './supabaseClient.js';
+import { HttpError } from '../error/httpError.js';
+import type { PlanCatalogRow } from '../types/billing.js';
+import { getStripeClient } from './stripe.js';
 
 interface SupabaseSeatRow {
   id: string;

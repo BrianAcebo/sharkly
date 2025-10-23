@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import Stripe from 'stripe';
 
-import { getStripeClient } from '../utils/stripe';
-import { supabase } from '../utils/supabaseClient';
+import { getStripeClient } from '../utils/stripe.js';
+import { supabase } from '../utils/supabaseClient.js';
 import {
   computeMaxSeatsForPlan,
   deactivateExtraSeats,
@@ -10,10 +10,10 @@ import {
   recordSeatEvent,
   syncExtraSeatAddon,
   updateOrgMaxSeats
-} from '../utils/seats';
-import { creditWallet, clearPendingTopUp, debitWallet } from '../utils/wallet';
-import { markTopUpStatus } from '../utils/walletTopup';
-import type { PlanCatalogRow, OrganizationRow, StripeSubStatus } from '../types/billing';
+} from '../utils/seats.js';
+import { creditWallet, clearPendingTopUp, debitWallet } from '../utils/wallet.js';
+import { markTopUpStatus } from '../utils/walletTopup.js';
+import type { PlanCatalogRow, OrganizationRow, StripeSubStatus } from '../types/billing.js';
 
 const stripe = getStripeClient();
 

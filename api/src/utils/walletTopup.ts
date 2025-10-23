@@ -1,8 +1,8 @@
 import type Stripe from 'stripe';
 
-import { supabase } from './supabaseClient';
-import { getStripeClient } from './stripe';
-import { markTopUpPending, clearPendingTopUp, getWalletByOrg, ensureWallet, type UsageWallet } from './wallet';
+import { supabase } from './supabaseClient.js';
+import { getStripeClient } from './stripe.js';
+import { markTopUpPending, clearPendingTopUp, getWalletByOrg, ensureWallet, type UsageWallet } from './wallet.js';
 
 type TopUpPurpose = 'wallet_topup' | 'wallet_auto_recharge';
 
