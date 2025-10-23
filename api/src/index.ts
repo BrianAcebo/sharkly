@@ -73,7 +73,5 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 const LISTEN_HOST = isFly ? '0.0.0.0' : 'localhost';
 
 app.listen(PORT, LISTEN_HOST, () => {
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`API listening on http://${LISTEN_HOST}:${PORT}`);
-  }
+	console.log(`API listening on http://${LISTEN_HOST}:${PORT} ${isFly ? '(Fly)' : '(Local)'}`);
 });

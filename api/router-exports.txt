@@ -1,2 +1,0 @@
-Payment -> ./routes/payment.js
-Organization -> ./routes/organization.js
