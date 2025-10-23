@@ -2,7 +2,7 @@
 import 'dotenv/config';
 import { spawn } from 'child_process';
 
-const addr      = process.env.NGROK_ADDR || process.env.PORT || '3001';
+const addr      = process.env.NGROK_ADDR || process.env.PORT || '3000';
 const hostname  = (process.env.NGROK_DOMAIN || '').trim();      // e.g. smooth-key-goblin.ngrok-free.app
 const authtoken = (process.env.NGROK_AUTHTOKEN || '').trim();
 

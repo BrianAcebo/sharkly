@@ -23,7 +23,8 @@ import paymentStatusRoutes from './routes/paymentStatus.js';
 dotenv.config();
 
 const app = express();
-const PORT = Number(process.env.PORT || 3001);
+const isFly = Boolean(process.env.FLY_APP_NAME);
+const PORT = Number(process.env.PORT ?? 3000);
 
 // CORS: allow local dev + production domains via env
 app.use(cors({
@@ -69,10 +70,10 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // ==== Listener: local vs Fly ====
-const isFly = !!process.env.FLY_APP_NAME;
-const LISTEN_PORT = isFly ? PORT : 3000;           // local = 3000
 const LISTEN_HOST = isFly ? '0.0.0.0' : 'localhost';
 
-app.listen(LISTEN_PORT, LISTEN_HOST, () => {
-  console.log(`API listening on http://${LISTEN_HOST}:${LISTEN_PORT}`);
+app.listen(PORT, LISTEN_HOST, () => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`API listening on http://${LISTEN_HOST}:${PORT}`);
+  }
 });

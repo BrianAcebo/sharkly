@@ -5,7 +5,7 @@ const kill = (cmd: string) => {
   try { execSync(cmd, { stdio: 'ignore' }); } catch {}
 };
 
-const PORT = process.argv[2] || '3001';
+const PORT = process.argv[2] || '3000';
 
 console.log(`[stop-dev] freeing port :${PORT} and stopping ngrok agents...`);
 
