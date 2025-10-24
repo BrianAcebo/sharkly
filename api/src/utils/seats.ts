@@ -323,9 +323,31 @@ export async function syncExtraSeatAddon(params: {
   const { orgId, stripeSubscriptionId, addonPriceId, quantity } = params;
   const stripe = getStripeClient();
 
-  const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
-    expand: ['items.data.price']
-  });
+  let subscription: Stripe.Subscription;
+  try {
+    subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
+      expand: ['items.data.price']
+    });
+  } catch (error) {
+    if (error instanceof Stripe.errors.StripeInvalidRequestError && error.code === 'resource_missing') {
+      console.warn('[SEATS] Subscription missing when syncing addon; clearing local reference', {
+        orgId,
+        stripeSubscriptionId
+      });
+
+      await supabase
+        .from('organizations')
+        .update({
+          stripe_subscription_id: null,
+          stripe_status: 'canceled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orgId);
+
+      return;
+    }
+    throw error;
+  }
 
   const existing = subscription.items.data.find((item) => item.price?.id === addonPriceId);
 

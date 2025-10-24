@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { Download, Upload, FileText, AlertCircle, CheckCircle, Filter, Mail, Loader2 } from 'lucide-react';
+import { Download, Upload, FileText, AlertCircle, CheckCircle, Filter, Mail, Loader2, AlertTriangle } from 'lucide-react';
 import { Lead, CreateLeadData } from '../../types/leads';
 import { LeadsFilters } from '../../api/leads';
 import { toast } from 'sonner';
@@ -1089,7 +1089,7 @@ export function LeadsImportExport({ onImportLeads, onExportLeads, onEmailExport,
               </Button>
             </div>
             
-            <div className="text-xs text-gray-500 dark:text-gray-500 space-y-2">
+            <div className="text-xs text-gray-500 dark:text-gray-500 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <p className="font-medium">Required fields:</p>
@@ -1108,6 +1108,20 @@ export function LeadsImportExport({ onImportLeads, onExportLeads, onEmailExport,
                 <div>
                   <p className="font-medium">Priorities:</p>
                   <p>low, medium, high, critical</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <p className="font-medium">Tags:</p>
+                  <p>Comma separated values (e.g. <code className="text-blue-500 text-xs">vip,renewal,conference</code>)</p>
+                </div>
+                <div>
+                  <div className="flex items-start gap-2 text-amber-600 dark:text-amber-400">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <p>
+                      Stage and priority values are case-sensitive. Use the exact casing shown above or the import will fail.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

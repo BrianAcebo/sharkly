@@ -15,8 +15,6 @@ export function useUsageRates(): UsageRate[] | null {
   const { session } = useAuth();
   const [rates, setRates] = useState<UsageRate[] | null>(null);
 
-  console.log("herer", rates);
-
   useEffect(() => {
     if (!session?.access_token) {
       setRates(null);
@@ -30,8 +28,6 @@ export function useUsageRates(): UsageRate[] | null {
         if (cancelled) return;
         const voiceRate = data.voice ? data.voice.amountCents / 100 : null;
         const smsRate = data.sms ? data.sms.amountCents / 100 : null;
-
-        console.log("ere", data, data.voice, data.sms);
 
         setRates([
           {

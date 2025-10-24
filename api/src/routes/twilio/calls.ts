@@ -29,8 +29,6 @@ router.post('/make', requireAuth, async (req: Request, res: Response) => {
 
     console.info(`Initiating call from ${normalizedFrom} to ${normalizedTo} for agent ${agentId}`);
 
-    console.log('PUBLIC_URL', process.env.PUBLIC_URL);
-
     // Make the call via Twilio
     const call = await twilioClient.calls.create({
       url: `${process.env.PUBLIC_URL}/twilio/voice`,

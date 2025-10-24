@@ -115,7 +115,11 @@ export function useOrganization() {
       setOrganization(orgData);
 
       try {
-        const seatResp = await api.get(`/api/organizations/${data.organization.id}/seats`);
+        const seatResp = await api.get(`/api/organizations/${data.organization.id}/seats`, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`
+          }
+        });
         if (!seatResp.ok) {
           throw new Error('Failed to load seat summary');
         }

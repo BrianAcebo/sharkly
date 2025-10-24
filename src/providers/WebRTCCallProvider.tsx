@@ -254,8 +254,6 @@ export const WebRTCCallProvider = ({ children }: WebRTCCallProviderProps) => {
 					logLevel: import.meta.env.NODE_ENV === 'development' ? 'debug' : undefined
 				});
 
-				console.log('device', d);
-
 				d.on('ready', () => {
 					setStatus('Ready');
 					setDevice(d);

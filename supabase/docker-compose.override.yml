@@ -1,0 +1,24 @@
+services:
+  kong:
+    # Keep whatever version you prefer; either of these works with this override:
+    # image: kong:2.8.1
+    image: ghcr.io/supabase/kong:2.8.1
+
+    # Force root so Docker doesn't try to switch to a non-existent 'kong' user
+    user: "0:0"
+
+    # Avoid ~ expansion; copy the file to a concrete path Kong expects
+    command: >
+      sh -lc 'cp /etc/kong/temp.yml /etc/kong/kong.yml &&
+              /docker-entrypoint.sh kong docker-start'
+
+    # Bind your declarative config into /etc/kong
+    volumes:
+      - type: bind
+        source: ./volumes/api/kong.yml     # <-- confirm this path exists on your host
+        target: /etc/kong/temp.yml
+        read_only: true
+
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/kong.yml

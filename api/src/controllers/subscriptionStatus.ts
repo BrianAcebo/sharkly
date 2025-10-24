@@ -71,7 +71,26 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
           .eq('id', organizationId);
 
       } catch (stripeError) {
-        console.error('Error fetching subscription from Stripe:', stripeError);
+        if (stripeError instanceof Stripe.errors.StripeInvalidRequestError && stripeError.code === 'resource_missing') {
+          console.warn('Stripe subscription missing; clearing local reference', {
+            organizationId,
+            stripeSubscriptionId: org.stripe_subscription_id
+          });
+
+          await supabase
+            .from('organizations')
+            .update({
+              stripe_subscription_id: null,
+              stripe_status: 'canceled',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', organizationId);
+
+          org.stripe_subscription_id = null;
+          org.stripe_status = 'canceled';
+        } else {
+          console.error('Error fetching subscription from Stripe:', stripeError);
+        }
         // Continue with database data if Stripe fetch fails
       }
     }

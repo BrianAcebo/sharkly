@@ -524,14 +524,34 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           ['incomplete', 'trialing', 'active', 'past_due'].includes(s.status)
         );
         if (candidate) {
-          const reused = await stripe.subscriptions.retrieve(candidate.id, { expand: ['latest_invoice.payment_intent'] });
-          stripeSubscriptionId = reused.id;
-          const inv = reused.latest_invoice as Stripe.Invoice | null;
-          if (inv) {
-            const paymentIntent = (inv as unknown as { payment_intent?: unknown }).payment_intent;
-            if (paymentIntent && typeof paymentIntent === 'object' && 'client_secret' in (paymentIntent as Record<string, unknown>)) {
-              const cs = (paymentIntent as { client_secret?: string }).client_secret;
-              subscriptionClientSecret = cs || null;
+          try {
+            const reused = await stripe.subscriptions.retrieve(candidate.id, { expand: ['latest_invoice.payment_intent'] });
+            stripeSubscriptionId = reused.id;
+            const inv = reused.latest_invoice as Stripe.Invoice | null;
+            if (inv) {
+              const paymentIntent = (inv as unknown as { payment_intent?: unknown }).payment_intent;
+              if (paymentIntent && typeof paymentIntent === 'object' && 'client_secret' in (paymentIntent as Record<string, unknown>)) {
+                const cs = (paymentIntent as { client_secret?: string }).client_secret;
+                subscriptionClientSecret = cs || null;
+              }
+            }
+          } catch (reuseFetchErr) {
+            if (reuseFetchErr instanceof Stripe.errors.StripeInvalidRequestError && reuseFetchErr.code === 'resource_missing') {
+              console.warn('[onboard][renewal] found stale subscription reference; clearing local id', {
+                orgId: org.id,
+                subscriptionId: candidate.id
+              });
+              await supabase
+                .from('organizations')
+                .update({
+                  stripe_subscription_id: null,
+                  stripe_status: 'canceled',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', org.id);
+              org.stripe_subscription_id = null;
+            } else {
+              throw reuseFetchErr;
             }
           }
         }
@@ -644,13 +664,25 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           trial_end: subscription.trial_end ? unixToISO(subscription.trial_end) : null,
         };
       } catch (error) {
-        console.error('Error retrieving subscription for mirroring:', error);
-        // Fallback to basic data if subscription retrieval fails
-        subscriptionData = {
-          ...subscriptionData,
-          stripe_subscription_id: stripeSubscriptionId,
-          stripe_status: 'incomplete' as StripeSubStatus,
-        };
+        if (error instanceof Stripe.errors.StripeInvalidRequestError && error.code === 'resource_missing') {
+          console.warn('Subscription missing during mirroring; clearing local reference', {
+            orgId: org.id,
+            stripeSubscriptionId
+          });
+          subscriptionData = {
+            ...subscriptionData,
+            stripe_subscription_id: null,
+            stripe_status: 'canceled' as StripeSubStatus,
+          };
+        } else {
+          console.error('Error retrieving subscription for mirroring:', error);
+          // Fallback to basic data if subscription retrieval fails
+          subscriptionData = {
+            ...subscriptionData,
+            stripe_subscription_id: stripeSubscriptionId,
+            stripe_status: 'incomplete' as StripeSubStatus,
+          };
+        }
       }
     }
 

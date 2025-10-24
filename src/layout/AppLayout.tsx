@@ -193,8 +193,6 @@ const LayoutContent: React.FC = () => {
 		return <Navigate to="/pipeline" replace />;
 	}
 
-	console.log('currentOrg', user?.completed_onboarding, currentOrg);
-
 	// Precedence: If user has no org or a pending org at any time, force organization-required
 	const isPendingOrgGlobal = currentOrg?.org_status === 'pending';
 	if ((!hasOrganization || isPendingOrgGlobal) && pathname !== '/organization-required') {

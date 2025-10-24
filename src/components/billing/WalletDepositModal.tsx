@@ -78,8 +78,6 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 	const [allocationOpen, setAllocationOpen] = useState(false);
 	const usageRates = useUsageRates();
 
-  console.log("111", usageRates);
-
 	const purchasePower = useMemo(() => {
 		if (!usageRates || amountCents <= 0) {
   return (
