@@ -2,6 +2,7 @@ import { supabase } from './supabaseClient.js';
 import { HttpError } from '../error/httpError.js';
 import type { PlanCatalogRow } from '../types/billing.js';
 import { getStripeClient } from './stripe.js';
+import Stripe from 'stripe';
 
 interface SupabaseSeatRow {
   id: string;
@@ -329,7 +330,9 @@ export async function syncExtraSeatAddon(params: {
       expand: ['items.data.price']
     });
   } catch (error) {
-    if (error instanceof Stripe.errors.StripeInvalidRequestError && error.code === 'resource_missing') {
+    const err = error as unknown;
+    // Narrow Stripe error type safely without relying on namespace on global
+    if (typeof err === 'object' && err !== null && 'code' in err && (err as any).code === 'resource_missing') {
       console.warn('[SEATS] Subscription missing when syncing addon; clearing local reference', {
         orgId,
         stripeSubscriptionId
@@ -349,7 +352,9 @@ export async function syncExtraSeatAddon(params: {
     throw error;
   }
 
-  const existing = subscription.items.data.find((item) => item.price?.id === addonPriceId);
+  const existing = subscription.items.data.find((item) => (item as Stripe.SubscriptionItem).price?.id === addonPriceId) as
+    | Stripe.SubscriptionItem
+    | undefined;
 
   if (existing) {
     if (quantity <= 0) {
