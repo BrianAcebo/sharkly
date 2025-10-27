@@ -14,6 +14,7 @@ import {
 import { creditWallet, clearPendingTopUp, debitWallet } from '../utils/wallet.js';
 import { markTopUpStatus } from '../utils/walletTopup.js';
 import type { PlanCatalogRow, OrganizationRow, StripeSubStatus } from '../types/billing.js';
+import { emailService } from '../utils/email.js';
 
 const stripe = getStripeClient();
 
@@ -395,6 +396,32 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
       console.warn('[WEBHOOK] Failed to compute/update max seats for plan', { orgId: org.id, seatError });
     }
   }
+
+  // Trial lifecycle notifications (owner only)
+  try {
+    const { data: ownerProfile } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', org.owner_id)
+      .maybeSingle();
+
+    const ownerEmail = ownerProfile?.email ?? null;
+    if (ownerEmail && trialEnd) {
+      // Trial started (transition into trialing)
+      if (subscription.status === 'trialing' && !wasTrialing) {
+        await emailService.sendTrialStarted(ownerEmail, org.name, trialEnd.toISOString());
+        await logSubscriptionChange(org.id, 'trial.started_email', org.plan_code, org.plan_code, 0, subscription);
+      }
+
+      // Trial ended (transition out of trialing or reached end)
+      if ((wasTrialing && isNoLongerTrialing) || trialHasEnded) {
+        await emailService.sendTrialEnded(ownerEmail, org.name, trialEnd.toISOString());
+        await logSubscriptionChange(org.id, 'trial.ended_email', org.plan_code, org.plan_code, 0, subscription);
+      }
+    }
+  } catch (notifyError) {
+    console.warn('[WEBHOOK] Failed to send trial lifecycle email', { orgId: org.id, notifyError });
+  }
 };
 
 const handleSubscriptionDeleted = async (event: Stripe.Event) => {
@@ -655,6 +682,36 @@ const handleInvoicePaymentActionRequired = async (event: Stripe.Event) => {
   await logSubscriptionChange(org.id, 'invoice.payment_action_required', org.plan_code, org.plan_code, 0, invoice);
 };
 
+const handleSubscriptionTrialWillEnd = async (event: Stripe.Event) => {
+  const subscription = event.data.object as Stripe.Subscription;
+  const subscriptionId = subscription.id;
+  const customerId = subscription.customer as string | null;
+
+  const org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
+  if (!org) {
+    return;
+  }
+
+  // Stripe guarantees ~3-day lead time; compute from org.trial_end if present
+  const trialEndIso = org.trial_end ?? null;
+  const trialEnd = trialEndIso ? new Date(trialEndIso) : null;
+
+  try {
+    const { data: owner } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('id', org.owner_id)
+      .maybeSingle();
+
+    if (owner?.email) {
+      await emailService.sendTrialEndingSoon(owner.email, org.name, 3, (trialEnd ?? new Date()).toISOString());
+      await logSubscriptionChange(org.id, 'customer.subscription.trial_will_end_email', org.plan_code, org.plan_code, 0, subscription);
+    }
+  } catch (e) {
+    console.warn('[WEBHOOK] Failed to send trial_will_end email', { orgId: org.id, e });
+  }
+};
+
 export const handleStripeWebhook = async (req: Request, res: Response) => {
   const signature = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -722,6 +779,9 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
         break;
       case 'invoice.payment_action_required':
         await handleInvoicePaymentActionRequired(event);
+        break;
+      case 'customer.subscription.trial_will_end':
+        await handleSubscriptionTrialWillEnd(event);
         break;
       default:
         console.log('[WEBHOOK] Ignoring event', { type: event.type });

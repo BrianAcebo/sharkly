@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { config } from '../config.js';
 
 interface EmailAttachment {
@@ -26,6 +26,23 @@ type TemplateData = {
 	organizationDeleted: {
 		orgName: string;
 		firstName: string;
+	};
+	trialStarted: {
+		orgName: string;
+		trialEnd: string; // ISO
+	};
+	trialEndingSoon: {
+		orgName: string;
+		daysRemaining: number;
+		trialEnd: string; // ISO
+	};
+	trialEndsTomorrow: {
+		orgName: string;
+		trialEnd: string; // ISO
+	};
+	trialEnded: {
+		orgName: string;
+		trialEnd: string; // ISO
 	};
 };
 
@@ -270,37 +287,207 @@ const templates = {
 			</body>
 			</html>
 		`
+	},
+	trialStarted: {
+		subject: (orgName: string) => `Your Paperboat CRM trial has started for ${orgName}`,
+		text: (data: TemplateData['trialStarted']) => `Your trial for ${data.orgName} has started. It ends on ${new Date(data.trialEnd).toLocaleString()}.`,
+		html: (data: TemplateData['trialStarted']) => `
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8" />
+				<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+				<title>Trial Started</title>
+				<style>
+					* { margin: 0; padding: 0; box-sizing: border-box; }
+					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f9fafb; }
+					.email-container { max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+					.email-header { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); padding: 36px 28px; border-bottom: 1px solid #fca5a5; text-align: center; }
+					.email-header h1 { color: #b91c1c; font-size: 26px; font-weight: 800; }
+					.email-content { padding: 32px 28px; }
+					.kpi { background-color: #f9fafb; border-left: 4px solid #f87171; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
+					.cta { display: inline-block; background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(239,68,68,0.3), 0 2px 4px -1px rgba(239,68,68,0.2); margin-top: 18px; }
+					.cta:hover { filter: brightness(1.05); }
+					.email-footer { background-color: #f9fafb; padding: 22px 28px; text-align: center; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 13px; }
+				</style>
+			</head>
+			<body>
+				<div class="email-container">
+					<div class="email-header">
+						<h1>🎉 Your trial has started</h1>
+					</div>
+					<div class="email-content">
+						<p>Welcome! Your trial for <strong>${data.orgName}</strong> is now active.</p>
+						<div class="kpi">
+							<strong>Trial ends:</strong> ${new Date(data.trialEnd).toLocaleString()}
+						</div>
+						<p>To continue uninterrupted after the trial, add a payment method anytime.</p>
+						<p>
+							<a class="cta" href="${config.frontendUrl}/billing" target="_blank" rel="noopener noreferrer">Manage Billing</a>
+						</p>
+					</div>
+					<div class="email-footer">
+						<p>Paperboat CRM • Keep your leads and workflows afloat 🚢</p>
+					</div>
+				</div>
+			</body>
+			</html>
+		`
+	},
+	trialEndingSoon: {
+		subject: (orgName: string) => `Your ${orgName} trial is ending soon`,
+		text: (data: TemplateData['trialEndingSoon']) => `Your trial for ${data.orgName} ends in ${data.daysRemaining} days, on ${new Date(data.trialEnd).toLocaleString()}.`,
+		html: (data: TemplateData['trialEndingSoon']) => `
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8" />
+				<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+				<title>Trial Ending Soon</title>
+				<style>
+					* { margin: 0; padding: 0; box-sizing: border-box; }
+					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f9fafb; }
+					.email-container { max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+					.email-header { background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); padding: 36px 28px; border-bottom: 1px solid #fdba74; text-align: center; }
+					.email-header h1 { color: #c2410c; font-size: 26px; font-weight: 800; }
+					.email-content { padding: 32px 28px; }
+					.kpi { background-color: #f9fafb; border-left: 4px solid #fb923c; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
+					.cta { display: inline-block; background: linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(234,88,12,0.3), 0 2px 4px -1px rgba(234,88,12,0.2); margin-top: 18px; }
+					.cta:hover { filter: brightness(1.05); }
+					.email-footer { background-color: #f9fafb; padding: 22px 28px; text-align: center; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 13px; }
+				</style>
+			</head>
+			<body>
+				<div class="email-container">
+					<div class="email-header">
+						<h1>⏳ Trial ending soon</h1>
+					</div>
+					<div class="email-content">
+						<p>Your trial for <strong>${data.orgName}</strong> ends in <strong>${data.daysRemaining} days</strong>.</p>
+						<div class="kpi"><strong>End date:</strong> ${new Date(data.trialEnd).toLocaleString()}</div>
+						<p>To keep your account active, add a payment method before your trial ends.</p>
+						<p>
+							<a class="cta" href="${config.frontendUrl}/billing" target="_blank" rel="noopener noreferrer">Manage Billing</a>
+						</p>
+					</div>
+					<div class="email-footer">
+						<p>Paperboat CRM • Keep your leads and workflows afloat 🚢</p>
+					</div>
+				</div>
+			</body>
+			</html>
+		`
+	},
+	trialEndsTomorrow: {
+		subject: (orgName: string) => `Your ${orgName} trial ends tomorrow`,
+		text: (data: TemplateData['trialEndsTomorrow']) => `Your trial for ${data.orgName} ends tomorrow (${new Date(data.trialEnd).toLocaleString()}).`,
+		html: (data: TemplateData['trialEndsTomorrow']) => `
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8" />
+				<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+				<title>Trial Ends Tomorrow</title>
+				<style>
+					* { margin: 0; padding: 0; box-sizing: border-box; }
+					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f9fafb; }
+					.email-container { max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+					.email-header { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 36px 28px; border-bottom: 1px solid #fbbf24; text-align: center; }
+					.email-header h1 { color: #a16207; font-size: 26px; font-weight: 800; }
+					.email-content { padding: 32px 28px; }
+					.kpi { background-color: #f9fafb; border-left: 4px solid #facc15; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
+					.cta { display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 60%, #a16207 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(217,119,6,0.3), 0 2px 4px -1px rgba(217,119,6,0.2); margin-top: 18px; }
+					.cta:hover { filter: brightness(1.05); }
+					.email-footer { background-color: #f9fafb; padding: 22px 28px; text-align: center; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 13px; }
+				</style>
+			</head>
+			<body>
+				<div class="email-container">
+					<div class="email-header">
+						<h1>⚠️ Trial ends tomorrow</h1>
+					</div>
+					<div class="email-content">
+						<p>Your trial for <strong>${data.orgName}</strong> ends tomorrow.</p>
+						<div class="kpi"><strong>End date:</strong> ${new Date(data.trialEnd).toLocaleString()}</div>
+						<p>Add a payment method now to avoid interruption.</p>
+						<p>
+							<a class="cta" href="${config.frontendUrl}/billing" target="_blank" rel="noopener noreferrer">Manage Billing</a>
+						</p>
+					</div>
+					<div class="email-footer">
+						<p>Paperboat CRM • Keep your leads and workflows afloat 🚢</p>
+					</div>
+				</div>
+			</body>
+			</html>
+		`
+	},
+	trialEnded: {
+		subject: (orgName: string) => `${orgName} trial has ended`,
+		text: (data: TemplateData['trialEnded']) => `Your trial for ${data.orgName} has ended. End date: ${new Date(data.trialEnd).toLocaleString()}.`,
+		html: (data: TemplateData['trialEnded']) => `
+			<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8" />
+				<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+				<title>Trial Ended</title>
+				<style>
+					* { margin: 0; padding: 0; box-sizing: border-box; }
+					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f9fafb; }
+					.email-container { max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
+					.email-header { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); padding: 36px 28px; border-bottom: 1px solid #fecaca; text-align: center; }
+					.email-header h1 { color: #b91c1c; font-size: 26px; font-weight: 800; }
+					.email-content { padding: 32px 28px; }
+					.kpi { background-color: #f9fafb; border-left: 4px solid #ef4444; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
+					.cta { display: inline-block; background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(239,68,68,0.3), 0 2px 4px -1px rgba(239,68,68,0.2); margin-top: 18px; }
+					.cta:hover { filter: brightness(1.05); }
+					.email-footer { background-color: #f9fafb; padding: 22px 28px; text-align: center; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 13px; }
+				</style>
+			</head>
+			<body>
+				<div class="email-container">
+					<div class="email-header">
+						<h1>⛔ Your trial has ended</h1>
+					</div>
+					<div class="email-content">
+						<p>Your trial for <strong>${data.orgName}</strong> has ended.</p>
+						<div class="kpi"><strong>End date:</strong> ${new Date(data.trialEnd).toLocaleString()}</div>
+						<p>Reactivate access by choosing a plan and adding a payment method.</p>
+						<p>
+							<a class="cta" href="${config.frontendUrl}/billing" target="_blank" rel="noopener noreferrer">Update Subscription</a>
+						</p>
+					</div>
+					<div class="email-footer">
+						<p>Paperboat CRM • Keep your leads and workflows afloat 🚢</p>
+					</div>
+				</div>
+			</body>
+			</html>
+		`
 	}
 	// Add more templates here as needed
 } as const;
 
 class EmailService {
-	private transporter: nodemailer.Transporter | null = null;
-	private isDevMode: boolean;
+    private resend: Resend | null = null;
+    private isDevMode: boolean;
 
-	constructor() {
-		this.isDevMode = process.env.NODE_ENV === 'development' || !config.smtp.user || !config.smtp.pass;
-		
-		if (!this.isDevMode) {
-			this.transporter = nodemailer.createTransport({
-				host: config.smtp.host,
-				port: config.smtp.port,
-				secure: config.smtp.secure,
-				auth: {
-					user: config.smtp.user,
-					pass: config.smtp.pass
-				}
-			});
-		}
-	}
+    constructor() {
+        // Send real emails whenever a Resend API key is configured
+        this.isDevMode = !config.resend.apiKey;
+        if (!this.isDevMode) {
+            this.resend = new Resend(config.resend.apiKey);
+        }
+    }
 
 	async sendEmail(options: EmailOptions): Promise<void> {
 		try {
 			if (this.isDevMode) {
 				// In development mode, just log the email details
 				console.log('📧 DEV MODE - Email would be sent:');
-				console.log('  From:', options.from || config.smtp.from);
-				console.log('  Reply-To:', options.replyTo || config.smtp.from);
+                console.log('  From:', options.from || config.resend.from);
+                console.log('  Reply-To:', options.replyTo || config.resend.replyTo || config.resend.from);
 				console.log('  To:', options.to);
 				console.log('  Subject:', options.subject);
 				if (options.attachments && options.attachments.length > 0) {
@@ -310,51 +497,27 @@ class EmailService {
 				return;
 			}
 
-			if (!this.transporter) {
-				throw new Error('Email transporter not configured');
-			}
+            if (!this.resend) {
+                throw new Error('Resend client not configured');
+            }
 
-			const mailOptions: {
-				from: string;
-				sender: string;
-				replyTo: string;
-				to: string;
-				subject: string;
-				text: string;
-				html: string;
-				attachments?: {
-					filename: string;
-					content: string;
-					contentType?: string;
-				}[];
-				envelope: {
-					from: string;
-					to: string;
-				};
-			} = {
-				from: options.from || `Paperboat CRM <${config.smtp.from}>`,
-				sender: config.smtp.user || config.smtp.from, // actual authenticated sender
-				replyTo: options.replyTo || config.smtp.from,
-				to: options.to,
-				subject: options.subject,
-				text: options.text,
-				html: options.html,
-				envelope: {
-					from: config.smtp.from,
-					to: options.to
-				}
-			};
+            const from = options.from || config.resend.from;
+            const replyTo = options.replyTo || config.resend.replyTo || config.resend.from;
 
-			// Add attachments if provided
-			if (options.attachments && options.attachments.length > 0) {
-				mailOptions.attachments = options.attachments.map(attachment => ({
-					filename: attachment.filename,
-					content: attachment.content,
-					contentType: attachment.contentType || 'text/plain'
-				}));
-			}
+            const attachments = (options.attachments || []).map(a => ({
+                filename: a.filename,
+                content: Buffer.from(a.content, 'utf-8')
+            }));
 
-			await this.transporter.sendMail(mailOptions);
+            await this.resend.emails.send({
+                from,
+                to: options.to,
+                subject: options.subject,
+                text: options.text,
+                html: options.html,
+                replyTo: replyTo,
+                attachments: attachments.length > 0 ? attachments : undefined
+            });
 		} catch (error) {
 			console.error('Error sending email:', error);
 			throw new Error('Failed to send email');
@@ -374,6 +537,14 @@ class EmailService {
 			subject = templateData.subject((data as TemplateData['teamMemberInvite']).orgName);
 		} else if (template === 'organizationDeleted') {
 			subject = templateData.subject((data as TemplateData['organizationDeleted']).orgName);
+		} else if (template === 'trialStarted') {
+			subject = templateData.subject((data as TemplateData['trialStarted']).orgName);
+		} else if (template === 'trialEndingSoon') {
+			subject = templateData.subject((data as TemplateData['trialEndingSoon']).orgName);
+		} else if (template === 'trialEndsTomorrow') {
+			subject = templateData.subject((data as TemplateData['trialEndsTomorrow']).orgName);
+		} else if (template === 'trialEnded') {
+			subject = templateData.subject((data as TemplateData['trialEnded']).orgName);
 		} else {
 			subject = templateData.subject('');
 		}
@@ -381,8 +552,8 @@ class EmailService {
 		await this.sendEmail({
 			to,
 			subject,
-			text: templateData.text(data as any),
-			html: templateData.html(data as any)
+			text: templateData.text(data as unknown as never),
+			html: templateData.html(data as unknown as never)
 		});
 	}
 
@@ -411,6 +582,22 @@ class EmailService {
 			orgName,
 			firstName
 		});
+	}
+
+	async sendTrialStarted(to: string, orgName: string, trialEnd: string): Promise<void> {
+		await this.sendTemplateEmail('trialStarted', to, { orgName, trialEnd });
+	}
+
+	async sendTrialEndingSoon(to: string, orgName: string, daysRemaining: number, trialEnd: string): Promise<void> {
+		await this.sendTemplateEmail('trialEndingSoon', to, { orgName, daysRemaining, trialEnd });
+	}
+
+	async sendTrialEndsTomorrow(to: string, orgName: string, trialEnd: string): Promise<void> {
+		await this.sendTemplateEmail('trialEndsTomorrow', to, { orgName, trialEnd });
+	}
+
+	async sendTrialEnded(to: string, orgName: string, trialEnd: string): Promise<void> {
+		await this.sendTemplateEmail('trialEnded', to, { orgName, trialEnd });
 	}
 }
 

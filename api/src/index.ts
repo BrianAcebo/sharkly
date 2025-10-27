@@ -16,9 +16,10 @@ import billingOnboardingRoutes from './routes/billingOnboarding.js';
 import twilioPhoneRoutes from './routes/twilioPhone.js';
 import organizationStatusRoutes from './routes/organizationStatus.js';
 import smsVerificationRoutes from './routes/smsVerification.js';
-import trialStatusRoutes from './routes/trialStatus.js';
 import subscriptionStatusRoutes from './routes/subscriptionStatus.js';
 import paymentStatusRoutes from './routes/paymentStatus.js';
+import emailRoutes from './routes/email.js';
+import trialStatusRoutes from './routes/trialStatus.js';
 
 dotenv.config();
 
@@ -57,12 +58,16 @@ app.use('/api/sms', smsVerificationRoutes);
 app.use('/api/trial', trialStatusRoutes);
 app.use('/api/subscription', subscriptionStatusRoutes);
 app.use('/api', paymentStatusRoutes);
+app.use('/api/email', emailRoutes);
+app.use('/api/trial', trialStatusRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 // Error handler
+type HttpError = Error & { statusCode?: number };
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const e = err as any;
+  const e: HttpError = err as HttpError;
+  void _next;
   if (typeof e?.statusCode === 'number') {
     return res.status(e.statusCode).json({ error: { message: e.message } });
   }
