@@ -24,11 +24,12 @@
 		"preview": "vite preview",
 		"// note5": "---- Optional: one-liner to deploy API on Fly ----",
 		"fly:deploy": "fly deploy --remote-only -a paperboat-crm-api",
-    "// note6": "---- Supabase (DB) ----",
-		"db:start": "docker compose -f supabase/docker-compose.yml up -d",
-    "db:stop": "docker compose -f supabase/docker-compose.yml down",
-    "db:reset": "docker compose -f supabase/docker-compose.yml down -v && docker compose -f supabase/docker-compose.yml up -d",
-    "db:logs": "docker compose -f supabase/docker-compose.yml logs -f kong db auth rest studio"
+		"// note6": "---- Supabase (DB) ----",
+		"db:start": "docker compose -f supabase/docker/docker-compose.yml up -d",
+		"db:stop": "docker compose -f supabase/docker/docker-compose.yml down",
+		"db:pull": "docker compose -f supabase/docker/docker-compose.yml pull",
+		"db:reset": "docker compose -f supabase/docker/docker-compose.yml down -v && docker compose -f supabase/docker/docker-compose.yml up -d",
+		"db:logs": "docker compose -f supabase/docker/docker-compose.yml logs -f kong db auth rest studio"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",

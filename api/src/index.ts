@@ -71,7 +71,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // ==== Listener: local vs Fly ====
-const LISTEN_HOST = isFly ? '0.0.0.0' : 'localhost';
+const LISTEN_HOST = isFly ? '0.0.0.0' : '127.0.0.1';
 
 app.listen(PORT, LISTEN_HOST, () => {
 	console.log(`API listening on http://${LISTEN_HOST}:${PORT} ${isFly ? '(Fly)' : '(Local)'}`);
