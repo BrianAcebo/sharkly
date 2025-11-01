@@ -13,13 +13,3 @@ export interface Notification {
   shown: boolean;
   created_at: string;
 }
-
-export interface TaskReminder {
-  id: string;
-  task_id: string;
-  reminder_time: string;
-  status: string;
-  notification_type: string;
-  created_at: string;
-  updated_at: string;
-}

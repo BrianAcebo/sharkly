@@ -6,7 +6,7 @@ import Input from '../components/form/input/InputField';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
-import { CheckCircle, ArrowRight, ArrowLeft, Users, Clock, MessageSquare, Mail } from 'lucide-react';
+import { CheckCircle, ArrowRight, ArrowLeft, Users, Coins } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
@@ -176,16 +176,8 @@ const BillingOnboarding: React.FC = () => {
               <span>{plan.included_seats} seat{plan.included_seats !== 1 ? 's' : ''}</span>
             </div>
             <div className="flex items-center text-sm">
-              <Clock className="h-4 w-4 mr-2 text-gray-500" />
-              <span>{plan.included_minutes.toLocaleString()} minutes</span>
-            </div>
-            <div className="flex items-center text-sm">
-              <MessageSquare className="h-4 w-4 mr-2 text-gray-500" />
-              <span>{plan.included_sms.toLocaleString()} SMS</span>
-            </div>
-            <div className="flex items-center text-sm">
-              <Mail className="h-4 w-4 mr-2 text-gray-500" />
-              <span>{plan.included_emails.toLocaleString()} emails</span>
+              <Coins className="h-4 w-4 mr-2 text-gray-500" />
+              <span>{plan.included_credits.toLocaleString()} credits</span>
             </div>
           </div>
         </CardContent>
@@ -221,7 +213,7 @@ const BillingOnboarding: React.FC = () => {
 
       {state.trialSelected && (
         <div className="max-w-2xl mx-auto mt-4 text-xs text-yellow-900 bg-yellow-50 border border-yellow-200 rounded-md p-3">
-          <strong>During your 7‑day pay‑as‑you‑go trial</strong>, monthly plan fees are $0, but any telecom usage (voice minutes, SMS, etc.) is billed separately and due immediately. You will receive separate invoices for usage during the trial.
+          <strong>During your 7‑day pay‑as‑you‑go trial</strong>, monthly plan fees are $0, but any LLM usage is billed separately and due immediately. You will receive separate invoices for usage during the trial.
         </div>
       )}
 

@@ -72,9 +72,9 @@ const templates = {
 					/* Container */
 					.email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
 					
-					/* Header */
-					.email-header { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); padding: 40px 32px; text-align: center; border-bottom: 1px solid #fecaca; }
-					.email-header h1 { color: #dc2626; font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+                    /* Header */
+                    .email-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 40px 32px; text-align: center; border-bottom: 1px solid #bfdbfe; }
+                    .email-header h1 { color: #2563eb; font-size: 28px; font-weight: 700; margin-bottom: 8px; }
 					.email-header p { color: #6b7280; font-size: 16px; }
 					
 					/* Content */
@@ -86,10 +86,10 @@ const templates = {
 					.detail-label { font-weight: 600; color: #374151; min-width: 80px; }
 					.detail-value { color: #6b7280; }
 					
-					/* Branded Button */
+                    /* Branded Button */
 					.branded-button { 
 						display: inline-block; 
-						background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%); 
+                        background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%); 
 						color: #ffffff !important; 
 						text-decoration: none; 
 						padding: 16px 32px; 
@@ -97,20 +97,20 @@ const templates = {
 						font-weight: 600; 
 						font-size: 16px; 
 						text-align: center; 
-						box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.3), 0 2px 4px -1px rgba(239, 68, 68, 0.2);
+                        box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3), 0 2px 4px -1px rgba(59, 130, 246, 0.2);
 						transition: all 0.2s ease-in-out;
 						border: none;
 						cursor: pointer;
 						min-width: 200px;
 					}
 					.branded-button:hover { 
-						background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%); 
+                        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%); 
 						transform: translateY(-1px);
-						box-shadow: 0 6px 8px -1px rgba(239, 68, 68, 0.4), 0 4px 6px -1px rgba(239, 68, 68, 0.3);
+                        box-shadow: 0 6px 8px -1px rgba(59, 130, 246, 0.4), 0 4px 6px -1px rgba(59, 130, 246, 0.3);
 					}
 					.branded-button:active { 
 						transform: translateY(0);
-						box-shadow: 0 2px 4px -1px rgba(239, 68, 68, 0.3);
+                        box-shadow: 0 2px 4px -1px rgba(59, 130, 246, 0.3);
 					}
 					
 					/* Button Container */
@@ -132,8 +132,8 @@ const templates = {
 			<body>
 				<div class="email-container">
 					<div class="email-header">
-						<h1>🎯 Team Invitation</h1>
-						<p>You've been invited to join a team on Paperboat CRM</p>
+                        <h1>🎯 Team Invitation</h1>
+                        <p>You've been invited to join a team on True Sight Intelligence</p>
 					</div>
 					
 					<div class="email-content">
@@ -171,8 +171,8 @@ const templates = {
 					</div>
 					
 					<div class="email-footer">
-						<p>If you did not expect this invitation, please ignore this email.</p>
-						<p style="margin-top: 8px;">© ${new Date().getFullYear()} Paperboat CRM. All rights reserved.</p>
+                        <p>If you did not expect this invitation, please ignore this email.</p>
+                        <p style="margin-top: 8px;">© ${new Date().getFullYear()} True Sight Intelligence. All rights reserved.</p>
 					</div>
 				</div>
 			</body>
@@ -180,7 +180,7 @@ const templates = {
 		`
 	},
 	organizationDeleted: {
-		subject: (orgName: string) => `Organization ${orgName} has been deleted`,
+        subject: (orgName: string) => `Organization ${orgName} has been deleted`,
 		text: (data: TemplateData['organizationDeleted']) => `
 			Hello ${data.firstName},
 			
@@ -188,7 +188,7 @@ const templates = {
 			
 			This means:
 			- You no longer have access to any data or resources from this organization
-			- All your leads, tasks, and other organization-specific data have been permanently removed
+			- All your organization specific data have been permanently removed
 			- You will need to be invited to a new organization to continue using Paperboat CRM
 			
 			If you have any questions or concerns, please contact our support team.
@@ -211,23 +211,23 @@ const templates = {
 					/* Container */
 					.email-container { max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
 					
-					/* Header */
-					.email-header { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 40px 32px; text-align: center; border-bottom: 1px solid #f59e0b; }
-					.email-header h1 { color: #d97706; font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+                    /* Header */
+                    .email-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 40px 32px; text-align: center; border-bottom: 1px solid #bfdbfe; }
+                    .email-header h1 { color: #2563eb; font-size: 28px; font-weight: 700; margin-bottom: 8px; }
 					.email-header p { color: #6b7280; font-size: 16px; }
 					
 					/* Content */
 					.email-content { padding: 40px 32px; }
-					.warning-box { background-color: #fef3c7; border-radius: 8px; padding: 24px; margin: 24px 0; border-left: 4px solid #f59e0b; }
-					.warning-box h3 { color: #d97706; font-size: 18px; font-weight: 600; margin-bottom: 12px; }
-					.warning-box ul { list-style: none; padding: 0; }
-					.warning-box li { color: #92400e; margin-bottom: 8px; padding-left: 20px; position: relative; }
+                    .warning-box { background-color: #eff6ff; border-radius: 8px; padding: 24px; margin: 24px 0; border-left: 4px solid #60a5fa; }
+                    .warning-box h3 { color: #1d4ed8; font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+                    .warning-box ul { list-style: none; padding: 0; }
+                    .warning-box li { color: #1e40af; margin-bottom: 8px; padding-left: 20px; position: relative; }
 					.warning-box li:before { content: "⚠️"; position: absolute; left: 0; }
 					
 					/* Info Box */
-					.info-box { background-color: #f0f9ff; border-radius: 8px; padding: 24px; margin: 24px 0; border-left: 4px solid #0ea5e9; }
-					.info-box h3 { color: #0369a1; font-size: 18px; font-weight: 600; margin-bottom: 12px; }
-					.info-box p { color: #0c4a6e; margin-bottom: 8px; }
+                    .info-box { background-color: #f0f9ff; border-radius: 8px; padding: 24px; margin: 24px 0; border-left: 4px solid #60a5fa; }
+                    .info-box h3 { color: #1d4ed8; font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+                    .info-box p { color: #1e40af; margin-bottom: 8px; }
 					
 					/* Footer */
 					.email-footer { background-color: #f9fafb; padding: 24px 32px; text-align: center; border-top: 1px solid #e5e7eb; }
@@ -245,7 +245,7 @@ const templates = {
 				<div class="email-container">
 					<div class="email-header">
 						<h1>⚠️ Organization Deleted</h1>
-						<p>Important notice about your organization access</p>
+                        <p>Important notice about your organization access</p>
 					</div>
 					
 					<div class="email-content">
@@ -261,14 +261,14 @@ const templates = {
 							<h3>What this means for you:</h3>
 							<ul>
 								<li>You no longer have access to any data or resources from this organization</li>
-								<li>All your leads, tasks, and other organization-specific data have been permanently removed</li>
+								<li>All your organization specific data have been permanently removed</li>
 								<li>You will need to be invited to a new organization to continue using Paperboat CRM</li>
 							</ul>
 						</div>
 						
 						<div class="info-box">
 							<h3>Next Steps</h3>
-							<p>If you need to continue using Paperboat CRM, you'll need to:</p>
+                            <p>If you need to continue using True Sight Intelligence, you'll need to:</p>
 							<p>1. Be invited to a new organization by an organization owner</p>
 							<p>2. Or create your own organization if you have the appropriate permissions</p>
 						</div>
@@ -279,9 +279,9 @@ const templates = {
 					</div>
 					
 					<div class="email-footer">
-						<p>Best regards,</p>
-						<p style="margin-top: 8px;">The Paperboat CRM Team</p>
-						<p style="margin-top: 8px;">© ${new Date().getFullYear()} Paperboat CRM. All rights reserved.</p>
+                        <p>Best regards,</p>
+                        <p style="margin-top: 8px;">The True Sight Intelligence Team</p>
+                        <p style="margin-top: 8px;">© ${new Date().getFullYear()} True Sight Intelligence. All rights reserved.</p>
 					</div>
 				</div>
 			</body>
@@ -289,7 +289,7 @@ const templates = {
 		`
 	},
 	trialStarted: {
-		subject: (orgName: string) => `Your Paperboat CRM trial has started for ${orgName}`,
+        subject: (orgName: string) => `Your True Sight Intelligence trial has started for ${orgName}`,
 		text: (data: TemplateData['trialStarted']) => `Your trial for ${data.orgName} has started. It ends on ${new Date(data.trialEnd).toLocaleString()}.`,
 		html: (data: TemplateData['trialStarted']) => `
 			<!DOCTYPE html>
@@ -302,11 +302,11 @@ const templates = {
 					* { margin: 0; padding: 0; box-sizing: border-box; }
 					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f9fafb; }
 					.email-container { max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
-					.email-header { background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); padding: 36px 28px; border-bottom: 1px solid #fca5a5; text-align: center; }
-					.email-header h1 { color: #b91c1c; font-size: 26px; font-weight: 800; }
+                    .email-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 36px 28px; border-bottom: 1px solid #bfdbfe; text-align: center; }
+                    .email-header h1 { color: #1d4ed8; font-size: 26px; font-weight: 800; }
 					.email-content { padding: 32px 28px; }
-					.kpi { background-color: #f9fafb; border-left: 4px solid #f87171; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
-					.cta { display: inline-block; background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(239,68,68,0.3), 0 2px 4px -1px rgba(239,68,68,0.2); margin-top: 18px; }
+                    .kpi { background-color: #f9fafb; border-left: 4px solid #60a5fa; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
+                    .cta { display: inline-block; background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(59,130,246,0.3), 0 2px 4px -1px rgba(59,130,246,0.2); margin-top: 18px; }
 					.cta:hover { filter: brightness(1.05); }
 					.email-footer { background-color: #f9fafb; padding: 22px 28px; text-align: center; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 13px; }
 				</style>
@@ -327,7 +327,7 @@ const templates = {
 						</p>
 					</div>
 					<div class="email-footer">
-						<p>Paperboat CRM • Keep your leads and workflows afloat 🚢</p>
+                        <p>True Sight Intelligence • Uncover digital footprints instantly 🔎</p>
 					</div>
 				</div>
 			</body>
@@ -335,7 +335,7 @@ const templates = {
 		`
 	},
 	trialEndingSoon: {
-		subject: (orgName: string) => `Your ${orgName} trial is ending soon`,
+        subject: (orgName: string) => `Your ${orgName} trial is ending soon`,
 		text: (data: TemplateData['trialEndingSoon']) => `Your trial for ${data.orgName} ends in ${data.daysRemaining} days, on ${new Date(data.trialEnd).toLocaleString()}.`,
 		html: (data: TemplateData['trialEndingSoon']) => `
 			<!DOCTYPE html>
@@ -348,11 +348,11 @@ const templates = {
 					* { margin: 0; padding: 0; box-sizing: border-box; }
 					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f9fafb; }
 					.email-container { max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
-					.email-header { background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); padding: 36px 28px; border-bottom: 1px solid #fdba74; text-align: center; }
-					.email-header h1 { color: #c2410c; font-size: 26px; font-weight: 800; }
+                    .email-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 36px 28px; border-bottom: 1px solid #bfdbfe; text-align: center; }
+                    .email-header h1 { color: #1d4ed8; font-size: 26px; font-weight: 800; }
 					.email-content { padding: 32px 28px; }
-					.kpi { background-color: #f9fafb; border-left: 4px solid #fb923c; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
-					.cta { display: inline-block; background: linear-gradient(135deg, #f97316 0%, #ea580c 60%, #c2410c 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(234,88,12,0.3), 0 2px 4px -1px rgba(234,88,12,0.2); margin-top: 18px; }
+                    .kpi { background-color: #f9fafb; border-left: 4px solid #60a5fa; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
+                    .cta { display: inline-block; background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 60%, #2563eb 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(59,130,246,0.3), 0 2px 4px -1px rgba(59,130,246,0.2); margin-top: 18px; }
 					.cta:hover { filter: brightness(1.05); }
 					.email-footer { background-color: #f9fafb; padding: 22px 28px; text-align: center; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 13px; }
 				</style>
@@ -371,7 +371,7 @@ const templates = {
 						</p>
 					</div>
 					<div class="email-footer">
-						<p>Paperboat CRM • Keep your leads and workflows afloat 🚢</p>
+                        <p>True Sight Intelligence • Uncover digital footprints instantly 🔎</p>
 					</div>
 				</div>
 			</body>
@@ -379,7 +379,7 @@ const templates = {
 		`
 	},
 	trialEndsTomorrow: {
-		subject: (orgName: string) => `Your ${orgName} trial ends tomorrow`,
+        subject: (orgName: string) => `Your ${orgName} trial ends tomorrow`,
 		text: (data: TemplateData['trialEndsTomorrow']) => `Your trial for ${data.orgName} ends tomorrow (${new Date(data.trialEnd).toLocaleString()}).`,
 		html: (data: TemplateData['trialEndsTomorrow']) => `
 			<!DOCTYPE html>
@@ -392,11 +392,11 @@ const templates = {
 					* { margin: 0; padding: 0; box-sizing: border-box; }
 					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f9fafb; }
 					.email-container { max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
-					.email-header { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding: 36px 28px; border-bottom: 1px solid #fbbf24; text-align: center; }
-					.email-header h1 { color: #a16207; font-size: 26px; font-weight: 800; }
+                    .email-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 36px 28px; border-bottom: 1px solid #bfdbfe; text-align: center; }
+                    .email-header h1 { color: #1d4ed8; font-size: 26px; font-weight: 800; }
 					.email-content { padding: 32px 28px; }
-					.kpi { background-color: #f9fafb; border-left: 4px solid #facc15; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
-					.cta { display: inline-block; background: linear-gradient(135deg, #f59e0b 0%, #d97706 60%, #a16207 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(217,119,6,0.3), 0 2px 4px -1px rgba(217,119,6,0.2); margin-top: 18px; }
+                    .kpi { background-color: #f9fafb; border-left: 4px solid #60a5fa; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
+                    .cta { display: inline-block; background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 60%, #2563eb 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(59,130,246,0.3), 0 2px 4px -1px rgba(59,130,246,0.2); margin-top: 18px; }
 					.cta:hover { filter: brightness(1.05); }
 					.email-footer { background-color: #f9fafb; padding: 22px 28px; text-align: center; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 13px; }
 				</style>
@@ -415,7 +415,7 @@ const templates = {
 						</p>
 					</div>
 					<div class="email-footer">
-						<p>Paperboat CRM • Keep your leads and workflows afloat 🚢</p>
+                        <p>True Sight Intelligence • Uncover digital footprints instantly 🔎</p>
 					</div>
 				</div>
 			</body>
@@ -423,7 +423,7 @@ const templates = {
 		`
 	},
 	trialEnded: {
-		subject: (orgName: string) => `${orgName} trial has ended`,
+        subject: (orgName: string) => `${orgName} trial has ended`,
 		text: (data: TemplateData['trialEnded']) => `Your trial for ${data.orgName} has ended. End date: ${new Date(data.trialEnd).toLocaleString()}.`,
 		html: (data: TemplateData['trialEnded']) => `
 			<!DOCTYPE html>
@@ -436,11 +436,11 @@ const templates = {
 					* { margin: 0; padding: 0; box-sizing: border-box; }
 					body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #374151; background-color: #f9fafb; }
 					.email-container { max-width: 640px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); }
-					.email-header { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); padding: 36px 28px; border-bottom: 1px solid #fecaca; text-align: center; }
-					.email-header h1 { color: #b91c1c; font-size: 26px; font-weight: 800; }
+                    .email-header { background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); padding: 36px 28px; border-bottom: 1px solid #bfdbfe; text-align: center; }
+                    .email-header h1 { color: #1d4ed8; font-size: 26px; font-weight: 800; }
 					.email-content { padding: 32px 28px; }
-					.kpi { background-color: #f9fafb; border-left: 4px solid #ef4444; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
-					.cta { display: inline-block; background: linear-gradient(135deg, #f87171 0%, #ef4444 50%, #dc2626 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(239,68,68,0.3), 0 2px 4px -1px rgba(239,68,68,0.2); margin-top: 18px; }
+                    .kpi { background-color: #f9fafb; border-left: 4px solid #60a5fa; border-radius: 8px; padding: 16px; margin: 16px 0; color: #374151; }
+                    .cta { display: inline-block; background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 50%, #2563eb 100%); color: #ffffff !important; text-decoration: none; padding: 14px 22px; border-radius: 8px; font-weight: 700; font-size: 15px; box-shadow: 0 4px 6px -1px rgba(59,130,246,0.3), 0 2px 4px -1px rgba(59,130,246,0.2); margin-top: 18px; }
 					.cta:hover { filter: brightness(1.05); }
 					.email-footer { background-color: #f9fafb; padding: 22px 28px; text-align: center; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 13px; }
 				</style>
@@ -459,7 +459,7 @@ const templates = {
 						</p>
 					</div>
 					<div class="email-footer">
-						<p>Paperboat CRM • Keep your leads and workflows afloat 🚢</p>
+                        <p>True Sight Intelligence • Uncover digital footprints instantly 🔎</p>
 					</div>
 				</div>
 			</body>

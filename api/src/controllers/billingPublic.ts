@@ -7,7 +7,7 @@ export const listActivePlans = async (_req: Request, res: Response) => {
 		const { data, error } = await supabase
 			.from('plan_catalog')
 			.select(
-				'plan_code, name, description, included_seats, included_minutes, included_sms, included_emails, base_price_cents, stripe_price_id, active'
+				'plan_code, name, description, included_seats, included_credits, base_price_cents, stripe_price_id, active'
 			)
 			.eq('active', true)
 			.eq('env', process.env.NODE_ENV === 'development' ? 'test' : 'live')

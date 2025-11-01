@@ -1,5 +1,3 @@
-import z from 'zod';
-
 const EMERGENCY_CODES = new Set(['911', '933', '112', '999', '000', '08', '110', '118']);
 
 export function isEmergencyNumber(phone: string): boolean {
@@ -44,9 +42,3 @@ export function normalizePhoneNumber(phone: string): string {
 	// Default: add +1 for US numbers
 	return `+1${digits}`;
 }
-
-// Validation schema
-export const makeCallSchema = z.object({
-	to: z.string().min(1, 'Recipient phone number is required'),
-	from: z.string().optional()
-});

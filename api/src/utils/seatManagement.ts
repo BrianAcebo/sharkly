@@ -13,11 +13,4 @@ export async function getOrganizationSeatAssignments(orgId: string) {
 	return data ?? [];
 }
 
-export async function clearSeatPhoneAssignment(seatId: string) {
-	await supabase
-		.from('seats')
-		.update({ phone_sid: null, phone_e164: null, updated_at: new Date().toISOString() })
-		.eq('id', seatId);
-}
-
 

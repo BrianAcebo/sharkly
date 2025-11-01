@@ -16,12 +16,9 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import PricingTable from './PricingTable';
 import UpfrontBillingDisclaimer from './UpfrontBillingDisclaimer';
 import { CustomerPaymentMethodSummary, PlanCatalogRow } from '../../types/billing';
-import { ArrowRight, ArrowLeft, CheckCircle, Users, Clock, Shield } from 'lucide-react';
+import { ArrowRight, ArrowLeft, CheckCircle, Users } from 'lucide-react';
 import { CreditCard as CreditCardIcon } from 'lucide-react';
 import { SiVisa, SiMastercard, SiAmericanexpress, SiDiscover, SiDinersclub, SiJcb } from 'react-icons/si';
-import BrandForm from '../sms/BrandForm';
-import CampaignForm from '../sms/CampaignForm';
-import TollFreeForm from '../sms/TollFreeForm';
 import { api } from '../../utils/api';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
@@ -36,7 +33,7 @@ interface SeamlessBillingFlowProps {
   } | null;
 }
 
-type FlowStep = 'organization' | 'plan' | 'payment' | 'area-code' | 'sms-verification' | 'success';
+type FlowStep = 'organization' | 'plan' | 'payment' | 'success';
 type OrgMode = 'new' | 'renewal';
 
 interface PaymentFormProps {
@@ -190,7 +187,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
       <div className="space-y-6">
         <PlanSummary orgName={orgName} selectedPlan={selectedPlan} trialSelected={trialSelected} />
         <PaymentElement options={{ layout: { type: 'tabs', defaultCollapsed: false } }} />
-        {isLoading && <div className="text-sm text-red-500">Processing payment...</div>}
+        {isLoading && <div className="text-sm text-blue-500">Processing payment...</div>}
       </div>
       <FormActions onBack={onBack} isLoading={isLoading} primaryLabel="Complete" />
     </form>
@@ -327,10 +324,6 @@ const PlanSummary: React.FC<PlanSummaryProps> = ({ orgName, selectedPlan, trialS
               <Users className="mr-1 h-4 w-4" />
               {selectedPlan.included_seats} seat{selectedPlan.included_seats !== 1 ? 's' : ''}
             </div>
-            <div className="flex items-center">
-              <Clock className="mr-1 h-4 w-4" />
-              {selectedPlan.included_minutes.toLocaleString()} min
-            </div>
           </div>
         </div>
       </CardContent>
@@ -369,8 +362,6 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
 
   const mode: OrgMode = existingOrganization ? 'renewal' : 'new';
   const skipOrgStep = mode === 'renewal';
-  const skipSmsStep = mode === 'renewal';
-  const showSmsStep = !skipSmsStep;
 
   const [currentStep, setCurrentStep] = useState<FlowStep>(skipOrgStep ? 'plan' : 'organization');
   const [completedSteps, setCompletedSteps] = useState<FlowStep[]>(skipOrgStep ? ['organization'] : []);
@@ -386,8 +377,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
   );
   const [selectedPlan, setSelectedPlan] = useState<PlanCatalogRow | null>(null);
   const [trialSelected, setTrialSelected] = useState(false);
-  const [areaCode, setAreaCode] = useState<string>('');
-  const [provisioning, setProvisioning] = useState<{ running: boolean; error?: string | null }>({ running: false });
+  // Twilio provisioning removed: no area code or provisioning state
 
   const [savedPaymentMethod, setSavedPaymentMethod] = useState<CustomerPaymentMethodSummary | null>(null);
   const [savedPaymentMethods, setSavedPaymentMethods] = useState<CustomerPaymentMethodSummary[]>([]);
@@ -677,13 +667,6 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       setError(null);
       return;
     }
-
-    if (currentStep === 'sms-verification') {
-      setCompletedSteps(['organization', 'plan', 'payment']);
-      setCurrentStep('payment');
-      setError(null);
-      return;
-    }
   };
 
   const handleSuccess = async () => {
@@ -694,15 +677,9 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       return;
     }
 
-    setCompletedSteps(['organization', 'plan', 'payment']);
-    setCurrentStep('area-code');
-    toast.success('Organization created successfully!');
-  };
-
-  const handleSmsVerificationComplete = () => {
-    setCompletedSteps(['organization', 'plan', 'payment', 'sms-verification', 'success']);
+    setCompletedSteps(['organization', 'plan', 'payment', 'success']);
     setCurrentStep('success');
-    toast.success('SMS verification setup completed!');
+    toast.success('Organization created successfully!');
   };
 
   const handleGoToDashboard = async () => {
@@ -716,7 +693,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
       // no-op; we'll hard refresh regardless
     }
     onClose();
-    window.location.assign('/pipeline');
+    window.location.assign('/cases');
   };
 
   const renderSavedCardOptions = () => {
@@ -731,10 +708,10 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
           {savedPaymentMethods.map((pm) => (
             <label
               key={pm.id}
-              className={`w-full cursor-pointer rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
+              className={`w-full cursor-pointer rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 useExistingPaymentMethod && selectedSavedPaymentMethodId === pm.id
-                  ? 'border-red-400 bg-red-50 text-gray-900 shadow-sm dark:border-red-500/60 dark:bg-red-500/10'
-                  : 'border-gray-200 bg-white text-gray-700 hover-border-red-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+                  ? 'border-blue-400 bg-blue-50 text-gray-900 shadow-sm dark:border-blue-500/60 dark:bg-blue-500/10'
+                  : 'border-gray-200 bg-white text-gray-700 hover-border-blue-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
               }`}
               onClick={() => {
                 setUseExistingPaymentMethod(true);
@@ -756,8 +733,8 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
 
           {savedPaymentMethods.length === 0 && savedPaymentMethod && (
             <label
-              className={`w-full cursor-pointer rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
-                useExistingPaymentMethod ? 'border-red-400 bg-red-50 text-gray-900 shadow-sm dark:border-red-500/60 dark:bg-red-500/10' : 'border-gray-200 bg-white text-gray-700 hover-border-red-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+              className={`w-full cursor-pointer rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                useExistingPaymentMethod ? 'border-blue-400 bg-blue-50 text-gray-900 shadow-sm dark:border-blue-500/60 dark:bg-blue-500/10' : 'border-gray-200 bg-white text-gray-700 hover-border-blue-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
               }`}
               onClick={() => setUseExistingPaymentMethod(true)}
             >
@@ -774,10 +751,10 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
           <button
             type="button"
             onClick={() => setUseExistingPaymentMethod(false)}
-            className={`w-full rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 ${
+            className={`w-full rounded-xl border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
               !useExistingPaymentMethod
-                ? 'border-red-400 bg-red-50 text-gray-900 shadow-sm dark:border-red-500/60 dark:bg-red-500/10'
-                : 'border-gray-200 bg-white text-gray-700 hover-border-red-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
+                ? 'border-blue-400 bg-blue-50 text-gray-900 shadow-sm dark:border-blue-500/60 dark:bg-blue-500/10'
+                : 'border-gray-200 bg-white text-gray-700 hover-border-blue-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
             }`}
           >
             <p className="text-sm font-semibold">Use a different card</p>
@@ -790,72 +767,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
 
   const renderStepContent = () => {
     switch (currentStep) {
-      case 'area-code':
-        return (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h3 className="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Choose Preferred Area Code</h3>
-              <p className="text-gray-600 dark:text-gray-400">We’ll provision your phone numbers using this area code.</p>
-            </div>
-            <div className="mx-auto mb-4 max-w-md">
-              <Label htmlFor="areaCode">Area Code</Label>
-              <Input
-                id="areaCode"
-                value={areaCode}
-                onChange={(e) => setAreaCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 3))}
-                placeholder="e.g. 415"
-                required
-              />
-            </div>
-            <div className="flex justify-between">
-              <Button variant="outline" onClick={() => setCurrentStep('payment')} disabled={provisioning.running}>
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
-              </Button>
-              <Button
-                onClick={async () => {
-                  if (!orgId) {
-                    setError('Missing organization ID');
-                    return;
-                  }
-                  if (!areaCode || areaCode.length !== 3) {
-                    setError('Please enter a valid 3-digit area code');
-                    return;
-                  }
-                  setProvisioning({ running: true });
-                  setError(null);
-                  try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    if (!session?.access_token) throw new Error('Not authenticated');
-                    const resp = await api.post(
-                      '/api/billing/orgs/provision',
-                      { orgId, areaCode },
-                      { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` } }
-                    );
-                    if (resp.status === 409) {
-                      // payment pending
-                      throw new Error('Payment not confirmed yet. Please wait a moment and try again.');
-                    }
-                    if (!resp.ok) {
-                      const err = await resp.json().catch(() => ({}));
-                      throw new Error(err.error || 'Provisioning failed');
-                    }
-                    toast.success('Phone system provisioned');
-                    setCompletedSteps(['organization', 'plan', 'payment', 'area-code']);
-                    setCurrentStep('sms-verification');
-                  } catch (e) {
-                    setError(e instanceof Error ? e.message : 'Provisioning failed');
-                  } finally {
-                    setProvisioning({ running: false });
-                  }
-                }}
-                disabled={provisioning.running || !areaCode || areaCode.length !== 3}
-              >
-                {provisioning.running ? 'Provisioning…' : 'Provision & Continue'}
-              </Button>
-            </div>
-          </div>
-        );
+      // Twilio provisioning step removed
       case 'organization':
         return (
           <div className="space-y-6">
@@ -913,7 +825,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
               )}
               <Button onClick={handleNext} disabled={!selectedPlan}>
                 Next: Payment Details
-                <ArrowRight className="ml-2 h-4 w-4 text-red-500" />
+                <ArrowRight className="ml-2 h-4 w-4 text-blue-500" />
               </Button>
             </div>
           </div>
@@ -978,7 +890,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
               </Elements>
             ) : (
               <div className="space-y-3">
-                <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-200">
+                <div className="rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700 dark:border-blue-900/50 dark:bg-blue-900/20 dark:text-blue-200">
                   We couldn’t prepare your payment session. Go back and try again.
                 </div>
                 <div className="flex justify-between">
@@ -990,40 +902,6 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
           </div>
         );
       }
-      case 'sms-verification':
-        if (!showSmsStep) {
-          handleSuccess();
-          return null;
-        }
-
-        return orgId ? (
-          <div className="space-y-6">
-            <div className="text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-                <Shield className="h-6 w-6 text-blue-600" />
-              </div>
-              <h2 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white">SMS Verification Setup</h2>
-              <p className="mb-4 text-gray-600 dark:text-gray-400">
-                This step is <strong>optional</strong> but highly recommended for better SMS delivery.
-              </p>
-            </div>
-
-            <div className="space-y-6">
-              <BrandForm orgId={orgId} onSave={() => {}} userRole={user?.role} />
-              <CampaignForm orgId={orgId} onSave={() => {}} onSubmit10DLC={() => {}} userRole={user?.role} />
-              <TollFreeForm orgId={orgId} onSubmit={() => {}} userRole={user?.role} />
-            </div>
-
-            <div className="flex justify-end">
-              <Button onClick={handleSmsVerificationComplete}>Continue to Dashboard</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="py-8 text-center">
-            <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-red-500"></div>
-            <p className="text-gray-600">Loading verification setup...</p>
-          </div>
-        );
       case 'success':
         return (
           <div className="space-y-6 text-center">
@@ -1069,59 +947,42 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
                   <div
                     className={`flex h-8 w-8 items-center justify-center rounded-full ${
                       currentStep === 'organization' || completedSteps.includes('organization')
-                        ? 'bg-red-500 text-white'
+                        ? 'bg-blue-500 text-white'
                         : 'bg-gray-200 text-gray-500'
                     }`}
                   >
                     1
                   </div>
-                  <div className="h-1 w-16 bg-red-500" />
+                  <div className="h-1 w-16 bg-blue-500" />
                 </>
               )}
 
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full ${
                   currentStep === 'plan' || completedSteps.includes('plan')
-                    ? 'bg-red-500 text-white'
+                    ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-gray-500'
                 }`}
               >
                 {skipOrgStep ? 1 : 2}
               </div>
-              <div className="h-1 w-16 bg-red-500" />
+              <div className="h-1 w-16 bg-blue-500" />
 
               <div
                 className={`flex h-8 w-8 items-center justify-center rounded-full ${
                   currentStep === 'payment' || completedSteps.includes('payment')
-                    ? 'bg-red-500 text-white'
+                    ? 'bg-blue-500 text-white'
                     : 'bg-gray-200 text-gray-500'
                 }`}
               >
                 {skipOrgStep ? 2 : 3}
               </div>
-
-              {!skipSmsStep && (
-                <>
-                  <div className="h-1 w-16 bg-red-500" />
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                      currentStep === 'sms-verification' || completedSteps.includes('sms-verification')
-                        ? 'bg-red-500 text-white'
-                        : currentStep === 'success'
-                          ? 'bg-green-500 text-white'
-                          : 'bg-gray-200 text-gray-500'
-                    }`}
-                  >
-                    4
-                  </div>
-                </>
-              )}
             </div>
           </div>
 
           {error && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 p-4">
+              <p className="text-sm text-blue-600">{error}</p>
             </div>
           )}
 
@@ -1143,3 +1004,4 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
 };
 
 export default SeamlessBillingFlow;
+

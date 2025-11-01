@@ -12,7 +12,7 @@ export default function AssistantPage() {
 
 	return (
 		<>
-			<PageMeta title="AI Assistant" description="Your AI assistant for managing tasks and leads" />
+			<PageMeta title="AI Assistant" description="Your AI assistant for managing cases" />
 			<AIAssistant />
 		</>
 	);

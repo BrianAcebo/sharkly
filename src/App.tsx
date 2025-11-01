@@ -10,31 +10,25 @@ import OAuthCallback from './pages/Oauth/Callback';
 import { Toaster } from 'sonner';
 import AuthLayout from './layout/AuthLayout';
 import Onboarding from './pages/Onboarding';
-import Pipeline from './pages/Pipeline';
-import Profile from './pages/Profile';
-import Chat from './pages/Chat';
-import Email from './pages/Email';
 import Assistant from './pages/Assistant'
-import Leads from './pages/Leads'
+import Cases from './pages/Cases/Cases';
 import ErrorBoundary from './components/common/ErrorBoundary';
-import Lead from './pages/Lead';
 import OrganizationRequired from './pages/Organization/OrganizationRequired';
 import Organization from './pages/Organization/Organization';
 import InviteAccept from './pages/Organization/InviteAccept';
 import Confirm from './pages/Auth/Confirm';
 import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
-import Tasks from './pages/Tasks';
-import CalendarPage from './pages/Calendar';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword from './pages/Auth/ResetPassword';
-import LeadSmsPage from './pages/leads/[leadId]/sms';
-import Calls from './pages/Calls';
 import Billing from './pages/Billing';
 import BillingOnboarding from './pages/BillingOnboarding';
 import LogoutPage from './pages/Logout';
+import Search from './pages/Search';
+import CaseDetail from './pages/Cases/CaseDetail';
+import Graph from './pages/Graph/Graph';
 
 export default function App() {
 	return (
@@ -50,26 +44,18 @@ export default function App() {
 					</Route>
 
 					<Route element={<AppLayout />}>
-						<Route index path="/pipeline" element={<Pipeline />} />
-						<Route path="/profile" element={<Profile />} />
+						<Route index path="/cases" element={<Cases />} />
+						<Route path="/cases/:id" element={<CaseDetail />} />
+						<Route path="/graph/:id" element={<Graph />} />
                         <Route path="/settings" element={<Settings />} />
 						<Route path="/notifications" element={<Notifications />} />
-						<Route path="/tasks" element={<Tasks />} />
-						<Route path="/tasks/:id" element={<Tasks />} />
-						<Route path="/calendar" element={<CalendarPage />} />
-						<Route path="/inbox" element={<Email />} />
-						<Route path="/chat" element={<Chat />} />
 						<Route path="/assistant" element={<Assistant />} />
             			<Route path="/onboarding" element={<Onboarding />} />
-						<Route path="/leads" element={<Leads />} />
-						<Route path="/leads/:id" element={<Lead />} />
-						<Route path="/leads/:leadId/sms" element={<LeadSmsPage />} />
-						<Route path="/calls" element={<Calls />} />
 						<Route path="/billing" element={<Billing />} />
 						<Route path="/billing-onboarding" element={<BillingOnboarding />} />
 						<Route path="/organization-required" element={<OrganizationRequired />} />
-					<Route path="/organization" element={<Organization />} />
-                    {/* Phone & SMS page merged into Organization tabs */}
+						<Route path="/search" element={<Search />} />
+						<Route path="/organization" element={<Organization />} />
 					</Route>
 
 					{/* Auth Layout */}

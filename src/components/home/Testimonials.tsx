@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, Shield, Building, Users } from 'lucide-react';
+import { Star, Shield, Building, Users, FileCheck2, BadgeCheck, Lock } from 'lucide-react';
 
 const Testimonials: React.FC = () => {
 	const testimonials = [
@@ -32,7 +32,7 @@ const Testimonials: React.FC = () => {
 			avatar:
 				'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
 			content:
-				'Having an AI assistant that can engage with leads 24/7 has been a game-changer. Our response times went from hours to minutes, and the lead qualification accuracy is impressive.',
+				'Having an AI assistant that can investigate cases 24/7 has been a game-changer. Our response times went from hours to minutes, and the lead qualification accuracy is impressive.',
 			rating: 5,
 			industry: 'Technology'
 		}
@@ -49,21 +49,21 @@ const Testimonials: React.FC = () => {
 		<section id="testimonials" className="bg-white py-20 dark:bg-gray-900">
 			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 				{/* Section Header */}
-				<div className="mb-16 text-center">
-					<div className="bg-success-100 dark:bg-success-500/20 text-success-600 dark:text-success-400 mb-6 inline-flex items-center rounded-full px-4 py-2 text-sm font-medium">
-						<Users className="mr-2 h-4 w-4" />
-						Trusted by Sales Teams
-					</div>
-					<h2 className="mb-6 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
-						Sales Professionals
-						<span className="from-brand-500 to-blue-light-500 block bg-gradient-to-r bg-clip-text text-transparent">
-							Love Our Platform
-						</span>
-					</h2>
-					<p className="mx-auto max-w-3xl text-xl text-gray-600 dark:text-gray-300">
-						Join hundreds of sales teams who have transformed their processes with Paperboat CRM's AI-powered automation and lead qualification capabilities.
-					</p>
-				</div>
+                <div className="mb-16 text-center">
+                    <div className="bg-success-100 dark:bg-success-500/20 text-success-600 dark:text-success-400 mb-6 inline-flex items-center rounded-full px-4 py-2 text-sm font-medium">
+                        <Users className="mr-2 h-4 w-4" />
+                        Trusted by Investigators
+                    </div>
+                    <h2 className="mb-6 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
+                        Investigators Who
+                        <span className="from-brand-500 to-blue-light-500 block bg-gradient-to-r bg-clip-text text-transparent">
+                            Work Smarter, Not Harder
+                        </span>
+                    </h2>
+                    <p className="mx-auto max-w-3xl text-xl text-gray-600 dark:text-gray-300">
+                        Hundreds of private investigators, legal support teams, and boutique agencies rely on True Sight to keep cases organized and deliver intelligence faster.
+                    </p>
+                </div>
 
 				{/* Testimonials Grid */}
 				<div className="mb-16 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
@@ -113,30 +113,39 @@ const Testimonials: React.FC = () => {
 				</div>
 
 				{/* Certifications */}
-				<div className="border-t border-gray-200 pt-16 dark:border-gray-700">
-					<div className="mb-12 text-center">
-						<h3 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">
-							Enterprise Security & Compliance
-						</h3>
-						<p className="text-gray-600 dark:text-gray-300">
-							Built with security-first principles and certified for enterprise sales teams
-						</p>
-					</div>
+                <div className="border-t border-gray-200 pt-16 dark:border-gray-700">
+                    <div className="mb-12 text-center">
+                        <h3 className="mb-4 text-2xl font-bold text-gray-900 dark:text-white">Enterprise Security & Compliance</h3>
+                        <p className="text-gray-600 dark:text-gray-300">Built with security‑first principles and compliant evidence controls</p>
+                    </div>
 
-					<div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-						{certifications.map((cert, index) => {
-							const IconComponent = cert.icon;
-							return (
-								<div key={index} className="text-center">
-									<div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-900">
-										<IconComponent className="h-8 w-8 text-gray-600 dark:text-gray-400" />
-									</div>
-									<div className="font-semibold text-gray-900 dark:text-white">{cert.name}</div>
-								</div>
-							);
-						})}
-					</div>
-				</div>
+                    <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
+                        <div className="text-center">
+                            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-900">
+                                <Lock className="h-8 w-8 text-gray-600 dark:text-gray-400" />
+                            </div>
+                            <div className="font-semibold text-gray-900 dark:text-white">Secure Evidence Storage</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-900">
+                                <FileCheck2 className="h-8 w-8 text-gray-600 dark:text-gray-400" />
+                            </div>
+                            <div className="font-semibold text-gray-900 dark:text-white">Attorney‑Client Ready</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-900">
+                                <Building className="h-8 w-8 text-gray-600 dark:text-gray-400" />
+                            </div>
+                            <div className="font-semibold text-gray-900 dark:text-white">Trusted PI Partners</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-900">
+                                <BadgeCheck className="h-8 w-8 text-gray-600 dark:text-gray-400" />
+                            </div>
+                            <div className="font-semibold text-gray-900 dark:text-white">AI Systems Verified</div>
+                        </div>
+                    </div>
+                </div>
 			</div>
 		</section>
 	);

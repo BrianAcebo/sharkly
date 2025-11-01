@@ -88,9 +88,7 @@ const mapPlanFields = (plan: PlanCatalogRow | null) => {
     plan_code: plan.plan_code,
     plan_price_cents: plan.base_price_cents,
     included_seats: plan.included_seats,
-    included_minutes: plan.included_minutes,
-    included_sms: plan.included_sms,
-    included_emails: plan.included_emails
+    included_credits: plan.included_credits,
   } satisfies Partial<OrganizationRow>;
 };
 
@@ -372,7 +370,7 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
   }
 
   if (subscription.status === 'active' || subscription.status === 'trialing') {
-    updateData.org_status = 'provisioning';
+    updateData.status = 'provisioning';
   }
 
   const { error } = await supabase.from('organizations').update(updateData).eq('id', org.id);
@@ -440,7 +438,7 @@ const handleSubscriptionDeleted = async (event: Stripe.Event) => {
 
   const updateData: Record<string, unknown> = {
     stripe_status: 'canceled' as StripeSubStatus,
-    org_status: 'disabled',
+    status: 'disabled',
     stripe_subscription_id: null,
     updated_at: new Date().toISOString()
   };
@@ -518,7 +516,7 @@ const handleSubscriptionResumed = async (event: Stripe.Event) => {
     .from('organizations')
     .update({
       stripe_status: 'active' as StripeSubStatus,
-      org_status: 'provisioning',
+      status: 'provisioning',
       updated_at: new Date().toISOString()
     })
     .eq('id', org.id);
@@ -549,7 +547,7 @@ const handleSubscriptionPastDue = async (event: Stripe.Event) => {
   const { error } = await supabase
     .from('organizations')
     .update({
-      org_status: 'past_due',
+      status: 'past_due',
       stripe_status: 'past_due' as StripeSubStatus,
       payment_action_required: true,
       last_payment_failed_at: new Date().toISOString(),
@@ -599,7 +597,7 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
     stripe_latest_invoice_id: invoice.id,
     stripe_latest_invoice_status: invoice.status,
     stripe_status: 'active',
-    org_status: org.org_status === 'disabled' ? 'active' : org.org_status,
+    status: org.status === 'disabled' ? 'active' : org.status,
     updated_at: new Date().toISOString()
   };
 
@@ -634,7 +632,7 @@ const handleInvoicePaymentFailed = async (event: Stripe.Event) => {
   const { error } = await supabase
     .from('organizations')
     .update({
-      org_status: 'past_due',
+      status: 'past_due',
       stripe_status: 'past_due' as StripeSubStatus,
       payment_action_required: true,
       last_payment_failed_at: new Date().toISOString(),
@@ -668,7 +666,7 @@ const handleInvoicePaymentActionRequired = async (event: Stripe.Event) => {
     .from('organizations')
     .update({
       payment_action_required: true,
-      org_status: 'payment_required',
+      status: 'payment_required',
       last_payment_failed_at: new Date().toISOString(),
       payment_failure_reason: 'Payment action required',
       updated_at: new Date().toISOString()

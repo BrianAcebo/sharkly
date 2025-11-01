@@ -64,7 +64,7 @@ export const updateOrganizationStatus = async (req: Request, res: Response) => {
     }
 
     // Check payment status before allowing resumption
-    if (status === 'active' && org.org_status === 'paused') {
+    if (status === 'active' && org.status === 'paused') {
       // Only allow resumption if organization is in good standing with payments
       if (isOrganizationBehindOnPayments(org)) {
         return res.status(400).json({ 
@@ -109,7 +109,7 @@ export const updateOrganizationStatus = async (req: Request, res: Response) => {
     const { error: updateError } = await supabase
       .from('organizations')
       .update({
-        org_status: status,
+        status: status,
         updated_at: new Date().toISOString()
       })
       .eq('id', organizationId);
@@ -119,7 +119,7 @@ export const updateOrganizationStatus = async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Failed to update organization status' });
     }
 
-    console.log(`[ORG_STATUS] Updated organization ${organizationId} status to ${status} by user ${userId}`);
+    console.log(`[status] Updated organization ${organizationId} status to ${status} by user ${userId}`);
 
     res.json({ 
       success: true, 
@@ -160,21 +160,19 @@ export const getOrganizationStatus = async (req: Request, res: Response) => {
     // Get organization status
     const { data: org, error: orgError } = await supabase
       .from('organizations')
-      .select('org_status, name')
+      .select('status, name')
       .eq('id', organizationId)
       .single();
 
     if (orgError || !org) {
-      console.error('[ORG_STATUS_API] Organization not found:', { organizationId, orgError });
+      console.error('[status_API] Organization not found:', { organizationId, orgError });
       return res.status(404).json({ error: 'Organization not found' });
     }
-
-    console.log('[ORG_STATUS_API] Retrieved organization status:', { organizationId, org_status: org.org_status, name: org.name });
 
     res.json({
       success: true,
       data: {
-        org_status: org.org_status,
+        status: org.status,
         name: org.name
       }
     });
@@ -193,7 +191,7 @@ export const handlePaymentFailure = async (organizationId: string) => {
     const { error: updateError } = await supabase
       .from('organizations')
       .update({
-        org_status: 'paused',
+        status: 'paused',
         updated_at: new Date().toISOString()
       })
       .eq('id', organizationId);

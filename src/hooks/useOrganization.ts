@@ -13,11 +13,7 @@ interface SubscriptionStatusResponse {
     plan_code: PlanCode | null;
     plan_price_cents: number | null;
     included_seats: number | null;
-    included_minutes: number | null;
-    included_sms: number | null;
-    included_emails: number | null;
-    twilio_subaccount_sid?: string | null;
-    twilio_messaging_service_sid?: string | null;
+    included_credits: number | null;
   };
   subscription: {
     id: string | null;
@@ -78,29 +74,17 @@ export function useOrganization() {
         id: data.organization.id,
         name: data.organization.name,
         owner_id: null,
-        website: null,
-        industry: null,
-        ein: null,
-        address_street: null,
-        address_city: null,
-        address_state: null,
-        address_zip: null,
-        address_country: null,
         tz: 'UTC',
         stripe_customer_id: null,
         stripe_subscription_id: data.subscription.id,
         stripe_status: data.subscription.status,
-        // Use server-reported org_status; fall back to 'pending' if missing
-        org_status:
-          ((data.organization as unknown as { org_status?: string })?.org_status ?? 'pending') as OrganizationRow['org_status'],
+        // Use server-reported status; fall back to 'pending' if missing
+        status:
+          ((data.organization as unknown as { status?: string })?.status ?? 'pending') as OrganizationRow['status'],
         plan_code: data.organization.plan_code,
         plan_price_cents: data.organization.plan_price_cents,
         included_seats: data.organization.included_seats,
-        included_minutes: data.organization.included_minutes,
-        included_sms: data.organization.included_sms,
-        included_emails: data.organization.included_emails,
-        twilio_subaccount_sid: data.organization.twilio_subaccount_sid ?? null,
-        twilio_messaging_service_sid: data.organization.twilio_messaging_service_sid ?? null,
+        included_credits: data.organization.included_credits,
         trial_end: data.subscription.trial_end,
         payment_action_required: null,
         dunning_enabled: null,

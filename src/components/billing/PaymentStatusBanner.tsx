@@ -34,7 +34,7 @@ export default function PaymentStatusBanner({
   }
 
   const getStatusIcon = () => {
-    switch (org.org_status) {
+    switch (org.status) {
       case 'payment_required':
         return <CreditCard className="h-5 w-5" />;
       case 'past_due':
@@ -58,7 +58,7 @@ export default function PaymentStatusBanner({
   };
 
   const getActionButton = () => {
-    if (org.org_status === 'payment_required' || org.org_status === 'past_due') {
+    if (org.status === 'payment_required' || org.status === 'past_due') {
       return (
         <Button
           onClick={onUpdatePayment}

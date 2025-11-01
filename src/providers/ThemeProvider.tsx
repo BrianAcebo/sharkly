@@ -1,31 +1,37 @@
-import React, { useState, useEffect } from 'react';
-import { ThemeContext } from '../contexts/ThemeContext';
+import { Theme, ThemeContext } from '../contexts/ThemeContext';
+import { useEffect, useState } from 'react';
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isDark, setIsDark] = useState(false);
+	const [theme, setTheme] = useState<Theme>('light');
+	const [isInitialized, setIsInitialized] = useState(false);
 
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-      setIsDark(true);
-      document.documentElement.classList.add('dark');
-    }
-  }, []);
+	useEffect(() => {
+		// This code will only run on the client side
+		const savedTheme = localStorage.getItem('theme') as Theme | null;
+		const initialTheme = savedTheme || 'light'; // Default to light theme
 
-  const toggleTheme = () => {
-    setIsDark(!isDark);
-    if (!isDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  };
+		setTheme(initialTheme);
+		setIsInitialized(true);
+	}, []);
 
-  return (
-    <ThemeContext.Provider value={{ isDark, toggleTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+	useEffect(() => {
+		if (isInitialized) {
+			localStorage.setItem('theme', theme);
+			if (theme === 'dark') {
+				document.documentElement.classList.add('dark');
+			} else {
+				document.documentElement.classList.remove('dark');
+			}
+		}
+	}, [theme, isInitialized]);
+
+	const toggleTheme = (theme: Theme | null = null) => {
+		if (theme) {
+			setTheme(theme);
+		} else {
+			setTheme((prevTheme: Theme) => (prevTheme === 'light' ? 'dark' : 'light'));
+		}
+	};
+
+	return <ThemeContext.Provider value={{ theme, toggleTheme }}>{children}</ThemeContext.Provider>;
 };

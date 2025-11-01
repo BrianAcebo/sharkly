@@ -12,8 +12,6 @@ import {
   CustomerPaymentMethodSummary
 } from '../types/billing.js';
 import { getStripeClient } from '../utils/stripe.js';
-import { getTwilioClientForSubaccount } from '../utils/twilioClient.js';
-import { ensureTwilioResourcesForOrganization } from '../utils/twilioProvisioning.js';
 import { ensureWallet } from '../utils/wallet.js';
 
 const stripe = getStripeClient();
@@ -44,11 +42,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       name,
       planCode,
       trialDays,
-      website,
-      industry,
-      ein,
       tz = 'America/New_York',
-      address,
       paymentMethodId: paymentMethodIdFromRequest,
       useExistingPaymentMethod
     }: OrgOnboardRequest = req.body;
@@ -78,7 +72,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       } as ApiError);
     }
 
-    // Stage 1: Always create a pending organization first if orgId is not provided
+    // Create organization immediately if orgId is not provided
     if (!orgId) {
       // Reuse any existing pending org owned by this user
       let pendingOrg: OrganizationRow | null = null;
@@ -87,7 +81,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           .from('organizations')
           .select('*')
           .eq('owner_id', userId)
-          .eq('org_status', 'pending')
+          .eq('status', 'active')
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -102,13 +96,11 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           .insert({
             name,
             owner_id: userId,
-            org_status: 'pending',
+            status: 'active',
             stripe_status: 'incomplete',
             plan_code: planCode,
             included_seats: plan.included_seats,
-            included_minutes: plan.included_minutes,
-            included_sms: plan.included_sms,
-            included_emails: plan.included_emails,
+            included_credits: plan.included_credits,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
@@ -276,13 +268,13 @@ export const onboardOrganization = async (req: Request, res: Response) => {
 
       org = existingOrg;
     } else {
-      // Create new organization in a pending state; membership will be added after payment/trial/card confirmation
+      // Create new organization in an active state; billing will be configured by the user
       const { data: newOrg, error: createError } = await supabase
         .from('organizations')
         .insert({
           name,
           owner_id: userId,
-          org_status: 'pending',
+          status: 'active',
           stripe_status: 'incomplete',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -299,7 +291,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       }
 
       org = newOrg as unknown as OrganizationRow;
-      // Defer Twilio provisioning until payment/trial confirmation
     }
 
     // Create or get Stripe customer (ONE customer per org)
@@ -508,8 +499,8 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     }
     let subscriptionClientSecret: string | null = null;
     let setupClientSecret: string | null = null;
-    // Never flip org to active here; keep pending until webhook confirms payment
-    let computedOrgStatus: OrgStatus = (org.org_status as OrgStatus) || 'pending';
+    // Organization is active upon creation
+    let computedOrgStatus: OrgStatus = (org.status as OrgStatus) || 'active';
 
     if (!stripeSubscriptionId) {
       // Reuse any existing relevant subscription for this org if present
@@ -595,8 +586,8 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         stripeSubscriptionId = subscription.id;
 
       const invoice = subscription.latest_invoice as Stripe.Invoice | null;
-      // Do not mark active/past_due here; webhook will set 'provisioning' after confirmation
-      computedOrgStatus = (org.org_status as OrgStatus) || 'pending';
+      // Keep organization active regardless of subscription creation state
+      computedOrgStatus = (org.status as OrgStatus) || 'active';
       if (invoice) {
         const paymentIntent = (invoice as unknown as { payment_intent?: unknown }).payment_intent;
         if (paymentIntent && typeof paymentIntent === 'object' && 'client_secret' in (paymentIntent as Record<string, unknown>)) {
@@ -625,17 +616,9 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     // Mirror Stripe subscription data to organization
     let subscriptionData: Partial<OrganizationRow> = {
       name,
-      website: website || null,
-      industry: industry || null,
-      ein: ein || null,
       tz,
-      address_street: address?.street || null,
-      address_city: address?.city || null,
-      address_state: address?.state || null,
-      address_zip: address?.zip || null,
-      address_country: address?.country || null,
       stripe_customer_id: stripeCustomerId,
-      org_status: computedOrgStatus,
+      status: computedOrgStatus,
       updated_at: new Date().toISOString()
     };
 
@@ -646,9 +629,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         plan_code: planCode,
         plan_price_cents: plan.base_price_cents,
         included_seats: plan.included_seats,
-        included_minutes: plan.included_minutes,
-        included_sms: plan.included_sms,
-        included_emails: plan.included_emails
+        included_credits: plan.included_credits
       };
     }
 
@@ -700,8 +681,6 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         error: 'Failed to update organization with billing information' 
       } as ApiError);
     }
-
-    // For new orgs, do not auto-provision Twilio here; Stage 2 handles provisioning after payment
 
     await ensureWallet(updatedOrg.id);
 
@@ -906,320 +885,3 @@ export const getCustomerPaymentMethods = async (req: Request, res: Response) => 
     return res.status(500).json({ error: 'Failed to retrieve payment methods' });
   }
 };
-
-// Stage 2 – Provisioning endpoint
-export const provisionOrganization = async (req: Request, res: Response) => {
-  try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { orgId, areaCode, readOnly } = (req.body || {}) as { orgId?: string; areaCode?: string; readOnly?: boolean };
-    if (!orgId) {
-      return res.status(400).json({ error: 'Missing orgId' });
-    }
-
-    // Load organization with plan data needed for provisioning
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .select('id, name, owner_id, included_seats, twilio_subaccount_sid, twilio_messaging_service_sid, stripe_status')
-      .eq('id', orgId)
-      .single();
-    console.log('[provision] fetched org', { found: !orgError && Boolean(org), stripeStatus: org?.stripe_status, includedSeats: org?.included_seats });
-    // Require successful payment/trial before provisioning
-    if (!['active', 'trialing'].includes(String((org?.stripe_status as string | null) || ''))) {
-      return res.status(409).json({ error: 'payment_pending' });
-    }
-
-    if (orgError || !org) {
-      return res.status(404).json({ error: 'Organization not found' });
-    }
-
-    // Only owner can run provisioning (hard gate)
-    if (org.owner_id && org.owner_id !== userId) {
-      return res.status(403).json({ error: 'Only the organization owner can provision resources' });
-    }
-
-    // A: Ensure Twilio resources (subaccount, API key/secret, TwiML App, messaging service)
-    console.log('[provision] ensuring Twilio');
-    const twilio = await ensureTwilioResourcesForOrganization({
-      orgId: org.id,
-      orgName: org.name,
-      twilioSubaccountSid: org.twilio_subaccount_sid,
-      twilioMessagingServiceSid: org.twilio_messaging_service_sid
-    });
-    console.log('[provision] ensured Twilio', {
-      subaccountSid: twilio.subaccountSid,
-      messagingServiceSid: twilio.messagingServiceSid,
-      twimlAppSid: twilio.twimlAppSid,
-      apiKeySid: twilio.apiKeySid,
-      apiKeySecretLast4: twilio.apiKeySecret ? String(twilio.apiKeySecret).slice(-4) : null
-    });
-
-    // If readOnly flag is set, only verify/refresh and exit
-    if (readOnly) {
-      return res.json({ ok: true, provisioning: { ...twilio }, purchased: 0, assigned: 0 });
-    }
-
-    // Use subaccount-scoped credentials for all Messaging Service operations
-    const subClient = getTwilioClientForSubaccount({
-      accountSid: twilio.subaccountSid,
-      apiKeySid: twilio.apiKeySid || undefined,
-      apiKeySecret: twilio.apiKeySecret || undefined
-    });
-    console.log('[provision] subClient ready', { subaccountSid: twilio.subaccountSid });
-
-    // Always re-verify the Messaging Service under the subaccount context
-    let messagingServiceSid = twilio.messagingServiceSid;
-    if (messagingServiceSid) {
-      try {
-        await (subClient as unknown as { messaging: { v1: { services: (sid: string) => { fetch: () => Promise<unknown> } } } }).messaging.v1.services(messagingServiceSid).fetch();
-      } catch (e: unknown) {
-        const err = e as { status?: number; code?: number };
-        if (err?.status === 404 || err?.code === 20404) {
-          console.warn('[provision] MG SID not found in subaccount; recreating in subaccount', {
-            subaccountSid: twilio.subaccountSid,
-            messagingServiceSid
-          });
-          const ensured = await ensureTwilioResourcesForOrganization({
-            orgId: org.id,
-            orgName: org.name,
-            twilioSubaccountSid: twilio.subaccountSid,
-            twilioMessagingServiceSid: null,
-            twilioTwimlAppSid: twilio.twimlAppSid || null,
-            twilioApiKeySid: twilio.apiKeySid || null,
-            twilioApiKeySecret: twilio.apiKeySecret || null,
-            preventPurchases: true
-          });
-          messagingServiceSid = ensured.messagingServiceSid;
-        } else {
-          throw e;
-        }
-      }
-    }
-
-    // B: Ensure at least `included_seats` phone numbers exist (available or assigned)
-    const { count: existingCount } = await supabase
-      .from('phone_numbers')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', org.id)
-      .in('status', ['available', 'assigned']);
-    console.log('[provision] existing numbers', { existingCount });
-
-    const needed = Math.max((org.included_seats ?? 0) - (existingCount ?? 0), 0);
-    let purchased = 0;
-    // Per-number webhooks are not used; Messaging Service + TwiML App handle webhooks centrally
-
-    if (needed > 0) {
-      console.log('[provision] need numbers', { needed, areaCode });
-      try {
-        const searchArgs: { smsEnabled?: boolean; voiceEnabled?: boolean; areaCode?: string; limit?: number } = {
-          smsEnabled: true,
-          voiceEnabled: true,
-          limit: needed
-        };
-        if (areaCode && String(areaCode).trim()) {
-          searchArgs.areaCode = String(areaCode).trim();
-        }
-
-        const candidates = await (subClient as unknown as {
-          availablePhoneNumbers: (country: string) => {
-            local: {
-              list: (args: typeof searchArgs) => Promise<Array<{ phoneNumber: string }>>;
-            };
-          };
-        }).availablePhoneNumbers('US').local.list(searchArgs);
-        console.log('[provision] candidates', { count: candidates?.length });
-
-        for (const cand of candidates) {
-          try {
-            console.log('[provision] purchasing', { phoneNumber: cand.phoneNumber });
-            const purchasedNumber = await (subClient as unknown as {
-              incomingPhoneNumbers: {
-                create: (args: { phoneNumber: string; voiceApplicationSid?: string }) => Promise<{ sid: string; phoneNumber: string }>
-              };
-              messaging: { v1: { services: (sid: string) => { phoneNumbers: { create: (args: { phoneNumberSid: string }) => Promise<unknown> } } } };
-            }).incomingPhoneNumbers.create({
-              phoneNumber: cand.phoneNumber,
-              voiceApplicationSid: twilio.twimlAppSid || undefined
-            } as never);
-            console.log('[provision] purchased', { sid: purchasedNumber.sid });
-
-            try {
-              console.log('[provision] attach to messaging', { messagingServiceSid: twilio.messagingServiceSid });
-              await (subClient as unknown as {
-                messaging: { v1: { services: (sid: string) => { phoneNumbers: { create: (args: { phoneNumberSid: string }) => Promise<unknown> } } } };
-              }).messaging.v1.services(messagingServiceSid || twilio.messagingServiceSid).phoneNumbers.create({ phoneNumberSid: purchasedNumber.sid });
-            } catch (svcErr: unknown) {
-              // Re-ensure service and retry once
-              const svcErrMsg = (svcErr as { message?: string })?.message;
-              console.warn('[provision] attach failed, re-ensuring', { error: svcErrMsg });
-              const ensured = await ensureTwilioResourcesForOrganization({
-                orgId: org.id,
-                orgName: org.name,
-                twilioSubaccountSid: twilio.subaccountSid,
-                twilioMessagingServiceSid: messagingServiceSid || twilio.messagingServiceSid,
-                twilioTwimlAppSid: twilio.twimlAppSid || null,
-                twilioApiKeySid: twilio.apiKeySid || null,
-                twilioApiKeySecret: twilio.apiKeySecret || null,
-                preventPurchases: true
-              });
-              const healedSid = ensured.messagingServiceSid;
-              if (!healedSid) {
-                throw new Error('messaging_service_missing');
-              }
-              try {
-                console.log('[provision] retry attach', { messagingServiceSid: healedSid });
-                await (subClient as unknown as {
-                  messaging: { v1: { services: (sid: string) => { phoneNumbers: { create: (args: { phoneNumberSid: string }) => Promise<unknown> } } } };
-                }).messaging.v1.services(healedSid).phoneNumbers.create({ phoneNumberSid: purchasedNumber.sid });
-              } catch (retryErr) {
-                console.warn('[provision] attach retry failed', retryErr);
-                throw new Error('messaging_service_attach_failed');
-              }
-            }
-
-            await supabase.from('phone_numbers').insert({
-              org_id: org.id,
-              seat_id: null,
-              phone_number: purchasedNumber.phoneNumber,
-              sid: purchasedNumber.sid,
-              capabilities: { sms: true, voice: true },
-              status: 'available',
-              sms_webhook_url: null,
-              voice_webhook_url: null
-            });
-            console.log('[provision] inserted phone_numbers');
-            purchased += 1;
-          } catch (purchaseErr) {
-            console.warn('[provision] Failed to purchase/attach number:', purchaseErr);
-          }
-        }
-      } catch (searchErr) {
-        console.warn('[provision] Failed number search/purchase step:', searchErr);
-      }
-    }
-
-    // If we needed numbers but failed to purchase/attach any, treat as hard error
-    if (needed > 0 && purchased === 0) {
-      console.warn('[provision] purchase/attach resulted in zero numbers when at least one was needed');
-      return res.status(500).json({ error: 'Failed to provision phone number. Please try a different area code or retry in a moment.' });
-    }
-
-    // C: Ensure seats exist for members; assign available numbers to unassigned active seats
-    try {
-      // Create seats for members missing a seat
-      const { data: members } = await supabase
-        .from('user_organizations')
-        .select('user_id')
-        .eq('organization_id', org.id);
-
-      const memberIds = (members || []).map((m) => m.user_id);
-      console.log('[provision] members', { count: memberIds.length });
-      if (memberIds.length > 0) {
-        const { data: existingSeats } = await supabase
-          .from('seats')
-          .select('id, user_id, status')
-          .eq('org_id', org.id);
-
-        const seatsByUser = new Map<string, { id: string; status: string }>();
-        (existingSeats || []).forEach((s) => s.user_id && seatsByUser.set(s.user_id, { id: s.id, status: s.status }));
-
-        const inserts = memberIds
-          .filter((uid) => !seatsByUser.has(uid))
-          .map((uid) => ({ org_id: org.id, user_id: uid, status: 'active', created_at: new Date().toISOString() }));
-        if (inserts.length > 0) {
-          await supabase.from('seats').insert(inserts);
-        }
-      }
-    } catch (seatErr) {
-      console.warn('[provision] Failed ensuring seats from membership:', seatErr);
-    }
-
-    // Assign phone numbers to active seats missing assignments
-    let assigned = 0;
-    try {
-      const [{ data: seats }, { data: available }] = await Promise.all([
-        supabase
-          .from('seats')
-          .select('id')
-          .eq('org_id', org.id)
-          .eq('status', 'active'),
-        supabase
-          .from('phone_numbers')
-          .select('id')
-          .eq('org_id', org.id)
-          .eq('status', 'available')
-      ]);
-
-      const seatIds = (seats || []).map((s) => s.id);
-      console.log('[provision] seatIds', { count: seatIds.length });
-
-      // Find seats already assigned
-      const { data: alreadyAssigned } = await supabase
-        .from('phone_numbers')
-        .select('id, seat_id')
-        .eq('org_id', org.id)
-        .eq('status', 'assigned');
-
-      const assignedSeatIds = new Set(((alreadyAssigned || []).map((r) => r.seat_id).filter(Boolean)) as string[]);
-      const unassignedSeats = seatIds.filter((sid) => !assignedSeatIds.has(sid));
-      console.log('[provision] unassignedSeats', { count: unassignedSeats.length });
-
-      const availableNumbers = [...(available || [])];
-      for (let i = 0; i < unassignedSeats.length && availableNumbers.length > 0; i += 1) {
-        const seatId = unassignedSeats[i];
-        const number = availableNumbers.pop();
-        if (!number) break;
-        const { error: upErr } = await supabase
-          .from('phone_numbers')
-          .update({ seat_id: seatId, status: 'assigned', updated_at: new Date().toISOString() })
-          .eq('id', number.id)
-          .eq('org_id', org.id);
-        if (!upErr) assigned += 1;
-      }
-      console.log('[provision] assigned', { assigned });
-    } catch (assignErr) {
-      console.warn('[provision] Failed assigning phone numbers to seats:', assignErr);
-    }
-
-    // Ensure wallet exists
-    try {
-      await ensureWallet(org.id);
-    } catch (wErr) {
-      console.warn('[provision] ensureWallet warning:', wErr);
-    }
-
-    // Mark organization as active only when provisioning was a deliberate user action
-    // Conditions:
-    // - not a readOnly (ensure-only) call, AND
-    // - user provided an areaCode (explicit action) OR numbers were purchased in this call
-    try {
-      const { count: numCount } = await supabase
-        .from('phone_numbers')
-        .select('id', { count: 'exact', head: true })
-        .eq('org_id', org.id)
-        .in('status', ['available', 'assigned']);
-      const hasNumbers = (numCount || 0) > 0;
-      const userTriggered = Boolean(areaCode) || purchased > 0;
-      console.log('[provision] activation check', { readOnly, hasNumbers, purchased, userTriggered });
-      if (!readOnly && userTriggered && hasNumbers) {
-        await supabase
-          .from('organizations')
-          .update({ org_status: 'active', updated_at: new Date().toISOString() })
-          .eq('id', org.id);
-        console.log('[provision] org set active');
-      }
-    } catch (e) {
-      console.warn('[provision] failed to maybe set org active after provisioning', e);
-    }
-
-    console.log('[provision] success', { purchased, assigned });
-    return res.json({ ok: true, provisioning: { ...twilio }, purchased, assigned });
-  } catch (error) {
-    console.error('Error provisioning organization:', error);
-    return res.status(500).json({ error: 'Failed to provision organization' });
-  }
-};
-

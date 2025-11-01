@@ -1,6 +1,6 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { onboardOrganization, getPlanCatalog, getCustomerPaymentMethodSummary, getCustomerPaymentMethods, provisionOrganization } from '../controllers/billingOnboarding.js';
+import { onboardOrganization, getPlanCatalog, getCustomerPaymentMethodSummary, getCustomerPaymentMethods } from '../controllers/billingOnboarding.js';
 import { handleStripeWebhook } from '../controllers/stripeWebhook.js';
 
 const router = express.Router();
@@ -29,9 +29,6 @@ router.get('/orgs/payment-methods', getCustomerPaymentMethods);
 
 // Onboard organization to billing
 router.post('/orgs/onboard', onboardOrganization);
-
-// Stage 2 provisioning
-router.post('/orgs/provision', provisionOrganization);
 
 // Stripe webhook (no auth required)
 router.post('/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);

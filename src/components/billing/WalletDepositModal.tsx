@@ -74,48 +74,39 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 
 	const amountCurrency = useMemo(() => formatCurrency(amountCents), [amountCents]);
 
-	const [voiceAllocationPercent, setVoiceAllocationPercent] = useState(50);
-	const [allocationOpen, setAllocationOpen] = useState(false);
+	// Allocation controls removed: we only display LLM credits purchasing power
 	const usageRates = useUsageRates();
 
 	const purchasePower = useMemo(() => {
 		if (!usageRates || amountCents <= 0) {
-  return (
-				usageRates?.map((item) => ({ ...item, portion: 0, units: 0 })) ?? [
-					{
-						key: 'voice',
-						label: 'Voice minutes',
-						rate: 0,
-						unitLabel: 'mins',
-						color: 'bg-rose-500',
-						portion: 0,
-						units: 0
-					},
-					{
-						key: 'sms',
-						label: 'SMS messages',
-						rate: 0,
-						unitLabel: 'SMS',
-						color: 'bg-blue-500',
-						portion: 0,
-						units: 0
-					}
-				]
-			);
+			return [
+				{
+					key: 'credits',
+					label: 'LLM credits',
+					rate: 0,
+					unitLabel: 'credits',
+					color: 'bg-rose-500',
+					portion: 0,
+					units: 0
+				}
+			];
 		}
 		const dollars = amountCents / 100;
-		const voicePercent = voiceAllocationPercent / 100;
-		const smsPercent = 1 - voicePercent;
-		return usageRates.map((item) => {
-			const percent = item.key === 'voice' ? voicePercent : smsPercent;
-			const portion = dollars * percent;
-			return {
-				...item,
-				portion,
-				units: item.rate > 0 ? portion / item.rate : 0
-			};
-		});
-	}, [amountCents, voiceAllocationPercent, usageRates]);
+		const credits = usageRates.find((r) => r.key === 'credits');
+		const rate = credits?.rate ?? 0;
+		const units = rate > 0 ? dollars / rate : 0;
+		return [
+			{
+				key: 'credits',
+				label: 'LLM credits',
+				rate: rate,
+				unitLabel: 'credits',
+				color: 'bg-rose-500',
+				portion: dollars,
+				units
+			}
+		];
+	}, [amountCents, usageRates]);
 
 	const [autoEnabled, setAutoEnabled] = useState(false);
 	const [autoAmountInput, setAutoAmountInput] = useState('50');
@@ -127,7 +118,6 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 	);
 	const [autoSaving, setAutoSaving] = useState(false);
 	const [autoError, setAutoError] = useState<string | null>(null);
-	const [autoDirty, setAutoDirty] = useState(false);
 
 	useEffect(() => {
 		if (!user?.organization_id || !session?.access_token) {
@@ -198,7 +188,6 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 				) / 100
 			).toFixed(2)
 		);
-		setAutoDirty(false);
 		setAutoError(null);
 	}, [autoRecharge, depositComplete, confirmedDepositCents]);
 
@@ -269,23 +258,20 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 
 	const handleEnableToggle = (checked: boolean) => {
 		setAutoEnabled(checked);
-		setAutoDirty(true);
 		setAutoError(null);
 	};
 
 	const handleAutoAmountChange = (value: string) => {
 		setAutoAmountInput(value);
-		setAutoDirty(true);
 		setAutoError(null);
 	};
 
 	const handleAutoThresholdChange = (value: string) => {
 		setAutoThresholdInput(value);
-		setAutoDirty(true);
 		setAutoError(null);
 	};
 
-	const handleDisableAutoRecharge = async () => {
+const handleDisableAutoRecharge = useCallback(async () => {
 		setAutoSaving(true);
 		try {
 			await saveAutoRecharge({
@@ -294,7 +280,6 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 				threshold_cents: autoThresholdCents > 0 ? autoThresholdCents : MIN_AUTO_THRESHOLD_CENTS
 			});
 			toast.success('Auto-recharge disabled');
-			setAutoDirty(false);
 			await refreshWallet();
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Failed to update auto-recharge';
@@ -302,9 +287,9 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 		} finally {
 			setAutoSaving(false);
 		}
-	};
+}, [autoAmountCents, autoThresholdCents, refreshWallet, saveAutoRecharge]);
 
-	const handleSaveAutoRecharge = useCallback(async (): Promise<boolean> => {
+const handleSaveAutoRecharge = useCallback(async (): Promise<boolean> => {
 		if (!autoEnabled) {
 			await handleDisableAutoRecharge();
 			return true;
@@ -329,7 +314,6 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 				threshold_cents: autoThresholdCents
 			});
 			toast.success('Auto-recharge settings saved');
-			setAutoDirty(false);
 			await refreshWallet();
 			return true;
 		} catch (err) {
@@ -340,20 +324,13 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 		} finally {
 			setAutoSaving(false);
 		}
-	}, [autoAmountCents, autoEnabled, autoThresholdCents, refreshWallet, saveAutoRecharge]);
+	}, [autoAmountCents, autoEnabled, autoThresholdCents, refreshWallet, saveAutoRecharge, handleDisableAutoRecharge]);
 
-	const handleFinish = async () => {
-		const saved = await handleSaveAutoRecharge();
-		if (!saved) {
-			return;
-		}
-		handleClose();
-	};
+// finish handler removed
 
 	const handleSkipAuto = async () => {
 		try {
 			setAutoEnabled(false);
-			setAutoDirty(false);
 			await saveAutoRecharge({
 				enabled: false,
 				amount_cents: autoAmountCents > 0 ? autoAmountCents : MIN_AUTO_AMOUNT_CENTS,
@@ -419,31 +396,24 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 
 				{step === 1 && !forceAutoStep ? (
 					<StepOne
-						amountCents={amountCents}
 						amountCurrency={amountCurrency}
 						amountIsValid={amountIsValid}
 						customAmountInput={customAmountInput}
-						defaultPaymentMethodText={paymentMethodText}
 						defaultPmLoading={defaultPmLoading}
 						hasDefaultPaymentMethod={hasDefaultPaymentMethod}
-						voiceAllocationPercent={voiceAllocationPercent}
-						allocationOpen={allocationOpen}
+						defaultPaymentMethodText={paymentMethodText}
 						purchasePower={purchasePower}
 						selectedAmountKey={selectedAmountKey}
 						depositError={depositError}
 						depositing={depositing}
 						onAmountSelect={handleAmountSelect}
 						onCustomAmountChange={handleCustomAmountChange}
-						onVoiceAllocationChange={setVoiceAllocationPercent}
-						onToggleAllocation={() => setAllocationOpen((prev) => !prev)}
+						
 						onConfirm={handleDeposit}
 						onCancel={handleClose}
 					/>
 				) : (
 					<StepTwo
-						amountCurrency={
-							confirmedDepositCents ? formatCurrency(confirmedDepositCents) : amountCurrency
-						}
 						autoAmountInput={autoAmountInput}
 						autoThresholdInput={autoThresholdInput}
 						autoEnabled={autoEnabled}
@@ -453,9 +423,7 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 						onAutoAmountChange={handleAutoAmountChange}
 						onAutoThresholdChange={handleAutoThresholdChange}
 						onSave={handleSaveAutoRecharge}
-						onFinish={handleFinish}
 						onSkip={handleSkipAuto}
-						autoDirty={autoDirty}
 						depositComplete={depositComplete}
 						confirmedDepositCents={confirmedDepositCents}
 					/>
@@ -466,7 +434,6 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 }
 
 interface StepOneProps {
-	amountCents: number;
 	amountCurrency: string;
 	amountIsValid: boolean;
 	selectedAmountKey: number | 'custom';
@@ -474,8 +441,6 @@ interface StepOneProps {
 	defaultPmLoading: boolean;
 	hasDefaultPaymentMethod: boolean;
 	defaultPaymentMethodText: string;
-	voiceAllocationPercent: number;
-	allocationOpen: boolean;
 	purchasePower: Array<{
 		key: string;
 		label: string;
@@ -488,14 +453,11 @@ interface StepOneProps {
 	depositing: boolean;
 	onAmountSelect: (value: number | 'custom') => void;
 	onCustomAmountChange: (value: string) => void;
-	onVoiceAllocationChange: (value: number) => void;
-	onToggleAllocation: () => void;
 	onConfirm: () => void;
 	onCancel: () => void;
 }
 
 function StepOne({
-	amountCents,
 	amountCurrency,
 	amountIsValid,
 	selectedAmountKey,
@@ -503,20 +465,15 @@ function StepOne({
 	defaultPmLoading,
 	hasDefaultPaymentMethod,
 	defaultPaymentMethodText,
-	voiceAllocationPercent,
-	allocationOpen,
 	purchasePower,
 	depositError,
 	depositing,
 	onAmountSelect,
 	onCustomAmountChange,
-	onVoiceAllocationChange,
-	onToggleAllocation,
 	onConfirm,
 	onCancel
 }: StepOneProps) {
 	const minDepositMessage = amountIsValid ? null : 'Minimum deposit is $10.00';
-	const smsAllocationPercent = 100 - voiceAllocationPercent;
 	return (
 		<div className="space-y-6">
 			<section>
@@ -561,11 +518,7 @@ function StepOne({
 					Purchase power
 				</h3>
 				<div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/60">
-					<button
-						type="button"
-						className="flex w-full items-center justify-between text-left"
-						onClick={onToggleAllocation}
-					>
+					<div className="flex w-full items-center justify-between text-left">
 						<div>
 							<span className="text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
 								Purchase power
@@ -574,56 +527,28 @@ function StepOne({
 								{amountCurrency}
 							</div>
 						</div>
-						<span className="text-[11px] text-gray-500 dark:text-gray-400">
-							{allocationOpen ? 'Hide' : 'See details'}
-						</span>
-					</button>
+					</div>
 
-					{allocationOpen && (
-						<div className="mt-3 space-y-3">
-							<div className="rounded-lg border border-rose-100 bg-white px-3 py-2 text-[11px] text-gray-600 shadow-sm dark:border-rose-900/40 dark:bg-gray-900/40 dark:text-gray-200">
-								<div className="flex items-center justify-between">
-									<span>Calls allocation</span>
-									<span>
-										{voiceAllocationPercent}% voice / {smsAllocationPercent}% SMS
-									</span>
-								</div>
-								<Slider
-									min={0}
-									max={100}
-									step={1}
-									value={voiceAllocationPercent}
-									onChange={(event) =>
-										onVoiceAllocationChange(Number((event.target as HTMLInputElement).value))
-									}
-									className="mt-2"
-								/>
-								<p className="text-xxs mt-2 text-gray-400 dark:text-gray-500">
-									Drag the slider to dedicate more of this deposit to calls or to SMS. The other
-									category updates automatically.
-								</p>
-							</div>
-
-							<dl className="grid grid-cols-1 gap-2 text-[11px] text-gray-600 md:grid-cols-2 dark:text-gray-300">
-								{purchasePower.map((item) => (
-									<div
-										key={item.key}
-										className="rounded-lg bg-white/70 p-2.5 text-center shadow-sm dark:bg-gray-900/40"
-									>
-										<div className="text-xxs tracking-wide text-gray-500 uppercase dark:text-gray-400">
-											{item.label}
-										</div>
-										<div className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
-											{formatUnits(item.units, item.unitLabel)}
-										</div>
-										<div className="text-xs text-gray-400">
-											{formatCurrency(Math.round(item.portion * 100))} allocated
-										</div>
+					<div className="mt-3">
+						<dl className="grid grid-cols-1 gap-2 text-[11px] text-gray-600 md:grid-cols-2 dark:text-gray-300">
+							{purchasePower.map((item) => (
+								<div
+									key={item.key}
+									className="rounded-lg bg-white/70 p-2.5 text-center shadow-sm dark:bg-gray-900/40"
+								>
+									<div className="text-xxs tracking-wide text-gray-500 uppercase dark:text-gray-400">
+										{item.label}
 									</div>
-								))}
-							</dl>
-						</div>
-					)}
+									<div className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
+										{formatUnits(item.units, item.unitLabel)}
+									</div>
+									<div className="text-xs text-gray-400">
+										{formatCurrency(Math.round(item.portion * 100))} allocated
+									</div>
+								</div>
+							))}
+						</dl>
+					</div>
 				</div>
 			</section>
 
@@ -636,6 +561,9 @@ function StepOne({
 						<p className="mt-0.5 text-[11px] text-gray-600 dark:text-gray-300">
 							{defaultPmLoading && 'Checking saved payment methods…'}
 						</p>
+						{!defaultPmLoading && hasDefaultPaymentMethod && (
+							<p className="mt-1 text-[11px] text-gray-600 dark:text-gray-300">{defaultPaymentMethodText}</p>
+						)}
 					</div>
 					<Badge variant={hasDefaultPaymentMethod ? 'secondary' : 'destructive'}>
 						{hasDefaultPaymentMethod ? 'On file' : 'Action needed'}
@@ -669,36 +597,30 @@ function StepOne({
 }
 
 interface StepTwoProps {
-	amountCurrency: string;
 	autoEnabled: boolean;
 	autoAmountInput: string;
 	autoThresholdInput: string;
 	autoSaving: boolean;
 	autoError: string | null;
-	autoDirty: boolean;
 	onEnableToggle: (checked: boolean) => void;
 	onAutoAmountChange: (value: string) => void;
 	onAutoThresholdChange: (value: string) => void;
 	onSave: () => Promise<boolean>;
-	onFinish: () => void;
 	onSkip: () => void;
 	depositComplete: boolean;
 	confirmedDepositCents: number | null;
 }
 
 function StepTwo({
-	amountCurrency,
 	autoEnabled,
 	autoAmountInput,
 	autoThresholdInput,
 	autoSaving,
 	autoError,
-	autoDirty,
 	onEnableToggle,
 	onAutoAmountChange,
 	onAutoThresholdChange,
 	onSave,
-	onFinish,
 	onSkip,
 	depositComplete,
 	confirmedDepositCents

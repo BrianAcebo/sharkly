@@ -20,12 +20,10 @@ import {
 	EyeOff,
 	AlertTriangle,
 	Upload,
-	RefreshCw,
-	Phone
+	RefreshCw
 } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
-import MyNumberCard from '../components/sms/MyNumberCard';
 
 interface ProfileFormData {
 	first_name: string;
@@ -94,10 +92,10 @@ export default function SettingsPage() {
 		push: true,
 		marketing: false,
 		// Lead notifications
-		leadAssigned: true,
-		leadStatusChange: true,
-		leadFollowUp: true,
-		leadConversion: true,
+		caseAssigned: true,
+		caseStatusChange: true,
+		caseFollowUp: true,
+		caseQualification: true,
 		// AI Assistant notifications
 		aiInsights: true,
 		conversationSummary: true,
@@ -453,8 +451,7 @@ export default function SettingsPage() {
 		{ id: 'profile', label: 'Profile', icon: User },
 		{ id: 'security', label: 'Security', icon: Shield },
 		{ id: 'notifications', label: 'Notifications', icon: Bell },
-		// { id: 'sms', label: 'SMS', icon: Phone },
-		{ id: 'danger', label: 'Danger Zone', icon: AlertTriangle }
+		// { id: 'danger', label: 'Danger Zone', icon: AlertTriangle }
 	];
 
 	const renderTabContent = () => {
@@ -854,21 +851,21 @@ export default function SettingsPage() {
 										<div className="ml-6 space-y-3">
 											<div className="flex items-center justify-between">
 												<div>
-													<h5 className="font-medium text-sm">Lead Management</h5>
-													<p className="text-xs text-gray-500">New leads, status changes, follow-ups</p>
+													<h5 className="font-medium text-sm">Case Management</h5>
+													<p className="text-xs text-gray-500">New cases, status changes, follow-ups</p>
 												</div>
 												<label className="relative inline-flex items-center cursor-pointer">
 													<input
 														type="checkbox"
 														className="sr-only peer"
-														checked={notifications.leadAssigned && notifications.leadStatusChange && notifications.leadFollowUp}
+														checked={notifications.caseAssigned && notifications.caseStatusChange && notifications.caseFollowUp}
 														onChange={(e) => {
 															const checked = e.target.checked;
 															setNotifications(prev => ({
 																...prev,
-																leadAssigned: checked,
-																leadStatusChange: checked,
-																leadFollowUp: checked
+																caseAssigned: checked,
+																caseStatusChange: checked,
+																caseFollowUp: checked
 															}));
 														}}
 													/>
@@ -1036,27 +1033,6 @@ export default function SettingsPage() {
 						</CardContent>
 					</Card>
 				);
-
-			// case 'sms':
-			// 	return (
-			// 		<div className="space-y-6">
-			// 			<Card>
-			// 				<CardHeader>
-			// 					<CardTitle className="flex items-center gap-2">
-			// 						<Phone className="h-5 w-5" />
-			// 						SMS Management
-			// 					</CardTitle>
-			// 					<CardDescription>
-			// 						Manage your business phone number for SMS communications
-			// 					</CardDescription>
-			// 				</CardHeader>
-			// 				<CardContent>
-			// 					<MyNumberCard />
-			// 				</CardContent>
-			// 			</Card>
-			// 		</div>
-			// 	);
-
 			default:
 				return null;
 		}
@@ -1075,7 +1051,7 @@ export default function SettingsPage() {
 	return (
 		<>
 			<PageMeta title="Settings" description="Manage your account settings and preferences" />
-			<div className="container mx-auto px-4 py-8 max-w-4xl">
+			<div className="container mx-auto py-8 max-w-4xl">
 				<div className="mb-8">
 					<h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
 					<p className="text-gray-600 dark:text-gray-400 mt-2">
@@ -1139,7 +1115,7 @@ export default function SettingsPage() {
 								<strong>Warning:</strong> This action cannot be undone.
 							</p>
 							<p className="text-sm text-gray-600 dark:text-gray-300">
-								All your data, including leads, tasks, and account information will be permanently deleted. You will lose access to all organizations and data associated with this account.
+								All your data, including cases, tasks, and account information will be permanently deleted. You will lose access to all organizations and data associated with this account.
 							</p>
 						</div>
 

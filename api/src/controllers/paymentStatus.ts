@@ -49,7 +49,7 @@ export const getPaymentStatus = async (req: Request, res: Response) => {
       organization: {
         id: org.id,
         name: org.name,
-        org_status: org.org_status,
+        status: org.status,
         stripe_status: org.stripe_status,
         payment_action_required: org.payment_action_required,
         dunning_enabled: org.dunning_enabled,
@@ -108,11 +108,11 @@ export const checkResumeEligibility = async (req: Request, res: Response) => {
     }
 
     const canResume = isOrganizationBehindOnPayments(org) && 
-                     (org.org_status === 'payment_required' || org.org_status === 'past_due');
+                     (org.status === 'payment_required' || org.status === 'past_due');
 
     res.json({
       canResume,
-      currentStatus: org.org_status,
+      currentStatus: org.status,
       reason: canResume ? 'Organization can be resumed after payment' : getOrganizationIssueReason(org)
     });
 
@@ -149,7 +149,7 @@ export const getOrganizationsNeedingPaymentAttention = async (req: Request, res:
       .from('organizations')
       .select('*')
       .in('id', userOrgs.map(uo => uo.organization_id))
-      .in('org_status', ['payment_required', 'past_due']);
+      .in('status', ['payment_required', 'past_due']);
 
     if (orgsError) {
       console.error('Error fetching organizations with payment issues:', orgsError);
@@ -159,7 +159,7 @@ export const getOrganizationsNeedingPaymentAttention = async (req: Request, res:
     const organizationsWithIssues = orgs.map(org => ({
       id: org.id,
       name: org.name,
-      org_status: org.org_status,
+      status: org.status,
       stripe_status: org.stripe_status,
       payment_action_required: org.payment_action_required,
       last_payment_failed_at: org.last_payment_failed_at,

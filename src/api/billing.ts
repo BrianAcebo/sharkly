@@ -11,9 +11,7 @@ export interface WalletStatusResponse {
     last_top_up_at: string | null;
   } | null;
   included: {
-    minutesRemaining?: number | null;
-    smsRemaining?: number | null;
-    emailRemaining?: number | null;
+    creditsRemaining?: number | null;
   };
   trialing: boolean;
   depositRequired: boolean;
@@ -182,13 +180,10 @@ export async function fetchDefaultPaymentMethodSummary(params: {
 }
 
 export interface UsageCatalogPricing {
-  voice: {
-    stripe_price_id: string;
-    amountCents: number;
-  } | null;
-  sms: {
-    stripe_price_id: string;
-    amountCents: number;
+  credits: {
+    stripe_price_id: string | null;
+    amountCents: number | null;
+    unit?: string | null;
   } | null;
 }
 

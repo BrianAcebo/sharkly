@@ -27,7 +27,7 @@ const steps: ConfirmationStep[] = [
 	{
 		id: 'understand',
 		title: 'Understand the consequences',
-		description: 'Deleting this organization will permanently remove all data including leads, tasks, team members, and settings. This action cannot be undone.',
+		description: 'Deleting this organization will permanently remove all data including cases, team members, and settings. This action cannot be undone.',
 		action: 'checkbox',
 		checkboxText: 'I understand that this action is permanent and cannot be undone'
 	},

@@ -4,9 +4,7 @@ export interface OrgUsageSnapshot {
 	organization_id: string;
 	stripe_status: string | null;
 	trial_end: string | null;
-  included_minutes_remaining: number | null;
-  included_sms_remaining: number | null;
-  included_emails_remaining: number | null;
+  included_credits_remaining: number | null;
 }
 
 export interface UsageWallet {
@@ -27,9 +25,7 @@ export type UsageTransactionType =
 	| 'credit_top_up'
 	| 'credit_adjustment'
 	| 'credit_refund'
-	| 'debit_voice'
-	| 'debit_sms'
-	| 'debit_email'
+	| 'debit_llm_credit'
 	| 'debit_other';
 
 interface WalletMutationOptions {

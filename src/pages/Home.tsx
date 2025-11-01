@@ -15,7 +15,7 @@ const Home = () => {
 
 	return (
 		<>
-			<PageMeta title="Automate Outreach & Pre-Qualify Leads With AI | Paperboat CRM" description="Paperboat CRM is an AI sales assistant that automates outreach, chats with leads, and pre-qualifies prospects to help your teams close more deals faster." />
+            <PageMeta title="Uncover Digital Footprints Instantly | True Sight Intelligence" description="Map identities across the web, social media, and data breaches. Visualize OSINT graphs and track threats in real-time with our AI-powered OSINT assistant." />
 			
 			<Hero isLoading={isLoading} />
 			<Features />

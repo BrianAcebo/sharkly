@@ -25,6 +25,8 @@ export default function AuthConfirm() {
 			try {
 				// Mark as executed immediately
 				setHasExecuted(true);
+				
+				console.log("1")
 
 				const token_hash = searchParams.get('token_hash');
 				const type = searchParams.get('type');
@@ -36,16 +38,20 @@ export default function AuthConfirm() {
 					return;
 				}
 
+				console.log("2")
+
 				// Try different verification approaches
 				let verificationResult;
 				
 				// First, try the standard verifyOtp
 				try {
+					console.log("3")
 					verificationResult = await supabase.auth.verifyOtp({
 						type: type as EmailOtpType,
 						token_hash,
 					});
 				} catch {
+					console.log("4")
 					// If verifyOtp fails, try using the token directly
 					try {
 						verificationResult = await supabase.auth.verifyOtp({
@@ -55,36 +61,46 @@ export default function AuthConfirm() {
 					} catch {
 						// If both fail, try using the token as a confirmation token
 						try {
+							console.log("5")
 							verificationResult = await supabase.auth.verifyOtp({
 								type: 'signup',
 								token_hash: token_hash,
 							});
 						} catch (confirmError) {
+							console.log("6")
 							verificationResult = { error: confirmError };
 						}
 					}
 				}
 
+				console.log("7")
+
 				const { data, error } = verificationResult || { data: null, error: null };
 
 				if (error) {
+					console.log("8")
 					console.error('OTP verification error:', error);
 					
 					// If OTP verification fails, redirect to signup with error
+					console.log("9")
 					setStatus('error');
 					setErrorMessage(typeof error === 'object' && error !== null && 'message' in error ? String(error.message) : 'Failed to verify email');
 					
 					// Redirect to signup page with error after a delay
 					setTimeout(() => {
+						console.log("10")
 						navigate('/signup?error=otp_failed');
 					}, 3000);
 					return;
 				}
 
+				console.log("11.1")
 				if (data?.user) {
+					console.log("11")
 					// Check if this is an invitation-based signup
 					if (inviteId) {
 						try {
+							console.log("12")
 							// Get the invitation details
 							const { data: invite, error: inviteError } = await supabase
 								.from('organization_invites')
@@ -92,14 +108,17 @@ export default function AuthConfirm() {
 								.eq('id', inviteId)
 								.eq('status', 'pending')
 								.single();
+							console.log("13")
 
 							if (inviteError || !invite) {
+								console.log("14")
 								// If invitation is invalid, redirect to signup with error
 								setStatus('error');
 								setErrorMessage('Invalid or expired invitation');
 								
 								// Redirect to signup page with error after a delay
 								setTimeout(() => {
+									console.log("15")
 									navigate('/signup?error=invalid_invite');
 								}, 3000);
 								return;
@@ -108,21 +127,24 @@ export default function AuthConfirm() {
 							// Check if invitation is expired
 							if (new Date(invite.expires_at) < new Date()) {
 								// If invitation is expired, redirect to signup with error
+								console.log("16")
 								setStatus('error');
 								setErrorMessage('Invitation has expired');
 								
 								// Redirect to signup page with error after a delay
 								setTimeout(() => {
+									console.log("17")
 									navigate('/signup?error=expired_invite');
 								}, 3000);
 								return;
 							}
 
 							// Add user to the organization
-							
+							console.log("18")
 							// Validate the role before inserting
 							const validRoles = ['owner', 'admin', 'member'];
 							if (!validRoles.includes(invite.role)) {
+								console.log("19")
 								console.error('Invalid role in invitation:', invite.role);
 								console.error('Valid roles are:', validRoles);
 								setStatus('error');
@@ -130,6 +152,7 @@ export default function AuthConfirm() {
 								
 								// Redirect to signup page with error after a delay
 								setTimeout(() => {
+									console.log("20")
 									navigate('/signup?error=invalid_role');
 								}, 3000);
 								return;

@@ -7,15 +7,13 @@ import { api } from '../utils/api';
 import { toast } from 'sonner';
 import {
 	DollarSign,
-	MessageSquare,
-	Phone,
-	Mail,
 	AlertCircle,
 	CreditCard,
 	Users,
 	Calendar,
 	ExternalLink,
-	Wallet
+	Wallet,
+	Coins
 } from 'lucide-react';
 import PricingCalculator from '../components/billing/PricingCalculator';
 import { Button } from '../components/ui/button';
@@ -28,26 +26,14 @@ import { WalletDepositModal } from '../components/billing/WalletDepositModal';
 type UsageRecord = Record<string, unknown>;
 
 interface UsageSummary {
-	sms: {
-		count: number;
-		cost: number;
-		records: UsageRecord[];
-	};
-	voice: {
-		minutes: number;
-		cost: number;
-		records: UsageRecord[];
-	};
-	email: {
+	credits: {
 		count: number;
 		cost: number;
 		records: UsageRecord[];
 	};
 	total: {
 		cost: number;
-		sms_cost: number;
-		voice_cost: number;
-		email_cost: number;
+		credits_cost: number;
 	};
 }
 
@@ -181,15 +167,10 @@ interface StripeInvoice {
 const Billing: React.FC = () => {
 	const { organization, loading: orgLoading } = useOrganization();
 	const trialInfo = useTrial();
-	const { setTitle } = useBreadcrumbs();
+	const { setTitle, setReturnTo } = useBreadcrumbs();
 	const { user } = useAuth();
 	// Removed legacy usage summary and voice price fetches (deprecated APIs)
 	const [usageSummary] = useState<UsageSummary | null>(null);
-	const [voicePrice] = useState<{
-		id: string;
-		unit_amount?: number | null;
-		currency?: string | null;
-	} | null>(null);
 	// Removed legacy Billing Settings modal (markup/cycle/email)
 	const [isLoading, setIsLoading] = useState(true);
 	const { walletStatus, autoRecharge, refetch: refetchPayment } = usePaymentStatus();
@@ -208,8 +189,9 @@ const Billing: React.FC = () => {
 
 	useEffect(() => {
 		setTitle('Billing & Usage');
+		setReturnTo({ path: '/organization', label: 'Organization' });
 		fetchBillingData();
-	}, [setTitle]);
+	}, [setTitle, setReturnTo]);
 
 	useEffect(() => {
 		if (organization?.stripe_customer_id) {
@@ -458,16 +440,8 @@ const Billing: React.FC = () => {
 													<span>{organization.included_seats || 0} team members</span>
 												</div>
 												<div className="flex items-center space-x-2 text-sm">
-													<Phone className="h-4 w-4 text-gray-500" />
-													<span>{organization.included_minutes || 0} calling minutes</span>
-												</div>
-												<div className="flex items-center space-x-2 text-sm">
-													<MessageSquare className="h-4 w-4 text-gray-500" />
-													<span>{organization.included_sms || 0} SMS messages</span>
-												</div>
-												<div className="flex items-center space-x-2 text-sm">
-													<Mail className="h-4 w-4 text-gray-500" />
-													<span>{organization.included_emails || 0} emails</span>
+													<Coins className="h-4 w-4 text-gray-500" />
+													<span>{organization.included_credits || 0} credits</span>
 												</div>
 											</div>
 										</div>
@@ -622,60 +596,17 @@ const Billing: React.FC = () => {
 								<div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
 									<div className="flex items-center">
 										<div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900">
-											<MessageSquare className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+											<Coins className="h-6 w-6 text-blue-600 dark:text-blue-400" />
 										</div>
 										<div className="ml-4">
 											<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-												SMS Messages
+												Credits Used
 											</p>
 											<p className="text-2xl font-bold text-gray-900 dark:text-white">
-												{usageSummary?.sms.count || 0}
+												{usageSummary?.credits.count || 0}
 											</p>
 											<p className="text-sm text-gray-500 dark:text-gray-400">
-												{formatCurrency(usageSummary?.sms.cost || 0)}
-											</p>
-										</div>
-									</div>
-								</div>
-
-								<div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-									<div className="flex items-center">
-										<div className="rounded-lg bg-green-100 p-2 dark:bg-green-900">
-											<Phone className="h-6 w-6 text-green-600 dark:text-green-400" />
-										</div>
-										<div className="ml-4">
-											<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-												Voice Minutes
-											</p>
-											<p className="text-2xl font-bold text-gray-900 dark:text-white">
-												{usageSummary?.voice.minutes?.toFixed(1) || '0.0'}
-											</p>
-											<div className="text-sm text-gray-500 dark:text-gray-400">
-												<div>{formatCurrency(usageSummary?.voice.cost || 0)} this period</div>
-												{voicePrice?.unit_amount != null && (
-													<div className="text-xs">
-														Price: {formatCurrency((voicePrice.unit_amount || 0) / 100)} per minute
-													</div>
-												)}
-											</div>
-										</div>
-									</div>
-								</div>
-
-								<div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
-									<div className="flex items-center">
-										<div className="rounded-lg bg-purple-100 p-2 dark:bg-purple-900">
-											<Mail className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-										</div>
-										<div className="ml-4">
-											<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-												Emails Sent
-											</p>
-											<p className="text-2xl font-bold text-gray-900 dark:text-white">
-												{usageSummary?.email?.count ?? 0}
-											</p>
-											<p className="text-sm text-gray-500 dark:text-gray-400">
-												{formatCurrency(usageSummary?.email?.cost ?? 0)}
+												{formatCurrency(usageSummary?.credits.cost || 0)}
 											</p>
 										</div>
 									</div>

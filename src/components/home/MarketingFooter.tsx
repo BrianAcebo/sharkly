@@ -9,18 +9,18 @@ const Footer: React.FC = () => {
 				<div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-4">
 					{/* Company Info */}
 					<div className="lg:col-span-2">
-						<div className="mb-6 flex items-center space-x-3">
-							<div className="bg-brand-500 flex h-10 w-10 items-center justify-center rounded-lg">
-								<Shield className="h-6 w-6 text-white" />
-							</div>
-							<div>
-								<h3 className="text-xl font-bold">Paperboat CRM</h3>
-								<p className="text-sm text-gray-400">AI-Powered Sales Assistant</p>
-							</div>
-						</div>
-						<p className="mb-6 max-w-md text-gray-300">
-							AI sales assistant that automates outreach, chats with leads, and pre-qualifies prospects to help your teams close more deals faster.
-						</p>
+                        <div className="mb-6 flex items-center space-x-3">
+                            <div className="bg-brand-500 flex h-10 w-10 items-center justify-center rounded-lg">
+                                <Shield className="h-6 w-6 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold">True Sight Intelligence</h3>
+                                <p className="text-sm text-gray-400">AI‑Powered OSINT Platform</p>
+                            </div>
+                        </div>
+                        <p className="mb-6 max-w-md text-gray-300">
+                            Map identities across the web, visualize OSINT graphs, and draft reports with an always‑on investigative assistant.
+                        </p>
 						<div className="flex items-center space-x-4">
 							<a
 								href="#"
@@ -46,32 +46,36 @@ const Footer: React.FC = () => {
 					{/* Quick Links */}
 					<div>
 						<h4 className="mb-6 text-lg font-semibold">Platform</h4>
-						<ul className="space-y-3">
-							<li>
-								<a href="#features" className="text-gray-300 transition-colors hover:text-white">
-									Features
-								</a>
-							</li>
-							<li>
-								<a href="#demo" className="text-gray-300 transition-colors hover:text-white">
-									Demo
-								</a>
-							</li>
-							<li>
-								<a href="#" className="text-gray-300 transition-colors hover:text-white">
-									Pricing
-								</a>
-							</li>
-							{/* <li>
-								<a href="#" className="text-gray-300 transition-colors hover:text-white">
-									API Documentation
-								</a>
-							</li>
-							<li>
-								<a href="#" className="text-gray-300 transition-colors hover:text-white">
-									Integrations
-								</a>
-							</li> */}
+						<ul className="flex flex-col gap-2">
+							<div className="space-y-3 ">
+								<li>
+									<a href="#features" className="text-gray-300 transition-colors hover:text-white">
+										Features
+									</a>
+								</li>
+								<li>
+									<a href="#pricing" className="text-gray-300 transition-colors hover:text-white">
+										Pricing
+									</a>
+								</li>
+								<li>
+									<a href="#demo" className="text-gray-300 transition-colors hover:text-white">
+										Demo
+									</a>
+								</li>
+							</div>
+							<div className="space-y-3">
+								<li>
+									<a href="#testimonials" className="text-gray-300 transition-colors hover:text-white">
+										Testimonials
+									</a>
+								</li>
+								<li>
+									<a href="#contact" className="text-gray-300 transition-colors hover:text-white">
+										Contact
+									</a>
+								</li>
+							</div>
 						</ul>
 					</div>
 
@@ -81,7 +85,7 @@ const Footer: React.FC = () => {
 						<div className="space-y-4">
 							<div className="flex items-center space-x-3">
 								<Mail className="h-5 w-5 text-gray-400" />
-								<span className="text-gray-300">hello@paperboatcrm.com</span>
+                                <span className="text-gray-300">hello@truesightintelligence.com</span>
 							</div>
 							{/* <div className="flex items-center space-x-3">
 								<Phone className="h-5 w-5 text-gray-400" />
@@ -89,7 +93,7 @@ const Footer: React.FC = () => {
 							</div> */}
 							<div className="flex items-center space-x-3">
 								<MapPin className="h-5 w-5 text-gray-400" />
-								<span className="text-gray-300">Miami, FL</span>
+                                <span className="text-gray-300">San Francisco, CA</span>
 							</div>
 						</div>
 					</div>
@@ -98,9 +102,7 @@ const Footer: React.FC = () => {
 				{/* Bottom Section */}
 				<div className="mt-12 border-t border-gray-900 pt-8">
 					<div className="flex flex-col items-center justify-between md:flex-row">
-						<div className="mb-4 text-sm text-gray-400 md:mb-0">
-							© 2025 Paperboat CRM, LLC. All rights reserved.
-						</div>
+                        <div className="mb-4 text-sm text-gray-400 md:mb-0">© 2025 True Sight Intelligence. All rights reserved.</div>
 						<div className="flex items-center space-x-6 text-sm">
 							<Link to="/privacy" className="text-gray-400 transition-colors hover:text-white">
 								Privacy Policy

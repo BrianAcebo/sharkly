@@ -3,7 +3,7 @@ import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../utils/common';
 
-const primaryClass = 'bg-gradient-to-r from-red-400 via-red-500 to-pink-500 text-white shadow-md hover:from-red-500 hover:via-red-600 hover:to-pink-600 disabled:from-red-300 disabled:via-red-400 disabled:to-pink-400 hover:scale-105 transition-all duration-200'
+const primaryClass = 'bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600 text-white shadow-md hover:from-blue-500 hover:via-blue-600 hover:to-blue-700 disabled:from-blue-300 disabled:via-blue-400 disabled:to-purple-500 hover:scale-105 transition-all duration-200'
 
 const buttonVariants = cva(
 	'flex gap-2 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',

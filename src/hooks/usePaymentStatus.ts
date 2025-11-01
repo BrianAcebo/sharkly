@@ -19,7 +19,7 @@ interface PaymentStatus {
   organization: {
     id: string;
     name: string;
-    org_status: string;
+    status: string;
     stripe_status: string | null;
     payment_action_required: boolean | null;
     dunning_enabled: boolean | null;

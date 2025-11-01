@@ -52,16 +52,12 @@ export function needsPaymentMethod(organization: OrganizationRow | null): boolea
  */
 export function getEffectiveQuotas(organization: OrganizationRow | null): {
   includedSeats: number;
-  includedMinutes: number;
-  includedSms: number;
-  includedEmails: number;
+  includedCredits: number;
 } {
   if (!organization) {
     return {
       includedSeats: 0,
-      includedMinutes: 0,
-      includedSms: 0,
-      includedEmails: 0
+      includedCredits: 0
     };
   }
 
@@ -69,18 +65,14 @@ export function getEffectiveQuotas(organization: OrganizationRow | null): {
   if (!hasBundledFeatures(organization)) {
     return {
       includedSeats: 0,
-      includedMinutes: 0,
-      includedSms: 0,
-      includedEmails: 0
+      includedCredits: 0
     };
   }
 
   // Active subscription gets full bundled features
   return {
     includedSeats: organization.included_seats || 0,
-    includedMinutes: organization.included_minutes || 0,
-    includedSms: organization.included_sms || 0,
-    includedEmails: organization.included_emails || 0
+    includedCredits: organization.included_credits || 0,
   };
 }
 

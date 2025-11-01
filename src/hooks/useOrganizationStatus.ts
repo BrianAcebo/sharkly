@@ -5,7 +5,7 @@ import { OrgStatus } from '../types/billing';
 import { api } from '../utils/api';
 
 interface OrganizationStatusData {
-  org_status: OrgStatus;
+  status: OrgStatus;
   name: string;
 }
 
@@ -39,8 +39,7 @@ export function useOrganizationStatus() {
       }
 
       const data = await response.json();
-      console.log('[ORG_STATUS] Fetched organization status:', data.data);
-      setStatus(data.data.org_status);
+      setStatus(data.data.status);
       return data.data as OrganizationStatusData;
 
     } catch (error) {

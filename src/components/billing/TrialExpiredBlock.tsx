@@ -189,9 +189,7 @@ export const TrialExpiredBlock: React.FC<TrialExpiredBlockProps> = ({
                 </h3>
                 <div className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
                   <div>Team members: {organization.included_seats || 1}</div>
-                  <div>Calling minutes: {organization.included_minutes || 0}</div>
-                  <div>SMS messages: {organization.included_sms || 0}</div>
-                  <div>Emails: {organization.included_emails || 0}</div>
+                  <div>Credits: {organization.included_credits || 0}</div>
                   {typeof organization.plan_price_cents === 'number' && organization.plan_price_cents > 0 && (
                     <div className="flex items-center space-x-2">
                       <DollarSign className="h-3 w-3" />

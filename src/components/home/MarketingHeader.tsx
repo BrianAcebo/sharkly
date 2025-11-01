@@ -13,14 +13,14 @@ const Header: React.FC = () => {
 						<Link to="/" className="block">
 							<img
 								className="block dark:hidden"
-								width={75}
+								width={200}
 								height="auto"
 								src="/images/logos/logo.svg"
 								alt="Logo"
 							/>
 							<img
 								className="hidden dark:block"
-								width={75}
+								width={200}
 								height="auto"
 								src="/images/logos/logo-dark.svg"
 								alt="Logo"
@@ -65,11 +65,11 @@ const Header: React.FC = () => {
 					{/* Right Side */}
 					<div className="flex items-center space-x-4">
 						<ThemeToggleButton />
-						<Link to="/signup">
-							<button className="bg-brand-500 hover:bg-brand-600 hidden items-center rounded-lg px-4 py-2 font-medium text-white transition-colors md:inline-flex">
-								Get Started
-							</button>
-						</Link>
+                        <Link to="/signup">
+                            <button className="bg-brand-500 hover:bg-brand-600 hidden items-center rounded-lg px-4 py-2 font-medium text-white transition-colors md:inline-flex">
+                                Get Started
+                            </button>
+                        </Link>
 						<button className="rounded-lg p-2 hover:bg-gray-100 md:hidden dark:hover:bg-gray-900">
 							<Menu className="h-5 w-5 text-gray-600 dark:text-gray-400" />
 						</button>

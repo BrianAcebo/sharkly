@@ -6,7 +6,7 @@ import type { WalletStatus } from '../types/billing.js';
 const getOrgUsageSnapshot = async (organizationId: string): Promise<OrgUsageSnapshot | null> => {
 	const { data, error } = await supabase
 		.from('organizations')
-		.select('stripe_status, trial_end, included_minutes, included_sms, included_emails')
+		.select('stripe_status, trial_end, included_credits')
 		.eq('id', organizationId)
 		.single();
 
@@ -25,23 +25,21 @@ const getOrgUsageSnapshot = async (organizationId: string): Promise<OrgUsageSnap
 		organization_id: organizationId,
 		stripe_status: data.stripe_status,
 		trial_end: data.trial_end,
-		included_minutes_remaining: data.included_minutes ?? null,
-		included_sms_remaining: data.included_sms ?? null,
-		included_emails_remaining: data.included_emails ?? null
+		included_credits_remaining: data.included_credits ?? null
 	} as OrgUsageSnapshot;
 };
 
 const isTrialActive = (
 	snapshot: OrgUsageSnapshot | null,
 	organization?: {
-		org_status?: string | null;
+		status?: string | null;
 		trial_end?: string | null;
 		stripe_status?: string | null;
 	}
 ): boolean => {
 	const trialEnd = snapshot?.trial_end || organization?.trial_end || null;
 	const stripeStatus = snapshot?.stripe_status;
-	const orgStatus = organization?.org_status;
+	const orgStatus = organization?.status;
 
 	if (stripeStatus === 'trialing') return true;
 	if (orgStatus === 'trialing') return true;
@@ -54,7 +52,7 @@ const buildWalletStatus = (
 	snapshot: OrgUsageSnapshot | null,
 	wallet: UsageWallet | null,
 	organization?: {
-		org_status?: string | null;
+		status?: string | null;
 		trial_end?: string | null;
 		stripe_status?: string | null;
 		wallet_threshold_cents?: number | null;
@@ -64,9 +62,7 @@ const buildWalletStatus = (
 	const trialing = isTrialActive(snapshot, organization);
 
 	const included = {
-		minutesRemaining: snapshot?.included_minutes_remaining ?? null,
-		smsRemaining: snapshot?.included_sms_remaining ?? null,
-		emailRemaining: snapshot?.included_emails_remaining ?? null
+		creditsRemaining: snapshot?.included_credits_remaining ?? null
 	};
 
 	if (!wallet) {
@@ -80,9 +76,7 @@ const buildWalletStatus = (
 	}
 
 	const hasIncluded =
-		(included.minutesRemaining ?? 0) > 0 ||
-		(included.smsRemaining ?? 0) > 0 ||
-		(included.emailRemaining ?? 0) > 0;
+		(included.creditsRemaining ?? 0) > 0;
 
 	if (wallet.status === 'suspended') {
 		return {
@@ -169,24 +163,16 @@ export const loadUsageCatalog = async () => {
 
 	const normalize = (code: string) => code.replace(/_test$/i, '');
 
-	const voice = records.find((row) => normalize(row.overage_code ?? '').includes('voice_minutes'));
-	const sms = records.find((row) => normalize(row.overage_code ?? '').includes('sms_overage'));
+	const credits = records.find((row) => normalize(row.overage_code ?? '').includes('llm_credits'));
 
 	return {
-		voice: voice
+		credits: credits
 			? {
-				stripe_price_id: voice.stripe_price_id,
-				amountCents: voice.price_cents ?? null,
-				unit: voice.unit
+				stripe_price_id: credits.stripe_price_id,
+				amountCents: credits.price_cents ?? null,
+				unit: credits.unit
 			}
 			: null,
-		sms: sms
-			? {
-				stripe_price_id: sms.stripe_price_id,
-				amountCents: sms.price_cents ?? null,
-				unit: sms.unit
-			}
-			: null
 	};
 };
 
@@ -200,7 +186,7 @@ export const getWalletStatus = async (req: Request, res: Response) => {
 		const { data: organization, error: orgError } = await supabase
 			.from('organizations')
 			.select(
-				'id, org_status, stripe_status, trial_end, wallet_threshold_cents, wallet_top_up_amount_cents'
+				'id, status, stripe_status, trial_end, wallet_threshold_cents, wallet_top_up_amount_cents'
 			)
 			.eq('id', organizationId)
 			.maybeSingle();
@@ -237,7 +223,7 @@ export const getPublicPlans = async (_req: Request, res: Response) => {
 		const { data, error } = await supabase
 			.from('plan_catalog')
 			.select(
-				'plan_code, name, description, included_seats, included_minutes, included_sms, included_emails, base_price_cents'
+				'plan_code, name, description, included_seats, included_credits, base_price_cents'
 			)
 			.eq('active', true)
 			.order('base_price_cents', { ascending: true });

@@ -10,7 +10,7 @@ export function isOrganizationInGoodStanding(organization: OrganizationRow | nul
 
   // Check if organization status allows full access
   const goodStandingStatuses: OrgStatus[] = ['active'];
-  return goodStandingStatuses.includes(organization.org_status);
+  return goodStandingStatuses.includes(organization.status);
 }
 
 /**
@@ -23,7 +23,7 @@ export function isOrganizationBehindOnPayments(organization: OrganizationRow | n
 
   // Check if organization has payment-related issues
   const paymentIssueStatuses: OrgStatus[] = ['payment_required', 'past_due'];
-  return paymentIssueStatuses.includes(organization.org_status) || 
+  return paymentIssueStatuses.includes(organization.status) || 
          organization.payment_action_required === true;
 }
 
@@ -35,7 +35,7 @@ export function isOrganizationPaused(organization: OrganizationRow | null): bool
     return false;
   }
 
-  return organization.org_status === 'paused' && !isOrganizationBehindOnPayments(organization);
+  return organization.status === 'paused' && !isOrganizationBehindOnPayments(organization);
 }
 
 /**
@@ -46,7 +46,7 @@ export function isOrganizationDisabled(organization: OrganizationRow | null): bo
     return false;
   }
 
-  return organization.org_status === 'disabled';
+  return organization.status === 'disabled';
 }
 
 /**
@@ -57,7 +57,7 @@ export function getOrganizationStatusMessage(organization: OrganizationRow | nul
     return 'Organization not found';
   }
 
-  switch (organization.org_status) {
+  switch (organization.status) {
     case 'active':
       return 'Organization is active and in good standing';
     
@@ -90,7 +90,7 @@ export function canResumeOrganization(organization: OrganizationRow | null): boo
   }
 
   // Can only resume if paused (not due to payment issues)
-  return organization.org_status === 'paused' && !isOrganizationBehindOnPayments(organization);
+  return organization.status === 'paused' && !isOrganizationBehindOnPayments(organization);
 }
 
 /**
@@ -127,7 +127,7 @@ export function getOrganizationStatusColor(organization: OrganizationRow | null)
     return 'gray';
   }
 
-  switch (organization.org_status) {
+  switch (organization.status) {
     case 'active':
       return 'green';
     

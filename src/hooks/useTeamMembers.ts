@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import type { TeamMember, UserProfile } from '../types/leads';
+import type { TeamMember, UserProfile } from '../types/profile';
 import useAuth from './useAuth';
 
 export const useTeamMembers = () => {
@@ -40,7 +40,7 @@ export const useTeamMembers = () => {
       }
 
       // Transform the data to include avatar URLs and match TeamMember interface
-      const transformedMembers = (members || []).map((member) => {
+      const transformedMembers: TeamMember[] = (members || []).map((member) => {
         let avatarUrl = '';
         const profile = member.profile as unknown as UserProfile; // Direct reference since we're using foreign key
         

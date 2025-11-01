@@ -1,5 +1,3 @@
-import type { PhoneNumberRecord } from './phone';
-
 export interface SeatEvent {
 	id: string;
 	org_id: string;
@@ -48,11 +46,8 @@ export interface SeatSummary {
 	extraSeatAddonCode?: string | null;
 	extraSeatAddonPriceId?: string | null;
 	stripeSubscriptionId?: string | null;
-	twilioSubaccountSid?: string | null;
-	twilioMessagingServiceSid?: string | null;
 	seatEvents: SeatEvent[];
 	seats: SeatAssignment[];
-	phoneNumbers?: PhoneNumberRecord[];
 }
 
 export interface SeatSummaryResponse {

@@ -1,13 +1,10 @@
 import { useState, useEffect, ChangeEvent } from 'react';
 import useAuth from '../../hooks/useAuth';
-import type { Organization, TeamMember } from '../../types/leads';
 import type { SeatSummary } from '../../types/organization';
 import { formatCurrency } from '../../utils/format';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
 import { Tabs, TabsContent, TabsList } from '../../components/ui/tabs';
-import { BarChart2 } from 'lucide-react';
-import OrganizationAnalytics from './components/OrganizationAnalytics';
 import {
     Calendar,
     Users,
@@ -16,14 +13,9 @@ import {
     Trash2,
     UserPlus,
     AlertTriangle,
-    MessageSquare,
     CreditCard,
-    PhoneCall
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
-// import { fetchPhoneNumbers } from '../../api/phone';
-// import type { PhoneNumberRecord } from '../../types/phone';
 import { toast } from 'sonner';
 // import { Modal } from '../../components/ui/modal';
 import { supabase } from '../../utils/supabaseClient';
@@ -50,10 +42,6 @@ import { useNavigate } from 'react-router-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import DangerConfirmationModal from '../../components/common/DangerConfirmationModal';
-import BrandForm from '../../components/sms/BrandForm';
-import CampaignForm from '../../components/sms/CampaignForm';
-import TollFreeForm from '../../components/sms/TollFreeForm';
-import { VerificationStatusResponse } from '../../types/smsVerification';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -64,6 +52,30 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle
 } from '../../components/ui/alert-dialog';
+
+interface Organization {
+	id: string;
+	name: string;
+	maxSeats: number;
+	createdAt: string;
+	ownerId: string;
+	updatedAt: string;
+	status: string;
+}
+
+interface TeamMember {
+	id: string;
+	email: string;
+	role: string;
+	createdAt: string;
+	updatedAt: string;
+	profile: {
+		id: string;
+		first_name: string;
+		last_name: string;
+		avatar: string;
+	};
+}
 
 interface PendingInvitation {
 	id: string;
@@ -106,8 +118,6 @@ export default function OrganizationPage() {
 	const [isLoading, setIsLoading] = useState(true);
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
 	const [isDeleting, setIsDeleting] = useState(false);
-	const [smsVerificationStatus, setSmsVerificationStatus] =
-		useState<VerificationStatusResponse | null>(null);
 	const { setTitle } = useBreadcrumbs();
 	const [seatSummary, setSeatSummary] = useState<SeatSummary | null>(null);
 	const [isSeatSummaryLoading, setIsSeatSummaryLoading] = useState(false);
@@ -142,33 +152,6 @@ export default function OrganizationPage() {
 		// Fetch organization status on component mount
 		getOrganizationStatus();
 	}, [setTitle, getOrganizationStatus]);
-
-	const fetchSmsVerificationStatus = async () => {
-		if (!user?.organization_id) return;
-
-		try {
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
-			if (!session?.access_token) return;
-
-            const response = await api.get(`/api/sms/verification-status?orgId=${user.organization_id}`, {
-				headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json'
-				}
-			});
-
-			if (response.ok) {
-				const data = await response.json();
-				if (data.ok) {
-					setSmsVerificationStatus(data.data);
-				}
-			}
-		} catch (error) {
-			console.error('Error fetching SMS verification status:', error);
-		}
-	};
 
 	const fetchSeatSummary = async (orgId: string): Promise<SeatSummary | null> => {
 		setIsSeatSummaryLoading(true);
@@ -468,7 +451,7 @@ export default function OrganizationPage() {
 					createdAt: created_at,
 					ownerId: owner_id,
 					updatedAt: updated_at,
-					status: org_status
+					status
 				`
 				)
 				.eq('id', user?.organization_id || '')
@@ -512,7 +495,7 @@ export default function OrganizationPage() {
 					status,
 					created_at,
 					invited_by,
-					inviter:profiles(
+					inviter:profiles!organization_invites_invited_by_fkey(
 						first_name,
 						last_name
 					)
@@ -567,12 +550,10 @@ export default function OrganizationPage() {
 
 	useEffect(() => {
 		fetchOrganizationData();
-		fetchSmsVerificationStatus();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	const isAdmin = user?.role === 'admin';
-	const canManageSMS = isOwner || isAdmin;
 	const canManageSeats = isOwner || isAdmin;
 	const seatUsageLabel = seatSummary
 		? `${seatSummary.assignedSeats} of ${seatSummary.capacity} seats used`
@@ -920,67 +901,10 @@ export default function OrganizationPage() {
 	</Card>
 	);
 
-	const hasPhoneNumbers = (seatSummary?.phoneNumbers?.length ?? 0) > 0;
-	const assignedNumbers = seatSummary?.phoneNumbers?.filter((pn) => pn.status === 'assigned').length ?? 0;
-	const availableNumbers = seatSummary?.phoneNumbers?.filter((pn) => pn.status === 'available').length ?? 0;
-	const totalNumbers = seatSummary?.phoneNumbers?.length ?? 0;
-
-const renderPhoneSmsSummary = () => {
-		if (!seatSummary) return null;
-
-		return (
-			<Card className="p-4">
-				<CardHeader>
-					<div className="flex items-center justify-between gap-2">
-						<div className="flex items-center gap-2">
-							<PhoneCall className="h-5 w-5 text-gray-500" />
-							<h3 className="font-semibold">Phone &amp; SMS</h3>
-						</div>
-                        <Button variant="outline" size="sm" onClick={() => setActiveTab('phone-numbers')}>
-                            Manage Numbers
-                        </Button>
-					</div>
-				</CardHeader>
-				<CardContent className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
-					<p>
-						<strong>{assignedNumbers}</strong> numbers assigned
-					</p>
-					<p>
-						<strong>{availableNumbers}</strong> available number{availableNumbers === 1 ? '' : 's'} ready to assign
-					</p>
-					<p>
-						<strong>{totalNumbers}</strong> total number{totalNumbers === 1 ? '' : 's'} provisioned
-					</p>
-					{!hasPhoneNumbers && (
-						<p>No phone numbers provisioned yet. Use Manage Numbers to purchase or assign numbers to seats.</p>
-					)}
-					{seatSummary.twilioSubaccountSid ? (
-						<div className="space-y-1 text-xs">
-							<p>
-								<strong>Subaccount SID:</strong>
-								<br />
-								{seatSummary.twilioSubaccountSid}
-							</p>
-							<p>
-								<strong>Messaging Service SID:</strong>
-								<br />
-								{seatSummary.twilioMessagingServiceSid ?? 'Not set'}
-							</p>
-						</div>
-					) : (
-						<p className="text-xs text-red-500">
-							Twilio provisioning incomplete. Contact support to finish setup before purchasing numbers.
-						</p>
-					)}
-				</CardContent>
-			</Card>
-		);
-	};
-
 	return (
 		<>
 			<PageMeta title={organization.name} description="Manage your organization and team members" />
-			<div className="container mx-auto px-4 py-8">
+			<div className="container mx-auto py-8">
 				<div className="mb-8">
 					<h1 className="text-3xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
                     <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
@@ -1025,33 +949,6 @@ const renderPhoneSmsSummary = () => {
 						>
 							Settings
 						</Button>
-						<Button
-							onClick={() => setActiveTab('sms-verification')}
-							variant={activeTab === 'sms-verification' ? 'default' : 'outline'}
-							size="sm"
-							className="flex items-center space-x-2"
-						>
-							<MessageSquare className="h-4 w-4" />
-							<span>SMS Verification</span>
-						</Button>
-                        <Button
-                            onClick={() => setActiveTab('phone-numbers')}
-                            variant={activeTab === 'phone-numbers' ? 'default' : 'outline'}
-                            size="sm"
-                            className="flex items-center space-x-2"
-                        >
-                            <PhoneCall className="h-4 w-4" />
-                            <span>Phone Numbers</span>
-                        </Button>
-                        <Button
-                            onClick={() => setActiveTab('analytics')}
-                            variant={activeTab === 'analytics' ? 'default' : 'outline'}
-                            size="sm"
-                            className="flex items-center space-x-2"
-                        >
-                            <BarChart2 className="h-4 w-4" />
-                            <span>Analytics</span>
-                        </Button>
 					</TabsList>
 
 					<TabsContent value="overview" className="space-y-4">
@@ -1083,7 +980,6 @@ const renderPhoneSmsSummary = () => {
 									<p className="text-sm text-gray-500">Team managers</p>
 								</CardContent>
 							</Card>
-							{renderPhoneSmsSummary()}
 
 							<Card className="p-4">
 								<CardHeader>
@@ -1105,68 +1001,6 @@ const renderPhoneSmsSummary = () => {
 						</div>
 						{seatsCard}
 					</TabsContent>
-
-                    <TabsContent value="phone-numbers" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-semibold">Phone Numbers</h3>
-                                    <div className="text-sm text-muted-foreground">
-                                        <strong>{assignedNumbers}</strong> numbers assigned to seats
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {seatSummary?.phoneNumbers && seatSummary.phoneNumbers.length > 0 ? (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Number</TableHead>
-                                                <TableHead>Status</TableHead>
-                                                <TableHead>Seat</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {seatSummary.phoneNumbers.map((n) => (
-                                                <TableRow key={n.id}>
-                                                    <TableCell>{n.phone_number}</TableCell>
-                                                    <TableCell className="capitalize">{n.status}</TableCell>
-                                                    <TableCell>
-                                                        {n.seat_id ? (
-                                                            (() => {
-                                                                const seat = seatSummary.seats.find((s) => s.id === n.seat_id);
-                                                                const first = seat?.profile?.first_name ?? '';
-                                                                const last = seat?.profile?.last_name ?? '';
-                                                                const name = `${first} ${last}`.trim();
-                                                                return name || n.seat_id;
-                                                            })()
-                                                        ) : (
-                                                            'Unassigned'
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground">No phone numbers provisioned yet.</p>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-
-                    <TabsContent value="analytics" className="space-y-4">
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-semibold">Voice Usage Analytics</h3>
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <OrganizationAnalytics orgId={organization.id} />
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
 
 					<TabsContent value="team-members" className="space-y-4">
 						{isOwner && (
@@ -1414,7 +1248,7 @@ const renderPhoneSmsSummary = () => {
 											className="border-blue-300 text-blue-600 hover:bg-blue-50"
 										>
 											<CreditCard className="mr-1 h-4 w-4" />
-											Billing
+											View Billing
 										</Button>
 									</div>
 								</div>
@@ -1435,11 +1269,8 @@ const renderPhoneSmsSummary = () => {
 											value={organization.name}
 											disabled={!isOwner || isReadOnly}
 											className="mt-1"
+											onChange={(e) => setOrganization({ ...organization, name: e.target.value })}
 										/>
-									</div>
-									<div>
-										<label className="text-sm font-medium">Max Seats</label>
-										<div className="mt-1 flex items-center gap-2">{organization.maxSeats}</div>
 									</div>
 									{isOwner && !isReadOnly && (
 										<div className="flex items-center gap-3">
@@ -1510,83 +1341,6 @@ const renderPhoneSmsSummary = () => {
 								</CardContent>
 							</Card>
 						)} */}
-					</TabsContent>
-
-					<TabsContent value="sms-verification" className="space-y-4">
-						{canManageSMS ? (
-							<div className="space-y-6">
-								{/* SMS Verification Status Overview */}
-								{smsVerificationStatus && (
-									<Card>
-										<CardHeader>
-											<h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-												Verification Status
-											</h3>
-										</CardHeader>
-										<CardContent>
-											<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-												<div className="flex items-center space-x-3">
-													<MessageSquare className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-													<div>
-														<span className="font-medium text-gray-900 dark:text-white">
-															A2P 10DLC
-														</span>
-														<div className="text-sm text-gray-600 dark:text-gray-400">
-															{smsVerificationStatus.a2p.status || 'Not Started'}
-														</div>
-													</div>
-												</div>
-												<div className="flex items-center space-x-3">
-													<Shield className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-													<div>
-														<span className="font-medium text-gray-900 dark:text-white">
-															Toll-Free
-														</span>
-														<div className="text-sm text-gray-600 dark:text-gray-400">
-															{smsVerificationStatus.tollfree.status || 'Not Started'}
-														</div>
-													</div>
-												</div>
-											</div>
-										</CardContent>
-									</Card>
-								)}
-
-								{/* SMS Verification Forms */}
-								<div className="space-y-6">
-									<BrandForm
-										orgId={user?.organization_id || ''}
-										onSave={() => fetchSmsVerificationStatus()}
-										userRole={user?.role}
-									/>
-									<CampaignForm
-										orgId={user?.organization_id || ''}
-										onSave={() => fetchSmsVerificationStatus()}
-										onSubmit10DLC={() => fetchSmsVerificationStatus()}
-										userRole={user?.role}
-									/>
-									<TollFreeForm
-										orgId={user?.organization_id || ''}
-										onSubmit={() => fetchSmsVerificationStatus()}
-										userRole={user?.role}
-									/>
-								</div>
-							</div>
-						) : (
-							<Card>
-								<CardContent className="p-6">
-									<div className="text-center">
-										<Shield className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-										<h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
-											SMS Verification
-										</h3>
-										<p className="text-gray-600 dark:text-gray-400">
-											Only organization owners and admins can manage SMS verification settings.
-										</p>
-									</div>
-								</CardContent>
-							</Card>
-						)}
 					</TabsContent>
 				</Tabs>
 			</div>

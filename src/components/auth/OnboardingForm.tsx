@@ -21,7 +21,7 @@ export default function OnboardingForm() {
 	const navigate = useNavigate();
 
 	const searchParams = new URLSearchParams(window.location.search);
-	const next = searchParams.get('next') ?? '/pipeline';
+	const next = searchParams.get('next') ?? '/cases';
 
 	// Show welcome toast when user first lands on onboarding
 	useEffect(() => {

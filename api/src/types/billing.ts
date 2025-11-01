@@ -12,7 +12,7 @@ export type StripeSubStatus =
 
 export type OrgStatus = 'active' | 'paused' | 'disabled' | 'deleted' | 'payment_required' | 'past_due';
 
-export type UsageResourceType = 'voice' | 'sms' | 'email' | 'other';
+export type UsageResourceType = 'llm_credit' | 'other';
 
 export type PlanCode = 'starter' | 'growth' | 'scale' | 'enterprise';
 
@@ -28,27 +28,15 @@ export interface OrganizationRow {
   id: string;
   name: string;
   owner_id: string | null;
-  website: string | null;
-  industry: string | null;
-  ein: string | null;
-  address_street: string | null;
-  address_city: string | null;
-  address_state: string | null;
-  address_zip: string | null;
-  address_country: string | null;
   tz: string;
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   stripe_status: StripeSubStatus | null;
-  org_status: OrgStatus;
+  status: OrgStatus;
   plan_code: PlanCode | null;
   plan_price_cents: number | null;
   included_seats: number | null;
-  included_minutes: number | null;
-  included_sms: number | null;
-  included_emails: number | null;
-  twilio_subaccount_sid: string | null;
-  twilio_messaging_service_sid?: string | null;
+  included_credits: number | null;
   trial_end: string | null;
   cancel_at_period_end?: boolean | null;
   payment_action_required?: boolean | null;
@@ -70,9 +58,7 @@ export interface PlanCatalogRow {
   name: string;
   base_price_cents: number;
   included_seats: number;
-  included_minutes: number;
-  included_sms: number;
-  included_emails: number;
+  included_credits: number;
   stripe_price_id: string;
   active: boolean;
 }
@@ -118,9 +104,7 @@ export interface WalletStatus {
     last_top_up_at: string | null;
   } | null;
   included: {
-    minutesRemaining?: number | null;
-    smsRemaining?: number | null;
-    emailRemaining?: number | null;
+    creditsRemaining?: number | null;
   };
   trialing: boolean;
   depositRequired: boolean;

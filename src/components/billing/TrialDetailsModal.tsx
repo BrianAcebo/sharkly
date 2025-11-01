@@ -10,9 +10,7 @@ import {
   Calendar,
   DollarSign,
   Users,
-  Phone,
-  MessageSquare,
-  Mail
+  Coins
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { OrganizationRow } from '../../types/billing';
@@ -129,9 +127,7 @@ export const TrialDetailsModal: React.FC<TrialDetailsModalProps> = ({
   const getPlanFeatures = () => {
     const features = [
       { icon: <Users className="h-4 w-4" />, text: `${organization?.included_seats || 1} team member${(organization?.included_seats || 1) > 1 ? 's' : ''}` },
-      { icon: <Phone className="h-4 w-4" />, text: `${organization?.included_minutes || 0} calling minutes` },
-      { icon: <MessageSquare className="h-4 w-4" />, text: `${organization?.included_sms || 0} SMS messages` },
-      { icon: <Mail className="h-4 w-4" />, text: `${organization?.included_emails || 0} emails` }
+      { icon: <Coins className="h-4 w-4" />, text: `${organization?.included_credits || 0} credits` }
     ];
     return features;
   };
@@ -139,10 +135,9 @@ export const TrialDetailsModal: React.FC<TrialDetailsModalProps> = ({
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
-            {getIcon()}
-            <span>{getStatusText()}</span>
+            Trial Details
           </DialogTitle>
         </DialogHeader>
 
@@ -151,8 +146,8 @@ export const TrialDetailsModal: React.FC<TrialDetailsModalProps> = ({
           <Card className={getCardStyles()}>
             <CardContent className="p-4">
               <div className="space-y-3">
-                <h3 className={`text-lg font-semibold ${getTextStyles()}`}>
-                  {getStatusText()}
+                <h3 className={`text-lg flex items-center gap-4 font-semibold ${getTextStyles()}`}>
+                {getIcon()} {getStatusText()}
                 </h3>
                 <p className={`text-sm ${getTextStyles()}`}>
                   {getStatusMessage()}
@@ -193,20 +188,16 @@ export const TrialDetailsModal: React.FC<TrialDetailsModalProps> = ({
           {/* Action Buttons */}
           <div className="flex justify-end space-x-3 pt-4 border-t">
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={onClose}
             >
               Close
             </Button>
             <Button
               onClick={handleUpgrade}
-              className={
-                needsPayment || warningLevel === 'danger' 
-                  ? 'bg-red-600 hover:bg-red-700 text-white' 
-                  : 'bg-green-600 hover:bg-green-700 text-white'
-              }
+              variant={needsPayment || warningLevel === 'danger' ? 'default' : 'outline'}
             >
-              {needsPayment ? 'Add Payment Method' : 'Upgrade Plan'}
+              {needsPayment ? 'Add Payment Method' : 'View Plan'}
             </Button>
           </div>
         </div>

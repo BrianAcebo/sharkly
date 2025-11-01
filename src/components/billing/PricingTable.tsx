@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { CheckCircle, Users, Clock, MessageSquare, Mail, DollarSign } from 'lucide-react';
+import { CheckCircle, Users, Coins } from 'lucide-react';
 import { PlanCatalogRow } from '../../types/billing';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 
@@ -26,27 +26,10 @@ const PricingTable: React.FC<PricingTableProps> = ({
 	const getPlanFeatures = (plan: PlanCatalogRow) => {
 		const features = [
 			{ icon: Users, text: `${plan.included_seats} seat${plan.included_seats !== 1 ? 's' : ''}` },
-			{ icon: Clock, text: `${plan.included_minutes.toLocaleString()} minutes` },
-			{ icon: MessageSquare, text: `${plan.included_sms.toLocaleString()} SMS` },
-			{ icon: Mail, text: `${plan.included_emails.toLocaleString()} emails` }
+			{ icon: Coins, text: `${plan.included_credits.toLocaleString()} credits` }
 		];
 
-		const overages = ['$0.18/min overage', '$0.04/SMS overage', '$0.01/email overage'];
-
-		return { features, overages };
-	};
-
-	const getPlanMargin = (plan: PlanCatalogRow) => {
-		switch (plan.plan_code) {
-			case 'starter':
-				return { allInCost: 62.35, margin: 56.65, percentage: 48 };
-			case 'growth':
-				return { allInCost: 293, margin: 206, percentage: 41 };
-			case 'scale':
-				return { allInCost: 530, margin: 369, percentage: 41 };
-			default:
-				return { allInCost: 0, margin: 0, percentage: 0 };
-		}
+		return { features };
 	};
 
 	return (
@@ -61,8 +44,7 @@ const PricingTable: React.FC<PricingTableProps> = ({
 			<div className="grid grid-cols-1 gap-6 md:grid-cols-3">
 				{plans && plans.length > 0 ? (
 					plans.map((plan) => {
-						const { features, overages } = getPlanFeatures(plan);
-						const { allInCost, margin, percentage } = getPlanMargin(plan);
+						const { features } = getPlanFeatures(plan);
 						const isSelected = selectedPlan === plan.plan_code;
 						const effectivePrice =
 							plan.plan_code === 'growth'
@@ -76,14 +58,14 @@ const PricingTable: React.FC<PricingTableProps> = ({
 								key={plan.plan_code}
 								className={`relative cursor-pointer transition-all duration-200 ${
 									isSelected
-										? 'border-red-500 shadow-lg ring-2 ring-red-500'
+										? 'border-blue-500 shadow-lg ring-2 ring-blue-500'
 										: 'border-gray-200 hover:border-gray-300 hover:shadow-md'
 								}`}
 								onClick={() => onSelectPlan(plan.plan_code)}
 							>
 								{isSelected && (
 									<div className="absolute -top-3 left-1/2 -translate-x-1/2 transform">
-										<Badge className="bg-red-500 px-3 py-1 text-white">
+										<Badge className="bg-blue-500 px-3 py-1 text-white">
 											<CheckCircle className="mr-1 h-3 w-3" />
 											Selected
 										</Badge>
@@ -116,20 +98,8 @@ const PricingTable: React.FC<PricingTableProps> = ({
 												key={index}
 												className="flex items-center justify-center text-sm text-gray-600 dark:text-gray-400"
 											>
-												<feature.icon className="mr-2 h-4 w-4 text-red-500" />
+												<feature.icon className="mr-2 h-4 w-4 text-blue-500" />
 												{feature.text}
-											</div>
-										))}
-									</div>
-
-									{/* Overages */}
-									<div className="space-y-1">
-										<h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-											Overages:
-										</h4>
-										{overages.map((overage, index) => (
-											<div key={index} className="text-xs text-gray-500 dark:text-gray-400">
-												{overage}
 											</div>
 										))}
 									</div>
@@ -160,7 +130,7 @@ const PricingTable: React.FC<PricingTableProps> = ({
                             <DialogTitle>How the 7‑day pay‑as‑you‑go trial works</DialogTitle>
                             <DialogDescription>
                                 During the trial, your monthly subscription won’t be charged until the 7 days are up. However,
-                                usage for calls, SMS, and emails is billed as you go and must be paid during the trial.
+                                usage for LLM credits is billed as you go and must be paid during the trial.
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter className="flex gap-2 sm:justify-end">
@@ -174,7 +144,7 @@ const PricingTable: React.FC<PricingTableProps> = ({
                                 Cancel
                             </button>
                             <button
-                                className="rounded-md bg-red-600 px-3 py-2 text-sm text-white"
+                                className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white"
                                 onClick={() => {
                                     setShowTrialDisclaimer(false);
                                     onTrialToggle(true);
@@ -201,7 +171,7 @@ function TrialToggle({ checked, onRequestChange }: { checked: boolean; onRequest
                 onClick={() => onRequestChange(!checked)}
                 className="group inline-flex items-center gap-3 rounded-full px-0 py-0"
             >
-                <span className={`relative inline-flex h-5 w-10 items-center rounded-full transition ${checked ? 'bg-red-500' : 'bg-gray-300 dark:bg-gray-700'}`}>
+                <span className={`relative inline-flex h-5 w-10 items-center rounded-full transition ${checked ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'}`}>
                     <span className={`absolute left-0 top-0 h-5 w-5 rounded-full bg-white shadow transition ${checked ? 'translate-x-5' : ''}`}></span>
                 </span>
                 <span className="text-sm text-gray-700 dark:text-gray-300">Start with a 7‑day pay‑as‑you‑go trial</span>

@@ -8,8 +8,6 @@ export const LEAD_STAGES = {
   CLOSED_LOST: 'closed-lost'
 } as const;
 
-export type LeadStage = typeof LEAD_STAGES[keyof typeof LEAD_STAGES];
-
 // Lead Priority Options
 export const LEAD_PRIORITIES = {
   LOW: 'low',
@@ -26,8 +24,6 @@ export const LEAD_STATUSES = {
   IN_PROGRESS: 'in_progress',
   CLOSED: 'closed'
 } as const;
-
-export type LeadStatus = typeof LEAD_STATUSES[keyof typeof LEAD_STATUSES];
 
 // Date Range Options
 export const DATE_RANGES = {

@@ -3,7 +3,7 @@ import { useAuth } from './useAuth';
 import { fetchUsageCatalogPricing } from '../api/billing';
 
 interface UsageRate {
-  key: 'voice' | 'sms';
+  key: 'credits';
   label: string;
   rate: number;
   unitLabel: string;
@@ -26,25 +26,16 @@ export function useUsageRates(): UsageRate[] | null {
     fetchUsageCatalogPricing(session.access_token)
       .then((data) => {
         if (cancelled) return;
-        const voiceRate = data.voice ? data.voice.amountCents / 100 : null;
-        const smsRate = data.sms ? data.sms.amountCents / 100 : null;
+        const creditsRate = data.credits && data.credits.amountCents != null ? data.credits.amountCents / 100 : 0;
 
         setRates([
           {
-            key: 'voice',
-            label: 'Voice minutes',
-            rate: voiceRate ?? 0,
-            unitLabel: 'mins',
+            key: 'credits',
+            label: 'LLM credits',
+            rate: creditsRate,
+            unitLabel: 'credits',
             color: 'bg-rose-500',
-            stripePriceId: data.voice?.stripe_price_id ?? null
-          },
-          {
-            key: 'sms',
-            label: 'SMS messages',
-            rate: smsRate ?? 0,
-            unitLabel: 'SMS',
-            color: 'bg-blue-500',
-            stripePriceId: data.sms?.stripe_price_id ?? null
+            stripePriceId: data.credits?.stripe_price_id ?? null
           }
         ]);
       })
@@ -54,19 +45,11 @@ export function useUsageRates(): UsageRate[] | null {
         if (!cancelled) {
           setRates([
             {
-              key: 'voice',
-              label: 'Voice minutes',
+              key: 'credits',
+              label: 'LLM credits',
               rate: 0,
-              unitLabel: 'mins',
+              unitLabel: 'credits',
               color: 'bg-rose-500',
-              stripePriceId: null
-            },
-            {
-              key: 'sms',
-              label: 'SMS messages',
-              rate: 0,
-              unitLabel: 'SMS',
-              color: 'bg-blue-500',
               stripePriceId: null
             }
           ]);

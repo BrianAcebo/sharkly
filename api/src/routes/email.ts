@@ -16,7 +16,7 @@ router.post('/test', async (req, res) => {
 
     await emailService.sendEmail({
       to: target,
-      subject: 'Paperboat CRM - Test Email',
+      subject: 'True Sight Intelligence - Test Email',
       text: 'This is a test email sent via Resend.',
       html: '<p>This is a <strong>test email</strong> sent via Resend.</p>'
     });

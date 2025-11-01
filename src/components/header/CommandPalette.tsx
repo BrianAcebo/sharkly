@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { useLeads } from '../../hooks/useLeads';
 import { Search, User, Mail, MessageSquare, LayoutDashboard, Command, ArrowUp, ArrowDown, X } from 'lucide-react';
-import { Lead } from '../../types/leads';
 import { useNavigate } from 'react-router';
 import useDebounce from '../../hooks/useDebounce';
+import { Case } from '../../types/case';
 
 interface CommandPaletteProps {
   onClose: () => void;
@@ -12,7 +11,7 @@ interface CommandPaletteProps {
 
 interface SearchResult {
   id: string;
-  type: 'page' | 'lead' | 'action';
+  type: 'page' | 'case' | 'team_member' | 'action';
   title: string;
   subtitle?: string;
   icon: React.ReactNode;
@@ -24,39 +23,12 @@ interface SearchResult {
 // Pre-defined pages with static data
 const STATIC_PAGES: Omit<SearchResult, 'score'>[] = [
   {
-    id: 'pipeline',
+    id: 'cases',
     type: 'page',
-    title: 'Pipeline',
-    subtitle: 'View lead pipeline',
+    title: 'Cases',
+    subtitle: 'View Cases',
     icon: <LayoutDashboard className="h-4 w-4" />,
-    path: '/pipeline',
-    action: () => {}
-  },
-  {
-    id: 'leads',
-    type: 'page',
-    title: 'All Leads',
-    subtitle: 'Manage all leads',
-    icon: <User className="h-4 w-4" />,
-    path: '/leads',
-    action: () => {}
-  },
-  {
-    id: 'inbox',
-    type: 'page',
-    title: 'Inbox',
-    subtitle: 'Email inbox',
-    icon: <Mail className="h-4 w-4" />,
-    path: '/inbox',
-    action: () => {}
-  },
-  {
-    id: 'chat',
-    type: 'page',
-    title: 'Chat',
-    subtitle: 'Team chat',
-    icon: <MessageSquare className="h-4 w-4" />,
-    path: '/chat',
+    path: '/cases',
     action: () => {}
   },
   {
@@ -130,12 +102,12 @@ function fuzzySearch(query: string, text: string): number {
 }
 
 // Memoized search function with result caching
-const useSearchResults = (query: string, leads: Lead[]) => {
+const useSearchResults = (query: string, cases: Case[]) => {
   return useMemo(() => {
          if (!query.trim()) {
        return {
          pages: STATIC_PAGES.slice(0, 6).map(page => ({ ...page, score: 0 })),
-         leads: [],
+         cases: [],
          allResults: STATIC_PAGES.slice(0, 6).map(page => ({ ...page, score: 0 }))
        };
      }
@@ -156,33 +128,33 @@ const useSearchResults = (query: string, leads: Lead[]) => {
       .slice(0, 3);
 
     // Search leads with scoring
-    const leadResults = leads
-      .map(lead => ({
-        id: lead.id,
-        type: 'lead' as const,
-        title: lead.name,
-        subtitle: `${lead.company || 'No Company'} • ${lead.email}`,
-        icon: <User className="h-4 w-4" />,
-        path: `/leads/${lead.id}`,
-        action: () => {},
-        score: Math.max(
-          fuzzySearch(queryLower, lead.name),
-          fuzzySearch(queryLower, lead.company || ''),
-          fuzzySearch(queryLower, lead.email)
-        )
-      }))
-      .filter(lead => lead.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5);
+    // const caseResults = cases
+    //   .map(lead => ({
+    //     id: lead.id,
+    //     type: 'lead' as const,
+    //     title: lead.name,
+    //     subtitle: `${lead.company || 'No Company'} • ${lead.email}`,
+    //     icon: <User className="h-4 w-4" />,
+    //     path: `/leads/${lead.id}`,
+    //     action: () => {},
+    //     score: Math.max(
+    //       fuzzySearch(queryLower, lead.name),
+    //       fuzzySearch(queryLower, lead.company || ''),
+    //       fuzzySearch(queryLower, lead.email)
+    //     )
+    //   }))
+    //   .filter(lead => lead.score > 0)
+    //   .sort((a, b) => b.score - a.score)
+    //   .slice(0, 5);
+    const caseResults: SearchResult[] = [];
 
-    const allResults = [...pageResults, ...leadResults];
+    const allResults = [...pageResults, ...caseResults];
     
-    return { pages: pageResults, leads: leadResults, allResults };
-  }, [query, leads]);
+    return { pages: pageResults, cases: caseResults, allResults };
+  }, [query]);
 };
 
 const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ onClose }, ref) => {
-  const { leads } = useLeads();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -192,7 +164,7 @@ const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ 
   const debouncedQuery = useDebounce(query, 150);
   
   // Get memoized search results
-  const { allResults } = useSearchResults(debouncedQuery, leads);
+  const { allResults } = useSearchResults(debouncedQuery, []); // TODO: Add cases
   
   // Reset selection when results change
   useEffect(() => {
@@ -315,7 +287,7 @@ const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ 
             <input
               ref={inputRef}
               type="text"
-              placeholder="Search leads, pages, or actions..."
+              placeholder="Search cases, pages, or actions..."
               value={query}
               onChange={e => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}

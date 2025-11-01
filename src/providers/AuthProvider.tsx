@@ -675,7 +675,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 	const signInWithGoogle = useCallback(async () => {
 		try {
 			const searchParams = new URLSearchParams(window.location.search);
-			const next = searchParams.get('next') ?? '/pipeline';
+			const next = searchParams.get('next') ?? '/cases';
 			const inviteId = searchParams.get('invite');
 
 			setLoadingState(AuthLoadingState.LOADING);

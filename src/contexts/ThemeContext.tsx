@@ -1,8 +1,10 @@
-import { createContext } from 'react';
+import { createContext, MouseEventHandler } from 'react';
 
-interface ThemeContextType {
-  isDark: boolean;
-  toggleTheme: () => void;
-}
+export type Theme = 'light' | 'dark';
 
-export const ThemeContext = createContext<ThemeContextType | undefined>(undefined); 
+export type ThemeContextType = {
+	theme: Theme;
+	toggleTheme: (theme?: Theme | null) => void | MouseEventHandler<HTMLButtonElement>;
+};
+
+export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
