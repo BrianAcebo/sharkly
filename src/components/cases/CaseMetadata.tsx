@@ -13,25 +13,25 @@ const CaseMetadata: React.FC<CaseMetadataProps> = ({ caseData }) => {
 	return (
 		<>
 			<ComponentCard>
-				<h3 className="mb-4 text-lg font-semibold">Link Analysis</h3>
+                <h3 className="mb-4 text-lg font-semibold">Link Analysis</h3>
 
 				<div className="space-y-4">
 					<div className="flex items-center space-x-3">
 						<Database className="h-5 w-5" />
-						<a href={`/graph/${caseData.id}`} className="text-sm font-medium underline">
-							View Entity Graph
+                        <a href={`/graph/${caseData.id}`} className="text-sm font-medium underline">
+                            View Entity Graph
 						</a>
 					</div>
 				</div>
 			</ComponentCard>
 
-			{caseData.assignedTo.length > 0 && (
+			{caseData.assigned_to && caseData.assigned_to.length > 0 && (
 				<ComponentCard>
 					<h3 className="mb-4 text-lg font-semibold">Assigned Investigators</h3>
 
 					<div>
 						<div className="mt-1 flex flex-wrap gap-1">
-							{caseData.assignedTo.map((investigator, index) => (
+							{caseData.assigned_to.map((investigator, index) => (
 								<Button
 									key={index}
 									variant="flat"

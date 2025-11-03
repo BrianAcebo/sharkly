@@ -29,6 +29,8 @@ import LogoutPage from './pages/Logout';
 import Search from './pages/Search';
 import CaseDetail from './pages/Cases/CaseDetail';
 import Graph from './pages/Graph/Graph';
+import SubjectDetail from './pages/Subjects/SubjectDetail';
+import SubjectsPage from './pages/Subjects/Subjects';
 
 export default function App() {
 	return (
@@ -46,7 +48,9 @@ export default function App() {
 					<Route element={<AppLayout />}>
 						<Route index path="/cases" element={<Cases />} />
 						<Route path="/cases/:id" element={<CaseDetail />} />
-						<Route path="/graph/:id" element={<Graph />} />
+                        <Route path="/graph/:id" element={<Graph />} />
+                        <Route path="/subjects" element={<SubjectsPage />} />
+                        <Route path="/subjects/:id" element={<SubjectDetail />} />
                         <Route path="/settings" element={<Settings />} />
 						<Route path="/notifications" element={<Notifications />} />
 						<Route path="/assistant" element={<Assistant />} />

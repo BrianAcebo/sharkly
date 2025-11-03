@@ -9,7 +9,7 @@ export const mockCases: Case[] = [
 		status: 'active',
 		priority: 'low',
 		tags: ['osint', 'phishing', 'email'],
-		assignedTo: [
+		assigned_to: [
 			{
 				id: '12345',
 				role: 'admin',
@@ -23,10 +23,11 @@ export const mockCases: Case[] = [
 				}
 			}
 		],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: '13396b24-b82b-48e3-ad0e-640bbd28b258',
-		entity: {
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: '13396b24-b82b-48e3-ad0e-640bbd28b258',
+		archived_at: null,
+		subject: {
 			id: '1c311155-1594-40a3-8b07-6e941b7197ea',
 			type: 'person',
 			name: 'Aiden Smith',
@@ -40,10 +41,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'Windows 10',
-					lastUsed: '2025-06-11T21:27:27.140435'
+					last_used: '2025-06-11T21:27:27.140435'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'LinkedIn',
 					username: 'asmith',
@@ -61,11 +62,12 @@ export const mockCases: Case[] = [
 		status: 'closed',
 		priority: 'high',
 		tags: ['malware', 'ransomware', 'critical'],
-		assignedTo: [],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: '7b3e60ae-4863-454a-b72c-bb483b586d65',
-		entity: {
+		assigned_to: [],
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: '7b3e60ae-4863-454a-b72c-bb483b586d65',
+		archived_at: null,
+		subject: {
 			id: 'fecafc82-7807-4fc8-9681-448cbe222656',
 			type: 'person',
 			name: 'Jackson Walker',
@@ -79,10 +81,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'Ubuntu 22.04',
-					lastUsed: '2025-06-11T21:27:27.140704'
+					last_used: '2025-06-11T21:27:27.140704'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'Instagram',
 					username: 'jwalker',
@@ -100,11 +102,12 @@ export const mockCases: Case[] = [
 		status: 'active',
 		priority: 'critical',
 		tags: ['insider', 'fraud', 'finance'],
-		assignedTo: [],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: '01571776-f1f6-4705-9d9b-449b3a96b7f2',
-		entity: {
+		assigned_to: [],
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: '01571776-f1f6-4705-9d9b-449b3a96b7f2',
+		archived_at: null,
+		subject: {
 			id: '5d25d0a6-cf4b-4a90-9ba5-43e2e949a413',
 			type: 'person',
 			name: 'Sophia Smith',
@@ -118,10 +121,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'Fedora 39',
-					lastUsed: '2025-06-11T21:27:27.141233'
+					last_used: '2025-06-11T21:27:27.141233'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'GitHub',
 					username: 'ssmith',
@@ -139,11 +142,12 @@ export const mockCases: Case[] = [
 		status: 'in_progress',
 		priority: 'low',
 		tags: ['social', 'impersonation', 'urgent'],
-		assignedTo: [],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: '933d9308-6e6c-48ab-89ad-6cb6d87b97c5',
-		entity: {
+		assigned_to: [],
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: '933d9308-6e6c-48ab-89ad-6cb6d87b97c5',
+		archived_at: null,
+		subject: {
 			id: 'a78f0815-111c-4cf9-b0e7-d1bdd01ecd02',
 			type: 'person',
 			name: 'Jackson Garcia',
@@ -157,10 +161,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'Fedora 39',
-					lastUsed: '2025-06-11T21:27:27.141697'
+					last_used: '2025-06-11T21:27:27.141697'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'Instagram',
 					username: 'jgarcia',
@@ -178,11 +182,12 @@ export const mockCases: Case[] = [
 		status: 'in_progress',
 		priority: 'low',
 		tags: ['osint', 'investigation', 'compliance'],
-		assignedTo: [],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: '8fb9dace-0eb8-4a83-8503-4138d97bbe62',
-		entity: {
+		assigned_to: [],
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: '8fb9dace-0eb8-4a83-8503-4138d97bbe62',
+		archived_at: null,
+		subject: {
 			id: '9494853f-1e1f-4af8-87f5-7417e3d1f6cd',
 			type: 'person',
 			name: 'Sophia Walker',
@@ -196,10 +201,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'Fedora 39',
-					lastUsed: '2025-06-11T21:27:27.141762'
+					last_used: '2025-06-11T21:27:27.141762'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'Facebook',
 					username: 'swalker',
@@ -217,11 +222,12 @@ export const mockCases: Case[] = [
 		status: 'active',
 		priority: 'high',
 		tags: ['threat', 'APT', 'espionage'],
-		assignedTo: [],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: '8846b583-dad7-44d3-921e-5e960785817f',
-		entity: {
+		assigned_to: [],
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: '8846b583-dad7-44d3-921e-5e960785817f',
+		archived_at: null,
+		subject: {
 			id: 'e69b27f6-be79-4957-a3db-ea525ff78b98',
 			type: 'person',
 			name: 'Olivia Rodriguez',
@@ -235,10 +241,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'Fedora 39',
-					lastUsed: '2025-06-11T21:27:27.141841'
+					last_used: '2025-06-11T21:27:27.141841'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'LinkedIn',
 					username: 'orodriguez',
@@ -256,11 +262,12 @@ export const mockCases: Case[] = [
 		status: 'closed',
 		priority: 'high',
 		tags: ['phishing', 'email', 'user-report'],
-		assignedTo: [],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: '77e4b2da-6174-44c3-ae14-fa89a843082a',
-		entity: {
+		assigned_to: [],
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: '77e4b2da-6174-44c3-ae14-fa89a843082a',
+		archived_at: null,
+		subject: {
 			id: 'b1c6bfdb-9089-4add-9e6e-38030b6b9833',
 			type: 'person',
 			name: 'Olivia Walker',
@@ -274,10 +281,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'Windows 10',
-					lastUsed: '2025-06-11T21:27:27.141878'
+					last_used: '2025-06-11T21:27:27.141878'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'Twitter',
 					username: 'owalker',
@@ -295,11 +302,12 @@ export const mockCases: Case[] = [
 		status: 'active',
 		priority: 'high',
 		tags: ['malware', 'trojan', 'network'],
-		assignedTo: [],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: '0b8469b2-2d54-41f2-81e2-3c86a01ebe17',
-		entity: {
+		assigned_to: [],
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: '0b8469b2-2d54-41f2-81e2-3c86a01ebe17',
+		archived_at: null,
+		subject: {
 			id: '5a44fb8a-9f38-4b4c-bfff-92c287ea8eca',
 			type: 'person',
 			name: 'Olivia Johnson',
@@ -313,10 +321,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'macOS Ventura',
-					lastUsed: '2025-06-11T21:27:27.141925'
+					last_used: '2025-06-11T21:27:27.141925'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'Instagram',
 					username: 'ojohnson',
@@ -334,11 +342,12 @@ export const mockCases: Case[] = [
 		status: 'closed',
 		priority: 'critical',
 		tags: ['fraud', 'account-takeover', 'banking'],
-		assignedTo: [],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: '84040c00-301a-4743-8638-74c25baa7573',
-		entity: {
+		assigned_to: [],
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: '84040c00-301a-4743-8638-74c25baa7573',
+		archived_at: null,
+		subject: {
 			id: '9bc905ec-3639-43d2-a55a-fe7703835463',
 			type: 'person',
 			name: 'Lucas Rodriguez',
@@ -352,10 +361,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'Windows 10',
-					lastUsed: '2025-06-11T21:27:27.141964'
+					last_used: '2025-06-11T21:27:27.141964'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'LinkedIn',
 					username: 'lrodriguez',
@@ -373,11 +382,12 @@ export const mockCases: Case[] = [
 		status: 'in_progress',
 		priority: 'high',
 		tags: ['osint', 'investigation', 'insider'],
-		assignedTo: [],
-		createdAt: new Date(),
-		updatedAt: new Date(),
-		graphId: 'a8d52413-993d-4c82-9879-675baee0b648',
-		entity: {
+		assigned_to: [],
+		created_at: new Date(),
+		updated_at: new Date(),
+		graph_id: 'a8d52413-993d-4c82-9879-675baee0b648',
+		archived_at: null,
+		subject: {
 			id: '70fd73e4-8da5-4dfe-8d56-f3ed647d3494',
 			type: 'person',
 			name: 'Olivia Johnson',
@@ -391,10 +401,10 @@ export const mockCases: Case[] = [
 				{
 					type: 'Desktop',
 					os: 'Fedora 39',
-					lastUsed: '2025-06-11T21:27:27.142000'
+					last_used: '2025-06-11T21:27:27.142000'
 				}
 			],
-			socialProfiles: [
+			social_profiles: [
 				{
 					platform: 'GitHub',
 					username: 'ojohnson',

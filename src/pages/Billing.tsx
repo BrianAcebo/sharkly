@@ -15,7 +15,6 @@ import {
 	Wallet,
 	Coins
 } from 'lucide-react';
-import PricingCalculator from '../components/billing/PricingCalculator';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { STRIPE_CUSTOMER_PORTAL_URL, canManageBilling } from '../utils/billing';
@@ -323,16 +322,6 @@ const Billing: React.FC = () => {
 						Usage Costs
 					</button>
 					<button
-						onClick={() => setActiveTab('pricing')}
-						className={`border-b-2 px-1 py-2 text-sm font-medium ${
-							activeTab === 'pricing'
-								? 'border-red-500 text-red-600 dark:text-red-400'
-								: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-						}`}
-					>
-						Pricing Calculator
-					</button>
-					<button
 						onClick={() => setActiveTab('invoices')}
 						className={`border-b-2 px-1 py-2 text-sm font-medium ${
 							activeTab === 'invoices'
@@ -616,9 +605,6 @@ const Billing: React.FC = () => {
 					</Card>
 				</div>
 			)}
-
-			{/* Pricing Calculator Tab */}
-			{activeTab === 'pricing' && <PricingCalculator />}
 
 			{activeTab === 'invoices' && (
 				<Card>

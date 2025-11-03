@@ -1,8 +1,36 @@
 export type PriorityFilter = 'all' | 'low' | 'medium' | 'high' | 'critical';
+export type CaseStatus = 'active' | 'in_progress' | 'closed';
+export type CasePriority = 'low' | 'medium' | 'high' | 'critical';
 
 export type CaseStatusFilter = 'all' | 'active' | 'closed' | 'in_progress';
 
-export interface Entity {
+export interface ListCasesParams {
+	organizationId: string;
+	search?: string;
+	status?: CaseStatus | 'all';
+	priority?: CasePriority | 'all';
+	page?: number;
+	perPage?: number;
+	includeArchived?: boolean;
+	archivedOnly?: boolean;
+	from?: string; // ISO date
+	to?: string;   // ISO date
+	sortBy?: 'recent' | 'priority' | 'alphabetical';
+  }
+
+export interface SubjectDevice {
+	type: string;
+	os: string;
+	last_used?: string;
+}
+
+export interface SubjectSocialProfile {
+	platform: string;
+	username: string;
+	url?: string;
+}
+
+export interface Subject {
 	id: string;
 	name: string;
 	email: string;
@@ -12,32 +40,44 @@ export interface Entity {
 		country: string;
 		ip: string;
 	};
-	devices: {
-		type: string;
-		os: string;
-		lastUsed: string;
-	}[];
-	socialProfiles: {
-		platform: string;
-		username: string;
-		url: string;
-	}[];
+	devices: SubjectDevice[];
+	social_profiles: SubjectSocialProfile[];
 	avatar: string;
 }
 
 export interface Case {
-	id: string;
-	title: string;
-	description: string;
-	category: string;
-	status: 'active' | 'in_progress' | 'closed';
-	priority: 'low' | 'medium' | 'high' | 'critical';
-	entity: Entity;
-	tags: string[]; // ex: ["fraud", "cyber", "surveillance"]
-	assignedTo: Investigator[];
-	createdAt: Date;
-	updatedAt: Date;
-	graphId: string; // Reference to associated OSINT graph
+    id: string;
+    organization_id?: string;
+    created_by?: string;
+    title: string;
+    description: string | null;
+    category: string | null;
+    status: CaseStatus;
+    priority: CasePriority;
+    tags: string[] | null;
+    subject?: Subject | null;
+    subject_id?: string | null;
+    assigned_to: Investigator[] | null;
+    graph_id: string | null;
+    archived_at: string | null;
+    created_at: Date | string; // ISO string
+    updated_at: Date | string; // ISO string
+}
+
+export interface Evidence {
+    id: string;
+    case_id: string;
+    subject_id?: string | null;
+    organization_id: string;
+    uploader_id?: string | null;
+    file_name: string;
+    file_type: string;
+    file_size: number;
+    storage_path: string;
+    checksum?: string | null;
+    description?: string | null;
+    tags?: string[] | null;
+    created_at: string; // ISO string
 }
 
 export interface SearchFilter {
@@ -48,6 +88,8 @@ export interface SearchFilter {
 		to: Date | undefined;
 	};
 	sortBy?: 'recent' | 'priority' | 'alphabetical';
+	includeArchived?: boolean;
+	archivedOnly?: boolean;
 }
 
 export interface GraphEntity {

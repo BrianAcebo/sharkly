@@ -1,10 +1,10 @@
 import React from 'react';
-import { ExternalLink, Linkedin, Twitter, Facebook, Instagram, Globe } from 'lucide-react';
-import type { Case } from '../../types/case';
+import { ExternalLink, Linkedin, Twitter, Facebook, Instagram, Globe, Github } from 'lucide-react';
+import type { SubjectSocialProfile } from '../../types/case';
 import ComponentCard from '../common/ComponentCard';
 
 interface SocialProfilesProps {
-	profiles: Case['entity']['socialProfiles'];
+    profiles: SubjectSocialProfile[];
 }
 
 const SocialProfiles: React.FC<SocialProfilesProps> = ({ profiles }) => {
@@ -12,12 +12,14 @@ const SocialProfiles: React.FC<SocialProfilesProps> = ({ profiles }) => {
 		switch (platform.toLowerCase()) {
 			case 'linkedin':
 				return Linkedin;
-			case 'twitter':
+            case 'twitter':
 				return Twitter;
 			case 'facebook':
 				return Facebook;
 			case 'instagram':
 				return Instagram;
+            case 'github':
+                return Github;
 			default:
 				return Globe;
 		}
@@ -31,8 +33,10 @@ const SocialProfiles: React.FC<SocialProfilesProps> = ({ profiles }) => {
 				return 'bg-sky-500 text-white';
 			case 'facebook':
 				return 'bg-blue-700 text-white';
-			case 'instagram':
+            case 'instagram':
 				return 'bg-pink-600 text-white';
+            case 'github':
+                return 'bg-gray-800 text-white';
 			default:
 				return 'bg-slate-600 text-white';
 		}
@@ -42,8 +46,8 @@ const SocialProfiles: React.FC<SocialProfilesProps> = ({ profiles }) => {
 		<ComponentCard>
 			<h3 className="mb-4 text-lg font-semibold">Social Media Profiles</h3>
 
-			<div className="space-y-3">
-				{profiles.map((profile, index) => {
+            <div className="space-y-3">
+                {profiles.map((profile: SubjectSocialProfile, index: number) => {
 					const PlatformIcon = getPlatformIcon(profile.platform);
 					return (
 						<div

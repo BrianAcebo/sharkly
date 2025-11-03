@@ -14,6 +14,7 @@ import {
 	Share2,
 	MoreHorizontal
 } from 'lucide-react';
+import { Link } from 'react-router';
 import { Card, CardContent, CardFooter, CardHeader } from '../ui/card';
 import {
 	DropdownMenu,
@@ -22,14 +23,30 @@ import {
 	DropdownMenuTrigger
 } from '../ui/dropdown-menu';
 import { useCase } from '../../hooks/useCase';
-
+import { archiveCase, unarchiveCase } from '../../api/cases';
+import EditCaseDialog from './EditCaseDialog';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle
+} from '../ui/alert-dialog';
+import { deleteCase } from '../../api/cases';
+import { UserAvatar } from '../common/UserAvatar';
 interface SearchResultsProps {
 	perPage: number;
+	onChanged?: () => void;
 }
 
-export function SearchResults({ perPage }: SearchResultsProps) {
+export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
 	const { results, currentPage, setCurrentPage } = useCase();
 	const [selectedResult, setSelectedResult] = useState<Case | null>(results?.results[0] ?? null);
+	const [editingCase, setEditingCase] = useState<Case | null>(null);
+	const [deleteId, setDeleteId] = useState<string | null>(null);
 
 	useEffect(() => {
 		setSelectedResult(results?.results[0] ?? null);
@@ -70,6 +87,37 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	};
 
+	const handleArchive = async (id: string) => {
+		try {
+			await archiveCase(id);
+			onChanged?.();
+		} catch (e) {
+			console.error('Error archiving case:', e);
+			// no-op
+		}
+	};
+
+    const handleUnarchive = async (id: string) => {
+        try {
+            await unarchiveCase(id);
+            onChanged?.();
+        } catch (e) {
+            console.error('Error unarchiving case:', e);
+        }
+    };
+
+	const handleDelete = async () => {
+		if (!deleteId) return;
+		try {
+			await deleteCase(deleteId);
+			setDeleteId(null);
+			onChanged?.();
+		} catch (e) {
+			console.error('Error deleting case:', e);
+			// no-op
+		}
+	};
+
 	if (results.results.length === 0) {
 		return (
 			<div className="bg-card flex flex-col items-center justify-center rounded-lg border p-8 text-center">
@@ -83,6 +131,8 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 			</div>
 		);
 	}
+
+	console.log(results.results);
 
 	return (
 		<div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -98,15 +148,18 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 							<CardHeader className="p-6">
 								<div className="flex flex-col items-start justify-between gap-3 md:flex-row">
 									<div className="flex items-center space-x-2">
-										<Avatar className="h-8 w-8">
-											<AvatarImage src={result.entity.avatar} alt={result.entity.name} />
-											<AvatarFallback>{result.entity.name.charAt(0)}</AvatarFallback>
-										</Avatar>
+										<UserAvatar
+											user={{
+												name: result.subject?.name || '',
+												avatar: result.subject?.avatar || null
+											}}
+											size="sm"
+										/>
 										<div>
-											<p className="text-sm font-medium">{result.entity.name}</p>
+											<p className="text-sm font-medium">{result.subject?.name}</p>
 											<p className="text-xs text-gray-600 dark:text-gray-300">
 												Updated:{' '}
-												{formatDistanceToNow(new Date(result.updatedAt), {
+												{formatDistanceToNow(new Date(result.updated_at), {
 													addSuffix: true
 												})}
 											</p>
@@ -138,11 +191,23 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 														<span className="sr-only">More options</span>
 													</Button>
 												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													<DropdownMenuItem>Edit</DropdownMenuItem>
-													<DropdownMenuItem>Share</DropdownMenuItem>
-													<DropdownMenuItem>Save</DropdownMenuItem>
-												</DropdownMenuContent>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => setEditingCase(result)}>
+                                                    Edit
+                                                </DropdownMenuItem>
+                                                {result.archived_at ? (
+                                                    <DropdownMenuItem onClick={() => handleUnarchive(result.id)}>
+                                                        Unarchive
+                                                    </DropdownMenuItem>
+                                                ) : (
+                                                    <DropdownMenuItem onClick={() => handleArchive(result.id)}>
+                                                        Archive
+                                                    </DropdownMenuItem>
+                                                )}
+                                                <DropdownMenuItem onClick={() => setDeleteId(result.id)}>
+                                                    Delete
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
 											</DropdownMenu>
 										</div>
 									</div>
@@ -253,15 +318,15 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 							<div className="mb-4 flex items-center space-x-3">
 								<Avatar className="h-10 w-10">
 									<AvatarImage
-										src={selectedResult.entity.avatar}
-										alt={selectedResult.entity.name}
+										src={selectedResult.subject?.avatar}
+										alt={selectedResult.subject?.name}
 									/>
-									<AvatarFallback>{selectedResult.entity.name.charAt(0)}</AvatarFallback>
+									<AvatarFallback>{selectedResult.subject?.name?.charAt(0) || ''}</AvatarFallback>
 								</Avatar>
 								<div>
-									<p className="font-medium">{selectedResult.entity.name}</p>
+									<p className="font-medium">{selectedResult.subject?.name}</p>
 									<p className="text-sm text-gray-600 capitalize dark:text-gray-300">
-										{selectedResult.entity.type}
+										{selectedResult.subject?.type}
 									</p>
 								</div>
 							</div>
@@ -276,7 +341,7 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 								<div className="flex flex-col space-y-1">
 									<span className="text-xs text-gray-600 dark:text-gray-300">Created</span>
 									<span className="font-medium">
-										{new Date(selectedResult.createdAt).toLocaleDateString()}
+										{new Date(selectedResult.created_at).toLocaleDateString()}
 									</span>
 								</div>
 								<div className="flex flex-col space-y-1">
@@ -295,21 +360,44 @@ export function SearchResults({ perPage }: SearchResultsProps) {
 											<span className="text-xs text-gray-400">No tags</span>
 										)}
 									</div>
+									<EditCaseDialog
+										open={Boolean(editingCase)}
+										onOpenChange={(v) => !v && setEditingCase(null)}
+										caseData={editingCase || results.results[0]}
+										onUpdated={onChanged}
+									/>
+									<AlertDialog
+										open={Boolean(deleteId)}
+										onOpenChange={(v) => !v && setDeleteId(null)}
+									>
+										<AlertDialogContent>
+											<AlertDialogHeader>
+												<AlertDialogTitle>Delete case?</AlertDialogTitle>
+												<AlertDialogDescription>
+													This action permanently deletes the case and cannot be undone.
+												</AlertDialogDescription>
+											</AlertDialogHeader>
+											<AlertDialogFooter>
+												<AlertDialogCancel>Cancel</AlertDialogCancel>
+												<AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+											</AlertDialogFooter>
+										</AlertDialogContent>
+									</AlertDialog>
 								</div>
 								<div className="flex flex-col space-y-1">
 									<span className="text-xs text-gray-600 dark:text-gray-300">Last Updated</span>
 									<div className="flex items-center text-sm">
 										<Calendar className="mr-2 h-4 w-4 text-gray-600 dark:text-gray-300" />
-										<span>{new Date(selectedResult.updatedAt).toLocaleString()}</span>
+										<span>{new Date(selectedResult.updated_at).toLocaleString()}</span>
 									</div>
 								</div>
 							</div>
 						</CardContent>
 						<Separator />
 						<CardFooter className="flex justify-end pt-4">
-							<a href="/cases/1">
+							<Link to={`/cases/${selectedResult.id}`}>
 								<Button variant="outline">View Details</Button>
-							</a>
+							</Link>
 						</CardFooter>
 					</Card>
 				) : (

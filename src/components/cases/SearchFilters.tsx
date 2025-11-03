@@ -10,7 +10,7 @@ import type { SearchFilter } from '../../types/case';
 import DatePicker from '../form/date-picker';
 import { useCase } from '../../hooks/useCase';
 
-export function SearchFilters() {
+export function SearchFilters({ onManageClick }: { onManageClick?: () => void }) {
 	const { filters, setFilters, results, dateRange, setDateRange } = useCase();
 	const [showFilters, setShowFilters] = useState<boolean>(false);
 
@@ -47,7 +47,8 @@ export function SearchFilters() {
 			status: 'all',
 			priorityLevel: 'all',
 			dateRange: { from: undefined, to: undefined },
-			sortBy: 'recent'
+			sortBy: 'recent',
+            includeArchived: false
 		});
 		setDateRange({ from: undefined, to: undefined });
 	};
@@ -112,10 +113,14 @@ export function SearchFilters() {
 				value: 'in_progress',
 				label: 'In progress'
 			},
-			{
-				value: 'closed',
-				label: 'Closed'
-			}
+            {
+                value: 'closed',
+                label: 'Closed'
+            },
+            {
+                value: 'archived',
+                label: 'Archived'
+            }
 		]
 	};
 
@@ -166,7 +171,7 @@ export function SearchFilters() {
 	return (
 		<div className="mb-6 space-y-4">
 			<div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
-				<div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
 					<Button
 						variant="outline"
 						size="sm"
@@ -185,7 +190,13 @@ export function SearchFilters() {
 						)}
 					</Button>
 
-					{renderSelect(sortOptions, 'Sort by', handleSortChange)}
+                    {renderSelect(sortOptions, 'Sort by', handleSortChange)}
+
+					{onManageClick && (
+						<Button variant="outline" size="sm" onClick={onManageClick} className="h-9">
+							Manage Categories / Tags
+						</Button>
+					)}
 				</div>
 
 				<p className="text-sm">
@@ -194,7 +205,7 @@ export function SearchFilters() {
 			</div>
 
 			{showFilters && (
-				<div className="animate-in slide-in-from-top-2 flex gap-10 rounded-lg bg-white p-4 text-gray-700 ring-1 ring-gray-300 duration-200 ring-inset dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
+                <div className="animate-in slide-in-from-top-2 flex gap-10 rounded-lg bg-white p-4 text-gray-700 ring-1 ring-gray-300 duration-200 ring-inset dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
 					<div className="space-y-4">
 						<label className="mb-3 block text-sm font-medium">Status</label>
 						{renderSelect(statusOptions, 'Select status', handleStatusChange)}

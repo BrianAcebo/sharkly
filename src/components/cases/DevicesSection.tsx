@@ -1,43 +1,45 @@
 import React from 'react';
 import { Monitor, Smartphone, Tablet, Clock } from 'lucide-react';
-import type { Case } from '../../types/case';
+import type { SubjectDevice } from '../../types/case';
 import ComponentCard from '../common/ComponentCard';
 
 interface DevicesSectionProps {
-	devices: Case['entity']['devices'];
+    devices: SubjectDevice[];
 }
 
 const DevicesSection: React.FC<DevicesSectionProps> = ({ devices }) => {
-	const getDeviceIcon = (deviceType: string) => {
-		switch (deviceType.toLowerCase()) {
-			case 'desktop':
-				return Monitor;
-			case 'mobile':
-				return Smartphone;
-			case 'tablet':
-				return Tablet;
-			default:
-				return Monitor;
+	const getDeviceIcon = (deviceType: string, os?: string) => {
+		const t = (deviceType || '').toLowerCase();
+		const o = (os || '').toLowerCase();
+		if (t === 'phone' || t === 'mobile' || o.includes('ios') || o.includes('android')) {
+			return Smartphone;
 		}
+		if (t === 'tablet' || o.includes('ipad') || o.includes('ipados') || o.includes('tablet')) {
+			return Tablet;
+		}
+		// computer/desktop/laptop
+		return Monitor;
 	};
 
-	const formatLastUsed = (dateString: string) => {
-		const date = new Date(dateString);
-		return new Intl.DateTimeFormat('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		}).format(date);
-	};
+    const formatLastUsed = (dateString?: string) => {
+        if (!dateString) return '-';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return new Intl.DateTimeFormat('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }).format(date);
+    };
 
 	return (
 		<ComponentCard>
 			<h3 className="mb-4 text-lg font-semibold">Connected Devices</h3>
-			<div className="space-y-3">
-				{devices.map((device, index) => {
-					const DeviceIcon = getDeviceIcon(device.type);
+            <div className="space-y-3">
+                {devices.map((device: SubjectDevice, index: number) => {
+					const DeviceIcon = getDeviceIcon(device.type, device.os);
 					return (
 						<div
 							key={index}
@@ -57,9 +59,9 @@ const DevicesSection: React.FC<DevicesSectionProps> = ({ devices }) => {
 									<Clock className="h-4 w-4" />
 									<span>Last used</span>
 								</div>
-								<p className="text-sm font-medium text-slate-700 dark:text-gray-300">
-									{formatLastUsed(device.lastUsed)}
-								</p>
+                                <p className="text-sm font-medium text-slate-700 dark:text-gray-300">
+                                    {formatLastUsed(device.last_used)}
+                                </p>
 							</div>
 						</div>
 					);
