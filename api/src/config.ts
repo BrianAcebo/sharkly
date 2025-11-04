@@ -13,6 +13,10 @@ interface Config {
 		replyTo?: string;
 	};
 	frontendUrl?: string;
+	googleSearch: {
+		apiKey?: string;
+		cx?: string;
+	};
 }
 
 const config: Config = {
@@ -29,7 +33,11 @@ const config: Config = {
 		from: process.env.RESEND_FROM || process.env.SMTP_FROM || 'noreply@paperboatcrm.com',
 		replyTo: process.env.RESEND_REPLY_TO || process.env.SMTP_FROM
 	},
-	frontendUrl: process.env.FRONTEND_URL
+	frontendUrl: process.env.FRONTEND_URL,
+	googleSearch: {
+		apiKey: process.env.GOOGLE_CSE_API_KEY,
+		cx: process.env.GOOGLE_CSE_CX
+	}
 };
 
 export { config };

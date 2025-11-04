@@ -8,6 +8,7 @@ import billingRoutes from './routes/billing.js';
 import billingOnboardingRoutes from './routes/billingOnboarding.js';
 import organizationStatusRoutes from './routes/organizationStatus.js';
 import subscriptionStatusRoutes from './routes/subscriptionStatus.js';
+import searchRoutes from './routes/search.js';
 import paymentStatusRoutes from './routes/paymentStatus.js';
 import emailRoutes from './routes/email.js';
 import trialStatusRoutes from './routes/trialStatus.js';
@@ -42,6 +43,7 @@ app.use('/api/subscription', subscriptionStatusRoutes);
 app.use('/api', paymentStatusRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/trial', trialStatusRoutes);
+app.use('/api/search', searchRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
