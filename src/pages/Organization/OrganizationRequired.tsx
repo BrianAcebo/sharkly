@@ -342,7 +342,7 @@ const PaymentForm = ({
 };
 
 export default function OrganizationRequired() {
-	const { isOpen, openModal, closeModal } = useModal();
+	const { isOpen, closeModal } = useModal();
 	const [activeTab, setActiveTab] = useState<'create' | 'subscribe' | 'billing'>('create');
 	const [organizationData, setOrganizationData] = useState<OrganizationData>({
 		name: '',
@@ -395,7 +395,7 @@ export default function OrganizationRequired() {
 							Let's get started
 						</h4>
 						<p className="mb-6 text-sm text-gray-500 lg:mb-7 dark:text-gray-400">
-							Create an organization to get started with Paperboat CRM.
+							Create an organization to get started with True Sight.
 						</p>
 					</div>
 

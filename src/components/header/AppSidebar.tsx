@@ -19,8 +19,16 @@ const Sidebar: React.FC = () => {
 	const { isExpanded, isMobileOpen } = useSidebar();
 
 	const menuItems = [
-		{ icon: LayoutDashboard, label: 'Cases', path: '/cases' },
-		{ icon: Bot, label: 'AI Assistant', path: '/assistant' },
+		{ 
+			icon: LayoutDashboard, 
+			label: 'Cases', 
+			path: '/cases'
+		},
+		{
+			icon: Bot,
+			label: 'AI Assistant', 
+			path: '/assistant'
+		},
 		{
 			icon: FolderSearch,
 			label: 'Search',
@@ -36,8 +44,16 @@ const Sidebar: React.FC = () => {
 			label: 'Social',
 			path: '/social'
 		},
-		{ icon: Building2, label: 'Organization', path: '/organization' },
-		{ icon: Settings, label: 'Settings', path: '/settings' }
+		{ 
+			icon: Building2, 
+			label: 'Organization', 
+			path: '/organization'
+		},
+		{ 
+			icon: Settings, 
+			label: 'Settings', 
+			path: '/settings'
+		}
 	];
 
 	return (
@@ -91,7 +107,7 @@ const Sidebar: React.FC = () => {
 							<Link to={item.path}>
 								<button
 									className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
-										item.path === window.location.pathname
+										window.location.pathname.startsWith(item.path)
 											? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
 											: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
 									}`}

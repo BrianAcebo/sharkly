@@ -3,17 +3,10 @@ import { useParams } from 'react-router-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { AuthLoadingState } from '../../contexts/AuthContext';
 import { AuthLoading } from '../../components/AuthLoading';
-import { getSubjectById, updateSubject, type SubjectRecord } from '../../api/subjects';
+import { updatePerson, getPersonById } from '../../api/people';
+import type { PersonRecord } from '../../types/person';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-//
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue
-} from '../../components/ui/select';
 import { Separator } from '../../components/ui/separator';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { UserAvatar } from '../../components/common/UserAvatar';
@@ -36,11 +29,12 @@ import {
 import { supabase } from '../../utils/supabaseClient';
 import { useRef } from 'react';
 import { Trash } from 'lucide-react';
+import CaseWebMentions from '../../components/cases/CaseWebMentions';
 
-export default function SubjectDetail() {
+export default function PersonDetail() {
 	const params = useParams();
 	const id = params.id as string;
-	const [row, setRow] = useState<SubjectRecord | null>(null);
+	const [row, setRow] = useState<PersonRecord | null>(null);
 	const [editMode, setEditMode] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [avatarOpen, setAvatarOpen] = useState(false);
@@ -53,13 +47,13 @@ export default function SubjectDetail() {
 
 	useEffect(() => {
 		setTitle(row?.name || '');
-		setReturnTo({ path: '/subjects', label: 'Subjects' });
+		setReturnTo({ path: '/people', label: 'People' });
 	}, [row, setTitle, setReturnTo]);
 
 	useEffect(() => {
 		let active = true;
 		(async () => {
-			const data = await getSubjectById(id);
+			const data = await getPersonById(id);
 			if (!active) return;
 			setRow(data);
 		})();
@@ -70,23 +64,25 @@ export default function SubjectDetail() {
 
 	if (!row) return <AuthLoading state={AuthLoadingState.LOADING} />;
 
-	const set = (updater: (cur: SubjectRecord) => SubjectRecord) =>
+	const set = (updater: (cur: PersonRecord) => PersonRecord) =>
 		setRow((cur) => (cur ? updater(cur) : cur));
 
 	const save = async () => {
 		if (!row) return;
 		setSaving(true);
 		try {
-            const updated = await updateSubject(row.id, {
-				type: row.type,
+			const updated = await updatePerson(row.id, {
 				name: row.name,
 				email: row.email,
 				avatar: row.avatar,
 				location: row.location || {},
 				devices: row.devices,
 				social_profiles: row.social_profiles,
-                aliases: row.aliases || [],
-				tags: row.tags
+				aliases: row.aliases || [],
+				tags: row.tags,
+				confidence: row.confidence ?? null,
+				first_seen: row.first_seen ?? null,
+				last_seen: row.last_seen ?? null
 			});
 			setRow(updated);
 			setEditMode(false);
@@ -138,7 +134,7 @@ export default function SubjectDetail() {
 			const {
 				data: { publicUrl }
 			} = supabase.storage.from('avatars').getPublicUrl(fileName);
-			const updated = await updateSubject(row.id, { avatar: publicUrl });
+			const updated = await updatePerson(row.id, { avatar: publicUrl });
 			setRow(updated);
 			setAvatarOpen(false);
 			setAvatarFile(null);
@@ -150,8 +146,8 @@ export default function SubjectDetail() {
 
 	return (
 		<div>
-			<PageMeta title={row.name} description="Subject" noIndex />
-			<div className="mx-auto max-w-5xl space-y-6">
+			<PageMeta title={row.name} description="Person" noIndex />
+			<div className="mx-auto max-w-5xl space-y-6 p-4">
 				<div className="flex items-center justify-between">
 					<h1 className="text-2xl font-semibold">{row.name}</h1>
 					{!editMode ? (
@@ -172,10 +168,11 @@ export default function SubjectDetail() {
 
 				{!editMode ? (
 					<div className="space-y-4">
+						<div className="space-y-4 p-6 dark:bg-gray-900 bg-white rounded-lg">
 						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 							<div>
 								<div className="text-sm text-gray-600">Type</div>
-								<div className="font-medium capitalize">{row.type}</div>
+								<div className="font-medium capitalize">Person</div>
 							</div>
 							<div>
 								<div className="text-sm text-gray-600">Email</div>
@@ -208,8 +205,32 @@ export default function SubjectDetail() {
 							</div>
 						</div>
 
-            <Separator />
-						<div>
+						<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+							<div>
+								<div className="text-sm text-gray-600">Confidence</div>
+								<div className="font-medium">
+									{typeof row.confidence === 'number'
+										? `${Math.round(row.confidence * 100)}%`
+										: '-'}
+								</div>
+							</div>
+							<div>
+								<div className="text-sm text-gray-600">First seen</div>
+								<div className="font-medium">
+									{row.first_seen ? new Date(row.first_seen).toLocaleString() : '-'}
+								</div>
+							</div>
+							<div>
+								<div className="text-sm text-gray-600">Last seen</div>
+								<div className="font-medium">
+									{row.last_seen ? new Date(row.last_seen).toLocaleString() : '-'}
+								</div>
+							</div>
+						</div>
+						</div>
+
+						<Separator />
+						<div className="p-6 dark:bg-gray-900 bg-white rounded-lg">
 							<div className="text-base font-semibold">Aliases</div>
 							<div className="mt-2 flex flex-wrap gap-2">
 								{(row.aliases || []).map((a, i) => (
@@ -220,8 +241,22 @@ export default function SubjectDetail() {
 							</div>
 						</div>
 
+						<div className="p-6 dark:bg-gray-900 bg-white rounded-lg">
+							<div className="text-base font-semibold">Tags</div>
+							<div className="mt-2 flex flex-wrap gap-2">
+								{(row.tags || []).map((t, i) => (
+									<span key={t + i} className="rounded border px-2 py-1 text-sm">
+										#{t}
+									</span>
+								))}
+								{(!row.tags || row.tags.length === 0) && (
+									<span className="text-sm text-gray-500">No tags</span>
+								)}
+							</div>
+						</div>
+
 						<Separator />
-						<div>
+						<div className="p-6 dark:bg-gray-900 bg-white rounded-lg">
 							<div className="text-base font-semibold">Devices</div>
 							<div className="space-y-1">
 								{(row.devices || []).map((d, i) => (
@@ -233,7 +268,7 @@ export default function SubjectDetail() {
 						</div>
 
 						<Separator />
-						<div>
+						<div className="p-6 dark:bg-gray-900 bg-white rounded-lg">
 							<div className="text-base font-semibold">Social Profiles</div>
 							<div className="space-y-1">
 								{(row.social_profiles || []).map((s, i) => (
@@ -246,44 +281,104 @@ export default function SubjectDetail() {
 					</div>
 				) : (
 					<div className="space-y-10">
-						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-							<div>
-								<label className="text-sm font-medium">Type</label>
-								<Select
-									value={row.type}
-									onValueChange={(v) =>
-										set((cur) => ({ ...cur!, type: v as 'person' | 'company' }))
-									}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Type" />
-									</SelectTrigger>
-									<SelectContent>
-										<SelectItem value="person">Person</SelectItem>
-										<SelectItem value="company">Company</SelectItem>
-									</SelectContent>
-								</Select>
+						<div className="space-y-4">
+							<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+								<div>
+									<label className="text-sm font-medium">Name</label>
+									<Input
+										value={row.name}
+										onChange={(e) => set((cur) => ({ ...cur!, name: e.target.value }))}
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium">Email</label>
+									<Input
+										value={row.email || ''}
+										onChange={(e) => set((cur) => ({ ...cur!, email: e.target.value }))}
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium">Avatar</label>
+									<div className="mt-1">
+										<Button size="sm" variant="outline" onClick={() => setAvatarOpen(true)}>
+											Change image
+										</Button>
+									</div>
+								</div>
+								<div>
+									<label className="text-sm font-medium">Confidence (0–1)</label>
+									<Input
+										type="number"
+										step="0.01"
+										min={0}
+										max={1}
+										value={typeof row.confidence === 'number' ? row.confidence : ''}
+										onChange={(e) => {
+											const v = e.target.value;
+											const num = v === '' ? null : Math.max(0, Math.min(1, Number(v)));
+											set(
+												(cur) =>
+													({
+														...cur!,
+														confidence: Number.isNaN(num as number) ? null : (num as number | null)
+													}) as PersonRecord
+											);
+										}}
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium">First seen</label>
+									<Input
+										type="datetime-local"
+										value={(row.first_seen || '').slice(0, 16)}
+										onChange={(e) => set((cur) => ({ ...cur!, first_seen: e.target.value }))}
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium">Last seen</label>
+									<Input
+										type="datetime-local"
+										value={(row.last_seen || '').slice(0, 16)}
+										onChange={(e) => set((cur) => ({ ...cur!, last_seen: e.target.value }))}
+									/>
+								</div>
 							</div>
-							<div>
-								<label className="text-sm font-medium">Name</label>
-								<Input
-									value={row.name}
-									onChange={(e) => set((cur) => ({ ...cur!, name: e.target.value }))}
-								/>
-							</div>
-							<div>
-								<label className="text-sm font-medium">Email</label>
-								<Input
-									value={row.email || ''}
-									onChange={(e) => set((cur) => ({ ...cur!, email: e.target.value }))}
-								/>
-							</div>
-							<div>
-								<label className="text-sm font-medium">Avatar</label>
-								<div className="mt-1">
-									<Button size="sm" variant="outline" onClick={() => setAvatarOpen(true)}>
-										Change image
-									</Button>
+							<div className="grid w-full grid-cols-1 gap-4 md:grid-cols-3">
+								<div>
+									<label className="text-sm font-medium">City</label>
+									<Input
+										value={row.location?.city || ''}
+										onChange={(e) =>
+											set((cur) => ({
+												...cur!,
+												location: { ...cur!.location, city: e.target.value }
+											}))
+										}
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium">Country</label>
+									<Input
+										value={row.location?.country || ''}
+										onChange={(e) =>
+											set((cur) => ({
+												...cur!,
+												location: { ...cur!.location, country: e.target.value }
+											}))
+										}
+									/>
+								</div>
+								<div>
+									<label className="text-sm font-medium">IP</label>
+									<Input
+										value={row.location?.ip || ''}
+										onChange={(e) =>
+											set((cur) => ({
+												...cur!,
+												location: { ...cur!.location, ip: e.target.value }
+											}))
+										}
+									/>
 								</div>
 							</div>
 						</div>
@@ -303,7 +398,7 @@ export default function SubjectDetail() {
 											onClick={() =>
 												set((cur) => {
 													const next = (cur.aliases || []).filter((x, idx) => idx !== i);
-													return { ...cur!, aliases: next } as SubjectRecord;
+													return { ...cur!, aliases: next } as PersonRecord;
 												})
 											}
 										>
@@ -323,7 +418,7 @@ export default function SubjectDetail() {
 											if (!v) return;
 											set((cur) => {
 												const next = Array.from(new Set([...(cur.aliases || []), v]));
-												return { ...cur!, aliases: next } as SubjectRecord;
+												return { ...cur!, aliases: next } as PersonRecord;
 											});
 											target.value = '';
 										}
@@ -331,40 +426,55 @@ export default function SubjectDetail() {
 								/>
 							</div>
 						</div>
-						<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-							<div>
-								<label className="text-sm font-medium">City</label>
+
+						{/* Tags editor */}
+						<Separator />
+						<div className="space-y-2">
+							<div className="text-base font-semibold">Tags</div>
+							<div className="flex flex-wrap gap-2">
+								{(row.tags || []).map((t, i) => (
+									<span
+										key={t + i}
+										className="flex items-center gap-2 rounded-lg border px-2 py-1 text-sm"
+									>
+										#{t}
+										<button
+											onClick={() =>
+												set((cur) => {
+													const next = (cur.tags || []).filter((x, idx) => idx !== i);
+													return { ...cur!, tags: next } as PersonRecord;
+												})
+											}
+										>
+											×
+										</button>
+									</span>
+								))}
+							</div>
+							<div className="mt-2 flex max-w-md items-center gap-2">
 								<Input
-									value={row.location?.city || ''}
-									onChange={(e) =>
-										set((cur) => ({
-											...cur!,
-											location: { ...cur!.location, city: e.target.value }
-										}))
-									}
+									placeholder="Add tag..."
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') {
+											e.preventDefault();
+											const target = e.target as HTMLInputElement;
+											const v = target.value.trim().replace(/\s+/g, '-').toLowerCase();
+											if (!v) return;
+											set((cur) => {
+												const uniq = new Set([...(cur.tags || []), v]);
+												return { ...cur!, tags: Array.from(uniq) } as PersonRecord;
+											});
+											target.value = '';
+										}
+									}}
 								/>
 							</div>
-							<div>
-								<label className="text-sm font-medium">Country</label>
-								<Input
-									value={row.location?.country || ''}
-									onChange={(e) =>
-										set((cur) => ({
-											...cur!,
-											location: { ...cur!.location, country: e.target.value }
-										}))
-									}
-								/>
-							</div>
-							<div>
-								<label className="text-sm font-medium">IP</label>
-								<Input
-									value={row.location?.ip || ''}
-									onChange={(e) =>
-										set((cur) => ({ ...cur!, location: { ...cur!.location, ip: e.target.value } }))
-									}
-								/>
-							</div>
+						</div>
+
+						<Separator />
+						{/* Web mentions display */}
+						<div className="mx-auto mt-6 max-w-5xl">
+							<CaseWebMentions personId={row.id} />
 						</div>
 
 						<Separator />

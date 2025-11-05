@@ -6,11 +6,11 @@ import Input from '../form/input/InputField';
 import { cn } from '../../utils/common';
 import { useCase } from '../../hooks/useCase';
 
-interface SearchBarProps {
+interface CaseSearchBarProps {
 	className?: string;
 }
 
-export function SearchBar({ className }: SearchBarProps) {
+export function CaseSearchBar({ className }: CaseSearchBarProps) {
 	const [showHistory, setShowHistory] = useState(false);
 	const searchInputRef = useRef<HTMLInputElement>(null);
 	const historyRef = useRef<HTMLDivElement>(null);
@@ -82,7 +82,7 @@ export function SearchBar({ className }: SearchBarProps) {
 					</>
 				)}
 
-				<Button type="submit" size="sm" className="absolute top-1/2 right-2 h-8 -translate-y-1/2">
+				<Button variant="flat" type="submit" size="sm" className="absolute top-1/2 right-2 h-8 -translate-y-1/2">
 					Search
 				</Button>
 			</form>

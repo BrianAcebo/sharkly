@@ -21,7 +21,8 @@ export const getSearchResults = async (
     query: string,
     filters: SearchFilter = {},
     page: number = 1,
-    perPage: number = 5
+    perPage: number = 5,
+    assignedToId?: string
 ): Promise<{ results: Case[]; total: number }> => {
     const isArchivedStatus = filters.status === ('archived' as unknown as SearchFilter['status']);
     const { results, total } = await listCases({
@@ -34,6 +35,8 @@ export const getSearchResults = async (
         from: filters.dateRange?.from ? filters.dateRange.from.toISOString() : undefined,
         to: filters.dateRange?.to ? filters.dateRange.to.toISOString() : undefined,
         sortBy: (filters.sortBy ?? 'recent') as 'recent' | 'priority' | 'alphabetical',
+        label: (filters.label ?? 'all') as 'all' | 'important',
+        assignedToId,
         includeArchived:
             isArchivedStatus
                 ? true

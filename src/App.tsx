@@ -29,8 +29,10 @@ import LogoutPage from './pages/Logout';
 import Search from './pages/Search';
 import CaseDetail from './pages/Cases/CaseDetail';
 import Graph from './pages/Graph/Graph';
-import SubjectDetail from './pages/Subjects/SubjectDetail';
-import SubjectsPage from './pages/Subjects/Subjects';
+import PersonDetail from './pages/People/PersonDetail';
+import PeoplePage from './pages/People/People';
+import InvestigatorProfile from './pages/Investigators/InvestigatorProfile';
+import InvestigatorDetail from './pages/Investigators/InvestigatorDetail';
 
 export default function App() {
 	return (
@@ -49,8 +51,8 @@ export default function App() {
 						<Route index path="/cases" element={<Cases />} />
 						<Route path="/cases/:id" element={<CaseDetail />} />
                         <Route path="/graph/:id" element={<Graph />} />
-                        <Route path="/subjects" element={<SubjectsPage />} />
-                        <Route path="/subjects/:id" element={<SubjectDetail />} />
+                        <Route path="/people" element={<PeoplePage />} />
+                        <Route path="/people/:id" element={<PersonDetail />} />
                         <Route path="/settings" element={<Settings />} />
 						<Route path="/notifications" element={<Notifications />} />
 						<Route path="/assistant" element={<Assistant />} />
@@ -59,7 +61,9 @@ export default function App() {
 						<Route path="/billing-onboarding" element={<BillingOnboarding />} />
 						<Route path="/organization-required" element={<OrganizationRequired />} />
 						<Route path="/search" element={<Search />} />
-						<Route path="/organization" element={<Organization />} />
+							<Route path="/organization" element={<Organization />} />
+							<Route path="/me" element={<InvestigatorProfile />} />
+                        <Route path="/investigators/:id" element={<InvestigatorDetail />} />
 					</Route>
 
 					{/* Auth Layout */}

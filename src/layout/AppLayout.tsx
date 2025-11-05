@@ -11,11 +11,8 @@ import { AuthLoading } from '../components/AuthLoading';
 import { useScreenSize } from '../hooks/useScreenSize';
 import ScreenSizeWarning from '../components/common/ScreenSizeWarning';
 import { useNotifications } from '../hooks/useNotifications';
-import TrialBanner from '../components/billing/TrialBanner';
-import PaymentStatusBanner from '../components/billing/PaymentStatusBanner';
 import { useTrial } from '../hooks/useTrial';
 import { useOrganizationStatus } from '../hooks/useOrganizationStatus';
-import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { isOrganizationBehindOnPayments } from '../utils/paymentStatus';
 import ReadOnlyMode from '../components/common/ReadOnlyMode';
 import { useOrganization } from '../hooks/useOrganization';
@@ -31,7 +28,6 @@ const LayoutContent: React.FC = () => {
 	const trialInfo = useTrial();
 	const { organization: currentOrg } = useOrganization();
 	const { isPaused, isDisabled, status: orgStatus } = useOrganizationStatus();
-	const { paymentStatus } = usePaymentStatus();
 
 	const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
 	const { isScreenTooSmall } = useScreenSize();
@@ -163,7 +159,7 @@ const LayoutContent: React.FC = () => {
 
 	return (
 		<>
-			<div className="min-h-screen xl:flex overflow-hidden">
+			<div className="min-h-screen">
 				<div>
 					<AppSidebar />
 					<Backdrop />
@@ -171,17 +167,10 @@ const LayoutContent: React.FC = () => {
 				<div
 					className={`flex-1 transition-all duration-300 ease-in-out ${isExpanded ? 'lg:ml-[250px]' : 'lg:ml-[90px]'} ${isMobileOpen ? 'ml-0' : ''}`}
 				>
-					<TrialBanner />
-					<PaymentStatusBanner
-						organization={paymentStatus?.organization}
-						onUpdatePayment={() => {
-							window.location.href = '/billing';
-						}}
-					/>
 					<AppHeader />
 
 					<div className="flex-1">
-						<main className="h-screen-visible mx-auto max-w-(--breakpoint-2xl) overflow-y-auto p-6">
+						<main className="h-full dark:bg-gray-800 bg-accent-foreground-dark mx-auto max-w-(--breakpoint-2xl) p-6">
 							<Outlet />
 						</main>
 					</div>

@@ -11,9 +11,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
 import { Badge } from '../ui/badge';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form';
-import { createCase, ensureCaseCategory, ensureCaseTags, listCaseCategories, listCaseTags } from '../../api/cases';
-import { listSubjects, createSubject, type SubjectRecord } from '../../api/subjects';
+import { createCase, ensureCaseCategory, ensureCaseTags, listCaseCategories, listCaseTags } from '../../api/cases.ts';
+import { listPeople, createPerson } from '../../api/people';
+import { listBusinesses, createBusiness } from '../../api/businesses';
+import type { PersonRecord } from '../../types/person';
+import type { BusinessRecord } from '../../types/business';
 import { useAuth } from '../../contexts/AuthContext';
+import { toast } from 'sonner';
 //
 
 const schema = z.object({
@@ -39,10 +43,12 @@ export function CreateCaseDialog({ onCreated }: { onCreated?: () => void }) {
   const [tagBrowseQuery, setTagBrowseQuery] = React.useState('');
   const [categoryOptions, setCategoryOptions] = React.useState<{ id: string; name: string }[]>([]);
   const [tagOptions, setTagOptions] = React.useState<{ id: string; name: string }[]>([]);
-  const [subjectOptions, setSubjectOptions] = React.useState<SubjectRecord[]>([]);
+  const [subjectOptions, setSubjectOptions] = React.useState<Array<PersonRecord | BusinessRecord>>([]);
   const [selectedSubjectId, setSelectedSubjectId] = React.useState<string | null>(null);
   const [newSubjectMode, setNewSubjectMode] = React.useState(false);
-  const [newSubject, setNewSubject] = React.useState<{ type: 'person' | 'company'; name: string; email: string }>({ type: 'person', name: '', email: '' });
+  const [subjectType, setSubjectType] = React.useState<'person' | 'business'>('person');
+  const [newPerson, setNewPerson] = React.useState<{ name: string; email: string }>({ name: '', email: '' });
+  const [newBusiness, setNewBusiness] = React.useState<{ name: string; ein?: string }>({ name: '', ein: '' });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema) as Resolver<FormValues>,
@@ -55,14 +61,14 @@ export function CreateCaseDialog({ onCreated }: { onCreated?: () => void }) {
       const [cats, tags, subs] = await Promise.all([
         listCaseCategories(user.organization_id),
         listCaseTags(user.organization_id),
-        listSubjects(user.organization_id)
+        subjectType === 'person' ? listPeople(user.organization_id) : listBusinesses(user.organization_id)
       ]);
       setCategoryOptions(cats);
       setTagOptions(tags);
       setSubjectOptions(subs.results);
     }
     if (open) loadOptions();
-  }, [open, user?.organization_id]);
+  }, [open, user?.organization_id, subjectType]);
 
   const onSubmit = async (values: FormValues) => {
     if (!user?.id || !user?.organization_id) return;
@@ -76,14 +82,23 @@ export function CreateCaseDialog({ onCreated }: { onCreated?: () => void }) {
       }
 
       let subject_id: string | undefined = selectedSubjectId ?? undefined;
-      if (!subject_id && newSubjectMode && newSubject.name.trim()) {
-        const created = await createSubject({
-          organization_id: user.organization_id,
-          type: newSubject.type,
-          name: newSubject.name.trim(),
-          email: newSubject.email.trim() || null
-        });
-        subject_id = created.id;
+      if (!subject_id && newSubjectMode) {
+        if (subjectType === 'person' && newPerson.name.trim()) {
+          const created = await createPerson({
+            organization_id: user.organization_id,
+            name: newPerson.name.trim(),
+            email: newPerson.email.trim() || null
+          });
+          subject_id = created.id;
+        }
+        if (subjectType === 'business' && newBusiness.name.trim()) {
+          const created = await createBusiness({
+            organization_id: user.organization_id,
+            name: newBusiness.name.trim(),
+            ein_tax_id: newBusiness.ein?.trim() || null
+          });
+          subject_id = created.id;
+        }
       }
       await createCase({
         organization_id: user.organization_id,
@@ -94,10 +109,16 @@ export function CreateCaseDialog({ onCreated }: { onCreated?: () => void }) {
         priority: values.priority,
         tags: values.tags,
         subject_id,
+        subject_type: subjectType,
+        assigned_to: [user.id],
       });
       setOpen(false);
       form.reset();
       onCreated?.();
+      toast.success('Case created');
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to create case';
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -112,7 +133,7 @@ export function CreateCaseDialog({ onCreated }: { onCreated?: () => void }) {
       <DialogTrigger asChild>
         <Button size="sm">New Case</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Case</DialogTitle>
         </DialogHeader>
@@ -332,14 +353,28 @@ export function CreateCaseDialog({ onCreated }: { onCreated?: () => void }) {
             )}
           </div>
 
+          {/* Subject type selector */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div>
+              <label className="text-sm font-medium">Subject type</label>
+              <Select value={subjectType} onValueChange={(v) => { setSubjectType(v as 'person' | 'business'); setSelectedSubjectId(null); }}>
+                <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="person">Person</SelectItem>
+                  <SelectItem value="business">Business</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {!newSubjectMode ? (
             <Popover>
               <PopoverTrigger asChild>
-                <Input placeholder="Search subject by name" value={subjectQuery} onChange={(e) => setSubjectQuery(e.target.value)} />
+                <Input placeholder={`Search ${subjectType} by name`} value={subjectQuery} onChange={(e) => setSubjectQuery(e.target.value)} />
               </PopoverTrigger>
               <PopoverContent className="p-0" align="start">
                 <Command>
-                  <CommandInput placeholder="Search subjects" value={subjectQuery} onValueChange={setSubjectQuery} />
+                  <CommandInput placeholder={`Search ${subjectType}s`} value={subjectQuery} onValueChange={setSubjectQuery} />
                   <CommandList>
                     <CommandEmpty>No results</CommandEmpty>
                     <CommandGroup>
@@ -350,9 +385,10 @@ export function CreateCaseDialog({ onCreated }: { onCreated?: () => void }) {
                             key={s.id}
                             onSelect={() => {
                               setSelectedSubjectId(s.id);
+                              setSubjectQuery(s.name);
                             }}
                           >
-                            {s.name} — {s.type}
+                            {s.name}
                           </CommandItem>
                         ))}
                     </CommandGroup>
@@ -362,24 +398,29 @@ export function CreateCaseDialog({ onCreated }: { onCreated?: () => void }) {
             </Popover>
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div>
-                <label className="text-sm font-medium">Type</label>
-                <Select value={newSubject.type} onValueChange={(v) => setNewSubject((ns) => ({ ...ns, type: v as 'person' | 'company' }))}>
-                  <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="person">Person</SelectItem>
-                    <SelectItem value="company">Company</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium">Name</label>
-                <Input value={newSubject.name} onChange={(e) => setNewSubject((ns) => ({ ...ns, name: e.target.value }))} />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Email</label>
-                <Input value={newSubject.email} onChange={(e) => setNewSubject((ns) => ({ ...ns, email: e.target.value }))} />
-              </div>
+              {subjectType === 'person' ? (
+                <>
+                  <div>
+                    <label className="text-sm font-medium">Name</label>
+                    <Input value={newPerson.name} onChange={(e) => setNewPerson((ns) => ({ ...ns, name: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Email</label>
+                    <Input value={newPerson.email} onChange={(e) => setNewPerson((ns) => ({ ...ns, email: e.target.value }))} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <label className="text-sm font-medium">Business name</label>
+                    <Input value={newBusiness.name} onChange={(e) => setNewBusiness((s) => ({ ...s, name: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">EIN / Tax ID (optional)</label>
+                    <Input value={newBusiness.ein} onChange={(e) => setNewBusiness((s) => ({ ...s, ein: e.target.value }))} />
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

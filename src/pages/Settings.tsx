@@ -348,7 +348,7 @@ export default function SettingsPage() {
 		if (currentPermission === 'granted') {
 			try {
 				console.log('Attempting to send notification...');
-				const notification = new Notification('Paperboat CRM', {
+				const notification = new Notification('True Sight', {
 					body: 'This is a test notification to verify push notifications are working!',
 					icon: '/images/logos/logo.svg',
 					tag: 'test-notification'

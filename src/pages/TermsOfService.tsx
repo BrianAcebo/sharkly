@@ -26,7 +26,7 @@ const TermsOfService: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
           <div className="prose prose-lg max-w-none">
             <p className="text-gray-700 mb-6">
-              These Terms of Service ("Terms") govern your use of Paperboat CRM ("Service") operated by Paperboat CRM ("we," "our," or "us"). By accessing or using our Service, you agree to be bound by these Terms.
+              These Terms of Service ("Terms") govern your use of True Sight ("Service") operated by True Sight ("we," "our," or "us"). By accessing or using our Service, you agree to be bound by these Terms.
             </p>
 
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4 flex items-center">
@@ -42,7 +42,7 @@ const TermsOfService: React.FC = () => {
               Description of Service
             </h2>
             <p className="text-gray-700 mb-4">
-              Paperboat CRM is a customer relationship management platform that provides:
+              True Sight is a customer relationship management platform that provides:
             </p>
             <ul className="list-disc pl-6 text-gray-700 mb-4 space-y-2">
               <li>Lead and customer management tools</li>
@@ -92,7 +92,7 @@ const TermsOfService: React.FC = () => {
 
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Intellectual Property</h2>
             <p className="text-gray-700 mb-4">
-              The Service and its original content, features, and functionality are owned by Paperboat CRM and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws.
+              The Service and its original content, features, and functionality are owned by True Sight and are protected by international copyright, trademark, patent, trade secret, and other intellectual property laws.
             </p>
 
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">User Content</h2>
@@ -107,7 +107,7 @@ const TermsOfService: React.FC = () => {
 
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Limitation of Liability</h2>
             <p className="text-gray-700 mb-4">
-              To the maximum extent permitted by law, Paperboat CRM shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, data, or use, arising out of or relating to your use of the Service.
+              To the maximum extent permitted by law, True Sight shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of profits, data, or use, arising out of or relating to your use of the Service.
             </p>
 
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Disclaimer of Warranties</h2>
@@ -117,7 +117,7 @@ const TermsOfService: React.FC = () => {
 
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Indemnification</h2>
             <p className="text-gray-700 mb-4">
-              You agree to indemnify and hold harmless Paperboat CRM from any claims, damages, losses, or expenses arising out of or relating to your use of the Service or violation of these Terms.
+              You agree to indemnify and hold harmless True Sight from any claims, damages, losses, or expenses arising out of or relating to your use of the Service or violation of these Terms.
             </p>
 
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4">Termination</h2>

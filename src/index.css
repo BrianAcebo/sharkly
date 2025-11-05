@@ -239,14 +239,14 @@
 
 	--color-theme-purple-500: #7a5af8;
 
-	--color-background: #ffffff;
-	--color-foreground: #0f172a;
-	--color-card: #ffffff;
-	--color-card-foreground: #0f172a;
-	--color-popover: #ffffff;
-	--color-popover-foreground: #0f172a;
-	--color-primary: #0f172a;
-	--color-primary-foreground: #f8fafc;
+    --color-background: #ffffff;
+    --color-foreground: #0f172a;
+    --color-card: #ffffff;
+    --color-card-foreground: #0f172a;
+    --color-popover: #ffffff;
+    --color-popover-foreground: #0f172a;
+    --color-primary: var(--color-brand-600);
+    --color-primary-foreground: #ffffff;
 	--color-secondary: #f1f5f9;
 	--color-secondary-foreground: #0f172a;
 	--color-muted: #f1f5f9;
@@ -257,18 +257,19 @@
 	--color-destructive-foreground: #f8fafc;
 	--color-border: #e2e8f0;
 	--color-input: #e2e8f0;
-	--color-ring: #0f172a;
+    --color-ring: var(--color-brand-600);
 	--color-radius: 0.5rem;
 
 	/* Dark mode color variables */
-	--color-background-dark: #0f172a;
-	--color-foreground-dark: #f8fafc;
-	--color-card-dark: #0f172a;
-	--color-card-foreground-dark: #f8fafc;
-	--color-popover-dark: #0f172a;
-	--color-popover-foreground-dark: #f8fafc;
-	--color-primary-dark: #f8fafc;
-	--color-primary-foreground-dark: #0f172a;
+    --color-background-dark: #0f172a;
+    --color-foreground-dark: #f8fafc;
+    --color-card-dark: #0f172a;
+    --color-card-foreground-dark: #f8fafc;
+    --color-popover-dark: #0f172a;
+    --color-popover-foreground-dark: #f8fafc;
+    /* Dark mode primary */
+    --color-primary-dark: var(--color-brand-400);
+    --color-primary-foreground-dark: #0b1220;
 	--color-secondary-dark: #1e293b;
 	--color-secondary-foreground-dark: #f8fafc;
 	--color-muted-dark: #1e293b;
@@ -279,7 +280,7 @@
 	--color-destructive-foreground-dark: #f8fafc;
 	--color-border-dark: #1e293b;
 	--color-input-dark: #1e293b;
-	--color-ring-dark: #cbd5e1;
+    --color-ring-dark: var(--color-brand-400);
 
 	--shadow-theme-md:
 		0px 4px 8px -2px rgba(16, 24, 40, 0.1), 0px 2px 4px -2px rgba(16, 24, 40, 0.06);
@@ -290,7 +291,7 @@
 	--shadow-theme-xl:
 		0px 20px 24px -4px rgba(16, 24, 40, 0.08), 0px 8px 8px -4px rgba(16, 24, 40, 0.03);
 	--shadow-datepicker: -5px 0 0 #262d3c, 5px 0 0 #262d3c;
-	--shadow-focus-ring: 0px 0px 0px 4px rgba(70, 95, 255, 0.12);
+    --shadow-focus-ring: 0px 0px 0px 4px rgba(54, 65, 245, 0.15);
 	--shadow-slider-navigation:
 		0px 1px 2px 0px rgba(16, 24, 40, 0.1), 0px 1px 3px 0px rgba(16, 24, 40, 0.1);
 	--shadow-tooltip:

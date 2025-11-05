@@ -1,5 +1,5 @@
 import React from 'react';
-import { Star, Shield, Building, Users, FileCheck2, BadgeCheck, Lock } from 'lucide-react';
+import { Star, Building, Users, FileCheck2, BadgeCheck, Lock } from 'lucide-react';
 
 const Testimonials: React.FC = () => {
 	const testimonials = [
@@ -10,7 +10,7 @@ const Testimonials: React.FC = () => {
 			avatar:
 				'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
 			content:
-				'Paperboat CRM has revolutionized our sales process. The AI assistant handles initial outreach and qualification, allowing our team to focus on closing deals. Our conversion rates have increased by 40%.',
+				'True Sight has revolutionized our sales process. The AI assistant handles initial outreach and qualification, allowing our team to focus on closing deals. Our conversion rates have increased by 40%.',
 			rating: 5,
 			industry: 'SaaS'
 		},
@@ -38,12 +38,12 @@ const Testimonials: React.FC = () => {
 		}
 	];
 
-	const certifications = [
-		{ name: 'SOC 2 Type II', icon: Shield },
-		{ name: 'GDPR Compliant', icon: Building },
-		{ name: 'Enterprise Ready', icon: Users },
-		{ name: 'AI-Powered', icon: Shield }
-	];
+	// const certifications = [
+	// 	{ name: 'SOC 2 Type II', icon: Shield },
+	// 	{ name: 'GDPR Compliant', icon: Building },
+	// 	{ name: 'Enterprise Ready', icon: Users },
+	// 	{ name: 'AI-Powered', icon: Shield }
+	// ];
 
 	return (
 		<section id="testimonials" className="bg-white py-20 dark:bg-gray-900">

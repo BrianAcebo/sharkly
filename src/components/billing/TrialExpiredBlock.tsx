@@ -67,7 +67,7 @@ export const TrialExpiredBlock: React.FC<TrialExpiredBlockProps> = ({
         icon: <AlertTriangle className="h-8 w-8 text-red-600" />,
         title: 'Subscription Canceled',
         description: isManager
-          ? 'Your subscription has been canceled. Renew to regain full access to Paperboat CRM.'
+          ? 'Your subscription has been canceled. Renew to regain full access to True Sight.'
           : 'Your subscription has been canceled. An owner or admin can renew to restore access.',
         actionText: isManager ? 'Renew Subscription' : 'View Plans',
         bgColor: 'bg-red-50',

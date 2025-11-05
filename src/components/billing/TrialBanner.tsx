@@ -14,7 +14,6 @@ export const TrialBanner: React.FC<TrialBannerProps> = ({ className = '' }) => {
   const [showModal, setShowModal] = useState(false);
   
   const {
-    isOnTrial,
     daysRemaining,
     warningLevel,
     loading
@@ -69,7 +68,7 @@ export const TrialBanner: React.FC<TrialBannerProps> = ({ className = '' }) => {
 
   return (
     <>
-      <div className={`w-full border-b text-gray-100 border-green-200 px-4 py-2 ${getBannerStyles()} ${className}`}>
+      <div className={`w-full border-b border-green-200 px-4 py-2 ${getBannerStyles()} ${className}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             {getIcon()}

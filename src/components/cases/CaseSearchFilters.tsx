@@ -10,7 +10,7 @@ import type { SearchFilter } from '../../types/case';
 import DatePicker from '../form/date-picker';
 import { useCase } from '../../hooks/useCase';
 
-export function SearchFilters({ onManageClick }: { onManageClick?: () => void }) {
+export function CaseSearchFilters({ onManageClick }: { onManageClick?: () => void }) {
 	const { filters, setFilters, results, dateRange, setDateRange } = useCase();
 	const [showFilters, setShowFilters] = useState<boolean>(false);
 
@@ -54,10 +54,11 @@ export function SearchFilters({ onManageClick }: { onManageClick?: () => void })
 	};
 
 	// Count active filters
-	const activeFilterCount = [
+    const activeFilterCount = [
 		filters.status !== 'all',
 		filters.priorityLevel !== 'all',
-		filters.dateRange?.from || filters.dateRange?.to
+        filters.dateRange?.from || filters.dateRange?.to,
+        filters.label && filters.label !== 'all'
 	].filter(Boolean).length;
 
 	type Select = {
@@ -168,6 +169,21 @@ export function SearchFilters({ onManageClick }: { onManageClick?: () => void })
 		]
 	};
 
+  const labelOptions: Select = {
+    name: 'label',
+    options: [
+      { value: 'all', label: 'All labels' },
+      { value: 'important', label: 'Important' }
+    ]
+  };
+
+  const handleLabelChange = (value: string) => {
+    setFilters({
+      ...filters,
+      label: value as 'all' | 'important'
+    });
+  };
+
 	return (
 		<div className="mb-6 space-y-4">
 			<div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
@@ -211,10 +227,15 @@ export function SearchFilters({ onManageClick }: { onManageClick?: () => void })
 						{renderSelect(statusOptions, 'Select status', handleStatusChange)}
 					</div>
 
-					<div className="space-y-4">
+                    <div className="space-y-4">
 						<label className="mb-3 block text-sm font-medium">Priority Level</label>
 						{renderSelect(priorityOptions, 'Select priority level', handlePriorityLevelChange)}
 					</div>
+
+                    <div className="space-y-4">
+                        <label className="mb-3 block text-sm font-medium">Label</label>
+                        {renderSelect(labelOptions, 'Select label', handleLabelChange)}
+                    </div>
 
 					<div className="space-y-4">
 						<label className="mb-3 block text-sm font-medium">Date Range</label>
@@ -308,7 +329,7 @@ export function SearchFilters({ onManageClick }: { onManageClick?: () => void })
 						</Badge>
 					)}
 
-					{filters.priorityLevel !== 'all' && (
+                    {filters.priorityLevel !== 'all' && (
 						<Badge variant="secondary" className="flex items-center gap-1 text-sm capitalize">
 							Priority Level: {filters.priorityLevel}
 							<Button2
@@ -322,6 +343,21 @@ export function SearchFilters({ onManageClick }: { onManageClick?: () => void })
 							</Button2>
 						</Badge>
 					)}
+
+                    {filters.label && filters.label !== 'all' && (
+                        <Badge variant="secondary" className="flex items-center gap-1 text-sm capitalize">
+                            Label: {filters.label}
+                            <Button2
+                                variant="ghost"
+                                size="icon"
+                                className="ml-1 h-4 w-4 p-0"
+                                onClick={() => handleLabelChange('all')}
+                            >
+                                <X className="size-3" />
+                                <span className="sr-only">Remove label filter</span>
+                            </Button2>
+                        </Badge>
+                    )}
 
 					{(filters.dateRange?.from || filters.dateRange?.to) && (
 						<Badge variant="secondary" className="flex items-center gap-1">

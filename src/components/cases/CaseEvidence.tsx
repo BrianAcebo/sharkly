@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '../ui/alert-dialog';
-import { useToast } from '../../hooks/useToast';
+import { toast } from 'sonner';
 
 export default function CaseEvidence({ caseId, subjectId }: { caseId: string; subjectId?: string | null }) {
   const { user } = useAuth();
@@ -26,7 +26,6 @@ export default function CaseEvidence({ caseId, subjectId }: { caseId: string; su
   const [uploading, setUploading] = React.useState(false);
   const [files, setFiles] = React.useState<File[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
-  const { toast } = useToast();
   const [signedUrls, setSignedUrls] = React.useState<Record<string, string>>({});
   const [viewerOpen, setViewerOpen] = React.useState(false);
   const [viewerItem, setViewerItem] = React.useState<Evidence | null>(null);
@@ -72,11 +71,11 @@ export default function CaseEvidence({ caseId, subjectId }: { caseId: string; su
 
   const onUpload = async () => {
     if (!orgId) {
-      toast({ title: 'Missing organization', description: 'Please re-load or re-authenticate.', variant: 'destructive' });
+      toast.error('Missing organization. Please re-load or re-authenticate.');
       return;
     }
     if (files.length === 0) {
-      toast({ title: 'No files selected', description: 'Choose one or more files to upload.' });
+      toast.info('No files selected. Choose one or more files to upload.');
       return;
     }
     setErrorText(null);
@@ -90,12 +89,12 @@ export default function CaseEvidence({ caseId, subjectId }: { caseId: string; su
         files
       });
       setFiles([]);
-      toast({ title: 'Upload complete', description: 'Your files were uploaded.' });
+      toast.success('Upload complete');
       await load();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed';
       setErrorText(message);
-      toast({ title: 'Upload failed', description: message, variant: 'destructive' });
+      toast.error(message);
     } finally {
       setUploading(false);
     }
@@ -133,7 +132,7 @@ export default function CaseEvidence({ caseId, subjectId }: { caseId: string; su
       await load();
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Failed to delete evidence';
-      toast({ title: 'Delete failed', description: message, variant: 'destructive' });
+      toast.error(message);
     }
   };
 

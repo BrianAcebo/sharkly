@@ -914,7 +914,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({ onClose, exis
               </h2>
               <p className="text-gray-600 dark:text-gray-400">
                 {mode === 'renewal'
-                  ? 'Access has been restored. You can continue using Paperboat CRM.'
+                  ? 'Access has been restored. You can continue using True Sight.'
                   : 'Your organization has been created successfully.'}
                 {mode === 'new' && trialSelected && ' Enjoy your 7‑day pay‑as‑you‑go trial!'}
               </p>

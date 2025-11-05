@@ -4,7 +4,7 @@ import SignUpForm from '../../components/auth/SignUpForm';
 export default function SignUp() {
 	return (
 		<>
-			<PageMeta noIndex title="Sign Up" description="Sign up to Paperboat CRM" />
+			<PageMeta noIndex title="Sign Up" description="Sign up to True Sight" />
 			<SignUpForm />
 		</>
 	);

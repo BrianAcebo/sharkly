@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { SearchBar } from '../../components/cases/SearchBar';
-import { SearchFilters } from '../../components/cases/SearchFilters';
-import { SearchResults } from '../../components/cases/SearchResults';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router';
+import { CaseSearchBar } from '../../components/cases/CaseSearchBar';
+import { CaseSearchFilters } from '../../components/cases/CaseSearchFilters';
+import { CaseSearchResults } from '../../components/cases/CaseSearchResults';
 import { getSearchResults, useCase } from '../../hooks/useCase';
 import { useAuth } from '../../contexts/AuthContext';
 //
@@ -31,6 +32,12 @@ export default function Cases() {
 
     const perPage = 5;
     const [manageOpen, setManageOpen] = useState(false);
+    const location = useLocation();
+    const assignedToId = useMemo(() => {
+        const params = new URLSearchParams(location.search);
+        const id = params.get('assignee');
+        return id || undefined;
+    }, [location.search]);
 
     useEffect(() => {
         setTitle('Cases');
@@ -54,7 +61,8 @@ export default function Cases() {
             debouncedValue,
             filters,
             currentPage,
-            perPage
+            perPage,
+            assignedToId
         );
         setResults({ results: rows as UICase[], total });
     }, [
@@ -66,7 +74,8 @@ export default function Cases() {
         setCurrentPage,
         setResults,
         setSearchHistory,
-        user?.organization_id
+        user?.organization_id,
+        assignedToId
     ]);
 
     useEffect(() => {
@@ -91,13 +100,13 @@ export default function Cases() {
 
 			<div>
                 <div className="mb-6 flex gap-10 items-center justify-between">
-                    <SearchBar />
+                    <CaseSearchBar />
                     <div className="flex items-center gap-2">
                         <CreateCaseDialog onCreated={fetchCases} />
                     </div>
                 </div>
-				<SearchFilters onManageClick={() => setManageOpen(true)} />
-                <SearchResults perPage={perPage} onChanged={fetchCases} />
+				<CaseSearchFilters onManageClick={() => setManageOpen(true)} />
+                <CaseSearchResults perPage={perPage} onChanged={fetchCases} />
 			</div>
             <CategoryTagManager open={manageOpen} onOpenChange={setManageOpen} />
 		</div>

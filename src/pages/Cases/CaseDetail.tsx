@@ -1,17 +1,20 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { mockCases } from '../../data';
 import type { Case } from '../../types/case';
 import CaseHeader from '../../components/cases/CaseHeader';
-import SubjectProfile from '../../components/cases/SubjectProfile';
+import PersonProfile from '../../components/cases/PersonProfile';
+import BusinessProfile from '../../components/cases/BusinessProfile';
 import DevicesSection from '../../components/cases/DevicesSection';
 import SocialProfiles from '../../components/cases/SocialProfiles';
-import CaseMetadata from '../../components/cases/CaseMetadata';
+import CaseEntityGraph from '../../components/cases/CaseEntityGraph';
 import CaseNotes from '../../components/cases/CaseNotes';
+import CaseWebMentions from '../../components/cases/CaseWebMentions';
 import CaseActivity from '../../components/cases/CaseActivity';
 import CaseEvidence from '../../components/cases/CaseEvidence';
-import type { SubjectRecord } from '../../api/subjects';
+import type { PersonRecord } from '../../types/person';
+import type { BusinessRecord } from '../../types/business';
 import NotFound from '../Error/NotFound';
 import { AuthLoadingState } from '../../contexts/AuthContext';
 import { AuthLoading } from '../../components/AuthLoading';
@@ -32,6 +35,7 @@ import { useNavigate } from 'react-router-dom';
 //
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import EditCaseDialog from '../../components/cases/EditCaseDialog';
+import CaseAssignees from '../../components/cases/CaseAssignees';
 
 export default function CaseDetail() {
     const params = useParams();
@@ -55,14 +59,18 @@ export default function CaseDetail() {
         let active = true;
         async function run() {
             try {
-                const row = caseId === '1' ? mockCases[0] : await getCaseById(caseId);
+                const row = await getCaseById(caseId);
                 if (!active) return;
                 const mapped: Case = {
                     ...row,
                     subject: row.subject ?? {
                         id: row.id,
                         type: 'person',
-                        name: row.title,
+                        name: {
+                            full: row.title,
+                            given: '',
+                            family: ''
+                        },
                         email: '',
                         avatar: '',
                         location: { city: '', country: '', ip: '' },
@@ -102,7 +110,7 @@ export default function CaseDetail() {
 	return (
 		<div>
 			<PageMeta title={caseReport?.title || ''} description={caseReport?.description || ''} />
-			<div className="min-h-screen">
+			<div className="min-h-screen-visible">
 				{/* Main Content */}
 				<div className="max-w-8xl mx-auto space-y-6">
                     {/* Action bar */}
@@ -131,14 +139,27 @@ export default function CaseDetail() {
                     {
                         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                             <div className="space-y-6 lg:col-span-2">
-                                {caseReport?.subject && <SubjectProfile subject={caseReport.subject as unknown as SubjectRecord} />}
-                                {caseReport?.subject && <DevicesSection devices={(caseReport.subject as unknown as SubjectRecord).devices} />}
+                                {caseReport?.subject && caseReport.subject_type !== 'business' && (
+                                    <PersonProfile person={caseReport.subject as unknown as PersonRecord} />
+                                )}
+                                {caseReport?.subject && caseReport.subject_type !== 'business' && (
+                                    <DevicesSection devices={(caseReport.subject as unknown as PersonRecord).devices} />
+                                )}
+                                {caseReport?.subject && caseReport.subject_type === 'business' && (
+                                    <BusinessProfile business={caseReport.subject as unknown as BusinessRecord} />
+                                )}
+                                {caseReport?.subject && caseReport.subject_type !== 'business' && (
+                                    <CaseWebMentions personId={(caseReport.subject as unknown as PersonRecord).id} />
+                                )}
                                 <CaseNotes caseId={caseReport.id} />
                             </div>
                             <div className="space-y-6">
-                                {caseReport?.subject && <SocialProfiles profiles={(caseReport.subject as unknown as SubjectRecord).social_profiles} />}
-                                <CaseMetadata caseData={caseReport} />
-                                <CaseEvidence caseId={caseReport.id} subjectId={(caseReport.subject as unknown as SubjectRecord)?.id ?? null} />
+                                {caseReport?.subject && caseReport.subject_type !== 'business' && (
+                                    <SocialProfiles profiles={(caseReport.subject as unknown as PersonRecord).social_profiles} />
+                                )}
+                                <CaseEntityGraph caseData={caseReport} />
+                                <CaseEvidence caseId={caseReport.id} subjectId={(caseReport.subject as unknown as PersonRecord)?.id ?? null} />
+                                <CaseAssignees caseData={caseReport} />
                                 <CaseActivity caseId={caseReport.id} />
                             </div>
                         </div>

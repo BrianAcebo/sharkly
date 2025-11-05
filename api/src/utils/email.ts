@@ -189,12 +189,12 @@ const templates = {
 			This means:
 			- You no longer have access to any data or resources from this organization
 			- All your organization specific data have been permanently removed
-			- You will need to be invited to a new organization to continue using Paperboat CRM
+			- You will need to be invited to a new organization to continue using True Sight
 			
 			If you have any questions or concerns, please contact our support team.
 			
 			Best regards,
-			The Paperboat CRM Team
+			The True Sight Team
 		`,
 		html: (data: TemplateData['organizationDeleted']) => `
 			<!DOCTYPE html>
@@ -262,7 +262,7 @@ const templates = {
 							<ul>
 								<li>You no longer have access to any data or resources from this organization</li>
 								<li>All your organization specific data have been permanently removed</li>
-								<li>You will need to be invited to a new organization to continue using Paperboat CRM</li>
+								<li>You will need to be invited to a new organization to continue using True Sight</li>
 							</ul>
 						</div>
 						

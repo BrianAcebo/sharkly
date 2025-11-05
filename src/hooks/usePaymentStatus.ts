@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './useAuth';
-import { useToast } from './useToast';
+import { toast } from 'sonner';
 import { api } from '../utils/api';
 import {
   fetchWalletStatus,
@@ -32,7 +32,7 @@ interface PaymentStatus {
 
 export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean } = {}) {
   const { user } = useAuth();
-  const { toast } = useToast();
+  // using sonner's toast directly
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [walletStatus, setWalletStatus] = useState<WalletStatusResponse | null>(null);
@@ -92,15 +92,11 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
     } catch (error) {
       console.error('Error fetching payment status:', error);
       setError(error instanceof Error ? error.message : 'Failed to fetch payment status');
-      toast({
-        variant: 'destructive',
-        title: 'Payment status error',
-        description: error instanceof Error ? error.message : 'Failed to fetch payment status'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to fetch payment status');
     } finally {
       setIsLoading(false);
     }
-  }, [user?.organization_id, toast]);
+  }, [user?.organization_id]);
 
   useEffect(() => {
     if (autoRefresh) {
@@ -138,14 +134,10 @@ export function usePaymentStatus({ autoRefresh = true }: { autoRefresh?: boolean
 
     } catch (error) {
       console.error('Error checking resume eligibility:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Resume eligibility error',
-        description: error instanceof Error ? error.message : 'Failed to check resume eligibility'
-      });
+      toast.error(error instanceof Error ? error.message : 'Failed to check resume eligibility');
       return false;
     }
-  }, [user?.organization_id, toast]);
+  }, [user?.organization_id]);
 
   const startTopup = useCallback(async (params?: { amountCents?: number; autoConfirm?: boolean; metadata?: Record<string, string> }) => {
     if (!user?.organization_id) throw new Error('No organization');

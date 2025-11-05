@@ -71,6 +71,14 @@ export const searchGoogleProgrammable = async (req: Request, res: Response) => {
     const languageRestrictionRaw = Array.isArray(req.query.languageRestriction)
       ? req.query.languageRestriction[0]
       : req.query.languageRestriction;
+    const dateRestrictRaw = Array.isArray(req.query.dateRestrict) ? req.query.dateRestrict[0] : req.query.dateRestrict;
+    const fileTypeRaw = Array.isArray(req.query.fileType) ? req.query.fileType[0] : req.query.fileType;
+    const exactTermsRaw = Array.isArray(req.query.exactTerms) ? req.query.exactTerms[0] : req.query.exactTerms;
+    const excludeTermsRaw = Array.isArray(req.query.excludeTerms) ? req.query.excludeTerms[0] : req.query.excludeTerms;
+    const orTermsRaw = Array.isArray(req.query.orTerms) ? req.query.orTerms[0] : req.query.orTerms;
+    const siteSearchFilterRaw = Array.isArray(req.query.siteSearchFilter)
+      ? req.query.siteSearchFilter[0]
+      : req.query.siteSearchFilter;
 
     const perPage = Math.min(Math.max(Number(perPageRaw) || 10, 1), 10);
     const page = Math.max(Number(pageRaw) || 1, 1);
@@ -94,6 +102,30 @@ export const searchGoogleProgrammable = async (req: Request, res: Response) => {
 
     if (languageRestrictionRaw) {
       params.set('lr', languageRestrictionRaw);
+    }
+
+    if (dateRestrictRaw) {
+      params.set('dateRestrict', String(dateRestrictRaw));
+    }
+
+    if (fileTypeRaw) {
+      params.set('fileType', String(fileTypeRaw));
+    }
+
+    if (exactTermsRaw) {
+      params.set('exactTerms', String(exactTermsRaw));
+    }
+
+    if (excludeTermsRaw) {
+      params.set('excludeTerms', String(excludeTermsRaw));
+    }
+
+    if (orTermsRaw) {
+      params.set('orTerms', String(orTermsRaw));
+    }
+
+    if (siteSearchFilterRaw) {
+      params.set('siteSearchFilter', String(siteSearchFilterRaw));
     }
 
     const url = `${SEARCH_ENDPOINT}?${params.toString()}`;

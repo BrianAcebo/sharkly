@@ -51,7 +51,7 @@ export const ReadOnlyMode: React.FC<ReadOnlyModeProps> = ({
           icon: <AlertTriangle className="h-5 w-5" />,
           title: 'Subscription Ended',
           message: canManage
-            ? 'Start a new subscription to regain access to Paperboat CRM.'
+            ? 'Start a new subscription to regain access to True Sight.'
             : 'Your subscription has ended. An owner or admin can restart it.',
           showResume: false,
           showManagePortal: false,

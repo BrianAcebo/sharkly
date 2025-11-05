@@ -26,7 +26,7 @@ const PrivacyPolicy: React.FC = () => {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
           <div className="prose prose-lg max-w-none">
             <p className="text-gray-700 mb-6">
-              Paperboat CRM ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our customer relationship management service.
+              True Sight ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our customer relationship management service.
             </p>
 
             <h2 className="text-2xl font-semibold text-gray-900 mt-8 mb-4 flex items-center">

@@ -1,6 +1,7 @@
 import { supabase } from '../utils/supabaseClient';
 import { Evidence } from '../types/case';
-import { getSubjectById } from './subjects';
+import { getPersonById } from './people';
+import { getBusinessById } from './businesses';
 import type { Case as CaseType } from '../types/case';
 import type { Case, CaseStatus, CasePriority, ListCasesParams } from '../types/case';
 
@@ -12,8 +13,7 @@ export async function listCases(params: ListCasesParams) {
 
   let query = supabase
     .from('cases')
-    // Include related subject via FK (alias as `subject`)
-    .select('*, subject:subjects!cases_subject_id_fkey(*)', { count: 'exact' })
+    .select('*', { count: 'exact' })
     .eq('organization_id', params.organizationId)
     .order(params.sortBy === 'alphabetical' ? 'title' : 'created_at', { ascending: params.sortBy === 'alphabetical' ? true : false });
 
@@ -41,6 +41,16 @@ export async function listCases(params: ListCasesParams) {
     );
   }
 
+  // Label filtering (e.g., important)
+  if ((params as { label?: 'all' | 'important' }).label === 'important') {
+    query = query.contains('tags', ['important']);
+  }
+
+  // Assigned investigator filter
+  if ((params as { assignedToId?: string }).assignedToId) {
+    query = query.contains('assigned_to', [(params as { assignedToId?: string }).assignedToId as string]);
+  }
+
   if (params.from) {
     query = query.gte('created_at', params.from);
   }
@@ -51,6 +61,65 @@ export async function listCases(params: ListCasesParams) {
   const { data, error, count } = await query.range(from, to);
   if (error) throw error;
   let rows = (data as Case[]) ?? [];
+
+  // Hydrate subject snapshot for list views when missing
+  try {
+    const personIds: string[] = [];
+    const businessIds: string[] = [];
+    for (const c of rows) {
+      const hasSnapshot = Boolean((c as unknown as { subject?: unknown }).subject);
+      const sid = (c as unknown as { subject_id?: string | null }).subject_id ?? null;
+      const stype = (c as unknown as { subject_type?: string | null }).subject_type ?? null;
+      if (!hasSnapshot && sid && stype) {
+        if (stype === 'person') personIds.push(sid);
+        else if (stype === 'business') businessIds.push(sid);
+      }
+    }
+
+    const idToPerson = new Map<string, { name: string; avatar: string | null }>();
+    const idToBusiness = new Map<string, { name: string }>();
+
+    if (personIds.length > 0) {
+      const { data: people } = await supabase
+        .from('people')
+        .select('id,name,avatar')
+        .in('id', Array.from(new Set(personIds)));
+      for (const p of (people as Array<{ id: string; name: string; avatar: string | null }> | null) ?? []) {
+        idToPerson.set(p.id, { name: p.name, avatar: p.avatar });
+      }
+    }
+
+    if (businessIds.length > 0) {
+      const { data: businesses } = await supabase
+        .from('businesses')
+        .select('id,name,avatar')
+        .in('id', Array.from(new Set(businessIds)));
+      for (const b of (businesses as Array<{ id: string; name: string; avatar: string | null }> | null) ?? []) {
+        idToBusiness.set(b.id, { name: b.name as string } as unknown as { name: string });
+        // store avatar on a side map by extending type
+        (idToBusiness as unknown as Map<string, { name: string; avatar: string | null }>).set(b.id, { name: b.name, avatar: b.avatar });
+      }
+    }
+
+    rows = rows.map((c) => {
+      const sid = (c as unknown as { subject_id?: string | null }).subject_id ?? null;
+      const stype = (c as unknown as { subject_type?: string | null }).subject_type ?? null;
+      const hasSnapshot = Boolean((c as unknown as { subject?: unknown }).subject);
+      if (hasSnapshot || !sid || !stype) return c;
+      if (stype === 'person' && idToPerson.has(sid)) {
+        const p = idToPerson.get(sid)!;
+        return { ...(c as unknown as Case), subject: { name: p.name, avatar: p.avatar, type: 'person' } as unknown as Case['subject'] };
+      }
+      if (stype === 'business' && idToBusiness.has(sid)) {
+        const b = (idToBusiness as unknown as Map<string, { name: string; avatar: string | null }>).get(sid)!;
+        // use 'company' for backward compat with Subject.type union
+        return { ...(c as unknown as Case), subject: { name: b.name, avatar: b.avatar ?? null, type: 'company' } as unknown as Case['subject'] };
+      }
+      return c;
+    });
+  } catch {
+    // Best-effort hydration; ignore failures to keep listing responsive
+  }
   // Optional priority sort (client-side small page sort)
   if (params.sortBy === 'priority') {
     const order: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
@@ -65,8 +134,17 @@ export async function getCaseById(id: string) {
   const row = data as Case;
   if ((row as unknown as CaseType).subject_id) {
     try {
-      const subject = await getSubjectById((row as unknown as CaseType).subject_id as string);
-      return { ...(row as unknown as CaseType), subject: subject as unknown as CaseType['subject'] } as Case;
+      const stype = (row as unknown as { subject_type?: string | null }).subject_type ?? null;
+      if (!stype || stype === 'person') {
+        const person = await getPersonById((row as unknown as CaseType).subject_id as string);
+        return { ...(row as unknown as CaseType), subject: person as unknown as CaseType['subject'], subject_type: 'person' as unknown as Case['subject_type'] } as Case;
+      }
+      if (stype === 'business') {
+        const biz = await getBusinessById((row as unknown as CaseType).subject_id as string);
+        return { ...(row as unknown as CaseType), subject: biz as unknown as CaseType['subject'], subject_type: 'business' as unknown as Case['subject_type'] } as Case;
+      }
+      console.log('here', row)
+      return row as Case;
     } catch {
       return row as Case;
     }
@@ -85,6 +163,7 @@ export interface CreateCaseInput {
   tags?: string[];
   subject?: Record<string, unknown>;
   subject_id?: string;
+  subject_type?: 'person' | 'business';
   assigned_to?: string[];
   graph_id?: string;
 }
@@ -101,13 +180,31 @@ export async function createCase(input: CreateCaseInput) {
     tags: input.tags ?? [],
     subject: input.subject ?? null,
     subject_id: input.subject_id ?? null,
+    subject_type: input.subject_type ?? null,
     assigned_to: input.assigned_to ?? [],
     graph_id: input.graph_id ?? null
   };
 
   const { data, error } = await supabase.from('cases').insert(payload).select('*').single();
   if (error) throw error;
-  return data as Case;
+  const row = data as Case;
+  // Write audit: case_created
+  try {
+    const { data: userRes } = await supabase.auth.getUser();
+    const actorId = userRes?.user?.id ?? null;
+    await supabase.from('case_audit_log').insert({
+      case_id: row.id,
+      organization_id: row.organization_id,
+      actor_id: actorId,
+      action: 'case_created',
+      entity: 'case',
+      entity_id: row.id,
+      details: { title: row.title }
+    });
+  } catch (e) {
+    console.warn('case_created audit failed', e);
+  }
+  return row;
 }
 
 export interface UpdateCaseInput {
@@ -119,11 +216,19 @@ export interface UpdateCaseInput {
   tags?: string[];
   subject?: Record<string, unknown> | null;
   subject_id?: string | null;
+  subject_type?: 'person' | 'business' | null;
   assigned_to?: string[];
   graph_id?: string | null;
 }
 
 export async function updateCase(id: string, updates: UpdateCaseInput) {
+  // Fetch existing for change diff & org/case context
+  const { data: before } = await supabase
+    .from('cases')
+    .select('*')
+    .eq('id', id)
+    .single();
+
   const { data, error } = await supabase
     .from('cases')
     .update(updates)
@@ -131,7 +236,35 @@ export async function updateCase(id: string, updates: UpdateCaseInput) {
     .select('*')
     .single();
   if (error) throw error;
-  return data as Case;
+  const row = data as Case;
+  // Compute changed fields (ignore updated_at)
+  try {
+    const changed: string[] = [];
+    const a = before as unknown as Record<string, unknown>;
+    const b = row as unknown as Record<string, unknown>;
+    Object.keys(b || {}).forEach((k) => {
+      if (k === 'updated_at') return;
+      const va = a?.[k];
+      const vb = b?.[k];
+      if (JSON.stringify(va) !== JSON.stringify(vb)) changed.push(k);
+    });
+    const { data: userRes } = await supabase.auth.getUser();
+    const actorId = userRes?.user?.id ?? null;
+    if (changed.length > 0) {
+      await supabase.from('case_audit_log').insert({
+        case_id: row.id,
+        organization_id: row.organization_id,
+        actor_id: actorId,
+        action: 'case_updated',
+        entity: 'case',
+        entity_id: row.id,
+        details: { changed_fields: changed }
+      });
+    }
+  } catch (e) {
+    console.warn('case_updated audit failed', e);
+  }
+  return row;
 }
 
 export async function archiveCase(id: string) {
@@ -142,7 +275,22 @@ export async function archiveCase(id: string) {
     .select('*')
     .single();
   if (error) throw error;
-  return data as Case;
+  const row = data as Case;
+  try {
+    const { data: userRes } = await supabase.auth.getUser();
+    const actorId = userRes?.user?.id ?? null;
+    await supabase.from('case_audit_log').insert({
+      case_id: row.id,
+      organization_id: row.organization_id,
+      actor_id: actorId,
+      action: 'case_archived',
+      entity: 'case',
+      entity_id: row.id
+    });
+  } catch (e) {
+    console.warn('case_archived audit failed', e);
+  }
+  return row;
 }
 
 export async function unarchiveCase(id: string) {
@@ -153,7 +301,22 @@ export async function unarchiveCase(id: string) {
     .select('*')
     .single();
   if (error) throw error;
-  return data as Case;
+  const row = data as Case;
+  try {
+    const { data: userRes } = await supabase.auth.getUser();
+    const actorId = userRes?.user?.id ?? null;
+    await supabase.from('case_audit_log').insert({
+      case_id: row.id,
+      organization_id: row.organization_id,
+      actor_id: actorId,
+      action: 'case_unarchived',
+      entity: 'case',
+      entity_id: row.id
+    });
+  } catch (e) {
+    console.warn('case_unarchived audit failed', e);
+  }
+  return row;
 }
 
 export async function deleteCase(id: string) {
@@ -228,40 +391,31 @@ export async function deleteCaseNote(id: string) {
 }
 
 // Case Activity (audit log)
-export interface AuditLogEntry {
+export interface CaseAuditEntry {
   id: string;
   case_id: string;
-  organization_id: string | null;
+  organization_id: string;
   actor_id: string | null;
-  table_name: string;
-  row_id: string | null;
-  action: 'INSERT' | 'UPDATE' | 'DELETE' | string;
-  old_data?: Record<string, unknown> | null;
-  new_data?: Record<string, unknown> | null;
-  context?: Record<string, unknown> | null;
+  action: string; // e.g., note_created, evidence_uploaded, case_updated
+  entity: string; // e.g., case_note, case, case_evidence
+  entity_id: string | null;
+  details?: Record<string, unknown> | null;
   created_at: string;
 }
 
-export async function listCaseActivity(caseId: string) {
-  // Filter activity related to a case using JSON fields and row_id
-  // Matches:
-  // - cases row with row_id = caseId
-  // - case_notes.new_data.case_id = caseId OR old_data.case_id = caseId
-  // - case_evidence.new_data.case_id = caseId OR old_data.case_id = caseId
-  const or = [
-    `and(table_name.eq.cases,row_id.eq.${caseId})`,
-    `and(table_name.eq.case_notes,new_data->>case_id.eq.${caseId})`,
-    `and(table_name.eq.case_notes,old_data->>case_id.eq.${caseId})`,
-    `and(table_name.eq.case_evidence,new_data->>case_id.eq.${caseId})`,
-    `and(table_name.eq.case_evidence,old_data->>case_id.eq.${caseId})`
-  ].join(',');
-  const { data, error } = await supabase
-    .from('audit_log')
+export async function listCaseActivity(caseId: string, actorId?: string) {
+  // Only user-authored, case-scoped activity maintained by the app
+  let q = supabase
+    .from('case_audit_log')
     .select('*')
-    .or(or)
+    .eq('case_id', caseId)
     .order('created_at', { ascending: false });
+  if (actorId) {
+    q = q.eq('actor_id', actorId);
+  }
+  const { data, error } = await q;
   if (error) throw error;
-  return (data as AuditLogEntry[]) ?? [];
+  return (data as CaseAuditEntry[]) ?? [];
 }
 
 // Evidence
@@ -318,7 +472,22 @@ export async function uploadEvidence(params: {
       .select('*')
       .single();
     if (error) throw new Error(error.message || 'Failed to record evidence');
-    results.push(data as Evidence);
+    const ev = data as Evidence;
+    results.push(ev);
+    // Audit: evidence_uploaded
+    try {
+      await supabase.from('case_audit_log').insert({
+        case_id: params.case_id,
+        organization_id: params.organization_id,
+        actor_id: params.uploader_id ?? null,
+        action: 'evidence_uploaded',
+        entity: 'case_evidence',
+        entity_id: ev.id,
+        details: { file_name: ev.file_name, file_type: ev.file_type, file_size: ev.file_size }
+      });
+    } catch (e) {
+      console.warn('evidence_uploaded audit failed', e);
+    }
   }
   return results;
 }
@@ -334,6 +503,30 @@ export async function deleteEvidence(id: string) {
   if (error) throw error;
   if (path) {
     await supabase.storage.from('evidence').remove([path]);
+  }
+  // Best-effort audit (we no longer have case_id/org_id; fetch deleted row prior if needed)
+  try {
+    const { data: before } = await supabase
+      .from('audit_log')
+      .select('new_data,old_data')
+      .eq('table_name', 'case_evidence')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    const ctx = (before?.old_data || before?.new_data) as unknown as { case_id?: string; organization_id?: string } | null;
+    if (ctx?.case_id && ctx?.organization_id) {
+      const { data: userRes } = await supabase.auth.getUser();
+      await supabase.from('case_audit_log').insert({
+        case_id: ctx.case_id,
+        organization_id: ctx.organization_id,
+        actor_id: userRes?.user?.id ?? null,
+        action: 'evidence_deleted',
+        entity: 'case_evidence',
+        entity_id: id
+      });
+    }
+  } catch (e) {
+    console.warn('evidence_deleted audit failed', e);
   }
 }
 

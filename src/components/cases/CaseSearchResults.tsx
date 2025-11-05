@@ -2,7 +2,6 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import type { Case } from '../../types/case';
 import { formatDistanceToNow } from 'date-fns';
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import { Separator } from '../ui/separator';
@@ -12,7 +11,8 @@ import {
 	Calendar,
 	Bookmark,
 	Share2,
-	MoreHorizontal
+	MoreHorizontal,
+	BookmarkCheck
 } from 'lucide-react';
 import { Link } from 'react-router';
 import { Card, CardContent, CardFooter, CardHeader } from '../ui/card';
@@ -23,7 +23,7 @@ import {
 	DropdownMenuTrigger
 } from '../ui/dropdown-menu';
 import { useCase } from '../../hooks/useCase';
-import { archiveCase, unarchiveCase } from '../../api/cases';
+import { archiveCase, unarchiveCase, updateCase } from '../../api/cases';
 import EditCaseDialog from './EditCaseDialog';
 import {
 	AlertDialog,
@@ -37,12 +37,12 @@ import {
 } from '../ui/alert-dialog';
 import { deleteCase } from '../../api/cases';
 import { UserAvatar } from '../common/UserAvatar';
-interface SearchResultsProps {
+interface CaseSearchResultsProps {
 	perPage: number;
 	onChanged?: () => void;
 }
 
-export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
+export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps) {
 	const { results, currentPage, setCurrentPage } = useCase();
 	const [selectedResult, setSelectedResult] = useState<Case | null>(results?.results[0] ?? null);
 	const [editingCase, setEditingCase] = useState<Case | null>(null);
@@ -64,6 +64,17 @@ export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
 				return 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-900';
 			default:
 				return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-900';
+		}
+	};
+
+	const getSubjectTypeColor = (subject_type: 'person' | 'business' | null | undefined) => {
+		switch (subject_type) {
+			case 'person':
+				return 'text-green-700 dark:text-green-400';
+			case 'business':
+				return 'text-blue-700 dark:text-blue-400';
+			default:
+				return 'text-gray-700 dark:text-gray-400';
 		}
 	};
 
@@ -97,14 +108,14 @@ export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
 		}
 	};
 
-    const handleUnarchive = async (id: string) => {
-        try {
-            await unarchiveCase(id);
-            onChanged?.();
-        } catch (e) {
-            console.error('Error unarchiving case:', e);
-        }
-    };
+	const handleUnarchive = async (id: string) => {
+		try {
+			await unarchiveCase(id);
+			onChanged?.();
+		} catch (e) {
+			console.error('Error unarchiving case:', e);
+		}
+	};
 
 	const handleDelete = async () => {
 		if (!deleteId) return;
@@ -117,6 +128,18 @@ export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
 			// no-op
 		}
 	};
+
+  const toggleImportant = async (c: Case) => {
+    try {
+      const current = (c.tags ?? []).slice();
+      const idx = current.indexOf('important');
+      if (idx >= 0) current.splice(idx, 1); else current.push('important');
+      await updateCase(c.id, { tags: current });
+      onChanged?.();
+    } catch (e) {
+      console.error('Toggle important failed', e);
+    }
+  };
 
 	if (results.results.length === 0) {
 		return (
@@ -132,25 +155,26 @@ export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
 		);
 	}
 
-	console.log(results.results);
-
 	return (
 		<div className="grid grid-cols-1 gap-6 md:grid-cols-3">
 			<div className="col-span-1 md:col-span-2">
 				<div className="space-y-5">
-					{results.results.map((result) => (
-						<Card
-							key={result.id}
-							className={`overflow-hidden ${
-								selectedResult?.id === result.id ? 'ring-1 ring-offset-1' : 'hover:ring-1'
-							}`}
-						>
+						{results.results.map((result) => (
+							<Card
+								key={result.id}
+								onClick={() => setSelectedResult(result)}
+								className={`group cursor-pointer overflow-hidden transition-colors ${
+									selectedResult?.id === result.id
+										? 'ring-1 ring-brand-800 ring-offset-1 bg-slate-50 dark:bg-slate-800/30'
+										: 'hover:ring-1 hover:ring-brand-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30'
+									}`}
+							>
 							<CardHeader className="p-6">
 								<div className="flex flex-col items-start justify-between gap-3 md:flex-row">
 									<div className="flex items-center space-x-2">
 										<UserAvatar
 											user={{
-												name: result.subject?.name || '',
+												name: result.subject?.name || result.title || '?',
 												avatar: result.subject?.avatar || null
 											}}
 											size="sm"
@@ -166,6 +190,19 @@ export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
 										</div>
 									</div>
 									<div className="flex w-full items-center justify-between md:w-fit">
+										<div>
+											<span className="flex items-center gap-2 text-sm capitalize">
+												Type:
+												<span
+													className={`text-xs capitalize ${getSubjectTypeColor(result.subject_type)}`}
+												>
+													{result.subject_type}
+												</span>
+											</span>
+										</div>
+
+										<div className="mx-5 hidden h-5 w-[0.5px] border-r md:block"></div>
+
 										<div>
 											<span className="flex items-center gap-2 text-sm">
 												Priority:
@@ -191,39 +228,39 @@ export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
 														<span className="sr-only">More options</span>
 													</Button>
 												</DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => setEditingCase(result)}>
-                                                    Edit
-                                                </DropdownMenuItem>
-                                                {result.archived_at ? (
-                                                    <DropdownMenuItem onClick={() => handleUnarchive(result.id)}>
-                                                        Unarchive
-                                                    </DropdownMenuItem>
-                                                ) : (
-                                                    <DropdownMenuItem onClick={() => handleArchive(result.id)}>
-                                                        Archive
-                                                    </DropdownMenuItem>
-                                                )}
-                                                <DropdownMenuItem onClick={() => setDeleteId(result.id)}>
-                                                    Delete
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
+												<DropdownMenuContent align="end">
+													<DropdownMenuItem onClick={() => setEditingCase(result)}>
+														Edit
+													</DropdownMenuItem>
+													{result.archived_at ? (
+														<DropdownMenuItem onClick={() => handleUnarchive(result.id)}>
+															Unarchive
+														</DropdownMenuItem>
+													) : (
+														<DropdownMenuItem onClick={() => handleArchive(result.id)}>
+															Archive
+														</DropdownMenuItem>
+													)}
+													<DropdownMenuItem onClick={() => setDeleteId(result.id)}>
+														Delete
+													</DropdownMenuItem>
+												</DropdownMenuContent>
 											</DropdownMenu>
 										</div>
 									</div>
 								</div>
 							</CardHeader>
-							<CardContent className="pt-0 pb-6">
-								<div className="cursor-pointer" onClick={() => setSelectedResult(result)}>
-									<h3 className="hover:text-primary mb-1 text-xl font-semibold transition-colors">
+								<CardContent className="pt-0 pb-6">
+									<div>
+										<h3 className="mb-1 text-xl font-semibold transition-colors">
 										{result.title}
-									</h3>
-									<p className="mb-2 text-gray-600 dark:text-gray-300">{result.description}</p>
-									<p className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+										</h3>
+										<p className="mb-2 text-gray-600 dark:text-gray-300">{result.description}</p>
+										<p className="mb-2 text-sm text-gray-600 dark:text-gray-300">
 										- {result.category}
-									</p>
-								</div>
-							</CardContent>
+										</p>
+									</div>
+								</CardContent>
 							<Separator />
 							<CardFooter className="flex items-center justify-between p-3">
 								{/* Tags row at the bottom left */}
@@ -242,11 +279,17 @@ export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
 									)}
 								</div>
 								{/* Action buttons on the right */}
-								<div className="flex space-x-1">
-									<Button variant="ghost" size="icon" className="h-8 w-8">
-										<Bookmark className="h-4 w-4" />
-										<span className="sr-only">Bookmark</span>
-									</Button>
+                                <div className="flex space-x-1">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className={`h-8 w-8 ${result.tags?.includes('important') ? 'text-amber-600' : ''}`}
+                                        onClick={() => toggleImportant(result)}
+                                        title={result.tags?.includes('important') ? 'Unmark important' : 'Mark important'}
+                                    >
+                                        {result.tags?.includes('important') ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+                                        <span className="sr-only">Toggle important</span>
+                                    </Button>
 									<Button variant="ghost" size="icon" className="h-8 w-8">
 										<Share2 className="h-4 w-4" />
 										<span className="sr-only">Share</span>
@@ -316,13 +359,13 @@ export function SearchResults({ perPage, onChanged }: SearchResultsProps) {
 						<Separator />
 						<CardContent className="pt-4">
 							<div className="mb-4 flex items-center space-x-3">
-								<Avatar className="h-10 w-10">
-									<AvatarImage
-										src={selectedResult.subject?.avatar}
-										alt={selectedResult.subject?.name}
-									/>
-									<AvatarFallback>{selectedResult.subject?.name?.charAt(0) || ''}</AvatarFallback>
-								</Avatar>
+								<UserAvatar
+									user={{
+										name: selectedResult.subject?.name || selectedResult.title || '?',
+										avatar: selectedResult.subject?.avatar || null
+									}}
+									size="lg"
+								/>
 								<div>
 									<p className="font-medium">{selectedResult.subject?.name}</p>
 									<p className="text-sm text-gray-600 capitalize dark:text-gray-300">
