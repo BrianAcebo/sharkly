@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import PageMeta from '../../components/common/PageMeta';
-import { mockCases } from '../../data';
-import type { Case } from '../../types/case';
+import type { Case, SubjectSocialProfile } from '../../types/case';
 import CaseHeader from '../../components/cases/CaseHeader';
 import PersonProfile from '../../components/cases/PersonProfile';
 import BusinessProfile from '../../components/cases/BusinessProfile';
@@ -80,13 +79,7 @@ export default function CaseDetail() {
                 } as Case;
                 setCaseReport(mapped);
             } catch (error) {
-                // Fallback to mock data
-                try {
-                    const fallback = mockCases.find((c) => c.id === caseId) || null;
-                    setCaseReport(fallback as unknown as Case);
-                } catch {
-                    console.error('Error fetching case:', error);
-                }
+                console.error('Error fetching case:', error);
             } finally {
                 if (active) setLoading(false);
             }
@@ -110,7 +103,7 @@ export default function CaseDetail() {
 	return (
 		<div>
 			<PageMeta title={caseReport?.title || ''} description={caseReport?.description || ''} />
-			<div className="min-h-screen-visible">
+			<div className="min-h-screen-height-visible">
 				{/* Main Content */}
 				<div className="max-w-8xl mx-auto space-y-6">
                     {/* Action bar */}
@@ -139,23 +132,31 @@ export default function CaseDetail() {
                     {
                         <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                             <div className="space-y-6 lg:col-span-2">
-                                {caseReport?.subject && caseReport.subject_type !== 'business' && (
+                                {caseReport?.subject && caseReport.subject_type !== 'company' && (
                                     <PersonProfile person={caseReport.subject as unknown as PersonRecord} />
                                 )}
-                                {caseReport?.subject && caseReport.subject_type !== 'business' && (
+                                {caseReport?.subject && caseReport.subject_type !== 'company' && (
                                     <DevicesSection devices={(caseReport.subject as unknown as PersonRecord).devices} />
                                 )}
-                                {caseReport?.subject && caseReport.subject_type === 'business' && (
+                                {caseReport?.subject && caseReport.subject_type === 'company' && (
                                     <BusinessProfile business={caseReport.subject as unknown as BusinessRecord} />
                                 )}
-                                {caseReport?.subject && caseReport.subject_type !== 'business' && (
-                                    <CaseWebMentions personId={(caseReport.subject as unknown as PersonRecord).id} />
+                                {caseReport?.subject && caseReport.subject_type !== 'company' && (
+                                    <CaseWebMentions
+                                        personId={(caseReport.subject as unknown as PersonRecord).id}
+                                        allowManage
+                                    />
                                 )}
                                 <CaseNotes caseId={caseReport.id} />
                             </div>
                             <div className="space-y-6">
-                                {caseReport?.subject && caseReport.subject_type !== 'business' && (
-                                    <SocialProfiles profiles={(caseReport.subject as unknown as PersonRecord).social_profiles} />
+                                {caseReport?.subject && caseReport.subject_type !== 'company' && (
+                                    <SocialProfiles
+                                        profiles={
+                                            ((caseReport.subject as unknown as PersonRecord)
+                                                .social_profiles as unknown as SubjectSocialProfile[]) ?? []
+                                        }
+                                    />
                                 )}
                                 <CaseEntityGraph caseData={caseReport} />
                                 <CaseEvidence caseId={caseReport.id} subjectId={(caseReport.subject as unknown as PersonRecord)?.id ?? null} />

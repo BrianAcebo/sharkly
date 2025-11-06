@@ -8,7 +8,9 @@ import {
 	LogOut,
 	UserRoundSearch,
 	Glasses,
-	FolderSearch
+	FolderSearch,
+    Users,
+    Factory
 } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
@@ -25,14 +27,24 @@ const Sidebar: React.FC = () => {
 			path: '/cases'
 		},
 		{
+			icon: Users,
+			label: 'People',
+			path: '/people'
+		},
+		{
+			icon: Factory,
+			label: 'Businesses',
+			path: '/businesses'
+		},
+		{
 			icon: Bot,
 			label: 'AI Assistant', 
 			path: '/assistant'
 		},
 		{
 			icon: FolderSearch,
-			label: 'Search',
-			path: '/search'
+			label: 'Web Search',
+			path: '/web-search'
 		},
 		{
 			icon: Glasses,
@@ -60,7 +72,7 @@ const Sidebar: React.FC = () => {
 		<aside
 			className={`fixed top-0 left-0 z-50 mt-16 flex h-screen flex-col border-r border-gray-200 bg-white text-gray-900 transition-all duration-300 ease-in-out lg:mt-0 dark:border-gray-600 dark:bg-gray-900 ${isExpanded || isMobileOpen ? 'w-[250px]' : 'w-[90px]'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
 		>
-			<div className="flex justify-center border-b border-gray-200 pt-4 pb-2 dark:border-gray-600">
+			<div className="flex h-header-height items-center justify-center border-b border-gray-200 pt-4 pb-2 dark:border-gray-600">
 				<Link to="/">
 					{isExpanded || isMobileOpen ? (
 						<>

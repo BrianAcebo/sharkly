@@ -1,8 +1,16 @@
 import GridShape from '../../components/common/GridShape';
 import { Link } from 'react-router';
 import PageMeta from '../../components/common/PageMeta';
+import { useEffect } from 'react';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 
 export default function NotFound() {
+	const { setTitle, setReturnTo } = useBreadcrumbs();
+
+	useEffect(() => {
+		setTitle('Page Not Found');
+	}, [setTitle, setReturnTo]);
+
 	return (
 		<>
 			<PageMeta

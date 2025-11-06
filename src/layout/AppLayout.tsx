@@ -169,9 +169,11 @@ const LayoutContent: React.FC = () => {
 				>
 					<AppHeader />
 
-					<div className="flex-1">
-						<main className="h-full dark:bg-gray-800 bg-accent-foreground-dark mx-auto max-w-(--breakpoint-2xl) p-6">
-							<Outlet />
+					<div className="w-full">
+						<main className="h-full w-full dark:bg-gray-800 bg-accent-foreground-dark p-6 min-h-screen-height-visible">
+							<div className="w-full h-full mx-auto max-w-(--breakpoint-2xl)">
+								<Outlet />
+							</div>
 						</main>
 					</div>
 				</div>

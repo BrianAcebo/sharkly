@@ -27,7 +27,7 @@ const Header: React.FC = () => {
 	const [showNotifications, setShowNotifications] = useState(false);
 	const [showUserMenu, setShowUserMenu] = useState(false);
 
-	const headerRef = useRef<HTMLDivElement>(null);
+	const headerRef = useRef<HTMLHeadingElement>(null);
 	const commandPaletteRef = useRef<HTMLDivElement>(null);
 	const searchRef = useRef<HTMLDivElement>(null);
 	const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
@@ -112,7 +112,7 @@ const Header: React.FC = () => {
 
 	return (
 		<>
-			<header ref={headerRef}>
+			<header ref={headerRef} className="sticky top-0 z-50">
 				<TrialBanner />
 				<PaymentStatusBanner
 					organization={paymentStatus?.organization}
@@ -121,7 +121,7 @@ const Header: React.FC = () => {
 					}}
 				/>
 
-				<div className="sticky top-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-600 dark:bg-gray-900">
+				<div className="top-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-600 dark:bg-gray-900">
 					<div className="flex items-center justify-between gap-4">
 						<div className="flex items-center space-x-4">
 							<button

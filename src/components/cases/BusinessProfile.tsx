@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Building2, Globe, MapPin, CreditCard } from 'lucide-react';
 import ComponentCard from '../common/ComponentCard';
 import { BusinessRecord } from '../../types/business';
@@ -36,6 +37,9 @@ export default function BusinessProfile({ business }: { business: BusinessRecord
             <p className="text-sm text-gray-600 dark:text-gray-300">ID: {business.id}</p>
           </div>
         </div>
+        <Link to={`/businesses/${business.id}`} className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+          View
+        </Link>
       </div>
 
       <div className="space-y-4">

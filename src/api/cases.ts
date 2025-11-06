@@ -2,6 +2,7 @@ import { supabase } from '../utils/supabaseClient';
 import { Evidence } from '../types/case';
 import { getPersonById } from './people';
 import { getBusinessById } from './businesses';
+import { formatPersonName, normalizePersonName } from '../utils/person';
 import type { Case as CaseType } from '../types/case';
 import type { Case, CaseStatus, CasePriority, ListCasesParams } from '../types/case';
 
@@ -46,6 +47,14 @@ export async function listCases(params: ListCasesParams) {
     query = query.contains('tags', ['important']);
   }
 
+  if ((params as { category?: string | null }).category) {
+    query = query.eq('category', (params as { category?: string | null }).category);
+  }
+
+  if ((params as { tag?: string | null }).tag) {
+    query = query.contains('tags', [(params as { tag?: string | null }).tag]);
+  }
+
   // Assigned investigator filter
   if ((params as { assignedToId?: string }).assignedToId) {
     query = query.contains('assigned_to', [(params as { assignedToId?: string }).assignedToId as string]);
@@ -65,39 +74,40 @@ export async function listCases(params: ListCasesParams) {
   // Hydrate subject snapshot for list views when missing
   try {
     const personIds: string[] = [];
-    const businessIds: string[] = [];
+    const companyIds: string[] = [];
     for (const c of rows) {
       const hasSnapshot = Boolean((c as unknown as { subject?: unknown }).subject);
       const sid = (c as unknown as { subject_id?: string | null }).subject_id ?? null;
       const stype = (c as unknown as { subject_type?: string | null }).subject_type ?? null;
       if (!hasSnapshot && sid && stype) {
         if (stype === 'person') personIds.push(sid);
-        else if (stype === 'business') businessIds.push(sid);
+        else if (stype === 'company') companyIds.push(sid);
       }
     }
 
     const idToPerson = new Map<string, { name: string; avatar: string | null }>();
-    const idToBusiness = new Map<string, { name: string }>();
+    const idToCompany = new Map<string, { name: string }>();
 
     if (personIds.length > 0) {
       const { data: people } = await supabase
         .from('people')
         .select('id,name,avatar')
         .in('id', Array.from(new Set(personIds)));
-      for (const p of (people as Array<{ id: string; name: string; avatar: string | null }> | null) ?? []) {
-        idToPerson.set(p.id, { name: p.name, avatar: p.avatar });
+      for (const p of (people as Array<{ id: string; name: unknown; avatar: string | null }> | null) ?? []) {
+        const normalizedName = normalizePersonName(p.name as Record<string, unknown> | string | null | undefined);
+        idToPerson.set(p.id, { name: formatPersonName(normalizedName), avatar: p.avatar ?? null });
       }
     }
 
-    if (businessIds.length > 0) {
+    if (companyIds.length > 0) {
       const { data: businesses } = await supabase
         .from('businesses')
         .select('id,name,avatar')
-        .in('id', Array.from(new Set(businessIds)));
+        .in('id', Array.from(new Set(companyIds)));
       for (const b of (businesses as Array<{ id: string; name: string; avatar: string | null }> | null) ?? []) {
-        idToBusiness.set(b.id, { name: b.name as string } as unknown as { name: string });
+        idToCompany.set(b.id, { name: b.name as string } as unknown as { name: string });
         // store avatar on a side map by extending type
-        (idToBusiness as unknown as Map<string, { name: string; avatar: string | null }>).set(b.id, { name: b.name, avatar: b.avatar });
+        (idToCompany as unknown as Map<string, { name: string; avatar: string | null }>).set(b.id, { name: b.name, avatar: b.avatar });
       }
     }
 
@@ -110,9 +120,8 @@ export async function listCases(params: ListCasesParams) {
         const p = idToPerson.get(sid)!;
         return { ...(c as unknown as Case), subject: { name: p.name, avatar: p.avatar, type: 'person' } as unknown as Case['subject'] };
       }
-      if (stype === 'business' && idToBusiness.has(sid)) {
-        const b = (idToBusiness as unknown as Map<string, { name: string; avatar: string | null }>).get(sid)!;
-        // use 'company' for backward compat with Subject.type union
+      if (stype === 'company' && idToCompany.has(sid)) {
+        const b = (idToCompany as unknown as Map<string, { name: string; avatar: string | null }>).get(sid)!;
         return { ...(c as unknown as Case), subject: { name: b.name, avatar: b.avatar ?? null, type: 'company' } as unknown as Case['subject'] };
       }
       return c;
@@ -139,9 +148,9 @@ export async function getCaseById(id: string) {
         const person = await getPersonById((row as unknown as CaseType).subject_id as string);
         return { ...(row as unknown as CaseType), subject: person as unknown as CaseType['subject'], subject_type: 'person' as unknown as Case['subject_type'] } as Case;
       }
-      if (stype === 'business') {
+      if (stype === 'company') {
         const biz = await getBusinessById((row as unknown as CaseType).subject_id as string);
-        return { ...(row as unknown as CaseType), subject: biz as unknown as CaseType['subject'], subject_type: 'business' as unknown as Case['subject_type'] } as Case;
+        return { ...(row as unknown as CaseType), subject: biz as unknown as CaseType['subject'], subject_type: 'company' as unknown as Case['subject_type'] } as Case;
       }
       console.log('here', row)
       return row as Case;
@@ -163,7 +172,7 @@ export interface CreateCaseInput {
   tags?: string[];
   subject?: Record<string, unknown>;
   subject_id?: string;
-  subject_type?: 'person' | 'business';
+  subject_type?: 'person' | 'company';
   assigned_to?: string[];
   graph_id?: string;
 }
@@ -216,7 +225,7 @@ export interface UpdateCaseInput {
   tags?: string[];
   subject?: Record<string, unknown> | null;
   subject_id?: string | null;
-  subject_type?: 'person' | 'business' | null;
+  subject_type?: 'person' | 'company' | null;
   assigned_to?: string[];
   graph_id?: string | null;
 }

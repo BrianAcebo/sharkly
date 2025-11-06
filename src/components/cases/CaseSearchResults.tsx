@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
-import type { Case } from '../../types/case';
+import type { Case, SearchFilter } from '../../types/case';
 import { formatDistanceToNow } from 'date-fns';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -37,13 +37,14 @@ import {
 } from '../ui/alert-dialog';
 import { deleteCase } from '../../api/cases';
 import { UserAvatar } from '../common/UserAvatar';
+import { toast } from 'sonner';
 interface CaseSearchResultsProps {
 	perPage: number;
 	onChanged?: () => void;
 }
 
 export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps) {
-	const { results, currentPage, setCurrentPage } = useCase();
+	const { results, currentPage, setCurrentPage, filters, setFilters } = useCase();
 	const [selectedResult, setSelectedResult] = useState<Case | null>(results?.results[0] ?? null);
 	const [editingCase, setEditingCase] = useState<Case | null>(null);
 	const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -67,14 +68,14 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 		}
 	};
 
-	const getSubjectTypeColor = (subject_type: 'person' | 'business' | null | undefined) => {
+	const getSubjectTypeColor = (subject_type: 'person' | 'company' | null | undefined) => {
 		switch (subject_type) {
 			case 'person':
 				return 'text-green-700 dark:text-green-400';
-			case 'business':
+			case 'company':
 				return 'text-blue-700 dark:text-blue-400';
 			default:
-				return 'text-gray-700 dark:text-gray-400';
+				return 'text-gray-500 dark:text-gray-400';
 		}
 	};
 
@@ -103,6 +104,7 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 			await archiveCase(id);
 			onChanged?.();
 		} catch (e) {
+			toast.error('Error archiving case');
 			console.error('Error archiving case:', e);
 			// no-op
 		}
@@ -113,7 +115,8 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 			await unarchiveCase(id);
 			onChanged?.();
 		} catch (e) {
-			console.error('Error unarchiving case:', e);
+			toast.error('Error un-archiving case');
+			console.error('Error un-archiving case:', e);
 		}
 	};
 
@@ -124,22 +127,51 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 			setDeleteId(null);
 			onChanged?.();
 		} catch (e) {
+			toast.error('Error deleting case');
 			console.error('Error deleting case:', e);
 			// no-op
 		}
 	};
 
-  const toggleImportant = async (c: Case) => {
-    try {
-      const current = (c.tags ?? []).slice();
-      const idx = current.indexOf('important');
-      if (idx >= 0) current.splice(idx, 1); else current.push('important');
-      await updateCase(c.id, { tags: current });
-      onChanged?.();
-    } catch (e) {
-      console.error('Toggle important failed', e);
-    }
-  };
+	const toggleImportant = async (c: Case) => {
+		try {
+			const current = (c.tags ?? []).slice();
+			const idx = current.indexOf('important');
+			if (idx >= 0) current.splice(idx, 1);
+			else current.push('important');
+			await updateCase(c.id, { tags: current });
+			onChanged?.();
+		} catch (e) {
+			toast.error('Error toggling important');
+			console.error('Toggle important failed', e);
+		}
+	};
+
+	const applyInlineFilter = (update: Partial<SearchFilter>) => {
+		setFilters({
+			...filters,
+			...update
+		});
+		setCurrentPage(1);
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+	};
+
+	const handleCategoryFilter = (event: React.MouseEvent<HTMLButtonElement>, category?: string | null) => {
+		event.stopPropagation();
+		event.preventDefault();
+		if (!category) return;
+		const nextCategory = filters.category === category ? null : category;
+		applyInlineFilter({ category: nextCategory });
+	};
+
+	const handleTagFilter = (event: React.MouseEvent<HTMLButtonElement>, tag: string) => {
+		event.stopPropagation();
+		event.preventDefault();
+		const cleaned = tag.trim();
+		if (!cleaned) return;
+		const nextTag = filters.tag === cleaned ? null : cleaned;
+		applyInlineFilter({ tag: nextTag });
+	};
 
 	if (results.results.length === 0) {
 		return (
@@ -159,15 +191,17 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 		<div className="grid grid-cols-1 gap-6 md:grid-cols-3">
 			<div className="col-span-1 md:col-span-2">
 				<div className="space-y-5">
-						{results.results.map((result) => (
+					{results.results.map((result) => {
+						const isCategoryActive = Boolean(result.category) && filters.category === result.category;
+						return (
 							<Card
 								key={result.id}
 								onClick={() => setSelectedResult(result)}
 								className={`group cursor-pointer overflow-hidden transition-colors ${
 									selectedResult?.id === result.id
-										? 'ring-1 ring-brand-800 ring-offset-1 bg-slate-50 dark:bg-slate-800/30'
-										: 'hover:ring-1 hover:ring-brand-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30'
-									}`}
+										? 'ring-brand-800 ring-1 ring-offset-1 dark:bg-slate-800/30'
+										: 'hover:ring-brand-800/50 hover:bg-slate-50 hover:ring-1 dark:hover:bg-slate-800/30'
+								}`}
 							>
 							<CardHeader className="p-6">
 								<div className="flex flex-col items-start justify-between gap-3 md:flex-row">
@@ -193,9 +227,7 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 										<div>
 											<span className="flex items-center gap-2 text-sm capitalize">
 												Type:
-												<span
-													className={`text-xs capitalize ${getSubjectTypeColor(result.subject_type)}`}
-												>
+												<span className={`text-xs capitalize ${getSubjectTypeColor(result.subject_type)}`}>
 													{result.subject_type}
 												</span>
 											</span>
@@ -229,9 +261,7 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 													</Button>
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
-													<DropdownMenuItem onClick={() => setEditingCase(result)}>
-														Edit
-													</DropdownMenuItem>
+													<DropdownMenuItem onClick={() => setEditingCase(result)}>Edit</DropdownMenuItem>
 													{result.archived_at ? (
 														<DropdownMenuItem onClick={() => handleUnarchive(result.id)}>
 															Unarchive
@@ -241,55 +271,81 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 															Archive
 														</DropdownMenuItem>
 													)}
-													<DropdownMenuItem onClick={() => setDeleteId(result.id)}>
-														Delete
-													</DropdownMenuItem>
+													<DropdownMenuItem onClick={() => setDeleteId(result.id)}>Delete</DropdownMenuItem>
 												</DropdownMenuContent>
 											</DropdownMenu>
 										</div>
 									</div>
 								</div>
 							</CardHeader>
-								<CardContent className="pt-0 pb-6">
-									<div>
-										<h3 className="mb-1 text-xl font-semibold transition-colors">
-										{result.title}
-										</h3>
-										<p className="mb-2 text-gray-600 dark:text-gray-300">{result.description}</p>
-										<p className="mb-2 text-sm text-gray-600 dark:text-gray-300">
-										- {result.category}
-										</p>
-									</div>
-								</CardContent>
+							<CardContent className="pt-0 pb-6">
+								<div>
+									<h3 className="mb-1 text-xl font-semibold transition-colors">{result.title}</h3>
+									<p className="mb-2 text-gray-600 dark:text-gray-300">{result.description}</p>
+									<p className="mb-2 text-sm text-gray-600 dark:text-gray-300">
+										-{' '}
+										{result.category ? (
+											<button
+												type="button"
+												onClick={(event) => handleCategoryFilter(event, result.category)}
+												className={`underline-offset-2 transition-colors hover:underline ${
+													isCategoryActive
+														? 'text-blue-800 dark:text-blue-300'
+														: 'text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
+												}`}
+												title={`Filter by category: ${result.category}`}
+											>
+												{result.category}
+											</button>
+										) : (
+											<span className="text-gray-400 dark:text-gray-500">Uncategorized</span>
+										)}
+									</p>
+								</div>
+							</CardContent>
 							<Separator />
 							<CardFooter className="flex items-center justify-between p-3">
-								{/* Tags row at the bottom left */}
 								<div className="flex flex-wrap gap-2">
 									{result.tags && result.tags.length > 0 ? (
-										result.tags.map((tag, idx) => (
-											<span
-												key={tag + idx}
-												className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-											>
-												#{tag}
-											</span>
-										))
+										result.tags.map((tag, idx) => {
+											const isActiveTag = filters.tag === tag;
+											return (
+												<button
+													type="button"
+													key={tag + idx}
+													onClick={(event) => handleTagFilter(event, tag)}
+													className={`rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+														isActiveTag
+															? 'bg-blue-600 text-white shadow-sm hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400'
+															: 'bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/30'
+													}`}
+													title={`Filter by tag: #${tag}`}
+												>
+													#{tag}
+												</button>
+											);
+										})
 									) : (
 										<span className="text-xs text-gray-400">No tags</span>
 									)}
 								</div>
-								{/* Action buttons on the right */}
-                                <div className="flex space-x-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className={`h-8 w-8 ${result.tags?.includes('important') ? 'text-amber-600' : ''}`}
-                                        onClick={() => toggleImportant(result)}
-                                        title={result.tags?.includes('important') ? 'Unmark important' : 'Mark important'}
-                                    >
-                                        {result.tags?.includes('important') ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
-                                        <span className="sr-only">Toggle important</span>
-                                    </Button>
+								<div className="flex space-x-1">
+									<Button
+										variant="ghost"
+										size="icon"
+										className={`h-8 w-8 ${result.tags?.includes('important') ? 'text-amber-600' : ''}`}
+										onClick={() => toggleImportant(result)}
+										title={
+											result.tags?.includes('important') ? 'Unmark important' : 'Mark important'
+										}
+									>
+										{result.tags?.includes('important') ? (
+											<BookmarkCheck className="h-4 w-4" />
+										) : (
+											<Bookmark className="h-4 w-4" />
+										)}
+										<span className="sr-only">Toggle important</span>
+									</Button>
 									<Button variant="ghost" size="icon" className="h-8 w-8">
 										<Share2 className="h-4 w-4" />
 										<span className="sr-only">Share</span>
@@ -297,7 +353,8 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 								</div>
 							</CardFooter>
 						</Card>
-					))}
+					);
+					})}
 				</div>
 
 				{/* Pagination */}
@@ -391,14 +448,14 @@ export function CaseSearchResults({ perPage, onChanged }: CaseSearchResultsProps
 									<span className="text-xs text-gray-600 dark:text-gray-300">Tags</span>
 									<div className="flex flex-wrap gap-2">
 										{selectedResult.tags && selectedResult.tags.length > 0 ? (
-											selectedResult.tags.map((tag, idx) => (
-												<span
-													key={tag + idx}
-													className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
-												>
-													#{tag}
-												</span>
-											))
+							selectedResult.tags.map((tag, idx) => (
+								<span
+									key={tag + idx}
+									className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-400"
+								>
+									#{tag}
+								</span>
+							))
 										) : (
 											<span className="text-xs text-gray-400">No tags</span>
 										)}

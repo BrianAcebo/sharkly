@@ -42,23 +42,41 @@ export function CaseSearchFilters({ onManageClick }: { onManageClick?: () => voi
 		});
 	};
 
+	const handleCategoryClear = () => {
+		setFilters({
+			...filters,
+			category: null
+		});
+	};
+
+	const handleTagClear = () => {
+		setFilters({
+			...filters,
+			tag: null
+		});
+	};
+
 	const clearFilters = () => {
 		setFilters({
 			status: 'all',
 			priorityLevel: 'all',
 			dateRange: { from: undefined, to: undefined },
 			sortBy: 'recent',
-            includeArchived: false
+	            includeArchived: false,
+	            category: null,
+	            tag: null
 		});
 		setDateRange({ from: undefined, to: undefined });
 	};
 
 	// Count active filters
-    const activeFilterCount = [
+	const activeFilterCount = [
 		filters.status !== 'all',
 		filters.priorityLevel !== 'all',
         filters.dateRange?.from || filters.dateRange?.to,
-        filters.label && filters.label !== 'all'
+        filters.label && filters.label !== 'all',
+        filters.category,
+        filters.tag
 	].filter(Boolean).length;
 
 	type Select = {
@@ -358,6 +376,36 @@ export function CaseSearchFilters({ onManageClick }: { onManageClick?: () => voi
                             </Button2>
                         </Badge>
                     )}
+
+				{filters.category && (
+					<Badge variant="secondary" className="flex items-center gap-1 text-sm capitalize">
+						Category: {filters.category}
+						<Button2
+							variant="ghost"
+							size="icon"
+							className="ml-1 h-4 w-4 p-0"
+							onClick={handleCategoryClear}
+						>
+							<X className="size-3" />
+							<span className="sr-only">Remove category filter</span>
+						</Button2>
+					</Badge>
+				)}
+
+				{filters.tag && (
+					<Badge variant="secondary" className="flex items-center gap-1 text-sm">
+						Tag: #{filters.tag}
+						<Button2
+							variant="ghost"
+							size="icon"
+							className="ml-1 h-4 w-4 p-0"
+							onClick={handleTagClear}
+						>
+							<X className="size-3" />
+							<span className="sr-only">Remove tag filter</span>
+						</Button2>
+					</Badge>
+				)}
 
 					{(filters.dateRange?.from || filters.dateRange?.to) && (
 						<Badge variant="secondary" className="flex items-center gap-1">

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AuthLoadingState, useAuth } from '../contexts/AuthContext';
+import { AuthLoadingState } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 
@@ -8,7 +8,6 @@ interface AuthLoadingProps {
 }
 
 export const AuthLoading: React.FC<AuthLoadingProps> = ({ state }) => {
-	const { resetAuthState } = useAuth();
 	const [showResetButton, setShowResetButton] = useState(false);
 
 	useEffect(() => {
@@ -66,10 +65,10 @@ export const AuthLoading: React.FC<AuthLoadingProps> = ({ state }) => {
 					<Button 
 						variant="outline" 
 						size="sm"
-						onClick={resetAuthState}
+						onClick={() => window.location.reload()}
 						className="text-xs"
 					>
-						Reset Auth State
+						Reload Page
 					</Button>
 				</motion.div>
 			)}

@@ -37,6 +37,8 @@ export const getSearchResults = async (
         sortBy: (filters.sortBy ?? 'recent') as 'recent' | 'priority' | 'alphabetical',
         label: (filters.label ?? 'all') as 'all' | 'important',
         assignedToId,
+        category: filters.category ?? undefined,
+        tag: filters.tag ?? undefined,
         includeArchived:
             isArchivedStatus
                 ? true

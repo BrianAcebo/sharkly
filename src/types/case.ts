@@ -18,6 +18,8 @@ export interface ListCasesParams {
 	sortBy?: 'recent' | 'priority' | 'alphabetical';
 	label?: 'all' | 'important';
 	assignedToId?: string;
+	category?: string | null;
+	tag?: string | null;
   }
 
 export interface SubjectDevice {
@@ -59,7 +61,7 @@ export interface Case {
     tags: string[] | null;
     subject?: Subject | null;
     subject_id?: string | null;
-    subject_type?: 'person' | 'business' | null;
+	subject_type?: 'person' | 'company' | null;
     assigned_to: Investigator[] | null;
     graph_id: string | null;
     archived_at: string | null;
@@ -94,6 +96,8 @@ export interface SearchFilter {
 	includeArchived?: boolean;
 	archivedOnly?: boolean;
 	label?: 'all' | 'important';
+	category?: string | null;
+	tag?: string | null;
 }
 
 export interface GraphEntity {

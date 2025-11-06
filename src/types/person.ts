@@ -1,26 +1,45 @@
-export interface WebMention {
-  title: string | null;
-  link: string | null;
-  snippet?: string | null;
-  displayLink?: string | null;
-  favicon?: string | null;
-  image?: string | null;
-  source?: 'google_pse' | string;
-  retrieved_at?: string; // ISO
+import type { EmailRecord, EmailEntity } from './email';
+import type { PhoneRecord } from './phone';
+import type { SocialProfileRecord } from './social';
+import type { DeviceRecord } from './devices';
+import type { WebMention } from './common';
+import type { AddressRecord } from './address';
+
+export interface PersonName {
+  first: string;
+  last: string;
+  middle?: string | null;
+  given?: string | null;
+  family?: string | null;
+  suffix?: string | null;
+  prefix?: string | null;
 }
+
+export interface PersonLocation {
+  city?: string | null;
+  country?: string | null;
+  ip?: string | null;
+}
+
+export type PersonGender = 'male' | 'female' | 'other' | null;
 
 export interface PersonRecord {
   id: string;
   organization_id: string;
-  name: string;
-  email: string | null;
+  name: PersonName;
+  gender?: PersonGender;
+  emails: EmailEntity[];
+  phones: PhoneRecord[];
+  date_of_birth?: Date | string;
+  social_profiles: SocialProfileRecord[];
   avatar: string | null;
-  location: { city?: string; country?: string; ip?: string } | null;
-  devices: Array<{ type: string; os: string; lastUsed?: string; last_used?: string }>;
-  social_profiles: Array<{ platform: string; username: string; url?: string }>;
+  location: PersonLocation | null;
+  addresses?: AddressRecord[];
+  devices: DeviceRecord[];
   web_mentions?: WebMention[];
   aliases?: string[];
   tags: string[];
+  notes?: string | null;
   confidence?: number | null;
   first_seen?: string | null;
   last_seen?: string | null;
@@ -30,22 +49,25 @@ export interface PersonRecord {
 
 export interface CreatePersonInput {
   organization_id: string;
-  name: string;
-  email?: string | null;
+  name: PersonName;
+  emails?: EmailRecord[];
+  phones?: PhoneRecord[];
+  date_of_birth?: Date | string;
+  gender?: PersonGender;
+  social_profiles?: SocialProfileRecord[];
   avatar?: string | null;
-  location?: { city?: string; country?: string; ip?: string } | null;
-  devices?: Array<{ type: string; os: string; lastUsed?: string; last_used?: string }>;
-  social_profiles?: Array<{ platform: string; username: string; url?: string }>;
+  location?: PersonLocation | null;
+  addresses?: AddressRecord[];
+  devices?: DeviceRecord[];
   web_mentions?: WebMention[];
   aliases?: string[];
   tags?: string[];
+  notes?: string | null;
   confidence?: number | null;
   first_seen?: string | null;
   last_seen?: string | null;
 }
 
-export type UpdatePersonInput = Partial<Omit<CreatePersonInput, 'organization_id' | 'name'>> & {
-  name?: string;
-};
+export type UpdatePersonInput = Partial<Omit<CreatePersonInput, 'organization_id'>>;
 
 

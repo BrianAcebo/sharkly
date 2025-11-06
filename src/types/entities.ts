@@ -7,7 +7,7 @@ import type { UsernameRecord, SocialProfileRecord } from './social';
 import type { ImageRecord } from './image';
 import type { IPRecord } from './ip';
 import type { DomainRecord } from './domain';
-import type { PasteLeakRecord } from './leak';
+import type { LeakRecord } from './leak';
 import type { DocumentRecord } from './document';
 import type { Case as CaseRecord } from './case';
 
@@ -31,7 +31,7 @@ export type NodeType =
 	| 'image'
 	| 'ip'
 	| 'domain'
-	| 'paste'
+	| 'leak'
 	| 'document'
 	| 'business'
 	| 'address'
@@ -64,7 +64,7 @@ export interface PersonNode extends PersonRecord {
 }
 
 // Email
-export interface EmailNode extends BaseNode, EmailRecord {
+export interface EmailNode extends BaseNode {
     type: 'email';
     record?: EmailRecord | null;
 }
@@ -105,10 +105,10 @@ export interface DomainNode extends BaseNode, DomainRecord {
     record?: DomainRecord | null;
 }
 
-// Paste / Leak
-export interface PasteLeakNode extends BaseNode, PasteLeakRecord {
-    type: 'paste';
-    record?: PasteLeakRecord | null;
+// Leak
+export interface LeakNode extends BaseNode {
+    type: 'leak';
+    record?: LeakRecord | null;
 }
 
 // Document / LegalRecord
@@ -143,7 +143,7 @@ export type EntityNode =
 	| ImageNode
 	| IPNode
 	| DomainNode
-	| PasteLeakNode
+	| LeakNode
 	| DocumentNode
 	| BusinessNode
 	| AddressNode

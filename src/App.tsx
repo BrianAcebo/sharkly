@@ -10,7 +10,7 @@ import OAuthCallback from './pages/Oauth/Callback';
 import { Toaster } from 'sonner';
 import AuthLayout from './layout/AuthLayout';
 import Onboarding from './pages/Onboarding';
-import Assistant from './pages/Assistant'
+import Assistant from './pages/Assistant';
 import Cases from './pages/Cases/Cases';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import OrganizationRequired from './pages/Organization/OrganizationRequired';
@@ -26,13 +26,17 @@ import ResetPassword from './pages/Auth/ResetPassword';
 import Billing from './pages/Billing';
 import BillingOnboarding from './pages/BillingOnboarding';
 import LogoutPage from './pages/Logout';
-import Search from './pages/Search';
+import WebSearch from './pages/WebSearch';
 import CaseDetail from './pages/Cases/CaseDetail';
 import Graph from './pages/Graph/Graph';
 import PersonDetail from './pages/People/PersonDetail';
 import PeoplePage from './pages/People/People';
+import BusinessesPage from './pages/Businesses/Businesses';
+import BusinessDetail from './pages/Businesses/BusinessDetail';
 import InvestigatorProfile from './pages/Investigators/InvestigatorProfile';
 import InvestigatorDetail from './pages/Investigators/InvestigatorDetail';
+import EmailDetailPage from './pages/Emails/EmailDetail';
+import LeakDetailPage from './pages/Leaks/LeakDetail';
 
 export default function App() {
 	return (
@@ -50,20 +54,24 @@ export default function App() {
 					<Route element={<AppLayout />}>
 						<Route index path="/cases" element={<Cases />} />
 						<Route path="/cases/:id" element={<CaseDetail />} />
-                        <Route path="/graph/:id" element={<Graph />} />
-                        <Route path="/people" element={<PeoplePage />} />
-                        <Route path="/people/:id" element={<PersonDetail />} />
-                        <Route path="/settings" element={<Settings />} />
+						<Route path="/graph/:id" element={<Graph />} />
+						<Route path="/people" element={<PeoplePage />} />
+						<Route path="/people/:id" element={<PersonDetail />} />
+						<Route path="/emails/:id" element={<EmailDetailPage />} />
+						<Route path="/leaks/:id" element={<LeakDetailPage />} />
+						<Route path="/businesses" element={<BusinessesPage />} />
+						<Route path="/businesses/:id" element={<BusinessDetail />} />
+						<Route path="/settings" element={<Settings />} />
 						<Route path="/notifications" element={<Notifications />} />
 						<Route path="/assistant" element={<Assistant />} />
-            			<Route path="/onboarding" element={<Onboarding />} />
+						<Route path="/onboarding" element={<Onboarding />} />
 						<Route path="/billing" element={<Billing />} />
 						<Route path="/billing-onboarding" element={<BillingOnboarding />} />
 						<Route path="/organization-required" element={<OrganizationRequired />} />
-						<Route path="/search" element={<Search />} />
-							<Route path="/organization" element={<Organization />} />
-							<Route path="/me" element={<InvestigatorProfile />} />
-                        <Route path="/investigators/:id" element={<InvestigatorDetail />} />
+						<Route path="/web-search" element={<WebSearch />} />
+						<Route path="/organization" element={<Organization />} />
+						<Route path="/me" element={<InvestigatorProfile />} />
+						<Route path="/investigators/:id" element={<InvestigatorDetail />} />
 					</Route>
 
 					{/* Auth Layout */}

@@ -9,7 +9,9 @@ export const CaseProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		status: 'all',
 		dateRange: { from: undefined, to: undefined },
 		sortBy: 'recent',
-		priorityLevel: 'all'
+		priorityLevel: 'all',
+		category: null,
+		tag: null
 	});
 	const [results, setResults] = useState<{
 		results: Case[];

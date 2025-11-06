@@ -1,7 +1,8 @@
 import React from 'react';
-import { Mail, MapPin } from 'lucide-react';
+import { ArrowRight, Mail, MapPin } from 'lucide-react';
 import ComponentCard from '../common/ComponentCard';
 import { PersonRecord } from '../../types/person';
+import { formatPersonName } from '../../utils/person';
 import { UserAvatar } from '../common/UserAvatar';
 
 interface PersonProfileProps {
@@ -11,19 +12,22 @@ interface PersonProfileProps {
 const PersonProfile: React.FC<PersonProfileProps> = ({ person }) => {
 	if (!person) return null;
 
+	const displayName = formatPersonName(person.name);
+	const primaryEmail = person.emails?.[0]?.email.address ?? '-';
+
 	return (
 		<ComponentCard>
 			<div className="mb-6 flex items-start justify-between">
 				<div className="flex items-start space-x-4">
 					<UserAvatar
 						user={{
-							name: person.name,
+							name: displayName,
 							avatar: person.avatar
 						}}
 						size="lg"
 					/>
 					<div>
-					<h2 className="text-lg font-bold">{person.name}</h2>
+					<h2 className="text-lg font-bold">{displayName}</h2>
 					<p className="text-gray-600 capitalize dark:text-gray-300">person</p>
 						<p className="text-sm text-gray-600 dark:text-gray-300">ID: {person.id}</p>
 					</div>
@@ -31,8 +35,8 @@ const PersonProfile: React.FC<PersonProfileProps> = ({ person }) => {
 
 				{person.id && (
 					<div>
-						<a className="text-sm underline" href={`/people/${person.id}`}>
-							View
+						<a className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300" href={`/people/${person.id}`}>
+							View <ArrowRight className="size-3 ml-2 inline-block" />
 						</a>
 					</div>
 				)}
@@ -41,10 +45,10 @@ const PersonProfile: React.FC<PersonProfileProps> = ({ person }) => {
 			<div className="space-y-4">
 				<div className="flex items-start space-x-3 rounded-lg p-3">
 					<Mail className="h-5 w-5" />
-					<div>
-						<p className="text-sm font-medium text-gray-600 dark:text-gray-300">Email Address</p>
-						<p>{person.email}</p>
-					</div>
+				<div>
+					<p className="text-sm font-medium text-gray-600 dark:text-gray-300">Email Address</p>
+					<p>{primaryEmail}</p>
+				</div>
 				</div>
 
 				<div className="flex items-start space-x-3 rounded-lg p-3">

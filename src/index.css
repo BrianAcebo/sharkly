@@ -312,7 +312,8 @@
 	--spacing-footer-height: var(--footer-height);
 
 	/* Height */
-	--spacing-screen-visible: calc(100vh - (var(--header-height) + var(--footer-height)));
+	--spacing-screen-height-visible: calc(100vh - (var(--header-height) + var(--footer-height)));
+	--spacing-main-viewport-height: calc((100vh - (var(--header-height) + var(--footer-height))) - 48px); /* minus padding */
 }
 
 @layer base {
@@ -329,16 +330,6 @@
 	button:not(:disabled),
 	[role='button']:not(:disabled) {
 		cursor: pointer;
-	}
-}
-
-@layer utilities {
-	.h-screen-visible {
-		height: var(--spacing-screen-visible);
-	}
-	
-	.min-h-screen-visible {
-		min-height: var(--spacing-screen-visible);
 	}
 }
 

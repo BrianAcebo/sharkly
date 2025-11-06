@@ -19,6 +19,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'sonner';
+import { buildPersonName, formatPersonName } from '../../utils/person';
 
 const schema = z.object({
     title: z.string().min(3, 'Title is required'),
@@ -56,9 +57,16 @@ export default function EditCaseDialog({
   const [subjectOptions, setSubjectOptions] = React.useState<Array<PersonRecord | BusinessRecord>>([]);
   const [selectedSubjectId, setSelectedSubjectId] = React.useState<string | null>(null);
   const [newSubjectMode, setNewSubjectMode] = React.useState(false);
-  const [subjectType, setSubjectType] = React.useState<'person' | 'business'>(caseData.subject_type ?? 'person');
-  const [newPerson, setNewPerson] = React.useState<{ name: string; email: string }>({ name: '', email: '' });
+  const [subjectType, setSubjectType] = React.useState<'person' | 'company'>(caseData.subject_type ?? 'person');
+  const [newPerson, setNewPerson] = React.useState<{ first: string; last: string; email: string }>({ first: '', last: '', email: '' });
   const [newBusiness, setNewBusiness] = React.useState<{ name: string; ein?: string }>({ name: '', ein: '' });
+
+  const isBusinessRecord = (subject: PersonRecord | BusinessRecord): subject is BusinessRecord =>
+    'ein_tax_id' in subject;
+
+  const subjectDisplayName = (subject: PersonRecord | BusinessRecord): string => {
+    return isBusinessRecord(subject) ? subject.name : formatPersonName(subject.name);
+  };
 
     const resolver = zodResolver(schema) as unknown as Resolver<FormValues>;
     const form = useForm<FormValues>({
@@ -99,7 +107,12 @@ export default function EditCaseDialog({
             setTagOptions(tags);
             setSubjectOptions(subs.results);
             setSelectedSubjectId(caseData.subject_id || caseData.subject?.id || null);
-            setSubjectQuery(caseData.subject?.name || '');
+            if (caseData.subject?.id) {
+                const match = subs.results.find((s) => s.id === caseData.subject?.id);
+                setSubjectQuery(match ? subjectDisplayName(match) : caseData.subject?.name || '');
+            } else {
+                setSubjectQuery(caseData.subject?.name || '');
+            }
         }
         if (open) loadOptions();
     }, [open, user?.organization_id, caseData.subject_id, caseData.subject?.id, caseData.subject?.name, subjectType]);
@@ -115,15 +128,31 @@ export default function EditCaseDialog({
             }
             let subject_id: string | null | undefined = selectedSubjectId ?? caseData.subject_id ?? caseData.subject?.id ?? null;
             if (!subject_id && newSubjectMode) {
-                if (subjectType === 'person' && newPerson.name.trim()) {
+                if (subjectType === 'person' && (newPerson.first.trim() || newPerson.last.trim())) {
                     const created = await createPerson({
                         organization_id: user!.organization_id,
-                        name: newPerson.name.trim(),
-                        email: newPerson.email.trim() || null
+                        name: buildPersonName({
+                            first: newPerson.first,
+                            last: newPerson.last
+                        }),
+                        emails:
+                            newPerson.email.trim().length > 0
+                                ? [
+                                      {
+                                          email: {
+                                              address: newPerson.email.trim(),
+                                              domain: null,
+                                              first_seen: null
+                                          },
+                                        leaks: [],
+                                          profiles: []
+                                      }
+                                  ]
+                                : []
                     });
                     subject_id = created.id;
                 }
-                if (subjectType === 'business' && newBusiness.name.trim()) {
+                if (subjectType === 'company' && newBusiness.name.trim()) {
                     const created = await createBusiness({
                         organization_id: user!.organization_id,
                         name: newBusiness.name.trim(),
@@ -389,11 +418,11 @@ export default function EditCaseDialog({
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                         <div>
                             <label className="text-sm font-medium">Subject type</label>
-                            <Select value={subjectType} onValueChange={(v) => { setSubjectType(v as 'person' | 'business'); setSelectedSubjectId(null); }}>
+                            <Select value={subjectType} onValueChange={(v) => { setSubjectType(v as 'person' | 'company'); setSelectedSubjectId(null); }}>
                                 <SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="person">Person</SelectItem>
-                                    <SelectItem value="business">Business</SelectItem>
+                                    <SelectItem value="company">Company</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -410,18 +439,21 @@ export default function EditCaseDialog({
                                         <CommandEmpty>No results</CommandEmpty>
                                         <CommandGroup>
                                             {subjectOptions
-                                                .filter((s) => (subjectQuery ? s.name.toLowerCase().includes(subjectQuery.toLowerCase()) : true))
-                                                .map((s) => (
+                                                .filter((s) => (subjectQuery ? subjectDisplayName(s).toLowerCase().includes(subjectQuery.toLowerCase()) : true))
+                                                .map((s) => {
+                                                    const label = subjectDisplayName(s);
+                                                    return (
                                                     <CommandItem
                                                         key={s.id}
                                                         onSelect={() => {
                                                             setSelectedSubjectId(s.id);
-                                                            setSubjectQuery(s.name);
+                                                                setSubjectQuery(label);
                                                         }}
                                                     >
-                                                        {s.name}
-                                                    </CommandItem>
-                                                ))}
+                                                            {label}
+                                                        </CommandItem>
+                                                    );
+                                                })}
                                         </CommandGroup>
                                     </CommandList>
                                 </Command>
@@ -432,12 +464,16 @@ export default function EditCaseDialog({
                             {subjectType === 'person' ? (
                                 <>
                                     <div>
-                                        <label className="text-sm font-medium">Name</label>
-                                        <Input value={newPerson.name} onChange={(e) => setNewPerson((ns) => ({ ...ns, name: e.target.value }))} />
+                                            <label className="text-sm font-medium">First name</label>
+                                            <Input value={newPerson.first} onChange={(e) => setNewPerson((ns) => ({ ...ns, first: e.target.value }))} />
                                     </div>
                                     <div>
-                                        <label className="text-sm font-medium">Email</label>
-                                        <Input value={newPerson.email} onChange={(e) => setNewPerson((ns) => ({ ...ns, email: e.target.value }))} />
+                                            <label className="text-sm font-medium">Last name</label>
+                                            <Input value={newPerson.last} onChange={(e) => setNewPerson((ns) => ({ ...ns, last: e.target.value }))} />
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium">Email</label>
+                                            <Input value={newPerson.email} onChange={(e) => setNewPerson((ns) => ({ ...ns, email: e.target.value }))} />
                                     </div>
                                 </>
                             ) : (

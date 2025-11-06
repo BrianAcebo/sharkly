@@ -440,7 +440,7 @@ const NodeAsHandleFlow = () => {
 			</Button>
 			{/* Vertical Tab Selector */}
 			<div
-				className={`h-screen-visible top-header-height fixed left-0 z-999 flex w-full -translate-x-full transform flex-col gap-3 border bg-white p-4 transition-transform duration-300 ease-in-out md:static md:z-0 md:h-full md:w-48 md:translate-x-0 md:bg-transparent dark:border-gray-700 dark:bg-gray-800 md:dark:bg-transparent ${
+				className={`h-screen-height-visible top-header-height fixed left-0 z-999 flex w-full -translate-x-full transform flex-col gap-3 border bg-white p-4 transition-transform duration-300 ease-in-out md:static md:z-0 md:h-full md:w-48 md:translate-x-0 md:bg-transparent dark:border-gray-700 dark:bg-gray-800 md:dark:bg-transparent ${
 					openTabSelector ? 'translate-x-0' : ''
 				}`}
 			>
@@ -527,7 +527,7 @@ const NodeAsHandleFlow = () => {
 				</Menu>
 				{/* Slide-out Drawer */}
 				<div
-					className={`h-screen-visible top-header-height fixed right-0 z-999 w-80 transform bg-white shadow-lg transition-transform duration-300 ease-in-out dark:border-gray-700 dark:bg-gray-800 ${
+					className={`h-screen-height-visible top-header-height fixed right-0 z-999 w-80 transform bg-white shadow-lg transition-transform duration-300 ease-in-out dark:border-gray-700 dark:bg-gray-800 ${
 						isDrawerOpen ? 'translate-x-0' : 'translate-x-full'
 					}`}
 				>

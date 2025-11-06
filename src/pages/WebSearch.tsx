@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
 	AlertTriangle,
 	Clock,
@@ -39,10 +40,11 @@ import {
 	DialogHeader,
 	DialogTitle
 } from '../components/ui/dialog';
-import { listPeople, appendPersonWebMentions } from '../api/people';
-import { listBusinesses, appendBusinessWebMentions } from '../api/businesses';
+import { listPeople, appendPersonWebMentions, getPersonById } from '../api/people';
+import { listBusinesses, appendBusinessWebMentions, getBusinessById } from '../api/businesses';
 import { toast } from 'sonner';
 import { supabase } from '../utils/supabaseClient';
+import { formatPersonName } from '../utils/person';
 
 interface SearchResultItem {
 	title: string | null;
@@ -79,9 +81,20 @@ interface SearchMetadata {
 
 const formatNumber = (value: number) => new Intl.NumberFormat().format(value);
 
-const Search = () => {
+type WebSearchLocationState = {
+	prefillQuery?: string;
+	autoSearch?: boolean;
+	safe?: boolean;
+	origin?: {
+		type: 'person' | 'company' | 'email';
+		id: string;
+	};
+};
+
+export const WebSearch = () => {
 	const { session, user } = useAuth();
 	const { setTitle } = useBreadcrumbs();
+	const location = useLocation();
 
 	const [query, setQuery] = useState('');
 	const [submittedQuery, setSubmittedQuery] = useState('');
@@ -101,10 +114,12 @@ const Search = () => {
 	const [excludeTerms, setExcludeTerms] = useState('');
 	const [orTerms, setOrTerms] = useState('');
 	const [andTerms, setAndTerms] = useState('');
-	const cacheRef = useRef<Map<string, SearchApiResponse>>(new Map());
+const cacheRef = useRef<Map<string, SearchApiResponse>>(new Map());
+const prefillHandledRef = useRef(false);
+const originHandledRef = useRef(false);
 	const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
 	const [attachOpen, setAttachOpen] = useState(false);
-	const [attachType, setAttachType] = useState<'person' | 'business' | 'email'>('person');
+	const [attachType, setAttachType] = useState<'person' | 'company' | 'email'>('person');
 	const [entitySearch, setEntitySearch] = useState('');
 	const [entityOptions, setEntityOptions] = useState<
 		Array<{ id: string; name: string; avatar?: string | null }>
@@ -195,7 +210,7 @@ const Search = () => {
 			}
 
 			try {
-				const response = await api.get(`/api/search?${params.toString()}`, {
+				const response = await api.get(`/api/web-search?${params.toString()}`, {
 					headers: {
 						Authorization: `Bearer ${token}`
 					}
@@ -228,8 +243,84 @@ const Search = () => {
 				setIsLoading(false);
 			}
 		},
-		[applySearchData, getCacheKey, safeSearch, session?.access_token]
+		[applySearchData, exactTerms, excludeTerms, fileType, getCacheKey, languageRestriction, orTerms, safeSearch, session?.access_token, siteSearch, timeRange]
 	);
+
+	useEffect(() => {
+		if (prefillHandledRef.current) return;
+		const state = (location.state as WebSearchLocationState | null) ?? null;
+		const params = new URLSearchParams(location.search ?? '');
+		const statePrefill = state?.prefillQuery;
+		const queryParamPrefill = params.get('prefill') ?? params.get('q');
+		const prefillQuery = statePrefill ?? queryParamPrefill ?? '';
+		if (!prefillQuery) return;
+		prefillHandledRef.current = true;
+		setQuery(prefillQuery);
+		let safeOverride: boolean | undefined;
+		if (state?.safe !== undefined) {
+			safeOverride = state.safe;
+		}
+		const safeParam = params.get('safe');
+		if (safeParam !== null) {
+			if (safeParam === '0' || safeParam.toLowerCase() === 'false') safeOverride = false;
+			if (safeParam === '1' || safeParam.toLowerCase() === 'true') safeOverride = true;
+		}
+		if (safeOverride !== undefined) {
+			setSafeSearch(safeOverride);
+		}
+		const urlAutoFlag = params.get('auto');
+		const shouldAutoSearch = state?.autoSearch ?? (urlAutoFlag === '1' || urlAutoFlag === 'true');
+		if (shouldAutoSearch) {
+			const effectiveSafe = safeOverride ?? safeSearch;
+			void fetchResults(prefillQuery, 1, effectiveSafe);
+		}
+	}, [fetchResults, location.search, location.state, safeSearch]);
+
+	useEffect(() => {
+		if (originHandledRef.current) return;
+		const state = (location.state as WebSearchLocationState | null) ?? null;
+		const params = new URLSearchParams(location.search ?? '');
+		const originTypeParam = state?.origin?.type ?? (params.get('originType') as 'person' | 'company' | 'email' | null);
+		const originIdParam = state?.origin?.id ?? params.get('originId');
+		if (!originTypeParam || !originIdParam) return;
+		if (originTypeParam !== 'person' && originTypeParam !== 'company') {
+			originHandledRef.current = true;
+			return;
+		}
+		let isCancelled = false;
+		(async () => {
+			try {
+				if (originTypeParam === 'person') {
+					const person = await getPersonById(originIdParam);
+					if (isCancelled || !person) return;
+					const display = formatPersonName(person.name);
+					setAttachType('person');
+					setEntityOptions([{ id: person.id, name: display, avatar: person.avatar ?? null }]);
+					setSelectedEntityId(person.id);
+					setSelectedEntityName(display);
+					setEntitySearch(display);
+				} else if (originTypeParam === 'company') {
+					const business = await getBusinessById(originIdParam);
+					if (isCancelled || !business) return;
+					const display = business.name;
+					setAttachType('company');
+					setEntityOptions([{ id: business.id, name: display, avatar: business.avatar ?? null }]);
+					setSelectedEntityId(business.id);
+					setSelectedEntityName(display);
+					setEntitySearch(display);
+				}
+			} catch (error) {
+				console.error('Failed to preload origin entity for web search attachment', error);
+			} finally {
+				if (!isCancelled) {
+					originHandledRef.current = true;
+				}
+			}
+		})();
+		return () => {
+			isCancelled = true;
+		};
+	}, [location.search, location.state]);
 
 	const handleSubmit = useCallback(
 		async (event: FormEvent<HTMLFormElement>) => {
@@ -370,12 +461,12 @@ const Search = () => {
 	return (
 		<>
 			<PageMeta
-				title="Search"
-				description="Search public web sources with Google Programmable Search directly from True Sight."
+				title="Web Search"
+				description="Search public web sources"
 				noIndex
 			/>
 
-			<div className="space-y-6 min-h-screen-visible">
+			<div className="space-y-6 min-h-screen-height-visible">
 				<div className="space-y-1">
 					<h1 className="text-3xl font-semibold text-gray-900 dark:text-white">
 						Investigative Search
@@ -1183,7 +1274,7 @@ const Search = () => {
 									<Select
 										value={attachType}
 										onValueChange={(v) => {
-											setAttachType(v as 'person' | 'business' | 'email');
+											setAttachType(v as 'person' | 'company' | 'email');
 											setEntitySearch('');
 											setEntityOptions([]);
 											setSelectedEntityId(null);
@@ -1194,7 +1285,7 @@ const Search = () => {
 										</SelectTrigger>
 										<SelectContent>
 											<SelectItem value="person">Person</SelectItem>
-											<SelectItem value="business">Business</SelectItem>
+											<SelectItem value="company">Company</SelectItem>
 											<SelectItem value="email">Email (coming soon)</SelectItem>
 										</SelectContent>
 									</Select>
@@ -1219,14 +1310,14 @@ const Search = () => {
 															1,
 															10
 														);
-														setEntityOptions(
-															results.map((r) => ({
-																id: r.id,
-																name: r.name,
-																avatar: r.avatar ?? null
-															}))
-														);
-													} else if (attachType === 'business') {
+										setEntityOptions(
+											results.map((r) => ({
+												id: r.id,
+												name: formatPersonName(r.name),
+												avatar: r.avatar ?? null
+											}))
+										);
+													} else if (attachType === 'company') {
 														const { results } = await listBusinesses(
 															user?.organization_id ?? '',
 															v,
@@ -1320,20 +1411,20 @@ const Search = () => {
                                                 }));
                                                 await supabase.from('case_audit_log').insert(entries);
                                             }
-                                        } else if (attachType === 'business') {
+                                        } else if (attachType === 'company') {
                                             await appendBusinessWebMentions(selectedEntityId, mentions);
                                             const { data: relatedCases } = await supabase
                                                 .from('cases')
                                                 .select('id,organization_id')
                                                 .eq('subject_id', selectedEntityId)
-                                                .eq('subject_type', 'business');
+                                                .eq('subject_type', 'company');
                                             if (Array.isArray(relatedCases) && relatedCases.length > 0) {
                                                 const entries = relatedCases.map((c) => ({
                                                     case_id: c.id,
                                                     organization_id: c.organization_id,
                                                     actor_id: user?.id ?? null,
                                                     action: 'web_mentions_attached',
-                                                    entity: 'business',
+                                                    entity: 'company',
                                                     entity_id: selectedEntityId,
                                                     details: {
                                                         count: mentions.length,
@@ -1364,4 +1455,4 @@ const Search = () => {
 	);
 };
 
-export default Search;
+export default WebSearch;
