@@ -8,9 +8,12 @@ interface FloatingEdgeProps {
 	target: string;
 	markerEnd?: string;
 	style?: React.CSSProperties;
+	data?: {
+		tooltip?: string;
+	};
 }
 
-function FloatingEdge({ id, source, target, markerEnd, style }: FloatingEdgeProps) {
+function FloatingEdge({ id, source, target, markerEnd, style, data }: FloatingEdgeProps) {
 	const sourceNode = useInternalNode(source);
 	const targetNode = useInternalNode(target);
 
@@ -48,13 +51,9 @@ function FloatingEdge({ id, source, target, markerEnd, style }: FloatingEdgeProp
 	});
 
 	return (
-		<path
-			id={id}
-			className="react-flow__edge-path"
-			d={edgePath}
-			markerEnd={markerEnd}
-			style={style}
-		/>
+		<path id={id} className="react-flow__edge-path" d={edgePath} markerEnd={markerEnd} style={style}>
+			{data?.tooltip ? <title>{data.tooltip}</title> : null}
+		</path>
 	);
 }
 

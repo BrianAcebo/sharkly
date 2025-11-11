@@ -10,6 +10,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar'
 import { formatDistanceToNow } from 'date-fns';
 import useDebounce from '../../hooks/useDebounce';
 import { useNavigate } from 'react-router-dom';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Plus } from 'lucide-react';
+import { createBusiness } from '../../api/businesses';
+import { toast } from 'sonner';
 
 export default function BusinessesPage() {
 	const { user } = useAuth();
@@ -21,6 +25,9 @@ export default function BusinessesPage() {
 	const [results, setResults] = useState<BusinessRecord[]>([]);
 	const [loading, setLoading] = useState(false);
   const debouncedSearch = useDebounce(search, 400);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [ein, setEin] = useState('');
 
 	useEffect(() => {
 		let active = true;
@@ -50,15 +57,20 @@ export default function BusinessesPage() {
 			<div className="mx-auto max-w-7xl space-y-6 min-h-screen-height-visible">
 				<div className="flex items-center justify-between">
 					<h1 className="text-2xl font-semibold">Businesses</h1>
-					<div className="w-full max-w-sm">
-						<Input
-							placeholder="Search businesses..."
-							value={search}
-							onChange={(e) => {
-								setPage(1);
-								setSearch(e.target.value);
-							}}
-						/>
+					<div className="flex items-center gap-2">
+						<div className="w-full max-w-sm">
+							<Input
+								placeholder="Search businesses..."
+								value={search}
+								onChange={(e) => {
+									setPage(1);
+									setSearch(e.target.value);
+								}}
+							/>
+						</div>
+						<Button size="sm" variant="outline" onClick={() => setCreateOpen(true)} title="Create business">
+							<Plus className="h-4 w-4" />
+						</Button>
 					</div>
 				</div>
 
@@ -108,6 +120,45 @@ export default function BusinessesPage() {
 					</div>
 				)}
 			</div>
+			<Dialog open={createOpen} onOpenChange={setCreateOpen}>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>Create business</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-3">
+						<Input placeholder="Business name" value={name} onChange={(e) => setName(e.target.value)} />
+						<Input placeholder="EIN / Tax ID (optional)" value={ein} onChange={(e) => setEin(e.target.value)} />
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+							<Button
+								onClick={async () => {
+									try {
+										const auth = (await import('../../contexts/AuthContext'));
+										const orgId = auth?.useAuth?.().user?.organization_id as string | undefined;
+										if (!orgId) return;
+										if (!name.trim()) {
+											t
+											oast.error('Business name is required.');
+											return;
+										}
+										const created = await createBusiness({ organization_id: orgId, name: name.trim(), ein_tax_id: ein.trim() || null });
+										toast.success('Business created.');
+										setCreateOpen(false);
+										setName('');
+										setEin('');
+										navigate(`/businesses/${created.id}`);
+									} catch (e) {
+										console.error('Failed to create business', e);
+										toast.error('Failed to create business.');
+									}
+								}}
+							>
+								Create
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

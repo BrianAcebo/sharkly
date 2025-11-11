@@ -1,12 +1,12 @@
 import type { PersonRecord } from './person';
 import type { BusinessRecord } from './business';
-import type { AddressRecord } from './address';
 import type { EmailRecord } from './email';
 import type { PhoneRecord } from './phone';
 import type { UsernameRecord, SocialProfileRecord } from './social';
 import type { ImageRecord } from './image';
 import type { IPRecord } from './ip';
 import type { DomainRecord } from './domain';
+import type { PropertyRecord } from './property';
 import type { LeakRecord } from './leak';
 import type { DocumentRecord } from './document';
 import type { Case as CaseRecord } from './case';
@@ -22,7 +22,7 @@ export interface Provenance {
 }
 
 // Entity node types supported by the graph
-export type NodeType =
+export type EntityType =
 	| 'person'
 	| 'email'
 	| 'phone'
@@ -34,12 +34,12 @@ export type NodeType =
 	| 'leak'
 	| 'document'
 	| 'business'
-	| 'address'
+	| 'property'
 	| 'case';
 
 export interface BaseNode {
 	id: string;
-	type: NodeType;
+	type: EntityType;
 	label?: string;
 	first_seen?: string | null; // ISO
 	last_seen?: string | null; // ISO
@@ -52,10 +52,10 @@ export type EntityRef<T extends BaseNode = BaseNode> = {
 	type: T['type'];
 };
 
-// Address
-export interface AddressNode extends BaseNode, AddressRecord {
-    type: 'address';
-    record?: AddressRecord | null;
+// Property
+export interface PropertyNode extends BaseNode {
+    type: 'property';
+    record?: PropertyRecord | null;
 }
 
 // Person
@@ -146,7 +146,7 @@ export type EntityNode =
 	| LeakNode
 	| DocumentNode
 	| BusinessNode
-	| AddressNode
+	| PropertyNode
 	| CaseNode;
 
 // Transform edge with provenance

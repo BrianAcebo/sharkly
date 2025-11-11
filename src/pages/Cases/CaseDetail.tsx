@@ -143,7 +143,7 @@ export default function CaseDetail() {
                                 )}
                                 {caseReport?.subject && caseReport.subject_type !== 'company' && (
                                     <CaseWebMentions
-                                        personId={(caseReport.subject as unknown as PersonRecord).id}
+                                        entity={{ id: (caseReport.subject as unknown as PersonRecord).id, type: 'person' }}
                                         allowManage
                                     />
                                 )}

@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '../../utils/common';
+import { Dialog, DialogContent } from '../ui/dialog';
 
 interface UserAvatarProps {
 	user: {
@@ -24,16 +25,32 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 	const sizeClass = sizeClasses[size];
 
 	if (user.avatar) {
+		const [open, setOpen] = useState(false);
 		return (
-			<img
-				src={user.avatar}
-				alt={user.name}
-				className={cn(
-					'rounded-full object-cover',
-					sizeClass,
-					className
-				)}
-			/>
+			<>
+				<img
+					src={user.avatar}
+					alt={user.name}
+					onClick={() => setOpen(true)}
+					role="button"
+					className={cn(
+						'rounded-full object-cover cursor-zoom-in',
+						sizeClass,
+						className
+					)}
+				/>
+				<Dialog open={open} onOpenChange={setOpen}>
+					<DialogContent className="max-w-3xl">
+						<div className="flex items-center justify-center">
+							<img
+								src={user.avatar}
+								alt={user.name}
+								className="max-h-[75vh] w-auto rounded"
+							/>
+						</div>
+					</DialogContent>
+				</Dialog>
+			</>
 		);
 	}
 

@@ -11,6 +11,8 @@ import subscriptionStatusRoutes from './routes/subscriptionStatus.js';
 import webSearchRoutes from './routes/webSearch.js';
 import paymentStatusRoutes from './routes/paymentStatus.js';
 import emailRoutes from './routes/email.js';
+import imagesRoutes from './routes/images.js';
+import documentsRoutes from './routes/documents.js';
 import trialStatusRoutes from './routes/trialStatus.js';
 
 dotenv.config();
@@ -44,6 +46,8 @@ app.use('/api', paymentStatusRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/trial', trialStatusRoutes);
 app.use('/api/web-search', webSearchRoutes);
+app.use('/api/images', imagesRoutes);
+app.use('/api/documents', documentsRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

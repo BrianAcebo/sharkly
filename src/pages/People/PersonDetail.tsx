@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import PageMeta from '../../components/common/PageMeta';
 import { AuthLoadingState } from '../../contexts/AuthContext';
 import { AuthLoading } from '../../components/AuthLoading';
-import { updatePerson, getPersonById, discoverEmailsForPerson } from '../../api/people';
+import { updatePerson, getPersonById, deletePerson } from '../../api/people';
+// import type { EmailRecord } from '../../types/email';
 import type { PersonRecord } from '../../types/person';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Separator } from '../../components/ui/separator';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { UserAvatar } from '../../components/common/UserAvatar';
 import {
@@ -18,22 +18,29 @@ import {
 	DialogTitle
 } from '../../components/ui/dialog';
 import { supabase } from '../../utils/supabaseClient';
-import { Trash, Plus, Pencil, Zap, Coins, MapPin, Phone, Users, FileText, Building2, Mail, Search } from 'lucide-react';
+import { Pencil, Zap, Coins, MapPin, Link2Off, ArrowRight, MoreHorizontal } from 'lucide-react';
+import { getActionCost, ActionKey, isActionEnabled } from '../../constants/costs';
 import CaseWebMentions from '../../components/cases/CaseWebMentions';
+import LinkedProfilesCard from '../../components/common/LinkedProfilesCard';
+import LinkedImagesCard from '../../components/common/LinkedImagesCard';
+import { detachImageFromPerson } from '../../api/images';
+import LinkedDocumentsCard from '../../components/common/LinkedDocumentsCard';
+import EntityGraphCard from '../../components/common/EntityGraphCard';
+import { detachDocumentFromPerson } from '../../api/documents';
+import { removeProfileFromPerson } from '../../api/social_profiles';
 import { buildPersonName, formatPersonName, normalizePersonName } from '../../utils/person';
-import type { EmailRecord } from '../../types/email';
-import type { SocialProfileRecord } from '../../types/social';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
-import { toast } from 'sonner';
-import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList
-} from '../../components/ui/command';
+	listProperties,
+	attachPropertyToPerson,
+	removePropertyFromPerson,
+	createProperty
+} from '../../api/properties';
+// import { searchEmails } from '../../api/emails';
+import { removeEmailFromPerson, listPersonEmails } from '../../api/people';
+import LinkedEmailsCard from '../../components/common/LinkedEmailsCard';
+import type { PropertyRecord } from '../../types/property';
+import { toast } from 'sonner';
+
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -42,89 +49,233 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger
 } from '../../components/ui/dropdown-menu';
-
-const SOCIAL_PRESETS = [
-	{ label: 'LinkedIn', platform: 'linkedin', urlPrefix: 'https://www.linkedin.com/in/' },
-	{ label: 'Twitter / X', platform: 'twitter', urlPrefix: 'https://twitter.com/' },
-	{ label: 'Instagram', platform: 'instagram', urlPrefix: 'https://www.instagram.com/' },
-	{ label: 'Facebook', platform: 'facebook', urlPrefix: 'https://www.facebook.com/' },
-	{ label: 'GitHub', platform: 'github', urlPrefix: 'https://github.com/' },
-	{ label: 'Custom', platform: 'custom', urlPrefix: '' }
-] as const;
-
-const DEVICE_PRESETS = [
-	{ label: 'Custom', type: '', os: '' },
-	{ label: 'iPhone', type: 'phone', os: 'iOS' },
-	{ label: 'Android Phone', type: 'phone', os: 'Android' },
-	{ label: 'Mac', type: 'computer', os: 'macOS' },
-	{ label: 'Windows PC', type: 'computer', os: 'Windows' },
-	{ label: 'Linux PC', type: 'computer', os: 'Linux' },
-	{ label: 'iPad', type: 'tablet', os: 'iPadOS' }
-] as const;
-
-const createBlankEmailDraft = (): EmailRecord => ({
-	email: {
-		address: '',
-		domain: null,
-		first_seen: null
-	},
-	leaks: [],
-	profiles: []
-});
+import ComponentCard from '../../components/common/ComponentCard';
+import { Tooltip } from '../../components/ui/tooltip';
+import { handleSearchWebMentions } from '../../utils/webSearch';
+import LinkedPhonesCard from '../../components/common/LinkedPhonesCard';
+import { removePhoneFromPerson } from '../../api/phones';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader as AlertHeader,
+	AlertDialogTitle
+} from '../../components/ui/alert-dialog';
 
 export default function PersonDetail() {
 	const params = useParams();
 	const id = params.id as string;
 	const [row, setRow] = useState<PersonRecord | null>(null);
-	const [editMode, setEditMode] = useState(false);
-	const [saving, setSaving] = useState(false);
+
 	const [avatarOpen, setAvatarOpen] = useState(false);
 	const [avatarFile, setAvatarFile] = useState<File | null>(null);
 	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const { setTitle, setReturnTo } = useBreadcrumbs();
-	const [emailDrafts, setEmailDrafts] = useState<EmailRecord[]>([createBlankEmailDraft()]);
-	const [emailDiscoverLoading, setEmailDiscoverLoading] = useState(false);
-	const [discoverResults, setDiscoverResults] = useState<EmailRecord[]>([]);
+	// email draft helpers removed; email linking is managed via the dialog
 
-	const resetEmailDrafts = useCallback((source: PersonRecord | null) => {
-		if (!source || !Array.isArray(source.emails) || source.emails.length === 0) {
-			setEmailDrafts([createBlankEmailDraft()]);
-			return;
-		}
+	// Properties manage
+	const [managePropsOpen, setManagePropsOpen] = useState(false);
+	const [propQuery, setPropQuery] = useState('');
+	const [propResults, setPropResults] = useState<PropertyRecord[]>([]);
+	const [propLoading, setPropLoading] = useState(false);
+	const [linkedProps, setLinkedProps] = useState<
+		Array<{ id: string; address_full: string | null }>
+	>([]);
+	const [newPropAddress, setNewPropAddress] = useState('');
+	const [creatingProp, setCreatingProp] = useState(false);
 
-		setEmailDrafts(
-			source.emails.map((email) => ({
-				id: email.id,
-				organization_id: email.organization_id,
-				email: {
-					address: email.email.address,
-					domain: email.email.domain ?? null,
-					first_seen: email.email.first_seen ?? null
-				},
-				leaks: email.leaks ?? [],
-				profiles: email.profiles ?? []
-			}))
-		);
-	}, []);
+	// Emails state (list handled via LinkedEmailsCard manage)
+	const [linkedEmails, setLinkedEmails] = useState<Array<{ id: string; address: string }>>([]);
+
+	// Social profiles linked list
+	const [linkedProfiles, setLinkedProfiles] = useState<Array<{ id: string; platform: string; handle: string; url: string | null }>>([]);
+	// Phones linked list
+	const [linkedPhones, setLinkedPhones] = useState<Array<{ id: string; number_e164: string }>>([]);
+	// Images linked list
+	const [linkedImages, setLinkedImages] = useState<Array<{ id: string; url: string }>>([]);
+
+	// Section edit dialogs
+	const [editDetailsOpen, setEditDetailsOpen] = useState(false);
+	const [editAliasesOpen, setEditAliasesOpen] = useState(false);
+	const [editTagsOpen, setEditTagsOpen] = useState(false);
+	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+	const [linkedDocuments, setLinkedDocuments] = useState<Array<{ id: string; title: string }>>([]);
+
+	// email draft helpers removed; email linking is managed via the dialog
 
 	useEffect(() => {
 		setReturnTo({ path: '/people', label: 'People' });
 	}, [setReturnTo]);
 
+	// Load documents referencing this person
+	useEffect(() => {
+		let cancelled = false;
+		async function run() {
+			try {
+				const { data: edges } = await supabase
+					.from('entity_edges')
+					.select('source_id')
+					.eq('target_type', 'person')
+					.eq('target_id', id)
+					.eq('source_type', 'document');
+				const ids = (edges ?? []).map((e: { source_id: string }) => e.source_id);
+				if (ids.length === 0) {
+					if (!cancelled) setLinkedDocuments([]);
+					return;
+				}
+				const { data: rows } = await supabase.from('documents').select('id, doc, metadata').in('id', ids);
+				if (!cancelled) {
+					setLinkedDocuments(
+						(rows ?? []).map((r: { id: string; doc?: { type?: string }; metadata?: { author?: string | null } }) => {
+							const t = r?.doc?.type ?? 'document';
+							const a = r?.metadata?.author ?? '';
+							return { id: r.id, title: a ? `${t}: ${a}` : t };
+						})
+					);
+				}
+			} catch (e) {
+				console.error('Failed loading person documents', e);
+				if (!cancelled) setLinkedDocuments([]);
+			}
+		}
+		void run();
+		return () => {
+			cancelled = true;
+		};
+	}, [id]);
 	useEffect(() => {
 		let active = true;
 		(async () => {
 			const data = await getPersonById(id);
 			if (!active) return;
 			setRow(data);
-			resetEmailDrafts(data);
-			setTitle(formatPersonName(data.name));
+			// Initialize linked emails list
+			const emailsInit = (data.emails || []).map((e) => ({
+				id: (e as { id: string }).id,
+				address: (e as { email: { address: string } }).email.address
+			})) as Array<{ id: string; address: string }>;
+			setLinkedEmails(emailsInit);
+			// Load linked properties
+			try {
+				const { data: edges } = await supabase
+					.from('entity_edges')
+					.select('target_id')
+					.eq('source_type', 'person')
+					.eq('source_id', id)
+					.eq('target_type', 'property');
+				const propIds =
+					(edges as Array<{ target_id: string }> | null | undefined)?.map((e) => e.target_id) ?? [];
+				if (propIds.length) {
+					const { data: props } = await supabase
+						.from('properties')
+						.select('id,address_full')
+						.in('id', propIds);
+					const typedProps =
+						(props as Array<{ id: string; address_full: string | null }> | null | undefined) ?? [];
+					setLinkedProps(typedProps.map((p) => ({ id: p.id, address_full: p.address_full })));
+				} else {
+					setLinkedProps([]);
+				}
+			} catch (err) {
+				console.error('Failed to load linked properties', err);
+			}
+			// Load linked social profiles
+			try {
+				const { data: edges, error: edgeErr } = await supabase
+					.from('entity_edges')
+					.select('id, target_id, transform_type, confidence_score, source_api, source_url, retrieved_at')
+					.eq('source_type', 'person')
+					.eq('source_id', id)
+					.eq('target_type', 'social_profile');
+				if (edgeErr) throw edgeErr;
+
+				const profileIds = (edges ?? []).map((e) => e.target_id);
+				if (profileIds.length) {
+					const { data: profiles, error: profileErr } = await supabase
+						.from('social_profiles')
+						.select('id, platform, handle, profile_url')
+						.in('id', profileIds);
+					if (profileErr) throw profileErr;
+
+					const mappedProfiles: Array<{ id: string; platform: string; handle: string; url: string | null }> = (profiles ?? []).map((p) => {
+						return {
+							id: p.id as string,
+							platform: p.platform as string,
+							handle: p.handle as string,
+							url: (p.profile_url as string | null) ?? null
+						};
+					});
+					setLinkedProfiles(mappedProfiles);
+				} else {
+					setLinkedProfiles([]);
+				}
+			} catch (err) {
+				console.error('Failed to load linked social profiles', err);
+			}
+			// Load linked phones
+			try {
+				const { data: phoneEdgeRows, error: phoneEdgeErr } = await supabase
+					.from('entity_edges')
+					.select('target_id')
+					.eq('source_type', 'person')
+					.eq('source_id', id)
+					.eq('target_type', 'phone');
+				if (phoneEdgeErr) throw phoneEdgeErr;
+				const phoneIds = (phoneEdgeRows ?? []).map((e) => (e as { target_id: string }).target_id);
+				if (phoneIds.length > 0) {
+					const { data: phoneRows, error: phoneErr } = await supabase
+						.from('phones')
+						.select('id, number_e164')
+						.in('id', phoneIds);
+					if (phoneErr) throw phoneErr;
+					const mapped = (phoneRows ?? []).map((p) => ({
+						id: (p as { id: string }).id,
+						number_e164: (p as { number_e164: string }).number_e164
+					}));
+					setLinkedPhones(mapped);
+				} else {
+					setLinkedPhones([]);
+				}
+			} catch (err) {
+				console.error('Failed to load linked phones', err);
+				setLinkedPhones([]);
+			}
+			// Load linked images (image -> person)
+			try {
+				const { data: imgEdges, error: imgEdgeErr } = await supabase
+					.from('entity_edges')
+					.select('source_id')
+					.eq('target_type', 'person')
+					.eq('target_id', id)
+					.eq('source_type', 'image');
+				if (imgEdgeErr) throw imgEdgeErr;
+				const imageIds = (imgEdges ?? []).map((e) => (e as { source_id: string }).source_id);
+				if (imageIds.length > 0) {
+					const { data: imgRows, error: imgErr } = await supabase.from('images').select('id, url').in('id', imageIds);
+					if (imgErr) throw imgErr;
+					setLinkedImages(
+						(imgRows ?? []).map((r) => ({
+							id: (r as { id: string }).id,
+							url: (r as { url: string }).url
+						}))
+					);
+				} else {
+					setLinkedImages([]);
+				}
+			} catch (err) {
+				console.error('Failed to load linked images', err);
+				setLinkedImages([]);
+			}
 		})();
 		return () => {
 			active = false;
 		};
-	}, [id, resetEmailDrafts, setTitle]);
+	}, [id, setTitle]);
 
 	if (!row) return <AuthLoading state={AuthLoadingState.LOADING} />;
 
@@ -161,7 +312,7 @@ export default function PersonDetail() {
 
 	const save = async () => {
 		if (!row) return;
-		setSaving(true);
+
 		try {
 			const namePayload = buildPersonName({
 				first: nameParts.first,
@@ -171,30 +322,8 @@ export default function PersonDetail() {
 				suffix: nameParts.suffix ?? null
 			});
 
-			const emailsPayload = emailDrafts.reduce<EmailRecord[]>((acc, entry) => {
-				const address = entry.email.address.trim();
-				if (!address) return acc;
-				const existing = row.emails.find((email) => email.id === entry.id);
-				acc.push({
-					id: entry.id,
-					organization_id:
-						entry.organization_id ?? existing?.organization_id ?? row.organization_id,
-					email: {
-						address,
-						domain: entry.email.domain
-							? entry.email.domain.trim() || null
-							: (existing?.email.domain ?? null),
-						first_seen: entry.email.first_seen ?? existing?.email.first_seen ?? null
-					},
-					leaks: entry.leaks ?? existing?.leaks ?? [],
-					profiles: entry.profiles ?? existing?.profiles ?? []
-				});
-				return acc;
-			}, []);
-
 			const updated = await updatePerson(row.id, {
 				name: namePayload,
-				emails: emailsPayload,
 				avatar: row.avatar,
 				location: row.location || {},
 				devices: row.devices,
@@ -206,48 +335,12 @@ export default function PersonDetail() {
 				last_seen: row.last_seen ?? null
 			});
 			setRow(updated);
-			resetEmailDrafts(updated);
-			setEditMode(false);
 		} finally {
-			setSaving(false);
+			// no-op
 		}
 	};
 
-	const addEmailDraft = () => {
-		setEmailDrafts((prev) => [...prev, createBlankEmailDraft()]);
-	};
-
-	const updateEmailDraft = (index: number, field: 'address' | 'domain', value: string) => {
-		setEmailDrafts((prev) =>
-			prev.map((entry, idx) => {
-				if (idx !== index) return entry;
-
-				if (field === 'address') {
-					return {
-						...entry,
-						id: undefined,
-						organization_id: undefined,
-						email: {
-							...entry.email,
-							address: value
-						}
-					};
-				}
-
-				return {
-					...entry,
-					email: {
-						...entry.email,
-						domain: value.trim().length > 0 ? value : null
-					}
-				};
-			})
-		);
-	};
-
-	const removeEmailDraft = (index: number) => {
-		setEmailDrafts((prev) => prev.filter((_, idx) => idx !== index));
-	};
+	// email draft helpers removed; email linking is managed via the dialog
 
 	const onAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const f = e.target.files?.[0] || null;
@@ -290,233 +383,72 @@ export default function PersonDetail() {
 		}
 	};
 
-	const runEmailDiscovery = async () => {
-		if (!row?.name.first || !row?.name.last) {
-			toast.error('Person must have a first and last name to discover emails.');
-			return;
-		}
-		setEmailDiscoverLoading(true);
-		setDiscoverResults([]);
-		try {
-			const response = await discoverEmailsForPerson({
-				firstName: row.name.first,
-				lastName: row.name.last
-			});
-			const normalized = response.results
-				.map((item) => item.address.trim())
-				.filter((address, index, all) => address.length > 0 && all.indexOf(address) === index)
-				.map((address) => ({
-					email: {
-						address,
-						domain: address.includes('@') ? (address.split('@')[1] ?? null) : null,
-						first_seen: null
-					},
-					leaks: [],
-					profiles: []
-				}));
-			setDiscoverResults(normalized);
-			if (normalized.length === 0) {
-				toast.info('No emails found for this person.');
-			} else {
-				toast.success(`${normalized.length} emails discovered!`);
-			}
-		} catch (error) {
-			console.error(error);
-			toast.error(error instanceof Error ? error.message : 'Failed to discover emails.');
-		} finally {
-			setEmailDiscoverLoading(false);
-		}
-	};
-
-	const handleSearchWebMentions = () => {
-		if (!row) return;
-		const query = formatPersonName(row.name);
-		const params = new URLSearchParams({
-			prefill: query,
-			auto: '1',
-			originType: 'person',
-			originId: row.id
-		});
-		window.open(`/web-search?${params.toString()}`, '_blank', 'noopener,noreferrer');
-	};
-
 	return (
 		<div>
 			<PageMeta title={displayName} description="Person" noIndex />
-			<div className="mx-auto max-w-5xl space-y-6 p-4">
-				<div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-					<h1 className="text-2xl font-semibold">{displayName}</h1>
+			<div className="mx-auto max-w-7xl space-y-6 p-6">
+				<div className="flex items-center justify-between">
+					<div>
+						<h1 className="mb-2 text-2xl font-semibold">Person</h1>
+						<p className="text-muted-foreground text-sm">{displayName}</p>
+					</div>
 					<div className="flex items-center gap-2">
-						{!editMode ? (
-							<>
-								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
-										<Button size="sm" variant="outline" disabled={emailDiscoverLoading}>
-											{emailDiscoverLoading ? 'Running…' : <Zap className="size-4" />}
-										</Button>
-									</DropdownMenuTrigger>
-									<DropdownMenuContent align="end">
-										<DropdownMenuLabel>Perform Action</DropdownMenuLabel>
-										<div className="flex justify-between gap-2">
-											<div>
-												<DropdownMenuItem
-													className="cursor-pointer flex items-center justify-between gap-2 group"
-													onClick={handleSearchWebMentions}
-												>
-													Search web mentions <Search className="size-3 mr-2 text-gray-500 group-hover:visible invisible group-hover:translate-x-1 transition-all duration-200" />
-												</DropdownMenuItem>
-												<DropdownMenuItem
-													className="cursor-pointer flex items-center justify-between gap-2 group"
-													onClick={() => {
-														void runEmailDiscovery();
-													}}
-													disabled={emailDiscoverLoading}
-												>
-													Discover emails <Mail className="size-3 mr-2 text-gray-500 group-hover:visible invisible group-hover:translate-x-1 transition-all duration-200" />
-												</DropdownMenuItem>
-												<DropdownMenuItem className="cursor-pointer flex items-center justify-between gap-2 group">
-													Discover properties <MapPin className="size-3 mr-2 text-gray-500 group-hover:visible invisible group-hover:translate-x-1 transition-all duration-200" />
-												</DropdownMenuItem>
-												<DropdownMenuItem className="cursor-pointer flex items-center justify-between gap-2 group">
-													Discover phones <Phone className="size-3 mr-2 text-gray-500 group-hover:visible invisible group-hover:translate-x-1 transition-all duration-200" />
-												</DropdownMenuItem>
-												<DropdownMenuItem className="cursor-pointer flex items-center justify-between gap-2 group">
-													Discover social profiles <Users className="size-3 mr-2 text-gray-500 group-hover:visible invisible group-hover:translate-x-1 transition-all duration-200" />
-												</DropdownMenuItem>
-												<DropdownMenuItem className="cursor-pointer flex items-center justify-between gap-2 group">
-													Discover records <FileText className="size-3 mr-2 text-gray-500 group-hover:visible invisible group-hover:translate-x-1 transition-all duration-200" />
-												</DropdownMenuItem>
-												<DropdownMenuItem className="cursor-pointer flex items-center justify-between gap-2 group">
-													Discover business relations <Building2 className="size-3 mr-2 text-gray-500 group-hover:visible invisible group-hover:translate-x-1 transition-all duration-200" />
-												</DropdownMenuItem>
-											</div>
-											<div className="w-20">
-												<DropdownMenuItem>
-													<span className="border-l pl-3 text-sm text-gray-500">
-														2 <Coins className="ml-0.5 inline-block size-3" />
-													</span>
-												</DropdownMenuItem>
-												<DropdownMenuItem>
-													<span className="border-l pl-3 text-sm text-gray-500">
-														2 <Coins className="ml-0.5 inline-block size-3" />
-													</span>
-												</DropdownMenuItem>
-												<DropdownMenuItem>
-													<span className="border-l pl-3 text-sm text-gray-500">
-														2 <Coins className="ml-0.5 inline-block size-3" />
-													</span>
-												</DropdownMenuItem>
-												<DropdownMenuItem>
-													<span className="border-l pl-3 text-sm text-gray-500">
-														2 <Coins className="ml-0.5 inline-block size-3" />
-													</span>
-												</DropdownMenuItem>
-												<DropdownMenuItem>
-													<span className="border-l pl-3 text-sm text-gray-500">
-														2 <Coins className="ml-0.5 inline-block size-3" />
-													</span>
-												</DropdownMenuItem>
-												<DropdownMenuItem>
-													<span className="border-l pl-3 text-sm text-gray-500">
-														2 <Coins className="ml-0.5 inline-block size-3" />
-													</span>
-												</DropdownMenuItem>
-												<DropdownMenuItem>
-													<span className="border-l pl-3 text-sm text-gray-500">
-														2 <Coins className="ml-0.5 inline-block size-3" />
-													</span>
-												</DropdownMenuItem>
-											</div>
-										</div>
-										<DropdownMenuSeparator />
-										<DropdownMenuItem disabled>
-											Actions will run for "{displayName}"
-										</DropdownMenuItem>
-									</DropdownMenuContent>
-								</DropdownMenu>
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() => {
-										resetEmailDrafts(row);
-										setEditMode(true);
-									}}
-								>
-									<Pencil className="size-4" />
+						<Button size="sm" variant="outline" onClick={() => window.history.length > 1 ? window.history.back() : (location.href = '/people')}>
+							Back
+						</Button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button size="sm" variant="outline">
+									<MoreHorizontal className="h-4 w-4" />
 								</Button>
-							</>
-						) : (
-							<div className="flex items-center gap-2">
-								<Button
-									size="sm"
-									variant="outline"
-									onClick={() => {
-										resetEmailDrafts(row);
-										setEditMode(false);
-									}}
-								>
-									Cancel
-								</Button>
-								<Button size="sm" onClick={save} disabled={saving}>
-									{saving ? 'Saving...' : 'Save'}
-								</Button>
-							</div>
-						)}
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuLabel>Settings</DropdownMenuLabel>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem onClick={() => setDeleteOpen(true)}>Delete…</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 					</div>
 				</div>
 
-				{discoverResults.length > 0 && (
-					<Card>
-						<CardHeader>
-							<CardTitle>Discovered Emails</CardTitle>
-						</CardHeader>
-						<CardContent>
-							<ul className="space-y-2">
-								{discoverResults.map((email, idx) => (
-									<li
-										key={email.email.address + idx}
-										className="flex items-center justify-between rounded border p-2"
-									>
-										<span>{email.email.address}</span>
-										<Button
-											size="sm"
-											variant="outline"
-											onClick={() => setEmailDrafts((prev) => [...prev, email])}
-										>
-											Add as draft
-										</Button>
-									</li>
-								))}
-							</ul>
-						</CardContent>
-					</Card>
-				)}
-
-				{!editMode ? (
-					<div className="space-y-4">
-						<div className="space-y-4 rounded-lg bg-white p-6 dark:bg-gray-900">
+				<div className="space-y-4">
+					<ComponentCard>
+						<div className="mb-3 flex items-center justify-between">
+							<h3 className="text-lg font-semibold">Details</h3>
+							<Button size="sm" variant="outline" onClick={() => setEditDetailsOpen(true)}>
+								<Pencil className="size-4" />
+							</Button>
+						</div>
+						<div className="space-y-3">
 							<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 								<div>
 									<div className="text-sm text-gray-600">Type</div>
 									<div className="font-medium capitalize">Person</div>
 								</div>
+							</div>
+
+							<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 								<div>
-									<div className="text-sm text-gray-600">Emails</div>
-									<div className="space-y-1">
-										{row.emails && row.emails.length > 0 ? (
-											row.emails.map((email, idx) => (
-												<Link
-													to={`/emails/${email.id}`}
-													key={email.email.address + idx}
-													className="font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-												>
-													{email.email.address}
-												</Link>
-											))
-										) : (
-											<div className="font-medium">-</div>
-										)}
-									</div>
+									<div className="text-sm text-gray-600">First name</div>
+									<div className="font-medium">{nameParts.first || '-'}</div>
+								</div>
+								<div>
+									<div className="text-sm text-gray-600">Middle name</div>
+									<div className="font-medium">{nameParts.middle || '-'}</div>
+								</div>
+								<div>
+									<div className="text-sm text-gray-600">Last name</div>
+									<div className="font-medium">{nameParts.last || '-'}</div>
+								</div>
+							</div>
+							<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+								<div>
+									<div className="text-sm text-gray-600">Prefix</div>
+									<div className="font-medium">{nameParts.prefix || '-'}</div>
+								</div>
+								<div>
+									<div className="text-sm text-gray-600">Suffix</div>
+									<div className="font-medium">{nameParts.suffix || '-'}</div>
 								</div>
 							</div>
 
@@ -530,30 +462,7 @@ export default function PersonDetail() {
 									size="lg"
 								/>
 							</div>
-							<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-								<div>
-									<div className="text-sm text-gray-600">City</div>
-									<div className="font-medium">{row.location?.city || '-'}</div>
-								</div>
-								<div>
-									<div className="text-sm text-gray-600">Country</div>
-									<div className="font-medium">{row.location?.country || '-'}</div>
-								</div>
-								<div>
-									<div className="text-sm text-gray-600">IP</div>
-									<div className="font-medium">{row.location?.ip || '-'}</div>
-								</div>
-							</div>
-
-							<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-								<div>
-									<div className="text-sm text-gray-600">Confidence</div>
-									<div className="font-medium">
-										{typeof row.confidence === 'number'
-											? `${Math.round(row.confidence * 100)}%`
-											: '-'}
-									</div>
-								</div>
+							<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 								<div>
 									<div className="text-sm text-gray-600">First seen</div>
 									<div className="font-medium">
@@ -568,636 +477,619 @@ export default function PersonDetail() {
 								</div>
 							</div>
 						</div>
+					</ComponentCard>
 
-						<Separator />
-						<div className="rounded-lg bg-white p-6 dark:bg-gray-900">
-							<div className="text-base font-semibold">Aliases</div>
-							<div className="mt-2 flex flex-wrap gap-2">
-								{(row.aliases || []).map((a, i) => (
-									<span key={a + i} className="rounded border px-2 py-1 text-sm">
-										{a}
-									</span>
-								))}
-							</div>
+					<ComponentCard>
+						<div className="mb-3 flex items-center justify-between">
+							<h3 className="text-lg font-semibold">Aliases</h3>
+							<Button size="sm" variant="outline" onClick={() => setEditAliasesOpen(true)}>
+								<Pencil className="size-4" />
+							</Button>
 						</div>
-
-						<div className="rounded-lg bg-white p-6 dark:bg-gray-900">
-							<div className="text-base font-semibold">Tags</div>
-							<div className="mt-2 flex flex-wrap gap-2">
-								{(row.tags || []).map((t, i) => (
-									<span key={t + i} className="rounded border px-2 py-1 text-sm">
-										#{t}
-									</span>
-								))}
-								{(!row.tags || row.tags.length === 0) && (
-									<span className="text-sm text-gray-500">No tags</span>
-								)}
-							</div>
+						<div className="flex flex-wrap gap-2">
+							{(row.aliases || []).map((a, i) => (
+								<span key={a + i} className="rounded border px-2 py-1 text-sm">
+									{a}
+								</span>
+							))}
 						</div>
+					</ComponentCard>
 
-						<Separator />
-						<div className="rounded-lg bg-white p-6 dark:bg-gray-900">
-							<div className="text-base font-semibold">Devices</div>
-							<div className="space-y-1">
-								{(row.devices || []).map((d, i) => (
-									<div key={i} className="text-sm">
-										{d.type} — {d.os} {d.last_used ? `(${d.last_used})` : ''}
-									</div>
-								))}
-							</div>
+					<ComponentCard>
+						<div className="mb-3 flex items-center justify-between">
+							<h3 className="text-lg font-semibold">Tags</h3>
+							<Button size="sm" variant="outline" onClick={() => setEditTagsOpen(true)}>
+								<Pencil className="size-4" />
+							</Button>
 						</div>
+						<div className="flex flex-wrap gap-2">
+							{(row.tags || []).map((t, i) => (
+								<span key={t + i} className="rounded border px-2 py-1 text-sm">
+									#{t}
+								</span>
+							))}
+							{(!row.tags || row.tags.length === 0) && (
+								<span className="text-sm text-gray-500">No tags</span>
+							)}
+						</div>
+					</ComponentCard>
 
-						<Separator />
-						<div className="rounded-lg bg-white p-6 dark:bg-gray-900">
-							<div className="text-base font-semibold">Social Profiles</div>
-							<div className="space-y-1">
-								{(row.social_profiles || []).map((s, i) => {
-									const record = s as SocialProfileRecord;
-									const profile = record.profile ?? {
-										handle: '',
-										platform: '',
-										profile_url: ''
-									};
-									const platform = profile.platform ?? '';
-									const username = profile.handle ?? '';
-									const url = profile.profile_url ?? '';
-									return (
-										<div key={i} className="text-sm">
-											{platform} — {username} {url ? `(${url})` : ''}
+					{/* <ComponentCard>
+						<h3 className="text-lg font-semibold">Devices</h3>
+						<div className="space-y-1">
+							{(row.devices || []).map((d, i) => (
+								<div key={i} className="text-sm">
+									{d.type} — {d.os} {d.last_used ? `(${d.last_used})` : ''}
+								</div>
+							))}
+						</div>
+					</ComponentCard> */}
+
+					<LinkedPhonesCard
+						title="Phones"
+						displayName={displayName}
+						ownerId={row.id}
+						organizationId={row.organization_id!}
+						items={linkedPhones.map((p) => ({
+							id: p.id,
+							number_e164: p.number_e164,
+							linkTo: `/phones/${p.id}`
+						}))}
+						onUnlink={async (phoneId) => {
+							await removePhoneFromPerson(row!.id, phoneId);
+							setLinkedPhones((prev) => prev.filter((x) => x.id !== phoneId));
+							toast.success('Phone unlinked');
+						}}
+						onAttached={(p) => {
+							setLinkedPhones((prev) => {
+								const map = new Map(prev.map((x) => [x.id, x]));
+								map.set(p.id, { id: p.id, number_e164: p.number_e164 });
+								return Array.from(map.values());
+							});
+						}}
+					/>
+
+					<LinkedProfilesCard
+						title="Social Profiles"
+						displayName={displayName}
+						ownerId={row.id}
+						organizationId={row.organization_id!}
+						items={linkedProfiles.map((p) => ({
+							id: p.id,
+							platform: p.platform,
+							handle: p.handle,
+							url: p.url,
+							linkTo: `/profiles/${p.id}`
+						}))}
+						onUnlink={async (profileId) => {
+							await removeProfileFromPerson(row!.id, profileId);
+							setLinkedProfiles((prev) => prev.filter((x) => x.id !== profileId));
+							toast.success('Profile unlinked');
+						}}
+						onAttached={(p) => {
+							setLinkedProfiles((prev) => {
+								const map = new Map(prev.map((x) => [x.id, x]));
+								map.set(p.id, { id: p.id, platform: p.platform, handle: p.handle, url: p.url ?? null });
+								return Array.from(map.values());
+							});
+						}}
+					/>
+
+					{/* Linked Images */}
+					<LinkedImagesCard
+						title="Images"
+						displayName={displayName}
+						ownerId={row.id}
+						organizationId={row.organization_id!}
+						ownerType="person"
+						items={linkedImages.map((im) => ({ id: im.id, url: im.url, linkTo: `/images/${im.id}` }))}
+						onUnlink={async (imageId) => {
+							await detachImageFromPerson(imageId, row.id);
+							setLinkedImages((prev) => prev.filter((x) => x.id !== imageId));
+							toast.success('Image unlinked');
+						}}
+						onAttached={(i) => {
+							setLinkedImages((prev) => {
+								const map = new Map(prev.map((x) => [x.id, x]));
+								map.set(i.id, { id: i.id, url: i.url });
+								return Array.from(map.values());
+							});
+						}}
+					/>
+					<LinkedDocumentsCard
+						title="Documents"
+						displayName={displayName}
+						ownerId={row.id}
+						organizationId={row.organization_id!}
+						ownerType="person"
+						items={linkedDocuments.map((d) => ({ id: d.id, title: d.title, linkTo: `/documents/${d.id}` }))}
+						onUnlink={async (documentId) => {
+							await detachDocumentFromPerson(documentId, row.id);
+							setLinkedDocuments((prev) => prev.filter((x) => x.id !== documentId));
+							toast.success('Document unlinked');
+						}}
+						onAttached={(d) => {
+							setLinkedDocuments((prev) => {
+								const map = new Map(prev.map((x) => [x.id, x]));
+								map.set(d.id, { id: d.id, title: d.title });
+								return Array.from(map.values());
+							});
+						}}
+					/>
+					<EntityGraphCard title="Graph" rootType="person" rootId={row.id} />
+				</div>
+				<ComponentCard>
+					<div className="flex items-center justify-between">
+						<h3 className="text-lg font-semibold">Properties</h3>
+						<div className="flex items-center gap-2">
+							{isActionEnabled(ActionKey.DiscoverProperties) ? (
+								<DropdownMenu>
+									<DropdownMenuTrigger asChild>
+										<Button size="sm" variant="outline">
+											<Zap className="size-4" />
+										</Button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent align="end">
+										<DropdownMenuLabel>Perform Action</DropdownMenuLabel>
+										<div className="flex justify-between gap-2">
+											<div>
+												<DropdownMenuItem className="group flex cursor-pointer items-center justify-between gap-2">
+													Discover properties{' '}
+													<MapPin className="invisible mr-2 size-3 text-gray-500 transition-all duration-200 group-hover:visible group-hover:translate-x-1" />
+												</DropdownMenuItem>
+											</div>
+											<div className="w-20">
+												<DropdownMenuItem disabled>
+													<span className="border-l pl-3 text-sm text-gray-500">
+														{getActionCost(ActionKey.DiscoverProperties)} <Coins className="ml-0.5 inline-block size-3" />
+													</span>
+												</DropdownMenuItem>
+											</div>
 										</div>
-									);
-								})}
-							</div>
+										<DropdownMenuSeparator />
+										<DropdownMenuItem disabled>Actions will run for "{displayName}"</DropdownMenuItem>
+									</DropdownMenuContent>
+								</DropdownMenu>
+							) : null}
+							<Button size="sm" variant="outline" onClick={() => setManagePropsOpen(true)}>
+								<Pencil className="size-4" />
+							</Button>
 						</div>
 					</div>
-				) : (
-					<div className="space-y-10">
-						<div className="space-y-4">
-							<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-								<div>
-									<label className="text-sm font-medium">First name</label>
-									<Input
-										value={nameParts.first}
-										onChange={(e) => updateNameParts({ first: e.target.value })}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Middle name</label>
-									<Input
-										value={nameParts.middle ?? ''}
-										onChange={(e) =>
-											updateNameParts({ middle: e.target.value ? e.target.value : null })
-										}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Last name</label>
-									<Input
-										value={nameParts.last}
-										onChange={(e) => updateNameParts({ last: e.target.value })}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Prefix</label>
-									<Input
-										value={nameParts.prefix ?? ''}
-										onChange={(e) =>
-											updateNameParts({ prefix: e.target.value ? e.target.value : null })
-										}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Suffix</label>
-									<Input
-										value={nameParts.suffix ?? ''}
-										onChange={(e) =>
-											updateNameParts({ suffix: e.target.value ? e.target.value : null })
-										}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Avatar</label>
-									<div className="mt-1">
-										<Button size="sm" variant="outline" onClick={() => setAvatarOpen(true)}>
-											Change image
-										</Button>
-									</div>
-								</div>
-								<div className="md:col-span-3">
-									<label className="text-sm font-medium">Emails</label>
-									<div className="mt-2 space-y-2">
-										{emailDrafts.length === 0 && (
-											<p className="text-xs text-gray-500">No emails yet.</p>
-										)}
-										{emailDrafts.map((email, idx) => (
-											<div
-												key={`email-${idx}`}
-												className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3"
-											>
-												<div className="flex-1">
-													<Input
-														placeholder="Email address"
-														value={email.email.address}
-														onChange={(e) => updateEmailDraft(idx, 'address', e.target.value)}
-													/>
-												</div>
-												<div className="flex-1">
-													<Input
-														placeholder="Domain (optional)"
-														value={email.email.domain ?? ''}
-														onChange={(e) => updateEmailDraft(idx, 'domain', e.target.value)}
-													/>
-												</div>
-												<div className="flex items-center gap-2">
-													{email.id ? (
-														<Link to={`/emails/${email.id}`}>
-															<Button variant="outline" size="sm">
-																View
-															</Button>
-														</Link>
-													) : null}
-													<Button
-														type="button"
-														variant="ghost"
-														size="icon"
-														onClick={() => removeEmailDraft(idx)}
-														className="text-red-500 hover:text-red-600"
-													>
-														<Trash className="h-4 w-4" />
-													</Button>
-												</div>
-											</div>
-										))}
+					<div className="space-y-3">
+						{linkedProps.length === 0 ? (
+							<p className="text-muted-foreground text-sm">No properties linked.</p>
+						) : (
+							linkedProps.map((p) => (
+								<div key={p.id} className="flex items-center justify-between rounded-lg border p-4">
+									<Link
+										to={`/properties/${p.id}`}
+										className="group text-base font-medium text-blue-600 hover:underline"
+									>
+										{p.address_full || p.id}{' '}
+										<ArrowRight className="invisible inline-block size-4 text-blue-600 transition-all duration-200 group-hover:visible group-hover:translate-x-1" />
+									</Link>
+									<Tooltip tooltipPosition="top" content="Unlink property">
 										<Button
-											type="button"
+											size="sm"
 											variant="ghost"
-											size="sm"
-											onClick={addEmailDraft}
-											className="gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+											onClick={async () => {
+												await removePropertyFromPerson(p.id, row!.id);
+												setLinkedProps((prev) => prev.filter((x) => x.id !== p.id));
+												toast.success('Property unlinked');
+											}}
 										>
-											<Plus className="h-4 w-4" />
-											Add email
+											<Link2Off className="size-4" />
 										</Button>
-									</div>
+									</Tooltip>
 								</div>
-								<div>
-									<label className="text-sm font-medium">Confidence (0–1)</label>
-									<Input
-										type="number"
-										step="0.01"
-										min={0}
-										max={1}
-										value={typeof row.confidence === 'number' ? row.confidence : ''}
-										onChange={(e) => {
-											const v = e.target.value;
-											const num = v === '' ? null : Math.max(0, Math.min(1, Number(v)));
-											set(
-												(cur) =>
-													({
-														...cur!,
-														confidence: Number.isNaN(num as number) ? null : (num as number | null)
-													}) as PersonRecord
-											);
-										}}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">First seen</label>
-									<Input
-										type="datetime-local"
-										value={(row.first_seen || '').slice(0, 16)}
-										onChange={(e) => set((cur) => ({ ...cur!, first_seen: e.target.value }))}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Last seen</label>
-									<Input
-										type="datetime-local"
-										value={(row.last_seen || '').slice(0, 16)}
-										onChange={(e) => set((cur) => ({ ...cur!, last_seen: e.target.value }))}
-									/>
-								</div>
-							</div>
-							<div className="grid w-full grid-cols-1 gap-4 md:grid-cols-3">
-								<div>
-									<label className="text-sm font-medium">City</label>
-									<Input
-										value={row.location?.city || ''}
-										onChange={(e) =>
-											set((cur) => ({
-												...cur!,
-												location: { ...cur!.location, city: e.target.value }
-											}))
-										}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">Country</label>
-									<Input
-										value={row.location?.country || ''}
-										onChange={(e) =>
-											set((cur) => ({
-												...cur!,
-												location: { ...cur!.location, country: e.target.value }
-											}))
-										}
-									/>
-								</div>
-								<div>
-									<label className="text-sm font-medium">IP</label>
-									<Input
-										value={row.location?.ip || ''}
-										onChange={(e) =>
-											set((cur) => ({
-												...cur!,
-												location: { ...cur!.location, ip: e.target.value }
-											}))
-										}
-									/>
-								</div>
-							</div>
-						</div>
+							))
+						)}
+					</div>
+				</ComponentCard>
 
-						<Separator />
-						<div className="space-y-2">
-							<div className="text-base font-semibold">Aliases</div>
-							<div className="flex flex-wrap gap-2">
-								{(row.aliases || []).map((a, i) => (
-									<span
-										key={a + i}
-										className="flex items-center gap-2 rounded-lg border px-2 py-1 text-sm"
-									>
-										{a}
-										<button
-											onClick={() =>
-												set((cur) => {
-													const next = (cur.aliases || []).filter((x, idx) => idx !== i);
-													return { ...cur!, aliases: next } as PersonRecord;
-												})
-											}
-										>
-											×
-										</button>
-									</span>
-								))}
-							</div>
-							<div className="mt-2 flex max-w-md items-center gap-2">
+				<LinkedEmailsCard
+					title="Emails"
+					displayName={displayName}
+					ownerType="person"
+					ownerId={row.id}
+					organizationId={row.organization_id!}
+					items={linkedEmails.map((e) => ({
+						id: e.id,
+						address: e.address,
+						domain: e.address.includes('@') ? e.address.split('@')[1] ?? null : null,
+						linkTo: `/emails/${e.id}`
+					}))}
+					onUnlink={async (emailId) => {
+						await removeEmailFromPerson(row!.id, emailId);
+						setLinkedEmails((prev) => prev.filter((x) => x.id !== emailId));
+						toast.success('Email unlinked');
+					}}
+					onAttached={async () => {
+						const refreshed = await listPersonEmails(row!.id);
+						setLinkedEmails(refreshed.map((x) => ({ id: x.id, address: x.email.address })));
+					}}
+				/>
+
+				<div className="mx-auto mt-6 max-w-7xl">
+					<CaseWebMentions
+						entity={{ id: row.id, type: 'person', name: displayName }}
+						allowManage={true}
+						showActions={true}
+						onSearchWebMentions={() =>
+							handleSearchWebMentions('person', row.id, formatPersonName(row.name))
+						}
+					/>
+				</div>
+			</div>
+			{/* Manage Properties Dialog (rendered globally like EmailDetail Manage leaks) */}
+			<Dialog open={managePropsOpen} onOpenChange={setManagePropsOpen}>
+				<DialogContent className="max-w-3xl">
+					<DialogHeader>
+						<DialogTitle>Manage properties</DialogTitle>
+					</DialogHeader>
+					<div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+						<div className="space-y-3">
+							<div className="flex items-center gap-2">
 								<Input
-									placeholder="Add alias..."
-									onKeyDown={(e) => {
-										if (e.key === 'Enter') {
-											e.preventDefault();
-											const target = e.target as HTMLInputElement;
-											const v = target.value.trim().replace(/\s+/g, ' ');
-											if (!v) return;
-											set((cur) => {
-												const next = Array.from(new Set([...(cur.aliases || []), v]));
-												return { ...cur!, aliases: next } as PersonRecord;
-											});
-											target.value = '';
+									placeholder="Search address…"
+									value={propQuery}
+									onChange={async (e) => {
+										const v = e.target.value;
+										setPropQuery(v);
+										if (!row?.organization_id || v.trim().length < 2) {
+											setPropResults([]);
+											return;
+										}
+										setPropLoading(true);
+										try {
+											const { results } = await listProperties(row.organization_id, v, 1, 10);
+											setPropResults(results);
+										} finally {
+											setPropLoading(false);
 										}
 									}}
 								/>
 							</div>
-						</div>
-
-						<Separator />
-						<div className="space-y-2">
-							<div className="text-base font-semibold">Tags</div>
-							<div className="flex flex-wrap gap-2">
-								{(row.tags || []).map((t, i) => (
-									<span
-										key={t + i}
-										className="flex items-center gap-2 rounded-lg border px-2 py-1 text-sm"
-									>
-										#{t}
-										<button
-											onClick={() =>
-												set((cur) => {
-													const next = (cur.tags || []).filter((x, idx) => idx !== i);
-													return { ...cur!, tags: next } as PersonRecord;
-												})
-											}
-										>
-											×
-										</button>
-									</span>
-								))}
-							</div>
-							<div className="mt-2 flex max-w-md items-center gap-2">
-								<Input
-									placeholder="Add tag..."
-									onKeyDown={(e) => {
-										if (e.key === 'Enter') {
-											e.preventDefault();
-											const target = e.target as HTMLInputElement;
-											const v = target.value.trim().replace(/\s+/g, '-').toLowerCase();
-											if (!v) return;
-											set((cur) => {
-												const uniq = new Set([...(cur.tags || []), v]);
-												return { ...cur!, tags: Array.from(uniq) } as PersonRecord;
-											});
-											target.value = '';
-										}
-									}}
-								/>
-							</div>
-						</div>
-
-						<Separator />
-					<div className="mx-auto mt-6 max-w-5xl">
-						<CaseWebMentions personId={row.id} allowManage />
-						</div>
-
-						<Separator />
-
-						<div className="space-y-6">
-							<div className="mb-5 text-base font-semibold">Social Profiles</div>
-							<div className="space-y-3">
-								{(row.social_profiles || []).map((sp, idx) => (
-									<div
-										key={idx}
-										className="grid grid-cols-1 items-end justify-center gap-2 md:grid-cols-4"
-									>
-										<div className="flex flex-col gap-2">
-											<label className="text-sm font-medium">Platform: </label>
-											<Input
-												placeholder="Platform (e.g., linkedin)"
-												value={sp.profile?.platform || ''}
-												disabled={SOCIAL_PRESETS.some(
-													(p) =>
-														p.platform === (sp.profile?.platform || '') && p.platform !== 'custom'
-												)}
-												onChange={(e) =>
-													set((cur) => {
-														const arr = [...(cur.social_profiles || [])];
-														const existing = arr[idx] || { profile: { handle: '', platform: '' } };
-														arr[idx] = {
-															...existing,
-															profile: { ...existing.profile, platform: e.target.value }
-														};
-														return { ...cur!, social_profiles: arr } as PersonRecord;
-													})
-												}
-											/>
-										</div>
-										<div className="flex flex-col gap-2">
-											<label className="text-sm font-medium">Username: </label>
-											<Input
-												placeholder="Username"
-												value={sp.profile?.handle || ''}
-												onChange={(e) =>
-													set((cur) => {
-														const arr = [...(cur.social_profiles || [])];
-														const newUsername = e.target.value
-															.replace(/[^a-zA-Z0-9._-]/g, '')
-															.replace(/^@+/, '');
-														const existing = arr[idx] || { profile: { handle: '', platform: '' } };
-														let newUrl = existing.profile?.profile_url || '';
-														const preset = SOCIAL_PRESETS.find(
-															(p) => p.platform === existing.profile?.platform
-														);
-														if (preset && preset.platform !== 'custom') {
-															newUrl = `${preset.urlPrefix}${newUsername.replace(/^@/, '')}`;
-														}
-														arr[idx] = {
-															...existing,
-															profile: {
-																...existing.profile,
-																handle: newUsername,
-																profile_url: newUrl
-															}
-														};
-														return { ...cur!, social_profiles: arr } as PersonRecord;
-													})
-												}
-											/>
-										</div>
-										<div className="flex flex-col gap-2">
-											<label className="text-sm font-medium">URL: </label>
-											<Input
-												placeholder="URL"
-												value={sp.profile?.profile_url || ''}
-												disabled={SOCIAL_PRESETS.some(
-													(p) =>
-														p.platform === (sp.profile?.platform || '') && p.platform !== 'custom'
-												)}
-												onChange={(e) =>
-													set((cur) => {
-														const arr = [...(cur.social_profiles || [])];
-														const existing = arr[idx] || { profile: { handle: '', platform: '' } };
-														arr[idx] = {
-															...existing,
-															profile: { ...existing.profile, profile_url: e.target.value }
-														};
-														return { ...cur!, social_profiles: arr } as PersonRecord;
-													})
-												}
-											/>
-										</div>
-										<Button
-											size="sm"
-											className="mr-0 ml-auto w-fit"
-											variant="outline"
-											onClick={() =>
-												set((cur) => {
-													const arr = [...(cur.social_profiles || [])];
-													arr.splice(idx, 1);
-													return { ...cur!, social_profiles: arr } as PersonRecord;
-												})
-											}
-										>
-											<Trash className="size-4" />
-										</Button>
-									</div>
-								))}
-							</div>
-
-							<Popover>
-								<PopoverTrigger asChild>
-									<Button size="sm" variant="outline">
-										Add social profile
-									</Button>
-								</PopoverTrigger>
-								<PopoverContent className="p-0" align="start">
-									<Command>
-										<CommandInput placeholder="Search platforms" />
-										<CommandList>
-											<CommandEmpty>No platforms</CommandEmpty>
-											<CommandGroup>
-												{SOCIAL_PRESETS.map((p) => (
-													<CommandItem
-														key={p.label}
-														onSelect={() => {
-															set((cur) => {
-																const arr = [...(cur.social_profiles || [])];
-																if (p.platform === 'custom') {
-																	arr.push({
-																		profile: { handle: '', platform: '', profile_url: '' }
-																	});
-																} else {
-																	arr.push({
-																		profile: {
-																			handle: '',
-																			platform: p.platform,
-																			profile_url: p.urlPrefix
-																		}
-																	});
-																}
-																return { ...cur!, social_profiles: arr } as PersonRecord;
-															});
-														}}
-													>
-														{p.label}
-													</CommandItem>
-												))}
-											</CommandGroup>
-										</CommandList>
-									</Command>
-								</PopoverContent>
-							</Popover>
-						</div>
-
-						<Separator />
-
-						<div className="space-y-6">
-							<div className="text-base font-semibold">Devices</div>
-							<div className="space-y-3">
-								{(row.devices || []).map((dev, idx) => {
-									const isCustomDev = !(dev.type && dev.os);
-									return (
+							<div className="max-h-72 space-y-2 overflow-auto">
+								{propLoading ? (
+									<div className="text-muted-foreground text-sm">Searching…</div>
+								) : (
+									propResults.map((p) => (
 										<div
-											key={idx}
-											className="grid grid-cols-1 items-end justify-center gap-2 md:grid-cols-4"
+											key={p.id}
+											className="flex items-center justify-between rounded border p-3"
 										>
-											<div className="flex flex-col gap-2">
-												<label className="text-sm font-medium">Type: </label>
-												<Input
-													placeholder="Type"
-													value={dev.type || ''}
-													disabled={!isCustomDev}
-													onChange={(e) =>
-														set((cur) => {
-															const arr = [...(cur.devices || [])];
-															const value = e.target.value.replace(/[^a-zA-Z0-9\s._-]/g, '');
-															const existing = arr[idx] || { type: '', os: '' };
-															arr[idx] = { ...existing, type: value } as {
-																type: string;
-																os: string;
-																last_used?: string;
-															};
-															return { ...cur!, devices: arr } as PersonRecord;
-														})
-													}
-												/>
-											</div>
-											<div className="flex flex-col gap-2">
-												<label className="text-sm font-medium">Operating System: </label>
-												<Input
-													placeholder="OS"
-													value={dev.os || ''}
-													disabled={!isCustomDev}
-													onChange={(e) =>
-														set((cur) => {
-															const arr = [...(cur.devices || [])];
-															const value = e.target.value.replace(/[^a-zA-Z0-9\s._-]/g, '');
-															const existing = arr[idx] || { type: '', os: '' };
-															arr[idx] = { ...existing, os: value } as {
-																type: string;
-																os: string;
-																last_used?: string;
-															};
-															return { ...cur!, devices: arr } as PersonRecord;
-														})
-													}
-												/>
-											</div>
-											<div className="flex flex-col gap-2">
-												<label className="text-sm font-medium">Last used: </label>
-												<Input
-													type="datetime-local"
-													placeholder="Last used"
-													value={(dev.last_used || '').slice(0, 16)}
-													onChange={(e) =>
-														set((cur) => {
-															const arr = [...(cur.devices || [])];
-															const existing =
-																arr[idx] ||
-																({ type: '', os: '', last_used: '' } as {
-																	type: string;
-																	os: string;
-																	last_used?: string;
-																});
-															arr[idx] = { ...existing, last_used: e.target.value } as {
-																type: string;
-																os: string;
-																last_used?: string;
-															};
-															return { ...cur!, devices: arr } as PersonRecord;
-														})
-													}
-												/>
-											</div>
+											<div className="text-sm font-medium">{p.address_full || p.id}</div>
 											<Button
-												className="mr-0 ml-auto w-fit"
 												size="sm"
 												variant="outline"
-												onClick={() =>
-													set((cur) => {
-														const arr = [...(cur.devices || [])];
-														arr.splice(idx, 1);
-														return { ...cur!, devices: arr } as PersonRecord;
-													})
-												}
+												onClick={async () => {
+													await attachPropertyToPerson(p.id, row!.id);
+													setLinkedProps((prev) =>
+														Array.from(
+															new Map(
+																[...prev, { id: p.id, address_full: p.address_full }].map((x) => [
+																	x.id,
+																	x
+																])
+															)
+														).map(([, v]) => v)
+													);
+													toast.success('Property linked');
+												}}
 											>
-												<Trash className="size-4" />
+												Attach
 											</Button>
 										</div>
-									);
-								})}
+									))
+								)}
 							</div>
-
-							<Popover>
-								<PopoverTrigger asChild>
-									<Button size="sm" variant="outline">
-										Add device
-									</Button>
-								</PopoverTrigger>
-								<PopoverContent className="p-0" align="start">
-									<Command>
-										<CommandInput placeholder="Search device presets" />
-										<CommandList>
-											<CommandEmpty>No presets</CommandEmpty>
-											<CommandGroup>
-												{DEVICE_PRESETS.map((p) => (
-													<CommandItem
-														key={p.label}
-														onSelect={() =>
-															set((cur) => ({
-																...cur!,
-																devices: [
-																	...(cur.devices || []),
-																	{ type: p.type, os: p.os, last_used: '' } as {
-																		type: string;
-																		os: string;
-																		last_used?: string;
-																	}
-																]
-															}))
-														}
-													>
-														{p.label}
-													</CommandItem>
-												))}
-											</CommandGroup>
-										</CommandList>
-									</Command>
-								</PopoverContent>
-							</Popover>
+							<div className="space-y-2">
+								<div className="text-sm font-medium">Currently linked</div>
+								<div className="space-y-2">
+									{linkedProps.map((p) => (
+										<div
+											key={p.id}
+											className="flex items-center justify-between rounded border p-3"
+										>
+											<Link
+												to={`/properties/${p.id}`}
+												className="text-sm font-medium hover:underline"
+											>
+												{p.address_full || p.id}
+											</Link>
+											<Button
+												size="sm"
+												variant="ghost"
+												onClick={async () => {
+													await removePropertyFromPerson(p.id, row!.id);
+													setLinkedProps((prev) => prev.filter((x) => x.id !== p.id));
+													toast.success('Property unlinked');
+												}}
+											>
+												Unlink
+											</Button>
+										</div>
+									))}
+								</div>
+							</div>
+						</div>
+						<div className="space-y-3">
+							<div className="space-y-2">
+								<label className="text-sm font-medium">Create new property</label>
+								<Input
+									placeholder="Full address"
+									value={newPropAddress}
+									onChange={(e) => setNewPropAddress(e.target.value)}
+								/>
+								<div className="bg-muted/40 text-muted-foreground rounded-md border border-dashed p-3 text-xs">
+									This property will be created and automatically linked to{' '}
+									<span className="text-foreground font-medium">{displayName}</span>.
+								</div>
+							</div>
+							<Button
+								onClick={async () => {
+									if (!row?.organization_id || !newPropAddress.trim()) {
+										toast.error('Address is required.');
+										return;
+									}
+									setCreatingProp(true);
+									try {
+										const created = await createProperty({
+											organization_id: row.organization_id,
+											address_full: newPropAddress.trim()
+										});
+										await attachPropertyToPerson(created.id, row.id);
+										setLinkedProps((prev) =>
+											Array.from(
+												new Map(
+													[...prev, { id: created.id, address_full: created.address_full }].map(
+														(x) => [x.id, x]
+													)
+												)
+											).map(([, v]) => v)
+										);
+										toast.success('Property created and linked.');
+										setManagePropsOpen(false);
+										setPropQuery('');
+										setNewPropAddress('');
+									} catch (err) {
+										console.error(err);
+										toast.error('Failed to create property.');
+									} finally {
+										setCreatingProp(false);
+									}
+								}}
+								disabled={creatingProp}
+							>
+								{creatingProp ? 'Creating…' : 'Create property'}
+							</Button>
 						</div>
 					</div>
-				)}
-			</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Edit Details Dialog */}
+			<Dialog open={editDetailsOpen} onOpenChange={setEditDetailsOpen}>
+				<DialogContent className="max-w-3xl">
+					<DialogHeader>
+						<DialogTitle>Edit details</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+							<div>
+								<label className="text-sm font-medium">First name</label>
+								<Input
+									value={nameParts.first}
+									onChange={(e) => updateNameParts({ first: e.target.value })}
+								/>
+							</div>
+							<div>
+								<label className="text-sm font-medium">Middle name</label>
+								<Input
+									value={nameParts.middle ?? ''}
+									onChange={(e) =>
+										updateNameParts({ middle: e.target.value ? e.target.value : null })
+									}
+								/>
+							</div>
+							<div>
+								<label className="text-sm font-medium">Last name</label>
+								<Input
+									value={nameParts.last}
+									onChange={(e) => updateNameParts({ last: e.target.value })}
+								/>
+							</div>
+							<div>
+								<label className="text-sm font-medium">Prefix</label>
+								<Input
+									value={nameParts.prefix ?? ''}
+									onChange={(e) =>
+										updateNameParts({ prefix: e.target.value ? e.target.value : null })
+									}
+								/>
+							</div>
+							<div>
+								<label className="text-sm font-medium">Suffix</label>
+								<Input
+									value={nameParts.suffix ?? ''}
+									onChange={(e) =>
+										updateNameParts({ suffix: e.target.value ? e.target.value : null })
+									}
+								/>
+							</div>
+						</div>
+						<div>
+							<label className="text-sm font-medium">Avatar</label>
+							<div className="mt-1">
+								<Button size="sm" variant="outline" onClick={() => setAvatarOpen(true)}>
+									Change image
+								</Button>
+							</div>
+						</div>
+						<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+							<div>
+								<label className="text-sm font-medium">First seen</label>
+								<Input
+									type="datetime-local"
+									value={(row.first_seen || '').slice(0, 16)}
+									onChange={(e) => set((cur) => ({ ...cur!, first_seen: e.target.value }))}
+								/>
+							</div>
+							<div>
+								<label className="text-sm font-medium">Last seen</label>
+								<Input
+									type="datetime-local"
+									value={(row.last_seen || '').slice(0, 16)}
+									onChange={(e) => set((cur) => ({ ...cur!, last_seen: e.target.value }))}
+								/>
+							</div>
+						</div>
+						<div className="flex justify-end gap-2">
+							<Button variant="outline" onClick={() => setEditDetailsOpen(false)}>
+								Cancel
+							</Button>
+							<Button
+								onClick={async () => {
+									await save();
+									setEditDetailsOpen(false);
+								}}
+							>
+								Save
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Edit Aliases Dialog */}
+			<Dialog open={editAliasesOpen} onOpenChange={setEditAliasesOpen}>
+				<DialogContent className="max-w-xl">
+					<DialogHeader>
+						<DialogTitle>Edit aliases</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-2">
+						<div className="flex flex-wrap gap-2">
+							{(row.aliases || []).map((a, i) => (
+								<span
+									key={a + i}
+									className="flex items-center gap-2 rounded-lg border px-2 py-1 text-sm"
+								>
+									{a}
+									<button
+										onClick={() =>
+											set((cur) => {
+												const next = (cur.aliases || []).filter((x, idx) => idx !== i);
+												return { ...cur!, aliases: next } as PersonRecord;
+											})
+										}
+									>
+										×
+									</button>
+								</span>
+							))}
+						</div>
+						<div className="mt-2 flex max-w-md items-center gap-2">
+							<Input
+								placeholder="Add alias..."
+								onKeyDown={(e) => {
+									if (e.key === 'Enter') {
+										e.preventDefault();
+										const target = e.target as HTMLInputElement;
+										const v = target.value.trim().replace(/\s+/g, ' ');
+										if (!v) return;
+										set((cur) => {
+											const next = Array.from(new Set([...(cur.aliases || []), v]));
+											return { ...cur!, aliases: next } as PersonRecord;
+										});
+										target.value = '';
+									}
+								}}
+							/>
+						</div>
+						<div className="flex justify-end gap-2 pt-2">
+							<Button variant="outline" onClick={() => setEditAliasesOpen(false)}>
+								Close
+							</Button>
+							<Button
+								onClick={async () => {
+									await updatePerson(row!.id, { aliases: row!.aliases });
+									setEditAliasesOpen(false);
+									toast.success('Aliases updated.');
+								}}
+							>
+								Save
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Edit Tags Dialog */}
+			<Dialog open={editTagsOpen} onOpenChange={setEditTagsOpen}>
+				<DialogContent className="max-w-xl">
+					<DialogHeader>
+						<DialogTitle>Edit tags</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-2">
+						<div className="flex flex-wrap gap-2">
+							{(row.tags || []).map((t, i) => (
+								<span
+									key={t + i}
+									className="flex items-center gap-2 rounded-lg border px-2 py-1 text-sm"
+								>
+									#{t}
+									<button
+										onClick={() =>
+											set((cur) => {
+												const next = (cur.tags || []).filter((x, idx) => idx !== i);
+												return { ...cur!, tags: next } as PersonRecord;
+											})
+										}
+									>
+										×
+									</button>
+								</span>
+							))}
+						</div>
+						<div className="mt-2 flex max-w-md items-center gap-2">
+							<Input
+								placeholder="Add tag..."
+								onKeyDown={(e) => {
+									if (e.key === 'Enter') {
+										e.preventDefault();
+										const target = e.target as HTMLInputElement;
+										const v = target.value.trim().replace(/\s+/g, '-').toLowerCase();
+										if (!v) return;
+										set((cur) => {
+											const uniq = new Set([...(cur.tags || []), v]);
+											return { ...cur!, tags: Array.from(uniq) } as PersonRecord;
+										});
+										target.value = '';
+									}
+								}}
+							/>
+						</div>
+						<div className="flex justify-end gap-2 pt-2">
+							<Button variant="outline" onClick={() => setEditTagsOpen(false)}>
+								Close
+							</Button>
+							<Button
+								onClick={async () => {
+									await updatePerson(row!.id, { tags: row!.tags });
+									setEditTagsOpen(false);
+									toast.success('Tags updated.');
+								}}
+							>
+								Save
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+			{/* Emails managed inside LinkedEmailsCard */}
+
 			<Dialog open={avatarOpen} onOpenChange={setAvatarOpen}>
 				<DialogContent>
 					<DialogHeader>
@@ -1242,6 +1134,37 @@ export default function PersonDetail() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+			<AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+				<AlertDialogContent>
+					<AlertHeader>
+						<AlertDialogTitle>Delete person?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently delete this person and its direct edges. This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={deleting}
+							onClick={async () => {
+								setDeleting(true);
+								try {
+									await deletePerson(id);
+									toast.success('Person deleted.');
+									window.location.href = '/people';
+								} catch (e) {
+									console.error(e);
+									toast.error('Failed to delete person.');
+								} finally {
+									setDeleting(false);
+								}
+							}}
+						>
+							{deleting ? 'Deleting…' : 'Delete'}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

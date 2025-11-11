@@ -4,10 +4,10 @@ import PageMeta from '../../components/common/PageMeta';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Separator } from '../../components/ui/separator';
 import { Badge } from '../../components/ui/badge';
-import { getEmailById, updateEmail, type EmailDetailResponse } from '../../api/emails';
+import { getEmailById, updateEmail, deleteEmail, type EmailDetailResponse } from '../../api/emails';
+import type { EmailProfileRef } from '../../types/email';
 import { removeEmailFromPerson } from '../../api/people';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -25,7 +25,32 @@ import {
 	DialogHeader,
 	DialogTitle
 } from '../../components/ui/dialog';
-import { Loader2, Plus, Trash } from 'lucide-react';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader as AlertHeader,
+	AlertDialogTitle
+} from '../../components/ui/alert-dialog';
+import { Loader2, Link2Off, Pencil, ArrowUpRight, MoreHorizontal } from 'lucide-react';
+import ComponentCard from '../../components/common/ComponentCard';
+import LinkedProfilesCard from '../../components/common/LinkedProfilesCard';
+import LinkedPeopleCard from '../../components/common/LinkedPeopleCard';
+import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import CaseWebMentions from '../../components/cases/CaseWebMentions';
+import { handleSearchWebMentions } from '../../utils/webSearch';
+import { supabase } from '../../utils/supabaseClient';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger
+} from '../../components/ui/dropdown-menu';
 
 export default function EmailDetailPage() {
   const params = useParams();
@@ -49,12 +74,35 @@ export default function EmailDetailPage() {
   const [leakSearchLoading, setLeakSearchLoading] = useState(false);
   const [linkingLeakId, setLinkingLeakId] = useState<string | null>(null);
   const [detachingLeakId, setDetachingLeakId] = useState<string | null>(null);
+  const { setTitle, setReturnTo } = useBreadcrumbs();
+  const toAbsoluteUrl = (u?: string | null) => {
+    if (!u) return null;
+    return /^https?:\/\//i.test(u) ? u : `https://${u.replace(/^\/+/, '')}`;
+  };
+
+  const formatFirstSeen = (v?: string | null) => {
+    if (!v) return null;
+    const d = new Date(String(v).trim());
+    if (Number.isNaN(d.getTime())) return v;
+    const month = format(d, 'MMMM');
+    const dayWithOrdinal = format(d, 'do');
+    const year = format(d, 'yyyy');
+    const time = format(d, 'h:mma').toLowerCase();
+    const tzAbbr = new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
+      .formatToParts(d)
+      .find((p) => p.type === 'timeZoneName')?.value ?? '';
+    return `${month} ${dayWithOrdinal}, ${year} ${time} ${tzAbbr}`.trim();
+  };
 
   const [newLeakSource, setNewLeakSource] = useState('');
   const [newLeakSnippet, setNewLeakSnippet] = useState('');
   const [newLeakRetrievedAt, setNewLeakRetrievedAt] = useState('');
   const [newLeakUrl, setNewLeakUrl] = useState('');
   const [creatingLeak, setCreatingLeak] = useState(false);
+  const [editDetailsOpen, setEditDetailsOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [linkedDomain, setLinkedDomain] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -73,6 +121,8 @@ export default function EmailDetailPage() {
           response.email.confidence != null ? response.email.confidence.toString() : ''
         );
         setLastChecked(response.email.last_checked ?? '');
+        setTitle(response.email.email.address ?? response.email.id);
+        setReturnTo({ path: '/emails', label: 'Emails' });
       } catch (err) {
         console.error(err);
         if (!active) return;
@@ -84,6 +134,37 @@ export default function EmailDetailPage() {
     load();
     return () => {
       active = false;
+    };
+  }, [id, setTitle, setReturnTo]);
+
+  // Load linked domain via entity_edges (email -> domain)
+  useEffect(() => {
+    let cancelled = false;
+    async function loadDomain() {
+      if (!id) return;
+      try {
+        const { data: edgeRows } = await supabase
+          .from('entity_edges')
+          .select('target_id')
+          .eq('source_type', 'email')
+          .eq('source_id', id)
+          .eq('target_type', 'domain')
+          .limit(1);
+        const domainId = (edgeRows ?? [])[0]?.target_id as string | undefined;
+        if (!domainId) {
+          if (!cancelled) setLinkedDomain(null);
+          return;
+        }
+        const { data: dom } = await supabase.from('domains').select('id, name').eq('id', domainId).single();
+        if (!cancelled) setLinkedDomain(dom ? { id: dom.id as string, name: (dom.name as string) ?? '' } : null);
+      } catch (e) {
+        console.error('Failed to load linked domain for email', e);
+        if (!cancelled) setLinkedDomain(null);
+      }
+    }
+    void loadDomain();
+    return () => {
+      cancelled = true;
     };
   }, [id]);
 
@@ -278,132 +359,105 @@ export default function EmailDetailPage() {
 
   return (
     <>
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-6 mx-auto max-w-7xl">
       <PageMeta title={`Email · ${email.email.address}`} description="Email detail" noIndex />
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Email</h1>
+          <h1 className="text-2xl font-semibold mb-2">Email</h1>
           <p className="text-sm text-muted-foreground">{email.email.address}</p>
         </div>
-        <Button variant="outline" onClick={() => navigate(-1)}>
-          Back
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>Back</Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Settings</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setDeleteOpen(true)}>Delete…</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Properties</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <ComponentCard>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Details</h3>
+          <Button size="sm" variant="outline" onClick={() => setEditDetailsOpen(true)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="space-y-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className="text-sm font-medium">Address</label>
-              <Input value={address} onChange={(event) => setAddress(event.target.value)} className="mt-1" />
+              <div className="text-sm text-muted-foreground">Address</div>
+              <div className="font-medium">{email.email.address || '—'}</div>
             </div>
             <div>
-              <label className="text-sm font-medium">Domain</label>
-              <Input value={domain} onChange={(event) => setDomain(event.target.value)} className="mt-1" />
-            </div>
-            <div>
-              <label className="text-sm font-medium">First seen</label>
-              <Input
-                type="datetime-local"
-                value={firstSeen ? firstSeen.slice(0, 16) : ''}
-                onChange={(event) => setFirstSeen(event.target.value)}
-                className="mt-1"
-              />
-              {formattedFirstSeen && <p className="mt-1 text-xs text-muted-foreground">{formattedFirstSeen}</p>}
-            </div>
-            <div>
-              <label className="text-sm font-medium">Confidence (0–1)</label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                max="1"
-                value={confidence}
-                onChange={(event) => setConfidence(event.target.value)}
-                className="mt-1"
-              />
-              {data.email.confidence != null && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Stored confidence: {(data.email.confidence * 100).toFixed(0)}%
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="text-sm font-medium">Last checked</label>
-              <Input
-                type="datetime-local"
-                value={lastChecked ? lastChecked.slice(0, 16) : ''}
-                onChange={(event) => setLastChecked(event.target.value)}
-                className="mt-1"
-              />
-              {formattedLastChecked && (
-                <p className="mt-1 text-xs text-muted-foreground">{formattedLastChecked}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Saving…' : 'Save changes'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Linked People</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {data.people.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No people linked.</p>
-          ) : (
-            data.people.map(({ edge, person }) => (
-              <div key={edge.id} className="flex items-start justify-between rounded-lg border p-4">
-                <div>
-                  <Link to={`/people/${person.id}`} className="text-base font-medium hover:underline">
-                    {person.name?.first || person.name?.given ? (
-                      <>
-                        {[person.name?.prefix, person.name?.first, person.name?.middle, person.name?.last, person.name?.suffix]
-                          .filter(Boolean)
-                          .join(' ') || person.id}
-                      </>
-                    ) : (
-                      person.id
-                    )}
+              <div className="text-sm text-muted-foreground">Domain</div>
+              <div className="font-medium">
+                {linkedDomain ? (
+                  <Link to={`/domains/${linkedDomain.id}`} className="text-blue-600 hover:underline">
+                    {linkedDomain.name}
                   </Link>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    {edge.transform_type ? <Badge variant="outline">{edge.transform_type}</Badge> : null}
-                    {edge.confidence_score != null ? (
-                      <span className="ml-2">Confidence: {(edge.confidence_score * 100).toFixed(0)}%</span>
-                    ) : null}
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => handleUnlink(person.id)}>
-                  Unlink
-                </Button>
+                ) : (
+                  email.email.domain || '—'
+                )}
               </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">First seen</div>
+              <div className="font-medium">{formattedFirstSeen || '—'}</div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Confidence</div>
+              <div className="font-medium">
+                {email.confidence != null ? `${(email.confidence * 100).toFixed(0)}%` : '—'}
+              </div>
+            </div>
+            <div>
+              <div className="text-sm text-muted-foreground">Last checked</div>
+              <div className="font-medium">{formattedLastChecked || '—'}</div>
+            </div>
+          </div>
+        </div>
+      </ComponentCard>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <CardTitle>Additional Data</CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setManageLeaksOpen(true)}
-            disabled={!data}
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Manage leaks
+      <LinkedPeopleCard
+        displayName={email.email.address}
+        items={data.people.map(({ edge, person }) => {
+            const display =
+              person.name?.first || person.name?.given
+                ? [person.name?.prefix, person.name?.first, person.name?.middle, person.name?.last, person.name?.suffix]
+                    .filter(Boolean)
+                    .join(' ') || person.id
+                : (typeof person.name === 'string' ? person.name : person.id);
+            return {
+              id: person.id,
+              name: display,
+              avatar: person.avatar ?? null,
+              linkTo: `/people/${person.id}`,
+              transformType: edge.transform_type ?? null,
+              confidenceScore: edge.confidence_score ?? null,
+              retrievedAt: (edge as unknown as { retrieved_at?: string | null })?.retrieved_at ?? null,
+              sourceUrl: (edge as unknown as { source_url?: string | null })?.source_url ?? null,
+              sourceApi: (edge as unknown as { source_api?: string | null })?.source_api ?? null
+            };
+          })}
+        onUnlink={(pid) => handleUnlink(pid)}
+      />
+
+      <ComponentCard>
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Leaks</h3>
+          <Button size="sm" variant="outline" onClick={() => setManageLeaksOpen(true)} disabled={!data}>
+            <Pencil className="size-4" />
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </div>
+        <div className="space-y-4">
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
             <span>
               Confidence:{' '}
@@ -425,55 +479,52 @@ export default function EmailDetailPage() {
                 return <p className="mt-2 text-sm text-muted-foreground">No breach data.</p>;
               }
               return (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                <div className="mt-2 space-y-3">
                   {breachLeaks.map((leak) => {
                     const title = leak.title ?? leak.source ?? leak.leak.id;
                     return (
-                      <li key={`${leak.leak.id}-${leak.first_seen ?? leak.last_seen ?? 'breach'}`} className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary" className="uppercase">
-                            {leak.kind}
-                          </Badge>
-                          <Link
-                            to={`/leaks/${leak.leak.id}`}
-                            className="font-medium text-blue-600 underline underline-offset-2 dark:text-blue-400"
-                          >
-                            {title}
-                          </Link>
-                          {leak.source ? (
-                            <span className="text-muted-foreground">via {leak.source}</span>
-                          ) : null}
-                          {leak.first_seen ? (
-                            <span className="text-muted-foreground">first seen {leak.first_seen}</span>
-                          ) : null}
-                          {leak.confidence != null ? (
-                            <span className="text-muted-foreground">
-                              {(leak.confidence * 100).toFixed(0)}% confidence
-                            </span>
+                      <div
+                        key={`${leak.leak.id}-${leak.first_seen ?? leak.last_seen ?? 'breach'}`}
+                        className="flex items-center justify-between rounded-lg border p-4"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className="uppercase">{leak.kind}</Badge>
+                            <Link to={`/leaks/${leak.leak.id}`} className="text-base font-medium hover:underline">
+                              {title}
+                            </Link>
+                            {leak.source ? <span className="text-muted-foreground text-sm">via {leak.source}</span> : null}
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                            {leak.first_seen ? <span>First seen: {formatFirstSeen(leak.first_seen)}</span> : null}
+                            {leak.confidence != null ? (
+                              <span>{(leak.confidence * 100).toFixed(0)}% confidence</span>
+                            ) : null}
+                            {leak.url ? (
+                              <a href={toAbsoluteUrl(leak.url) ?? '#'} target="_blank" rel="noopener noreferrer" className="underline">
+                                View <ArrowUpRight className="size-4 inline-block" />
+                              </a>
+                            ) : null}
+                          </div>
+                          {leak.content_snippet ? (
+                            <div className="mt-1 text-sm text-muted-foreground">{leak.content_snippet}</div>
                           ) : null}
                         </div>
-                        {leak.content_snippet ? (
-                          <div className="text-sm text-muted-foreground">{leak.content_snippet}</div>
-                        ) : null}
-                        <div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={detachingLeakId === leak.leak.id}
-                            onClick={() => handleDetachLeak(leak.leak.id)}
-                          >
-                            {detachingLeakId === leak.leak.id ? (
-                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                            ) : (
-                              <Trash className="mr-1 h-3 w-3" />
-                            )}
-                            Unlink
-                          </Button>
-                        </div>
-                      </li>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={detachingLeakId === leak.leak.id}
+                          onClick={() => handleDetachLeak(leak.leak.id)}
+                        >
+                          {detachingLeakId === leak.leak.id ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : null}
+                          <Link2Off className="size-4" />
+                        </Button>
+                      </div>
                     );
                   })}
-                </ul>
+                </div>
               );
             })()}
           </div>
@@ -488,92 +539,104 @@ export default function EmailDetailPage() {
                 return <p className="mt-2 text-sm text-muted-foreground">No paste or leak mentions recorded.</p>;
               }
               return (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                <div className="mt-2 space-y-3">
                   {pasteLeaks.map((leak) => {
                     const title = leak.title ?? leak.leak.id;
                     return (
-                      <li key={`${leak.leak.id}-${leak.first_seen ?? 'paste'}`} className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="uppercase">
-                            {leak.kind}
-                          </Badge>
-                          <Link
-                            to={`/leaks/${leak.leak.id}`}
-                            className="font-medium text-blue-600 underline underline-offset-2 dark:text-blue-400"
-                          >
-                            {title}
-                          </Link>
-                          {leak.first_seen ? (
-                            <span className="text-muted-foreground">first seen {leak.first_seen}</span>
-                          ) : null}
-                          {leak.confidence != null ? (
-                            <span className="text-muted-foreground">
-                              {(leak.confidence * 100).toFixed(0)}% confidence
-                            </span>
-                          ) : null}
-                          {leak.url ? (
-                            <a
-                              href={leak.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-muted-foreground underline"
-                            >
-                              View source
-                            </a>
+                      <div
+                        key={`${leak.leak.id}-${leak.first_seen ?? 'paste'}`}
+                        className="flex items-center justify-between rounded-lg border p-4"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="uppercase">{leak.kind}</Badge>
+                            <Link to={`/leaks/${leak.leak.id}`} className="text-base font-medium hover:underline">
+                              {title}
+                            </Link>
+                          </div>
+                          <div className="mt-1 text-sm text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                            {leak.first_seen ? <span>first seen {formatFirstSeen(leak.first_seen)}</span> : null}
+                            {leak.first_seen ? <span>first seen {formatFirstSeen(leak.first_seen)}</span> : null}
+                            {leak.confidence != null ? (
+                              <span>{(leak.confidence * 100).toFixed(0)}% confidence</span>
+                            ) : null}
+                            {leak.url ? (
+                              <a href={toAbsoluteUrl(leak.url) ?? '#'} target="_blank" rel="noopener noreferrer" className="underline">
+                                View source
+                              </a>
+                            ) : null}
+                          </div>
+                          {leak.content_snippet ? (
+                            <div className="mt-1 text-sm text-muted-foreground">{leak.content_snippet}</div>
                           ) : null}
                         </div>
-                        {leak.content_snippet ? (
-                          <div className="text-sm text-muted-foreground">{leak.content_snippet}</div>
-                        ) : null}
-                        <div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={detachingLeakId === leak.leak.id}
-                            onClick={() => handleDetachLeak(leak.leak.id)}
-                          >
-                            {detachingLeakId === leak.leak.id ? (
-                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                            ) : (
-                              <Trash className="mr-1 h-3 w-3" />
-                            )}
-                            Unlink
-                          </Button>
-                        </div>
-                      </li>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={detachingLeakId === leak.leak.id}
+                          onClick={() => handleDetachLeak(leak.leak.id)}
+                        >
+                          {detachingLeakId === leak.leak.id ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : null}
+                          <Link2Off className="size-4" />
+                        </Button>
+                      </div>
                     );
                   })}
-                </ul>
+                </div>
               );
             })()}
           </div>
 
           <Separator />
+        </div>
+      </ComponentCard>
 
-          <div>
-            <p className="text-sm font-medium">Profiles</p>
-            {email.profiles && email.profiles.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                {email.profiles.map((profile, index) => (
-                  <li key={index}>
-                    <span className="font-medium">
-                      {profile.label || profile.handle || profile.id || 'Profile'}
-                    </span>
-                    {profile.platform ? (
-                      <span className="ml-2 text-muted-foreground">{profile.platform}</span>
-                    ) : null}
-                    {profile.url ? (
-                      <span className="ml-2 text-muted-foreground">{profile.url}</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="mt-2 text-sm text-muted-foreground">No linked profiles.</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <LinkedProfilesCard
+        title="Social Profiles"
+        displayName={email.email.address}
+        ownerId={email.id}
+        organizationId={email.organization_id}
+        ownerType="email"
+        items={(email.profiles ?? []).map((p: EmailProfileRef) => ({
+          id: (p as { id?: string }).id ?? `${p.platform ?? ''}-${p.handle ?? ''}`,
+          platform: p.platform ?? '',
+          handle: p.handle ?? '',
+          url: p.url ?? null,
+          linkTo: (p as { id?: string }).id ? `/profiles/${(p as { id?: string }).id}` : '#'
+        }))}
+        onUnlink={async (profileId) => {
+          try {
+            const { removeProfileFromEmail } = await import('../../api/social_profiles');
+            await removeProfileFromEmail(email.id, profileId);
+            const refreshed = await getEmailById(email.id);
+            setData(refreshed);
+            toast.success('Profile unlinked');
+          } catch (err) {
+            console.error('Failed to unlink profile from email', err);
+            toast.error('Failed to unlink profile.');
+          }
+        }}
+        onAttached={async () => {
+          try {
+            const refreshed = await getEmailById(email.id);
+            setData(refreshed);
+          } catch (err) {
+            console.error('Failed to refresh after linking profile', err);
+            toast.error('Linked successfully, but failed to refresh. Please reload.');
+          }
+        }}
+      />
+
+      <div className="mx-auto mt-6 max-w-7xl">
+					<CaseWebMentions
+            entity={{ id: email.id, type: 'email', name: email.email.address || email.id }}
+            allowManage
+            showActions
+            onSearchWebMentions={() => handleSearchWebMentions('email', email.id, email.email.address || email.id)}
+          />
+				</div>
     </div>
     <Dialog open={manageLeaksOpen} onOpenChange={setManageLeaksOpen}>
         <DialogContent className="max-w-3xl">
@@ -668,6 +731,92 @@ export default function EmailDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <Dialog open={editDetailsOpen} onOpenChange={setEditDetailsOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Edit details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <label className="text-sm font-medium">Address</label>
+                <Input value={address} onChange={(event) => setAddress(event.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Domain</label>
+                <Input value={domain} onChange={(event) => setDomain(event.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">First seen</label>
+                <Input
+                  type="datetime-local"
+                  value={firstSeen ? firstSeen.slice(0, 16) : ''}
+                  onChange={(event) => setFirstSeen(event.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Confidence (0–1)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="1"
+                  value={confidence}
+                  onChange={(event) => setConfidence(event.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Last checked</label>
+                <Input
+                  type="datetime-local"
+                  value={lastChecked ? lastChecked.slice(0, 16) : ''}
+                  onChange={(event) => setLastChecked(event.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditDetailsOpen(false)}>Cancel</Button>
+              <Button onClick={async () => { await handleSave(); setEditDetailsOpen(false); }} disabled={saving}>
+                {saving ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertHeader>
+            <AlertDialogTitle>Delete email?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this email and its direct edges. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={async () => {
+                setDeleting(true);
+                try {
+                  await deleteEmail(id);
+                  toast.success('Email deleted.');
+                  navigate('/emails');
+                } catch (e) {
+                  console.error(e);
+                  toast.error('Failed to delete email.');
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

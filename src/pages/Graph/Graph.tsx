@@ -8,10 +8,14 @@ import FloatingEdgesGraph from '../../components/graphs/FloatingEdges/FloatingEd
 import { useParams } from 'react-router-dom';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { getCaseById } from '../../api/cases';
+import type { Node, Edge } from '@xyflow/react';
+import { buildEntityGraph } from '../../utils/graph/buildEntityGraph';
 
 export default function Graph() {
 	const [caseReport, setCaseReport] = useState<Case | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [nodes, setNodes] = useState<Node<any>[]>([]);
+	const [edges, setEdges] = useState<Edge<any>[]>([]);
 
 	const params = useParams();
     const routeId = params.id as string | undefined;
@@ -67,6 +71,36 @@ export default function Graph() {
         };
     }, [routeId]);
 
+	useEffect(() => {
+		let cancelled = false;
+		(async () => {
+			if (!caseReport) return;
+			// Derive root from case subject
+			const subjType = (caseReport.subject_type === 'company' ? 'business' : caseReport.subject_type) as
+				| 'person'
+				| 'business'
+				| null
+				| undefined;
+			const subjId = (caseReport.subject_id ?? caseReport.subject?.id) as string | undefined;
+			if (!subjType || !subjId) return;
+			try {
+				const built = await buildEntityGraph(subjType, subjId, { depth: 2, hydrateLabels: false });
+				if (!cancelled) {
+					setNodes(built.nodes);
+					setEdges(built.edges);
+				}
+			} catch (e) {
+				if (!cancelled) {
+					setNodes([]);
+					setEdges([]);
+				}
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [caseReport]);
+
 	if (loading) {
 		return <AuthLoading state={AuthLoadingState.LOADING} />;
 	}
@@ -77,7 +111,7 @@ export default function Graph() {
 
 	return (
 		<div className="h-main-viewport-height w-full">
-			<FloatingEdgesGraph />
+			<FloatingEdgesGraph nodes={nodes} edges={edges} />
 		</div>
 	);
 }

@@ -371,6 +371,41 @@ const loadEmailEntity = async (id: string): Promise<EmailEntity> => {
 
 export async function getEmailById(id: string): Promise<EmailDetailResponse> {
   const email = await loadEmailEntity(id);
+  // Load linked social profiles via entity_edges (email -> social_profile)
+  try {
+    const { data: profileEdges, error: profileEdgeError } = await supabase
+      .from('entity_edges')
+      .select('target_id')
+      .eq('source_type', 'email')
+      .eq('source_id', id)
+      .eq('target_type', 'social_profile');
+    if (profileEdgeError) throw profileEdgeError;
+    const profileIds = Array.from(
+      new Set(
+        (profileEdges ?? [])
+          .map((row) => (row?.target_id as string) ?? null)
+          .filter((v): v is string => Boolean(v))
+      )
+    );
+    if (profileIds.length > 0) {
+      const { data: profileRows, error: profErr } = await supabase
+        .from('social_profiles')
+        .select('id, platform, handle, profile_url')
+        .in('id', profileIds);
+      if (profErr) throw profErr;
+      const profiles = (profileRows ?? []).map((row) => ({
+        id: row.id as string,
+        label: null,
+        handle: (row.handle as string) ?? null,
+        platform: (row.platform as string) ?? null,
+        url: (row.profile_url as string | null) ?? null
+      }));
+      (email as any).profiles = profiles;
+    }
+  } catch (e) {
+    // Soft-fail: do not block email detail if profiles query fails
+    console.warn('Failed to load email->social_profile edges', e);
+  }
   const { data: edgeRows, error: edgeError } = await supabase
     .from('entity_edges')
     .select('*')
@@ -510,5 +545,26 @@ export async function searchEmails(
 		domain: (row.domain as string | null) ?? null,
 		organization_id: row.organization_id as string
 	}));
+}
+
+export async function deleteEmail(id: string): Promise<void> {
+	const { error } = await supabase.from('emails').delete().eq('id', id);
+	if (error) throw error;
+}
+
+export async function createEmail(input: {
+  organization_id: string;
+  address: string;
+  domain?: string | null;
+}): Promise<{ id: string }> {
+  const payload = {
+    organization_id: input.organization_id,
+    address: input.address.trim(),
+    domain: input.domain ?? null,
+    first_seen: new Date().toISOString()
+  };
+  const { data, error } = await supabase.from('emails').insert(payload).select('id').single();
+  if (error) throw error;
+  return { id: (data?.id as string) ?? '' };
 }
 

@@ -179,9 +179,39 @@ export async function getLeakById(id: string): Promise<LeakDetail> {
 			.filter((value): value is LeakEmailLink => value !== null);
 	}
 
+	// Usernames
+	const usernameEdges = edges.filter((edge) => edge.source_type === 'username');
+	const usernameIds = Array.from(
+		new Set(usernameEdges.map((edge) => edge.source_id).filter((value): value is string => Boolean(value)))
+	);
+
+	let usernames: import('../types/leak').LeakUsernameLink[] = [];
+	if (usernameIds.length > 0) {
+		const { data: usernameRows, error: usernameError } = await supabase
+			.from('usernames')
+			.select('id, value')
+			.in('id', usernameIds);
+		if (usernameError) throw usernameError;
+		const map = new Map<string, { id: string; value: string }>();
+		(usernameRows ?? []).forEach((row) => {
+			map.set(row.id as string, { id: row.id as string, value: (row.value as string) ?? '' });
+		});
+		usernames = usernameEdges
+			.map((edge) => {
+				const u = map.get(edge.source_id);
+				if (!u) return null;
+				return {
+					edge: mapEdgeRow(edge),
+					username: u
+				};
+			})
+			.filter((v): v is import('../types/leak').LeakUsernameLink => v !== null);
+	}
+
 	return {
 		leak,
-		emails
+		emails,
+		usernames
 	};
 }
 
@@ -212,6 +242,11 @@ export async function createLeak(input: CreateLeakInput): Promise<LeakDetail> {
 	const { data, error } = await supabase.from('leaks').insert(payload).select('*').single();
 	if (error) throw error;
 	return getLeakById((data as { id: string }).id);
+}
+
+export async function deleteLeak(id: string): Promise<void> {
+	const { error } = await supabase.from('leaks').delete().eq('id', id);
+	if (error) throw error;
 }
 
 export async function attachLeakToEmail(
@@ -264,6 +299,106 @@ export async function detachLeakFromEmail(leakId: string, emailId: string): Prom
 		.delete()
 		.eq('source_type', 'email')
 		.eq('source_id', emailId)
+		.eq('target_type', 'leak')
+		.eq('target_id', leakId);
+	if (error) throw error;
+}
+
+export async function attachUsernameToLeak(
+	leakId: string,
+	usernameId: string,
+	options: {
+		transform_type?: string;
+		confidence_score?: number | null;
+		metadata?: Record<string, unknown>;
+		retrieved_at?: string | null;
+	} = {}
+): Promise<void> {
+	const { data: existing, error: existingError } = await supabase
+		.from('entity_edges')
+		.select('id')
+		.eq('source_type', 'username')
+		.eq('source_id', usernameId)
+		.eq('target_type', 'leak')
+		.eq('target_id', leakId)
+		.limit(1)
+		.maybeSingle();
+	if (existingError) throw existingError;
+	if (existing) return;
+	const now = new Date().toISOString();
+	const { error } = await supabase.from('entity_edges').insert({
+		source_type: 'username',
+		source_id: usernameId,
+		target_type: 'leak',
+		target_id: leakId,
+		transform_type: options.transform_type ?? 'manual',
+		confidence_score: options.confidence_score ?? 1,
+		metadata: sanitizeMetadata(options.metadata) ?? {},
+		retrieved_at: options.retrieved_at ?? now,
+		source_api: 'manual',
+		source_url: null,
+		raw_reference_id: null,
+		created_at: now
+	});
+	if (error) throw error;
+}
+
+export async function detachUsernameFromLeak(leakId: string, usernameId: string): Promise<void> {
+	const { error } = await supabase
+		.from('entity_edges')
+		.delete()
+		.eq('source_type', 'username')
+		.eq('source_id', usernameId)
+		.eq('target_type', 'leak')
+		.eq('target_id', leakId);
+	if (error) throw error;
+}
+
+export async function attachLeakToPhone(
+	leakId: string,
+	phoneId: string,
+	options: {
+		transform_type?: string;
+		confidence_score?: number | null;
+		metadata?: Record<string, unknown>;
+		retrieved_at?: string | null;
+	} = {}
+): Promise<void> {
+	const { data: existing, error: existingError } = await supabase
+		.from('entity_edges')
+		.select('id')
+		.eq('source_type', 'phone')
+		.eq('source_id', phoneId)
+		.eq('target_type', 'leak')
+		.eq('target_id', leakId)
+		.limit(1)
+		.maybeSingle();
+	if (existingError) throw existingError;
+	if (existing) return;
+	const now = new Date().toISOString();
+	const { error } = await supabase.from('entity_edges').insert({
+		source_type: 'phone',
+		source_id: phoneId,
+		target_type: 'leak',
+		target_id: leakId,
+		transform_type: options.transform_type ?? 'manual',
+		confidence_score: options.confidence_score ?? 1,
+		metadata: sanitizeMetadata(options.metadata) ?? {},
+		retrieved_at: options.retrieved_at ?? now,
+		source_api: 'manual',
+		source_url: null,
+		raw_reference_id: null,
+		created_at: now
+	});
+	if (error) throw error;
+}
+
+export async function detachLeakFromPhone(leakId: string, phoneId: string): Promise<void> {
+	const { error } = await supabase
+		.from('entity_edges')
+		.delete()
+		.eq('source_type', 'phone')
+		.eq('source_id', phoneId)
 		.eq('target_type', 'leak')
 		.eq('target_id', leakId);
 	if (error) throw error;

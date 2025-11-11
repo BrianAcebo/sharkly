@@ -1,27 +1,44 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Loader2, Plus, Trash } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 import PageMeta from '../../components/common/PageMeta';
-import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Textarea } from '../../components/ui/textarea';
 import { Separator } from '../../components/ui/separator';
 import { Badge } from '../../components/ui/badge';
-import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle
-} from '../../components/ui/dialog';
+// legacy dialog imports removed
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { useAuth } from '../../contexts/AuthContext';
-import useDebounce from '../../hooks/useDebounce';
-import { getLeakById, updateLeak, attachLeakToEmail, detachLeakFromEmail } from '../../api/leaks';
+// import { useAuth } from '../../contexts/AuthContext';
+// import useDebounce from '../../hooks/useDebounce';
+import { getLeakById, updateLeak, detachLeakFromEmail } from '../../api/leaks';
 import type { LeakDetail } from '../../types/leak';
-import { searchEmails, type EmailSearchResult } from '../../api/emails';
+// import { searchEmails, type EmailSearchResult } from '../../api/emails';
+import ComponentCard from '../../components/common/ComponentCard';
+import LinkedEmailsCard from '../../components/common/LinkedEmailsCard';
+import LinkedUsernamesCard from '../../components/common/LinkedUsernamesCard';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader as AlertHeader,
+	AlertDialogTitle
+} from '../../components/ui/alert-dialog';
+import { deleteLeak } from '../../api/leaks';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger
+} from '../../components/ui/dropdown-menu';
+import { MoreHorizontal } from 'lucide-react';
 
 const parseListInput = (value: string): string[] =>
 	value
@@ -41,13 +58,15 @@ const formatDateInput = (value: string | null | undefined): string => {
 const LeakDetailPage = () => {
 	const params = useParams<{ id: string }>();
 	const leakId = params.id ?? '';
-	const { user } = useAuth();
-	const { setTitle } = useBreadcrumbs();
+	// const { user } = useAuth(); // not needed here
+	const { setTitle, setReturnTo } = useBreadcrumbs();
 
 	const [detail, setDetail] = useState<LeakDetail | null>(null);
 	const [loading, setLoading] = useState<boolean>(true);
 	const [editMode, setEditMode] = useState<boolean>(false);
 	const [saving, setSaving] = useState<boolean>(false);
+	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [deleting, setDeleting] = useState(false);
 
 	const [source, setSource] = useState('');
 	const [contentSnippet, setContentSnippet] = useState('');
@@ -57,12 +76,7 @@ const LeakDetailPage = () => {
 	const [retrievedAt, setRetrievedAt] = useState('');
 	const [url, setUrl] = useState('');
 
-	const [attachOpen, setAttachOpen] = useState(false);
-	const [emailQuery, setEmailQuery] = useState('');
-	const debouncedEmailQuery = useDebounce(emailQuery, 400);
-	const [emailResults, setEmailResults] = useState<EmailSearchResult[]>([]);
-	const [emailSearchLoading, setEmailSearchLoading] = useState(false);
-	const [linkingEmailId, setLinkingEmailId] = useState<string | null>(null);
+	// legacy attach state removed in favor of LinkedEmailsCard
 
 	const initializeForm = useCallback((leak: LeakDetail['leak']) => {
 		setSource(leak.source ?? '');
@@ -81,44 +95,23 @@ const LeakDetailPage = () => {
 			const data = await getLeakById(leakId);
 			setDetail(data);
 			initializeForm(data.leak);
-			setTitle(`Leak: ${data.leak.source ?? leakId}`);
+			setTitle(data.leak.source ?? leakId);
+			setReturnTo({ path: '/leaks', label: 'Leaks' });
 		} catch (error) {
 			console.error(error);
 			toast.error(error instanceof Error ? error.message : 'Failed to load leak.');
 		} finally {
 			setLoading(false);
 		}
-	}, [initializeForm, leakId, setTitle]);
+	}, [initializeForm, leakId, setTitle, setReturnTo]);
 
 	useEffect(() => {
 		void loadLeak();
 	}, [loadLeak]);
 
-	useEffect(() => {
-		if (!attachOpen || !user?.organization_id) {
-			setEmailResults([]);
-			return;
-		}
+// legacy attach dialog removed
 
-		const runSearch = async () => {
-			setEmailSearchLoading(true);
-			try {
-				const results = await searchEmails(user.organization_id!, debouncedEmailQuery, 10);
-				setEmailResults(results);
-			} catch (error) {
-				console.error(error);
-				toast.error('Failed to search emails.');
-			} finally {
-				setEmailSearchLoading(false);
-			}
-		};
-
-		void runSearch();
-	}, [attachOpen, debouncedEmailQuery, user?.organization_id]);
-
-	const linkedEmailIds = useMemo(() => {
-		return new Set(detail?.emails.map((link) => link.email.id) ?? []);
-	}, [detail]);
+	// linkedEmailIds used in legacy dialog; no longer needed
 
 	const handleCancelEdit = () => {
 		if (detail) {
@@ -153,34 +146,9 @@ const LeakDetailPage = () => {
 		}
 	};
 
-	const handleDetachEmail = async (emailId: string) => {
-		if (!detail) return;
-		try {
-			await detachLeakFromEmail(detail.leak.id, emailId);
-			toast.success('Email detached from leak.');
-			void loadLeak();
-		} catch (error) {
-			console.error(error);
-			toast.error('Failed to detach email.');
-		}
-	};
+	// detach handled by LinkedEmailsCard
 
-	const handleAttachEmail = async (emailId: string) => {
-		if (!detail) return;
-		setLinkingEmailId(emailId);
-		try {
-			await attachLeakToEmail(detail.leak.id, emailId, { transform_type: 'manual_link' });
-			toast.success('Leak linked to email.');
-			setAttachOpen(false);
-			setEmailQuery('');
-			void loadLeak();
-		} catch (error) {
-			console.error(error);
-			toast.error('Failed to attach leak to email.');
-		} finally {
-			setLinkingEmailId(null);
-		}
-	};
+	// attach handled by LinkedEmailsCard
 
 	if (loading) {
 		return (
@@ -203,15 +171,30 @@ const LeakDetailPage = () => {
 	);
 
 	return (
-		<div className="mx-auto max-w-4xl space-y-6 p-4">
+		<div className="mx-auto max-w-7xl space-y-6 p-4">
 			<PageMeta title={`Leak ${detail.leak.source}`} description="Leak detail" noIndex />
 
 			<div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 				<div>
-					<h1 className="text-2xl font-semibold">Leak: {detail.leak.source}</h1>
+					<h1 className="text-2xl font-semibold mb-3">Leak: {detail.leak.source}</h1>
 					<p className="text-sm text-muted-foreground">ID: {detail.leak.id}</p>
 				</div>
 				<div className="flex items-center gap-2">
+					<Button variant="outline" size="sm" onClick={() => window.history.length > 1 ? window.history.back() : (location.href = '/leaks')}>
+						Back
+					</Button>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button size="sm" variant="outline">
+								<MoreHorizontal className="h-4 w-4" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuLabel>Settings</DropdownMenuLabel>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem onClick={() => setDeleteOpen(true)}>Delete…</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 					{editMode ? (
 						<>
 							<Button variant="outline" size="sm" onClick={handleCancelEdit}>
@@ -230,11 +213,9 @@ const LeakDetailPage = () => {
 				</div>
 			</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Leak Information</CardTitle>
-				</CardHeader>
-				<CardContent className="space-y-4">
+			<ComponentCard>
+				<h3 className="text-lg font-semibold">Leak Information</h3>
+				<div className="space-y-4">
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
 						<div className="space-y-2">
 							<label className="text-sm font-medium">Source</label>
@@ -362,121 +343,105 @@ const LeakDetailPage = () => {
 							)}
 						</div>
 					</div>
-				</CardContent>
-			</Card>
+				</div>
+			</ComponentCard>
+			<AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+				<AlertDialogContent>
+					<AlertHeader>
+						<AlertDialogTitle>Delete leak?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently delete this leak and its direct edges. This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={deleting}
+							onClick={async () => {
+								setDeleting(true);
+								try {
+									await deleteLeak(detail!.leak.id);
+									toast.success('Leak deleted.');
+									// navigate back
+									window.history.back();
+								} catch (e) {
+									console.error(e);
+									toast.error('Failed to delete leak.');
+								} finally {
+									setDeleting(false);
+								}
+							}}
+						>
+							{deleting ? 'Deleting…' : 'Delete'}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
-			<Card>
-				<CardHeader className="flex flex-row items-center justify-between">
-					<CardTitle>Linked emails</CardTitle>
-					<Button size="sm" variant="outline" onClick={() => setAttachOpen(true)}>
-						<Plus className="mr-1 h-4 w-4" />
-						Attach email
-					</Button>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					{detail.emails.length === 0 ? (
-						<p className="text-sm text-muted-foreground">No emails linked to this leak.</p>
-					) : (
-						<div className="space-y-3">
-							{detail.emails.map((link) => {
-								const provenance = link.edge;
-								const metadataEntries = Object.entries(provenance.metadata ?? {}).filter(
-									([, value]) => value !== undefined
-								);
+			<LinkedEmailsCard
+				title="Linked emails"
+				displayName={detail.leak.source ?? detail.leak.id}
+				ownerType="leak"
+				ownerId={detail.leak.id}
+				organizationId={detail.leak.organization_id!}
+				items={detail.emails.map((link) => ({
+					id: link.email.id,
+					address: link.email.address,
+					domain: link.email.domain,
+					linkTo: `/emails/${link.email.id}`,
+					transformType: link.edge.transform_type,
+					confidenceScore: link.edge.confidence_score,
+					retrievedAt: link.edge.retrieved_at ?? undefined,
+					sourceApi: (link.edge as unknown as { source_api?: string | null }).source_api ?? null,
+					sourceUrl: (link.edge as unknown as { source_url?: string | null }).source_url ?? null
+				}))}
+				onUnlink={async (emailId) => {
+					try {
+						await detachLeakFromEmail(detail.leak.id, emailId);
+						toast.success('Email detached from leak.');
+						void loadLeak();
+					} catch (err) {
+						console.error('Failed to detach email from leak', err);
+						toast.error('Failed to detach email.');
+					}
+				}}
+				onAttached={() => {
+					void loadLeak();
+				}}
+			/>
 
-								return (
-									<div key={provenance.id} className="space-y-3 rounded-md border bg-card p-4">
-										<div className="flex flex-wrap items-start justify-between gap-2">
-											<div>
-												<Link
-													to={`/emails/${link.email.id}`}
-													className="font-medium text-blue-600 underline underline-offset-2 dark:text-blue-400"
-												>
-													{link.email.address}
-												</Link>
-												{link.email.domain ? (
-													<span className="ml-2 text-sm text-muted-foreground">
-														({link.email.domain})
-													</span>
-												) : null}
-											</div>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => handleDetachEmail(link.email.id)}
-											>
-												<Trash className="mr-1 h-4 w-4" />
-												Unlink
-											</Button>
-										</div>
-										<div className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-											{provenance.transform_type ? (
-												<div>
-													<span className="font-medium text-foreground">Method:</span>{' '}
-													{provenance.transform_type}
-												</div>
-											) : null}
-											{provenance.source_api ? (
-												<div>
-													<span className="font-medium text-foreground">Source:</span>{' '}
-													{provenance.source_api}
-												</div>
-											) : null}
-											{provenance.confidence_score != null ? (
-												<div>
-													<span className="font-medium text-foreground">Confidence:</span>{' '}
-													{(provenance.confidence_score * 100).toFixed(0)}%
-												</div>
-											) : null}
-											{provenance.retrieved_at ? (
-												<div>
-													<span className="font-medium text-foreground">Retrieved:</span>{' '}
-													{new Date(provenance.retrieved_at).toLocaleString()}
-												</div>
-											) : null}
-											{provenance.raw_reference_id ? (
-												<div>
-													<span className="font-medium text-foreground">Raw reference:</span>{' '}
-													{provenance.raw_reference_id}
-												</div>
-											) : null}
-											{provenance.source_url ? (
-												<div>
-													<span className="font-medium text-foreground">URL:</span>{' '}
-													<a
-														href={provenance.source_url}
-														target="_blank"
-														rel="noopener noreferrer"
-														className="text-blue-600 underline dark:text-blue-400"
-													>
-														{provenance.source_url}
-													</a>
-												</div>
-											) : null}
-										</div>
-										{metadataEntries.length > 0 ? (
-											<details className="rounded-md border bg-muted/40 p-2 text-xs">
-												<summary className="cursor-pointer font-medium text-foreground">
-													Additional metadata
-												</summary>
-												<pre className="mt-2 overflow-auto text-xs text-muted-foreground">
-													{JSON.stringify(Object.fromEntries(metadataEntries), null, 2)}
-												</pre>
-											</details>
-										) : null}
-									</div>
-								);
-							})}
-						</div>
-					)}
-				</CardContent>
-			</Card>
+			<LinkedUsernamesCard
+				title="Linked usernames"
+				displayName={detail.leak.source ?? detail.leak.id}
+				ownerId={detail.leak.id}
+				organizationId={detail.leak.organization_id!}
+				items={(detail.usernames ?? []).map((u) => ({
+					id: u.username.id,
+					value: u.username.value,
+					linkTo: `/usernames/${u.username.id}`,
+					transformType: u.edge.transform_type ?? null,
+					confidenceScore: u.edge.confidence_score ?? null,
+					retrievedAt: u.edge.retrieved_at ?? null,
+					sourceApi: u.edge.source_api ?? null,
+					sourceUrl: u.edge.source_url ?? null
+				}))}
+				onUnlink={async (usernameId) => {
+					try {
+						const { detachUsernameFromLeak } = await import('../../api/leaks');
+						await detachUsernameFromLeak(detail.leak.id, usernameId);
+						toast.success('Username detached from leak.');
+						void loadLeak();
+					} catch (err) {
+						console.error('Failed to detach username from leak', err);
+						toast.error('Failed to detach username.');
+					}
+				}}
+				onAttached={() => void loadLeak()}
+			/>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>Metadata</CardTitle>
-				</CardHeader>
-				<CardContent>
+			<ComponentCard>
+				<h3 className="text-lg font-semibold">Metadata</h3>
+				<div>
 					{metadataEntries.length === 0 ? (
 						<p className="text-sm text-muted-foreground">No metadata recorded.</p>
 					) : (
@@ -484,62 +449,10 @@ const LeakDetailPage = () => {
 							{JSON.stringify(Object.fromEntries(metadataEntries), null, 2)}
 						</pre>
 					)}
-				</CardContent>
-			</Card>
+				</div>
+			</ComponentCard>
 
-			<Dialog open={attachOpen} onOpenChange={setAttachOpen}>
-				<DialogContent className="sm:max-w-lg">
-					<DialogHeader>
-						<DialogTitle>Attach leak to email</DialogTitle>
-					</DialogHeader>
-					<div className="space-y-4">
-						<Input
-							autoFocus
-							placeholder="Search by email address"
-							value={emailQuery}
-							onChange={(event) => setEmailQuery(event.target.value)}
-						/>
-						<div className="max-h-64 overflow-y-auto space-y-2">
-							{emailSearchLoading ? (
-								<div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									Searching…
-								</div>
-							) : emailResults.length === 0 ? (
-								<p className="py-4 text-sm text-muted-foreground">No emails found.</p>
-							) : (
-								emailResults.map((result) => {
-									const alreadyLinked = linkedEmailIds.has(result.id);
-									return (
-										<div
-											key={result.id}
-											className="flex items-center justify-between rounded-md border bg-card p-3"
-										>
-											<div>
-												<div className="font-medium">{result.address}</div>
-												{result.domain ? (
-													<div className="text-xs text-muted-foreground">{result.domain}</div>
-												) : null}
-											</div>
-											<Button
-												size="sm"
-												variant="outline"
-												disabled={alreadyLinked || linkingEmailId === result.id}
-												onClick={() => handleAttachEmail(result.id)}
-											>
-												{linkingEmailId === result.id ? (
-													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												) : null}
-												{alreadyLinked ? 'Linked' : 'Attach'}
-											</Button>
-										</div>
-									);
-								})
-							)}
-						</div>
-					</div>
-				</DialogContent>
-			</Dialog>
+			{/* (Legacy attach dialog removed in favor of LinkedEmailsCard manage dialog) */}
 		</div>
 	);
 };

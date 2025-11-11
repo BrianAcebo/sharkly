@@ -12,6 +12,10 @@ import { useNavigate } from 'react-router-dom';
 import { formatPersonName } from '../../utils/person';
 import { UserAvatar } from '../../components/common/UserAvatar';
 import useDebounce from '../../hooks/useDebounce';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
+import { Plus } from 'lucide-react';
+import { createPerson } from '../../api/people';
+import { toast } from 'sonner';
 
 export default function PeoplePage() {
   const { user } = useAuth();
@@ -23,6 +27,9 @@ export default function PeoplePage() {
   const [results, setResults] = useState<PersonRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const debouncedSearch = useDebounce(search, 400);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [first, setFirst] = useState('');
+  const [last, setLast] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -52,15 +59,20 @@ export default function PeoplePage() {
       <div className="mx-auto max-w-7xl space-y-6 min-h-screen-height-visible">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">People</h1>
-          <div className="w-full max-w-sm">
-            <Input
-              placeholder="Search people..."
-              value={search}
-              onChange={(e) => {
-                setPage(1);
-                setSearch(e.target.value);
-              }}
-            />
+          <div className="flex items-center gap-2">
+            <div className="w-full max-w-sm">
+              <Input
+                placeholder="Search people..."
+                value={search}
+                onChange={(e) => {
+                  setPage(1);
+                  setSearch(e.target.value);
+                }}
+              />
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)} title="Create person">
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 
@@ -106,6 +118,56 @@ export default function PeoplePage() {
           </div>
         )}
       </div>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create person</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="First name" value={first} onChange={(e) => setFirst(e.target.value)} />
+            <Input placeholder="Last name" value={last} onChange={(e) => setLast(e.target.value)} />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCreateOpen(false)}>Cancel</Button>
+              <Button onClick={async () => {
+                try {
+                  const u = (await import('../../contexts/AuthContext')).useAuth; void u; // ensure tree-shake safe
+                  // Create person
+                  const orgId = (await import('../../contexts/AuthContext')).useAuth().user?.organization_id;
+                } catch {
+                  // noop
+                }
+              }} className="hidden" />
+              <Button
+                onClick={async () => {
+                  try {
+                    const auth = (await import('../../contexts/AuthContext'));
+                    const orgId = auth?.useAuth?.().user?.organization_id as string | undefined;
+                    if (!orgId) return;
+                    if (!first.trim() && !last.trim()) {
+                      toast.error('Enter at least a first or last name.');
+                      return;
+                    }
+                    const created = await createPerson({
+                      organization_id: orgId,
+                      name: { first: first.trim() || '-', last: last.trim() || '-' }
+                    });
+                    toast.success('Person created.');
+                    setCreateOpen(false);
+                    setFirst('');
+                    setLast('');
+                    navigate(`/people/${created.id}`);
+                  } catch (e) {
+                    console.error('Failed to create person', e);
+                    toast.error('Failed to create person.');
+                  }
+                }}
+              >
+                Create
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

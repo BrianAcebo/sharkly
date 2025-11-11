@@ -1,11 +1,14 @@
+import type { PersonRecord } from './person';
+import type { AddressRecord } from './address';
+
 export interface BusinessRecord {
   id: string;
   organization_id: string;
   name: string;
   ein_tax_id: string | null;
   avatar: string | null;
-  officers: unknown[];
-  addresses: unknown[];
+  officers: PersonRecord[];
+  addresses: AddressRecord[];
   registration: Record<string, unknown> | null;
   domains: unknown[];
   created_at: string;

@@ -46,9 +46,18 @@ export interface LeakEmailLink {
   };
 }
 
+export interface LeakUsernameLink {
+  edge: LeakEdgeInfo;
+  username: {
+    id: string;
+    value: string;
+  };
+}
+
 export interface LeakDetail {
   leak: LeakEntity;
   emails: LeakEmailLink[];
+  usernames?: LeakUsernameLink[];
 }
 
 export interface LeakSearchResult {

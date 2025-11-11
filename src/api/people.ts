@@ -428,6 +428,9 @@ export async function addEmailToPerson(
     confidence_score?: number;
     metadata?: Record<string, unknown>;
     retrieved_at?: string;
+    source_api?: string | null;
+    source_url?: string | null;
+    raw_reference_id?: string | null;
   } = {}
 ) {
   const current = await listPersonEmails(personId);
@@ -445,7 +448,10 @@ export async function addEmailToPerson(
           transform_type: options.transform_type ?? 'manual',
           confidence_score: options.confidence_score ?? 1,
           metadata: options.metadata ?? {},
-          retrieved_at: options.retrieved_at ?? new Date().toISOString()
+          retrieved_at: options.retrieved_at ?? new Date().toISOString(),
+          source_api: options.source_api ?? 'internal',
+          source_url: options.source_url ?? null,
+          raw_reference_id: options.raw_reference_id ?? null
         })
         .eq('source_type', 'person')
         .eq('source_id', personId)

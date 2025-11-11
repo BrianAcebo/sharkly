@@ -30,6 +30,7 @@ import WebSearch from './pages/WebSearch';
 import CaseDetail from './pages/Cases/CaseDetail';
 import Graph from './pages/Graph/Graph';
 import PersonDetail from './pages/People/PersonDetail';
+import PropertyDetail from './pages/Properties/PropertyDetail';
 import PeoplePage from './pages/People/People';
 import BusinessesPage from './pages/Businesses/Businesses';
 import BusinessDetail from './pages/Businesses/BusinessDetail';
@@ -37,6 +38,23 @@ import InvestigatorProfile from './pages/Investigators/InvestigatorProfile';
 import InvestigatorDetail from './pages/Investigators/InvestigatorDetail';
 import EmailDetailPage from './pages/Emails/EmailDetail';
 import LeakDetailPage from './pages/Leaks/LeakDetail';
+import SocialProfileDetail from './pages/SocialProfiles/SocialProfileDetail';
+import SocialProfilesPage from './pages/SocialProfiles/SocialProfiles';
+import EmailsPage from './pages/Emails/Emails';
+import PhonesPage from './pages/Phones/Phones';
+import UsernamesPage from './pages/Usernames/Usernames';
+import LeaksPage from './pages/Leaks/Leaks';
+import PropertiesPage from './pages/Properties/Properties';
+import DomainsPage from './pages/Domains/Domains';
+import DomainDetailPage from './pages/Domains/DomainDetail';
+import ImagesPage from './pages/Images/Images';
+import ImageDetailPage from './pages/Images/ImageDetail';
+import UsernameDetailPage from './pages/Usernames/UsernameDetail';
+import PhoneDetailPage from './pages/Phones/PhoneDetail';
+import IPsPage from './pages/IPs/IPs';
+import IPDetailPage from './pages/IPs/IPDetail';
+import DocumentsPage from './pages/Documents/Documents';
+import DocumentDetailPage from './pages/Documents/DocumentDetail';
 
 export default function App() {
 	return (
@@ -56,8 +74,26 @@ export default function App() {
 						<Route path="/cases/:id" element={<CaseDetail />} />
 						<Route path="/graph/:id" element={<Graph />} />
 						<Route path="/people" element={<PeoplePage />} />
-						<Route path="/people/:id" element={<PersonDetail />} />
+                        <Route path="/people/:id" element={<PersonDetail />} />
+						<Route path="/properties" element={<PropertiesPage />} />
+                        <Route path="/properties/:id" element={<PropertyDetail />} />
+						<Route path="/domains" element={<DomainsPage />} />
+						<Route path="/domains/:id" element={<DomainDetailPage />} />
+						<Route path="/images" element={<ImagesPage />} />
+						<Route path="/images/:id" element={<ImageDetailPage />} />
+						<Route path="/documents" element={<DocumentsPage />} />
+						<Route path="/documents/:id" element={<DocumentDetailPage />} />
+						<Route path="/emails" element={<EmailsPage />} />
 						<Route path="/emails/:id" element={<EmailDetailPage />} />
+						<Route path="/profiles" element={<SocialProfilesPage />} />
+						<Route path="/profiles/:id" element={<SocialProfileDetail />} />
+						<Route path="/usernames" element={<UsernamesPage />} />
+						<Route path="/usernames/:id" element={<UsernameDetailPage />} />
+						<Route path="/phones" element={<PhonesPage />} />
+						<Route path="/phones/:id" element={<PhoneDetailPage />} />
+						<Route path="/ips" element={<IPsPage />} />
+						<Route path="/ips/:id" element={<IPDetailPage />} />
+						<Route path="/leaks" element={<LeaksPage />} />
 						<Route path="/leaks/:id" element={<LeakDetailPage />} />
 						<Route path="/businesses" element={<BusinessesPage />} />
 						<Route path="/businesses/:id" element={<BusinessDetail />} />

@@ -3,8 +3,9 @@ import { Link } from 'react-router';
 import PageMeta from '../../components/common/PageMeta';
 import { useEffect } from 'react';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { BreadcrumbsProvider } from '../../providers/BreadcrumbsProvider';
 
-export default function NotFound() {
+function NotFoundContent() {
 	const { setTitle, setReturnTo } = useBreadcrumbs();
 
 	useEffect(() => {
@@ -44,5 +45,13 @@ export default function NotFound() {
 				</p>
 			</div>
 		</>
+	);
+}
+
+export default function NotFound() {
+	return (
+		<BreadcrumbsProvider>
+			<NotFoundContent />
+		</BreadcrumbsProvider>
 	);
 }

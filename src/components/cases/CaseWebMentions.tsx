@@ -1,5 +1,6 @@
-import * as React from 'react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Coins, Pencil, Plus, Search, Trash2, Zap } from 'lucide-react';
+import { getActionCost, ActionKey, ENABLE_ACTION_FLAGS } from '../../constants/costs';
 import { toast } from 'sonner';
 
 import ComponentCard from '../common/ComponentCard';
@@ -26,6 +27,15 @@ import {
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { Label } from '../ui/label';
+import {
+	DropdownMenu,
+	DropdownMenuLabel,
+	DropdownMenuContent,
+	DropdownMenuTrigger,
+	DropdownMenuItem,
+	DropdownMenuSeparator
+} from '../ui/dropdown-menu';
+import type { EntityType } from '../../types/entities';
 
 type Mention = {
 	title: string | null;
@@ -50,8 +60,14 @@ type MentionDraft = {
 };
 
 interface CaseWebMentionsProps {
-	personId: string | null;
+	entity: {
+		id: string;
+		type: EntityType;
+		name?: string;
+	};
 	allowManage?: boolean;
+	showActions?: boolean;
+	onSearchWebMentions?: () => void;
 }
 
 const pageSize = 6;
@@ -67,43 +83,83 @@ const createDraft = (mention?: Mention): MentionDraft => ({
 	retrieved_at: mention?.retrieved_at ?? new Date().toISOString()
 });
 
-export default function CaseWebMentions({ personId, allowManage = false }: CaseWebMentionsProps) {
-	const [mentions, setMentions] = React.useState<Mention[]>([]);
-	const [loading, setLoading] = React.useState(false);
-	const [page, setPage] = React.useState(1);
-	const [editing, setEditing] = React.useState<{
+export default function CaseWebMentions({
+	entity,
+	allowManage = false,
+	showActions = false,
+	onSearchWebMentions
+}: CaseWebMentionsProps) {
+	const tableForType = useCallback((t: EntityType): string | null => {
+		switch (t) {
+			case 'person':
+				return 'people';
+			case 'business':
+				return 'businesses';
+			case 'property':
+				return 'properties';
+			case 'email':
+				return 'emails';
+			case 'phone':
+				return 'phones';
+			case 'username':
+				return 'usernames';
+			case 'social_profile':
+				return 'social_profiles';
+			case 'image':
+				return 'images';
+			case 'ip':
+				return 'ip_addresses';
+			case 'domain':
+				return 'domains';
+			case 'leak':
+				return 'paste_leaks';
+			case 'document':
+				return 'documents';
+			default:
+				return null;
+		}
+	}, []);
+
+	const [mentions, setMentions] = useState<Mention[]>([]);
+	const [loading, setLoading] = useState(false);
+	const [page, setPage] = useState(1);
+	const [editing, setEditing] = useState<{
 		mode: 'add' | 'edit';
 		index: number | null;
 		draft: MentionDraft;
 	} | null>(null);
-	const [isSaving, setIsSaving] = React.useState(false);
-	const [deleteIndex, setDeleteIndex] = React.useState<number | null>(null);
-	const [isDeleting, setIsDeleting] = React.useState(false);
+	const [isSaving, setIsSaving] = useState(false);
+	const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+	const [isDeleting, setIsDeleting] = useState(false);
 
-	React.useEffect(() => {
-		if (!personId) return;
+	useEffect(() => {
+		if (!entity.id) return;
+		const table = tableForType(entity.type);
+		if (!table) return;
 		let isMounted = true;
 		(async () => {
 			setLoading(true);
 			try {
 				const { data, error } = await supabase
-					.from('people')
+					.from(table)
 					.select('web_mentions')
-					.eq('id', personId)
+					.eq('id', entity.id)
 					.single();
 				if (error) throw error;
 				if (isMounted) {
-					setMentions(((data?.web_mentions as Mention[]) ?? []).map((mention) => ({
-						...mention,
-						title: mention?.title ?? null,
-						link: mention?.link ?? null,
-						snippet: mention?.snippet ?? null,
-						displayLink: mention?.displayLink ?? null,
-						favicon: mention?.favicon ?? null,
-						image: mention?.image ?? null,
-						source: mention?.source ?? null,
-						retrieved_at: mention?.retrieved_at ?? null
-					})));
+					setMentions(
+						((data?.web_mentions as Mention[]) ?? []).map((mention) => ({
+							...mention,
+							title: mention?.title ?? null,
+							link: mention?.link ?? null,
+							snippet: mention?.snippet ?? null,
+							displayLink: mention?.displayLink ?? null,
+							favicon: mention?.favicon ?? null,
+							image: mention?.image ?? null,
+							source: mention?.source ?? null,
+							retrieved_at: mention?.retrieved_at ?? null
+						}))
+					);
 				}
 			} catch (error) {
 				console.error('Failed to load web mentions', error);
@@ -115,26 +171,28 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 		return () => {
 			isMounted = false;
 		};
-	}, [personId]);
+	}, [entity.id, entity.type, tableForType]);
 
-	const totalPages = React.useMemo(
+	const totalPages = useMemo(
 		() => Math.max(1, Math.ceil(mentions.length / pageSize)),
 		[mentions.length]
 	);
 
-	const visible = React.useMemo(
+	const visible = useMemo(
 		() => mentions.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize),
 		[mentions, page]
 	);
 
-	const persistMentions = React.useCallback(
+	const persistMentions = useCallback(
 		async (next: Mention[], successMessage: string) => {
-			if (!personId) return false;
+			if (!entity.id) return false;
+			const table = tableForType(entity.type);
+			if (!table) return false;
 			try {
 				const { error } = await supabase
-					.from('people')
+					.from(table)
 					.update({ web_mentions: next })
-					.eq('id', personId);
+					.eq('id', entity.id);
 				if (error) throw error;
 				setMentions(next);
 				toast.success(successMessage);
@@ -148,7 +206,7 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 				setIsDeleting(false);
 			}
 		},
-		[personId]
+		[entity.id, entity.type, tableForType]
 	);
 
 	const handleSaveDraft = async () => {
@@ -162,7 +220,9 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 			favicon: draft.favicon.trim() || null,
 			image: draft.image.trim() || null,
 			source: draft.source.trim() || null,
-			retrieved_at: draft.retrieved_at ? new Date(draft.retrieved_at).toISOString() : new Date().toISOString()
+			retrieved_at: draft.retrieved_at
+				? new Date(draft.retrieved_at).toISOString()
+				: new Date().toISOString()
 		};
 
 		if (!sanitized.title && !sanitized.link) {
@@ -177,7 +237,10 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 		} else if (index !== null && index >= 0 && index < next.length) {
 			next[index] = sanitized;
 		}
-		const success = await persistMentions(next, mode === 'add' ? 'Web mention added.' : 'Web mention updated.');
+		const success = await persistMentions(
+			next,
+			mode === 'add' ? 'Web mention added.' : 'Web mention updated.'
+		);
 		if (success) {
 			setEditing(null);
 			setPage(1);
@@ -198,7 +261,7 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 		}
 	};
 
-	if (!personId) return null;
+	if (!entity.id) return null;
 
 	return (
 		<ComponentCard>
@@ -209,11 +272,49 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 						<span className="text-xs text-gray-500">{mentions.length} saved</span>
 					)}
 				</div>
-				{allowManage && (
-					<Button size="xs" variant="outline" onClick={() => setEditing({ mode: 'add', index: null, draft: createDraft() })}>
-						<Plus className="mr-1 h-3 w-3" /> Add
-					</Button>
-				)}
+				<div className="flex items-center gap-2">
+					{showActions && ENABLE_ACTION_FLAGS[ActionKey.SearchWebMentions] && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button size="sm" variant="outline">
+									<Zap className="size-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuLabel>Perform Action</DropdownMenuLabel>
+								<div className="flex justify-between gap-2">
+									<div>
+										<DropdownMenuItem
+											className="group flex cursor-pointer items-center justify-between gap-2"
+											onClick={onSearchWebMentions}
+										>
+											Search web mentions{' '}
+											<Search className="invisible mr-2 size-3 text-gray-500 transition-all duration-200 group-hover:visible group-hover:translate-x-1" />
+										</DropdownMenuItem>
+									</div>
+									<div className="w-20">
+										<DropdownMenuItem disabled>
+											<span className="border-l pl-3 text-sm">
+												{getActionCost(ActionKey.SearchWebMentions)} <Coins className="ml-0.5 inline-block size-3" />
+											</span>
+										</DropdownMenuItem>
+									</div>
+								</div>
+								<DropdownMenuSeparator />
+								<DropdownMenuItem disabled>Actions will run for "{entity.name}"</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
+					{allowManage && (
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={() => setEditing({ mode: 'add', index: null, draft: createDraft() })}
+						>
+							<Plus className="size-4" />
+						</Button>
+					)}
+				</div>
 			</div>
 			{loading ? (
 				<div className="text-sm text-gray-500">Loading…</div>
@@ -240,7 +341,7 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 										<div className="h-12 w-12 rounded bg-gray-200 dark:bg-gray-700" />
 									)}
 									<div className="flex-1">
-										<div className="text-sm font-medium line-clamp-2">
+										<div className="line-clamp-2 text-sm font-medium">
 											{m.title || m.link || 'Untitled result'}
 										</div>
 										<div className="text-xs text-gray-500">{m.displayLink || m.link}</div>
@@ -250,7 +351,7 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 											</div>
 										)}
 										{m.source && (
-											<div className="mt-2 text-[11px] uppercase tracking-wide text-gray-400">
+											<div className="mt-2 text-[11px] tracking-wide text-gray-400 uppercase">
 												Source: {m.source}
 											</div>
 										)}
@@ -309,7 +410,10 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 				</div>
 			)}
 
-			<Dialog open={Boolean(editing)} onOpenChange={(open) => !open && !isSaving && setEditing(null)}>
+			<Dialog
+				open={Boolean(editing)}
+				onOpenChange={(open) => !open && !isSaving && setEditing(null)}
+			>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>
@@ -319,111 +423,107 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 					</DialogHeader>
 					<div className="space-y-3">
 						<div>
-							<Label className="text-xs uppercase text-gray-500">Title</Label>
+							<Label className="text-xs text-gray-500 uppercase">Title</Label>
 							<Input
 								value={editing?.draft.title ?? ''}
 								onChange={(e) =>
 									setEditing((cur) =>
-										cur
-											? { ...cur, draft: { ...cur.draft, title: e.target.value } }
-										: cur
-									)}
+										cur ? { ...cur, draft: { ...cur.draft, title: e.target.value } } : cur
+									)
+								}
 							/>
 						</div>
 						<div>
-							<Label className="text-xs uppercase text-gray-500">Link</Label>
+							<Label className="text-xs text-gray-500 uppercase">Link</Label>
 							<Input
 								placeholder="https://example.com"
 								value={editing?.draft.link ?? ''}
 								onChange={(e) =>
 									setEditing((cur) =>
-										cur
-											? { ...cur, draft: { ...cur.draft, link: e.target.value } }
-										: cur
-									)}
+										cur ? { ...cur, draft: { ...cur.draft, link: e.target.value } } : cur
+									)
+								}
 							/>
 						</div>
 						<div>
-							<Label className="text-xs uppercase text-gray-500">Display link</Label>
+							<Label className="text-xs text-gray-500 uppercase">Display link</Label>
 							<Input
 								value={editing?.draft.displayLink ?? ''}
 								onChange={(e) =>
 									setEditing((cur) =>
-										cur
-											? { ...cur, draft: { ...cur.draft, displayLink: e.target.value } }
-										: cur
-									)}
+										cur ? { ...cur, draft: { ...cur.draft, displayLink: e.target.value } } : cur
+									)
+								}
 							/>
 						</div>
 						<div>
-							<Label className="text-xs uppercase text-gray-500">Snippet</Label>
+							<Label className="text-xs text-gray-500 uppercase">Snippet</Label>
 							<Textarea
 								rows={3}
 								value={editing?.draft.snippet ?? ''}
 								onChange={(e) =>
 									setEditing((cur) =>
-										cur
-											? { ...cur, draft: { ...cur.draft, snippet: e.target.value } }
-										: cur
-									)}
+										cur ? { ...cur, draft: { ...cur.draft, snippet: e.target.value } } : cur
+									)
+								}
 							/>
 						</div>
 						<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
 							<div>
-								<Label className="text-xs uppercase text-gray-500">Image URL</Label>
+								<Label className="text-xs text-gray-500 uppercase">Image URL</Label>
 								<Input
 									value={editing?.draft.image ?? ''}
 									onChange={(e) =>
 										setEditing((cur) =>
-											cur
-												? { ...cur, draft: { ...cur.draft, image: e.target.value } }
-											: cur
-										)}
+											cur ? { ...cur, draft: { ...cur.draft, image: e.target.value } } : cur
+										)
+									}
 								/>
 							</div>
 							<div>
-								<Label className="text-xs uppercase text-gray-500">Favicon URL</Label>
+								<Label className="text-xs text-gray-500 uppercase">Favicon URL</Label>
 								<Input
 									value={editing?.draft.favicon ?? ''}
 									onChange={(e) =>
 										setEditing((cur) =>
-											cur
-												? { ...cur, draft: { ...cur.draft, favicon: e.target.value } }
-											: cur
-										)}
+											cur ? { ...cur, draft: { ...cur.draft, favicon: e.target.value } } : cur
+										)
+									}
 								/>
 							</div>
 						</div>
 						<div className="grid grid-cols-1 gap-3 md:grid-cols-2">
 							<div>
-								<Label className="text-xs uppercase text-gray-500">Source</Label>
+								<Label className="text-xs text-gray-500 uppercase">Source</Label>
 								<Input
 									value={editing?.draft.source ?? ''}
 									onChange={(e) =>
 										setEditing((cur) =>
-											cur
-												? { ...cur, draft: { ...cur.draft, source: e.target.value } }
-											: cur
-										)}
+											cur ? { ...cur, draft: { ...cur.draft, source: e.target.value } } : cur
+										)
+									}
 								/>
 							</div>
 							<div>
-								<Label className="text-xs uppercase text-gray-500">Retrieved at</Label>
+								<Label className="text-xs text-gray-500 uppercase">Retrieved at</Label>
 								<Input
 									type="datetime-local"
 									value={editing?.draft.retrieved_at ? editing.draft.retrieved_at.slice(0, 19) : ''}
 									onChange={(e) =>
 										setEditing((cur) =>
-											cur
-												? { ...cur, draft: { ...cur.draft, retrieved_at: e.target.value } }
-											: cur
-										)}
+											cur ? { ...cur, draft: { ...cur.draft, retrieved_at: e.target.value } } : cur
+										)
+									}
 								/>
 							</div>
 						</div>
 					</div>
 					<DialogFooter>
-						<Button variant="outline" onClick={() => !isSaving && setEditing(null)} disabled={isSaving}>
+						<Button
+							variant="outline"
+							onClick={() => !isSaving && setEditing(null)}
+							disabled={isSaving}
+						>
 							Cancel
 						</Button>
 						<Button onClick={handleSaveDraft} disabled={isSaving}>
@@ -433,7 +533,10 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 				</DialogContent>
 			</Dialog>
 
-			<AlertDialog open={deleteIndex !== null} onOpenChange={(open) => !open && !isDeleting && setDeleteIndex(null)}>
+			<AlertDialog
+				open={deleteIndex !== null}
+				onOpenChange={(open) => !open && !isDeleting && setDeleteIndex(null)}
+			>
 				<AlertDialogContent>
 					<AlertDialogHeader>
 						<AlertDialogTitle>Remove web mention?</AlertDialogTitle>
@@ -452,5 +555,3 @@ export default function CaseWebMentions({ personId, allowManage = false }: CaseW
 		</ComponentCard>
 	);
 }
-
-
