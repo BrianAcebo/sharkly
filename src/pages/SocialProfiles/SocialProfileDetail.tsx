@@ -293,7 +293,7 @@ export default function SocialProfileDetail() {
         />
 
 <LinkedEmailsCard
-        title="Linked Emails"
+        title="Emails"
         displayName={p.handle || p.display_name || p.platform}
         ownerType="profile"
         ownerId={data.profile.id}
@@ -319,7 +319,7 @@ export default function SocialProfileDetail() {
       />
 
       <LinkedUsernamesCard
-        title="Linked Usernames"
+        title="Usernames"
         displayName={p.handle || p.display_name || p.platform}
         ownerId={data.profile.id}
         organizationId={data.profile.organization_id}

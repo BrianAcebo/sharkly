@@ -143,6 +143,8 @@ function widthForConfidence(c: number | null | undefined): number {
 	return 1 + 3 * Math.max(0, Math.min(1, c));
 }
 
+const SECOND_HOP_EDGE_COLOR = '#f97316'; // orange-500
+
 export async function buildEntityGraph(
 	rootType: 'person' | 'business',
 	rootId: string,
@@ -305,7 +307,7 @@ export async function buildEntityGraph(
 				}
 				const c = (n2.edge as any)?.confidence_score as number | null | undefined;
 				if (c != null && c < minConf) continue;
-				const stroke = colorForConfidence(c);
+				const stroke = SECOND_HOP_EDGE_COLOR;
 				const width = widthForConfidence(c);
 				const manual = typeof (n2.edge as any)?.transform_type === 'string' && /(manual|unlink|attach)/i.test((n2.edge as any).transform_type);
 				const tooltip =

@@ -14,7 +14,7 @@ import { getActionCost, ActionKey, ENABLE_ACTION_FLAGS } from '../../constants/c
 import React from 'react';
 
 export default function LinkedPeopleCard({
-	title = 'Linked People',
+	title = 'People',
 	items,
 	onUnlink,
 	onEdit,

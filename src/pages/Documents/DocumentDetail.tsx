@@ -317,16 +317,9 @@ export default function DocumentDetailPage() {
         </div>
       </ComponentCard>
 
-      {/* Web Mentions */}
-      <CaseWebMentions
-        entity={{ id: doc.id, type: 'document', name: truncate(doc.metadata?.author ?? getDisplayLabel(doc.source_url ?? ''), 80) }}
-        allowManage
-        showActions
-      />
-
       {/* Linked People */}
       <LinkedPeopleCard
-        title="Linked People"
+        title="People"
         items={linkedPeople}
         onUnlink={async (personId) => {
           try {
@@ -419,6 +412,13 @@ export default function DocumentDetailPage() {
           </div>
         )}
       </ComponentCard>
+
+      {/* Web Mentions */}
+      <CaseWebMentions
+        entity={{ id: doc.id, type: 'document', name: truncate(doc.metadata?.author ?? getDisplayLabel(doc.source_url ?? ''), 80) }}
+        allowManage
+        showActions
+      />
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-3xl">

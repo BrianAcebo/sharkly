@@ -217,7 +217,7 @@ export default function LinkedProfilesCard({
 								</div>
 								<div>
 									<p className="font-medium">{displayPlatform(p.platform)}</p>
-									<Link to={p.linkTo} className="text-base font-medium hover:underline">
+									<Link to={p.linkTo} className="text-sm font-medium hover:underline">
 										@{p.handle}
 									</Link>
 								</div>

@@ -25,7 +25,6 @@ import LinkedProfilesCard from '../../components/common/LinkedProfilesCard';
 import LinkedImagesCard from '../../components/common/LinkedImagesCard';
 import { detachImageFromPerson } from '../../api/images';
 import LinkedDocumentsCard from '../../components/common/LinkedDocumentsCard';
-import EntityGraphCard from '../../components/common/EntityGraphCard';
 import { detachDocumentFromPerson } from '../../api/documents';
 import { removeProfileFromPerson } from '../../api/social_profiles';
 import { buildPersonName, formatPersonName, normalizePersonName } from '../../utils/person';
@@ -616,7 +615,6 @@ export default function PersonDetail() {
 							});
 						}}
 					/>
-					<EntityGraphCard title="Graph" rootType="person" rootId={row.id} />
 				</div>
 				<ComponentCard>
 					<div className="flex items-center justify-between">

@@ -16,6 +16,9 @@ export default function Graph() {
 	const [loading, setLoading] = useState(true);
 	const [nodes, setNodes] = useState<Node<any>[]>([]);
 	const [edges, setEdges] = useState<Edge<any>[]>([]);
+	const [buildingGraph, setBuildingGraph] = useState(false);
+	const [depth, setDepth] = useState<1 | 2>(2);
+	const [minConfidencePct, setMinConfidencePct] = useState<number>(0);
 
 	const params = useParams();
     const routeId = params.id as string | undefined;
@@ -69,7 +72,7 @@ export default function Graph() {
         return () => {
             active = false;
         };
-    }, [routeId]);
+	}, [routeId]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -84,7 +87,12 @@ export default function Graph() {
 			const subjId = (caseReport.subject_id ?? caseReport.subject?.id) as string | undefined;
 			if (!subjType || !subjId) return;
 			try {
-				const built = await buildEntityGraph(subjType, subjId, { depth: 2, hydrateLabels: false });
+				setBuildingGraph(true);
+				const built = await buildEntityGraph(subjType, subjId, {
+					depth,
+					minConfidence: (minConfidencePct || 0) / 100,
+					hydrateLabels: false
+				});
 				if (!cancelled) {
 					setNodes(built.nodes);
 					setEdges(built.edges);
@@ -94,12 +102,14 @@ export default function Graph() {
 					setNodes([]);
 					setEdges([]);
 				}
+			} finally {
+				if (!cancelled) setBuildingGraph(false);
 			}
 		})();
 		return () => {
 			cancelled = true;
 		};
-	}, [caseReport]);
+	}, [caseReport, depth, minConfidencePct]);
 
 	if (loading) {
 		return <AuthLoading state={AuthLoadingState.LOADING} />;
@@ -110,8 +120,44 @@ export default function Graph() {
 	}
 
 	return (
-		<div className="h-main-viewport-height w-full">
-			<FloatingEdgesGraph nodes={nodes} edges={edges} />
+		<div className="flex h-main-viewport-height w-full flex-col">
+			<div className="flex flex-wrap items-center justify-between gap-4 px-6 pb-4 pt-6">
+				<div>
+					<h1 className="text-2xl font-semibold">Graph</h1>
+					<p className="text-sm text-muted-foreground">{caseReport.title}</p>
+				</div>
+				<div className="flex flex-wrap items-center gap-2 text-xs md:text-sm">
+					<label className="text-muted-foreground">Depth</label>
+					<select
+						className="rounded border px-2 py-1 text-xs md:text-sm"
+						value={depth}
+						onChange={(e) => setDepth((e.target.value === '2' ? 2 : 1) as 1 | 2)}
+					>
+						<option value="1">1 hop</option>
+						<option value="2">2 hops</option>
+					</select>
+					<label className="ml-3 text-muted-foreground">Min confidence</label>
+					<input
+						type="range"
+						min={0}
+						max={100}
+						value={minConfidencePct}
+						onChange={(e) => setMinConfidencePct(Number.parseInt(e.target.value || '0', 10))}
+					/>
+					<span className="text-xs tabular-nums md:text-sm">{minConfidencePct}%</span>
+				</div>
+			</div>
+			<div className="flex-1 px-6 pb-6">
+				<div className="h-full">
+					{buildingGraph ? (
+						<div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+							Building graph…
+						</div>
+					) : (
+						<FloatingEdgesGraph nodes={nodes} edges={edges} />
+					)}
+				</div>
+			</div>
 		</div>
 	);
 }

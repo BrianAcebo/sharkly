@@ -9,8 +9,6 @@ import { getBusinessById, updateBusiness, deleteBusiness } from '../../api/busin
 import type { BusinessRecord } from '../../types/business';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
-import { Separator } from '../../components/ui/separator';
-import { UserAvatar } from '../../components/common/UserAvatar';
 import { formatDistanceToNow } from 'date-fns';
 import ComponentCard from '../../components/common/ComponentCard';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
@@ -41,7 +39,6 @@ import { Link } from 'react-router-dom';
 import LinkedDomainsCard from '../../components/common/LinkedDomainsCard';
 import LinkedDocumentsCard from '../../components/common/LinkedDocumentsCard';
 import { detachDocumentFromBusiness } from '../../api/documents';
-import EntityGraphCard from '../../components/common/EntityGraphCard';
 
 export default function BusinessDetail() {
     const { id } = useParams<{ id: string }>();
@@ -239,7 +236,6 @@ export default function BusinessDetail() {
 				</div>
 			</div>
 
-            <EntityGraphCard title="Graph" rootType="business" rootId={row.id} />
 			<ComponentCard>
 				<div className="mb-3 flex items-center justify-between">
 					<h3 className="text-lg font-semibold">Details</h3>

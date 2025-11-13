@@ -352,7 +352,7 @@ export default function ImageDetailPage() {
 
       {/* Linked People */}
       <LinkedPeopleCard
-        title="Linked People"
+        title="People"
         items={linkedPeople}
         onUnlink={async (personId) => {
           try {

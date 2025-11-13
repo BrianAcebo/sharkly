@@ -1008,43 +1008,94 @@ export default function FloatingEdgesGraph(props: {
 
 	// inline node editing removed for this view
 
-	// Menu-style focus: find root (position 0,0) and list first-degree neighbors
+	// Menu-style focus: find root (position 0,0) and organize neighbors by hop
 	const rootNode = useMemo(
 		() => nodes.find((n) => Math.abs(n.position.x) < 1e-3 && Math.abs(n.position.y) < 1e-3) || null,
 		[nodes]
 	);
-	const neighborIds = useMemo(() => {
-		if (!rootNode) return new Set<string>();
-		const s = new Set<string>();
-		for (const e of edges) {
-			if (e.source === rootNode.id) s.add(e.target);
-			if (e.target === rootNode.id) s.add(e.source);
+	const adjacency = useMemo(() => {
+		const map = new Map<string, Set<string>>();
+		for (const edge of edges) {
+			if (!map.has(edge.source)) map.set(edge.source, new Set());
+			if (!map.has(edge.target)) map.set(edge.target, new Set());
+			map.get(edge.source)!.add(edge.target);
+			map.get(edge.target)!.add(edge.source);
 		}
-		return s;
-	}, [edges, rootNode]);
-	const neighborList = useMemo(() => {
-		const list: Node<NodeData>[] = [];
-		neighborIds.forEach((id) => {
-			const found = nodes.find((n) => n.id === id);
-			if (found) list.push(found as Node<NodeData>);
-		});
-		return list;
-	}, [neighborIds, nodes]);
+		return map;
+	}, [edges]);
+	const { hopMap, parentMap } = useMemo(() => {
+		const hop = new Map<string, number>();
+		const parent = new Map<string, string | null>();
+		if (!rootNode) return { hopMap: hop, parentMap: parent };
+		const queue: Array<{ id: string; dist: number }> = [{ id: rootNode.id, dist: 0 }];
+		hop.set(rootNode.id, 0);
+		parent.set(rootNode.id, null);
+		while (queue.length) {
+			const { id, dist } = queue.shift()!;
+			if (dist >= 2) continue;
+			const neighbors = adjacency.get(id);
+			if (!neighbors) continue;
+			for (const next of neighbors) {
+				if (!hop.has(next)) {
+					hop.set(next, dist + 1);
+					parent.set(next, id);
+					queue.push({ id: next, dist: dist + 1 });
+				}
+			}
+		}
+		return { hopMap: hop, parentMap: parent };
+	}, [rootNode, adjacency]);
+	const firstHopList = useMemo(
+		() =>
+			nodes
+				.filter((n) => hopMap.get(n.id) === 1)
+				.sort((a, b) =>
+					String((a.data as NodeData)?.label ?? '').localeCompare(
+						String((b.data as NodeData)?.label ?? '')
+					)
+				),
+		[nodes, hopMap]
+	);
+	const secondHopList = useMemo(
+		() =>
+			nodes
+				.filter((n) => hopMap.get(n.id) === 2)
+				.sort((a, b) =>
+					String((a.data as NodeData)?.label ?? '').localeCompare(
+						String((b.data as NodeData)?.label ?? '')
+					)
+				),
+		[nodes, hopMap]
+	);
 	const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
 
+	useEffect(() => {
+		if (focusedNodeId && !hopMap.has(focusedNodeId)) {
+			setFocusedNodeId(null);
+		}
+	}, [focusedNodeId, hopMap]);
+
+	const visibleNodeIds = useMemo(() => {
+		if (!focusedNodeId || !rootNode) return null;
+		const ids = new Set<string>();
+		let cur: string | null | undefined = focusedNodeId;
+		while (cur) {
+			ids.add(cur);
+			cur = parentMap.get(cur) ?? null;
+		}
+		ids.add(rootNode.id);
+		return ids;
+	}, [focusedNodeId, rootNode, parentMap]);
+
 	const filteredNodes = useMemo(() => {
-		if (!focusedNodeId || !rootNode) return nodes;
-		return nodes.filter((n) => n.id === rootNode.id || n.id === focusedNodeId);
-	}, [nodes, focusedNodeId, rootNode]);
+		if (!visibleNodeIds) return nodes;
+		return nodes.filter((n) => visibleNodeIds.has(n.id));
+	}, [nodes, visibleNodeIds]);
 
 	const filteredEdges = useMemo(() => {
-		if (!focusedNodeId || !rootNode) return edges;
-		return edges.filter(
-			(e) =>
-				(e.source === rootNode.id && e.target === focusedNodeId) ||
-				(e.target === rootNode.id && e.source === focusedNodeId)
-		);
-	}, [edges, focusedNodeId, rootNode]);
+		if (!visibleNodeIds) return edges;
+		return edges.filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target));
+	}, [edges, visibleNodeIds]);
 
 	// transforms are disabled in this view
 
@@ -1055,7 +1106,7 @@ export default function FloatingEdgesGraph(props: {
 			</Button>
 			{/* Vertical Tab Selector */}
 			<div
-				className={`h-screen-height-visible top-header-height fixed left-0 z-999 flex w-full -translate-x-full transform flex-col gap-3 border bg-white p-4 transition-transform duration-300 ease-in-out md:static md:z-0 md:h-full md:w-64 md:translate-x-0 md:bg-transparent dark:border-gray-700 dark:bg-gray-800 md:dark:bg-transparent ${
+				className={`h-screen-height-visible top-header-height fixed left-0 z-999 flex w-full -translate-x-full transform flex-col gap-3 border bg-white px-4 py-6 transition-transform duration-300 ease-in-out md:static md:z-0 md:h-full md:w-64 md:translate-x-0 dark:border-gray-700 dark:bg-gray-800 ${
 					openTabSelector ? 'translate-x-0' : ''
 				}`}
 			>
@@ -1063,46 +1114,64 @@ export default function FloatingEdgesGraph(props: {
 					<X className="size-4" />
 				</Button2>
 				<div className="space-y-6">
-					<Button size="sm" variant="outline" onClick={() => setFocusedNodeId(null)}>
-						View All
-					</Button>
 					{rootNode ? (
-						<div className="space-y-4 rounded-lg border bg-white p-2 dark:bg-gray-900">
+						<div className="space-y-4">
 							<div>
 								<div className="mb-2 text-xs font-semibold text-gray-500">Subject</div>
 								<button
 									className={`w-full rounded border px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 ${
-										focusedNodeId === null ? 'ring-2 ring-blue-400' : ''
+										focusedNodeId === null ? 'border-2 border-gray-300' : ''
 									}`}
 									onClick={() => setFocusedNodeId(null)}
 								>
 									{String((rootNode.data as NodeData)?.label ?? rootNode.id)}
 								</button>
 							</div>
-							<div>
-								<div className="mt-3 text-xs font-semibold text-gray-500">Linked</div>
-								<ul className="mt-1 space-y-1">
-									{neighborList.map((n) => (
-										<li key={n.id}>
-											<button
-												className={`w-full rounded border px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 ${
-													focusedNodeId === n.id ? 'ring-2 ring-blue-400' : ''
-												}`}
-												onClick={() => setFocusedNodeId(n.id)}
-											>
-												{String(((n.data as NodeData) ?? ({} as NodeData)).label ?? n.id)}
-											</button>
-										</li>
-									))}
-								</ul>
-							</div>
+							{firstHopList.length ? (
+								<div>
+									<div className="mt-3 text-xs font-semibold text-gray-500">1 hop</div>
+									<ul className="mt-1 space-y-1">
+										{firstHopList.map((n) => (
+											<li key={n.id}>
+												<button
+													className={`w-full rounded border px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 ${
+														focusedNodeId === n.id ? 'border-2 border-gray-300' : ''
+													}`}
+													onClick={() => setFocusedNodeId(n.id)}
+												>
+													{String(((n.data as NodeData) ?? ({} as NodeData)).label ?? n.id)}
+												</button>
+											</li>
+										))}
+									</ul>
+								</div>
+							) : null}
+							{secondHopList.length ? (
+								<div>
+									<div className="mt-3 text-xs font-semibold text-gray-500">2 hops</div>
+									<ul className="mt-1 space-y-1">
+										{secondHopList.map((n) => (
+											<li key={n.id}>
+												<button
+													className={`w-full rounded border px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800 ${
+														focusedNodeId === n.id ? 'border-2 border-gray-300' : ''
+													}`}
+													onClick={() => setFocusedNodeId(n.id)}
+												>
+													{String(((n.data as NodeData) ?? ({} as NodeData)).label ?? n.id)}
+												</button>
+											</li>
+										))}
+									</ul>
+								</div>
+							) : null}
 						</div>
 					) : null}
 				</div>
 			</div>
 
 			{/* Graph View */}
-			<div className="relative flex-grow border dark:border-gray-700">
+			<div className="relative flex-grow border bg-white">
 				<div className="absolute top-2 right-4 z-10">
 					<p className="text-xs text-gray-500 italic">
 						Left click opens properties. Right click for actions.

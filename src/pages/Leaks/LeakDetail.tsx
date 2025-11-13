@@ -379,7 +379,7 @@ const LeakDetailPage = () => {
 			</AlertDialog>
 
 			<LinkedEmailsCard
-				title="Linked emails"
+				title="Emails"
 				displayName={detail.leak.source ?? detail.leak.id}
 				ownerType="leak"
 				ownerId={detail.leak.id}
@@ -411,7 +411,7 @@ const LeakDetailPage = () => {
 			/>
 
 			<LinkedUsernamesCard
-				title="Linked usernames"
+				title="Usernames"
 				displayName={detail.leak.source ?? detail.leak.id}
 				ownerId={detail.leak.id}
 				organizationId={detail.leak.organization_id!}

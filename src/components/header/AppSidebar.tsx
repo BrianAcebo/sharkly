@@ -9,15 +9,20 @@ import {
 	UserRoundSearch,
 	Glasses,
 	FolderSearch,
-    Users,
-    Factory,
-    Database
+	Users,
+	Factory,
+	Database
 } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
 import { useSidebar } from '../../hooks/useSidebar';
 
-type MenuItem = { icon: React.ComponentType<{ className?: string }>; label: string; path?: string; children?: MenuItem[] };
+type MenuItem = {
+	icon: React.ComponentType<{ className?: string }>;
+	label: string;
+	path?: string;
+	children?: MenuItem[];
+};
 
 const Sidebar: React.FC = () => {
 	const { user, signOut } = useAuth();
@@ -25,9 +30,9 @@ const Sidebar: React.FC = () => {
 	const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
 	const menuItems: MenuItem[] = [
-		{ 
-			icon: LayoutDashboard, 
-			label: 'Cases', 
+		{
+			icon: LayoutDashboard,
+			label: 'Cases',
 			path: '/cases'
 		},
 		{
@@ -40,17 +45,17 @@ const Sidebar: React.FC = () => {
 				{ icon: Users, label: 'Phones', path: '/phones' },
 				{ icon: Users, label: 'Social Profiles', path: '/profiles' },
 				{ icon: Users, label: 'Usernames', path: '/usernames' },
-		{ icon: Users, label: 'Leaks', path: '/leaks' },
-		{ icon: Users, label: 'Images', path: '/images' },
-        { icon: Users, label: 'Documents', path: '/documents' },
-        { icon: Users, label: 'IP Addresses', path: '/ips' },
+				{ icon: Users, label: 'Leaks', path: '/leaks' },
+				{ icon: Users, label: 'Images', path: '/images' },
+				{ icon: Users, label: 'Documents', path: '/documents' },
+				{ icon: Users, label: 'IP Addresses', path: '/ips' },
 				{ icon: Users, label: 'Properties', path: '/properties' },
 				{ icon: Users, label: 'Domains', path: '/domains' }
 			]
 		},
 		{
 			icon: Bot,
-			label: 'AI Assistant', 
+			label: 'AI Assistant',
 			path: '/assistant'
 		},
 		{
@@ -68,14 +73,14 @@ const Sidebar: React.FC = () => {
 			label: 'Social',
 			path: '/social'
 		},
-		{ 
-			icon: Building2, 
-			label: 'Organization', 
+		{
+			icon: Building2,
+			label: 'Organization',
 			path: '/organization'
 		},
-		{ 
-			icon: Settings, 
-			label: 'Settings', 
+		{
+			icon: Settings,
+			label: 'Settings',
 			path: '/settings'
 		}
 	];
@@ -84,7 +89,7 @@ const Sidebar: React.FC = () => {
 		<aside
 			className={`fixed top-0 left-0 z-50 mt-16 flex h-screen flex-col border-r border-gray-200 bg-white text-gray-900 transition-all duration-300 ease-in-out lg:mt-0 dark:border-gray-600 dark:bg-gray-900 ${isExpanded || isMobileOpen ? 'w-[250px]' : 'w-[90px]'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
 		>
-			<div className="flex h-header-height items-center justify-center border-b border-gray-200 pt-4 pb-2 dark:border-gray-600">
+			<div className="h-header-height flex items-center justify-center border-b border-gray-200 pt-4 pb-2 dark:border-gray-600">
 				<Link to="/">
 					{isExpanded || isMobileOpen ? (
 						<>
@@ -124,7 +129,7 @@ const Sidebar: React.FC = () => {
 				</Link>
 			</div>
 
-			<nav className="mb-6 flex flex-1 py-10 overflow-y-auto">
+			<nav className="mb-6 flex flex-1 overflow-y-auto py-10">
 				<ul className="w-full space-y-2 px-4">
 					{menuItems.map((item: MenuItem, index) => {
 						const isActive = (it: MenuItem): boolean => {
@@ -147,7 +152,9 @@ const Sidebar: React.FC = () => {
 										}`}
 									>
 										<item.icon className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
-										{(isExpanded || isMobileOpen) && <span className="font-medium">{item.label}</span>}
+										{(isExpanded || isMobileOpen) && (
+											<span className="font-medium">{item.label}</span>
+										)}
 									</button>
 									{(isExpanded || isMobileOpen) && isOpen ? (
 										<ul className="mt-1 space-y-1 pl-4">
@@ -183,7 +190,9 @@ const Sidebar: React.FC = () => {
 										}`}
 									>
 										<item.icon className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
-										{(isExpanded || isMobileOpen) && <span className="font-medium">{item.label}</span>}
+										{(isExpanded || isMobileOpen) && (
+											<span className="font-medium">{item.label}</span>
+										)}
 									</button>
 								</Link>
 							</li>
