@@ -49,6 +49,17 @@ export const validatePassword = (password: string): PasswordValidationResult => 
 	};
 };
 
+/** Valid URL (http/https) - empty string is valid (optional field) */
+export const validateUrl = (url: string): boolean => {
+	if (!url.trim()) return true;
+	try {
+		const parsed = new URL(url.trim());
+		return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+	} catch {
+		return false;
+	}
+};
+
 export const sanitizeInput = (input: string): string => {
 	// Remove any HTML tags and special characters
 	return input.replace(/[<>]/g, '');

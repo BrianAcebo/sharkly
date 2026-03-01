@@ -13,7 +13,11 @@ import {
 	Calendar,
 	ExternalLink,
 	Wallet,
-	Coins
+	Coins,
+	ArrowLeft,
+	TicketSlash,
+	MessageSquare,
+	Mail
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -21,6 +25,9 @@ import { STRIPE_CUSTOMER_PORTAL_URL, canManageBilling } from '../utils/billing';
 import { useAuth } from '../hooks/useAuth';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { WalletDepositModal } from '../components/billing/WalletDepositModal';
+import { useNavigate } from 'react-router-dom';
+import { useCredits } from '../hooks/useCredits';
+import { getOrgCreditUsageMonth } from '../api/billingCredits';
 
 type UsageRecord = Record<string, unknown>;
 
@@ -168,6 +175,7 @@ const Billing: React.FC = () => {
 	const trialInfo = useTrial();
 	const { setTitle, setReturnTo } = useBreadcrumbs();
 	const { user } = useAuth();
+	const navigate = useNavigate();
 	// Removed legacy usage summary and voice price fetches (deprecated APIs)
 	const [usageSummary] = useState<UsageSummary | null>(null);
 	// Removed legacy Billing Settings modal (markup/cycle/email)
@@ -185,12 +193,49 @@ const Billing: React.FC = () => {
 		startingAfter: null as string | null,
 		endingBefore: null as string | null
 	});
+	const credits = useCredits(organization?.id ?? null);
+	const [monthlyCreditsUsed, setMonthlyCreditsUsed] = useState<number | null>(null);
+	const [chatUsage, setChatUsage] = useState<{ used: number; limit: number } | null>(null);
 
 	useEffect(() => {
 		setTitle('Billing & Usage');
 		setReturnTo({ path: '/organization', label: 'Organization' });
 		fetchBillingData();
 	}, [setTitle, setReturnTo]);
+
+	// Fetch chat message usage
+	useEffect(() => {
+		const loadChatUsage = async () => {
+			if (!organization?.id) return;
+			try {
+				const {
+					data: { session }
+				} = await supabase.auth.getSession();
+				if (!session?.access_token) return;
+
+				const response = await api.get('/api/ai/status', {
+					headers: {
+						Authorization: `Bearer ${session.access_token}`,
+						'x-organization-id': organization.id
+					}
+				});
+				if (response.ok) {
+					const data = await response.json();
+					// Use the nested usage object which has messages_used directly
+					const usage = data.usage;
+					if (usage) {
+						setChatUsage({
+							used: usage.messages_used ?? 0,
+							limit: usage.monthly_limit ?? 500
+						});
+					}
+				}
+			} catch (e) {
+				console.error('Failed to load chat usage:', e);
+			}
+		};
+		loadChatUsage();
+	}, [organization?.id]);
 
 	useEffect(() => {
 		if (organization?.stripe_customer_id) {
@@ -205,6 +250,22 @@ const Billing: React.FC = () => {
 		invoicePagination.startingAfter,
 		invoicePagination.endingBefore
 	]);
+
+	useEffect(() => {
+		const loadMonthly = async () => {
+			if (!organization?.id) {
+				setMonthlyCreditsUsed(null);
+				return;
+			}
+			try {
+				const usage = await getOrgCreditUsageMonth(organization.id);
+				setMonthlyCreditsUsed(usage?.total_credits_spent ?? 0);
+			} catch {
+				setMonthlyCreditsUsed(null);
+			}
+		};
+		loadMonthly();
+	}, [organization?.id]);
 
 	const fetchBillingData = async () => {
 		setIsLoading(false);
@@ -229,12 +290,12 @@ const Billing: React.FC = () => {
 			if (startingAfter) query.append('starting_after', startingAfter);
 			if (endingBefore) query.append('ending_before', endingBefore);
 
-            const response = await api.get(`/api/billing/invoices?${query.toString()}`, {
-                headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+			const response = await api.get(`/api/billing/invoices?${query.toString()}`, {
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				}
+			});
 
 			if (!response.ok) {
 				throw new Error('Failed to fetch invoices');
@@ -282,7 +343,7 @@ const Billing: React.FC = () => {
 	if (isLoading) {
 		return (
 			<div className="flex h-64 items-center justify-center">
-				<div className="h-8 w-8 animate-spin rounded-full border-b-2 border-red-500"></div>
+				<div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500"></div>
 			</div>
 		);
 	}
@@ -292,7 +353,10 @@ const Billing: React.FC = () => {
 	return (
 		<div className="space-y-6 p-6">
 			{/* Header */}
-			<div className="flex items-center justify-between">
+			<div className="flex items-center gap-4">
+				<Button variant="outline" onClick={() => navigate('/organization')}>
+					<ArrowLeft className="h-4 w-4" />
+				</Button>
 				<div>
 					<h1 className="text-2xl font-bold text-gray-900 dark:text-white">Billing & Usage</h1>
 				</div>
@@ -305,7 +369,7 @@ const Billing: React.FC = () => {
 						onClick={() => setActiveTab('overview')}
 						className={`border-b-2 px-1 py-2 text-sm font-medium ${
 							activeTab === 'overview'
-								? 'border-red-500 text-red-600 dark:text-red-400'
+								? 'border-blue-500 text-blue-600 dark:text-blue-400'
 								: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
 						}`}
 					>
@@ -315,7 +379,7 @@ const Billing: React.FC = () => {
 						onClick={() => setActiveTab('usage')}
 						className={`border-b-2 px-1 py-2 text-sm font-medium ${
 							activeTab === 'usage'
-								? 'border-red-500 text-red-600 dark:text-red-400'
+								? 'border-blue-500 text-blue-600 dark:text-blue-400'
 								: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
 						}`}
 					>
@@ -325,7 +389,7 @@ const Billing: React.FC = () => {
 						onClick={() => setActiveTab('invoices')}
 						className={`border-b-2 px-1 py-2 text-sm font-medium ${
 							activeTab === 'invoices'
-								? 'border-red-500 text-red-600 dark:text-red-400'
+								? 'border-blue-500 text-blue-600 dark:text-blue-400'
 								: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
 						}`}
 					>
@@ -337,14 +401,26 @@ const Billing: React.FC = () => {
 			{/* Tab Content */}
 			{activeTab === 'overview' && (
 				<div className="space-y-6">
-					{!trialInfo.loading && (
-						<div className="rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200">
+					{!trialInfo.loading && (trialInfo.isOnTrial || trialInfo.needsPayment) && (
+						<div
+							className={`rounded-lg p-3 text-sm ${
+								trialInfo.needsPayment
+									? 'border border-amber-100 bg-amber-50 text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-100'
+									: 'border border-blue-100 bg-blue-50 text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-200'
+							}`}
+						>
 							<div className="flex items-center justify-between">
 								<div>
 									<p className="font-semibold">
-										{trialInfo.isOnTrial ? 'Pay-As-You-Go Trial Active' : 'No Active Trial'}
+										{trialInfo.needsPayment ? 'Action required' : 'Pay-As-You-Go Trial Active'}
 									</p>
-									<p className="text-xs text-blue-700 dark:text-blue-300">
+									<p
+										className={`text-xs ${
+											trialInfo.needsPayment
+												? 'text-amber-800 dark:text-amber-200'
+												: 'text-blue-700 dark:text-blue-300'
+										}`}
+									>
 										{trialInfo.statusMessage}
 									</p>
 								</div>
@@ -382,7 +458,7 @@ const Billing: React.FC = () => {
 							<CardContent className="space-y-4">
 								{orgLoading ? (
 									<div className="flex items-center justify-center py-8">
-										<div className="h-6 w-6 animate-spin rounded-full border-b-2 border-red-500"></div>
+										<div className="h-6 w-6 animate-spin rounded-full border-b-2 border-blue-500"></div>
 									</div>
 								) : organization ? (
 									<>
@@ -426,11 +502,18 @@ const Billing: React.FC = () => {
 											<div className="grid grid-cols-2 gap-3">
 												<div className="flex items-center space-x-2 text-sm">
 													<Users className="h-4 w-4 text-gray-500" />
-													<span>{organization.included_seats || 0} team members</span>
+													<span className="text-gray-900 dark:text-white">
+														{organization.included_seats || 0} team members
+													</span>
 												</div>
 												<div className="flex items-center space-x-2 text-sm">
 													<Coins className="h-4 w-4 text-gray-500" />
-													<span>{organization.included_credits || 0} credits</span>
+													<span className="text-gray-900 dark:text-white">
+														{typeof organization.included_credits_monthly === 'number'
+															? organization.included_credits_monthly
+															: organization.included_credits || 0}{' '}
+														credits
+													</span>
 												</div>
 											</div>
 										</div>
@@ -458,7 +541,9 @@ const Billing: React.FC = () => {
 								) : (
 									<div className="py-8 text-center">
 										<AlertCircle className="mx-auto mb-2 h-8 w-8 text-gray-400" />
-										<p className="text-gray-500">No organization data available</p>
+										<p className="text-gray-500 dark:text-gray-400">
+											No organization data available
+										</p>
 									</div>
 								)}
 							</CardContent>
@@ -473,6 +558,61 @@ const Billing: React.FC = () => {
 								</CardTitle>
 							</CardHeader>
 							<CardContent className="space-y-4">
+								{/* Credits Overview (from new credit system) */}
+								{organization?.id ? (
+									<div className="rounded-lg border border-gray-200 bg-white p-3 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-800">
+										<div className="flex items-center justify-between">
+											<div className="space-y-1">
+												<div className="flex items-center gap-2">
+													<Coins className="h-4 w-4 text-gray-500" />
+													<span className="text-gray-500 dark:text-gray-400">
+														Included remaining:
+													</span>
+													<strong className="text-gray-900 dark:text-white">
+														{credits.loading ? '…' : (credits.data?.included_remaining ?? 0)}
+													</strong>
+												</div>
+												<div className="flex items-center gap-2">
+													<Coins className="h-4 w-4 text-gray-500" />
+													<span className="text-gray-500 dark:text-gray-400">Wallet credits:</span>
+													<strong className="text-gray-900 dark:text-white">
+														{credits.loading ? '…' : (credits.data?.wallet_remaining ?? 0)}
+													</strong>
+												</div>
+												<div className="flex items-center gap-2">
+													<Coins className="h-4 w-4 text-gray-500" />
+													<span className="text-gray-500 dark:text-gray-400">Total remaining:</span>
+													<strong className="text-gray-900 dark:text-white">
+														{credits.loading ? '…' : (credits.data?.remaining_total ?? 0)}
+													</strong>
+												</div>
+												{/* Vera Chat Messages */}
+												<div className="mt-2 flex items-center gap-2 border-t border-gray-200 pt-2 dark:border-gray-600">
+													<MessageSquare className="h-4 w-4 text-gray-500" />
+													<span className="text-gray-500 dark:text-gray-400">
+														Vera messages used:
+													</span>
+													<strong className="text-gray-900 dark:text-white">
+														{chatUsage ? `${chatUsage.used} / ${chatUsage.limit}` : '…'}
+													</strong>
+												</div>
+											</div>
+											<div className="text-right">
+												{!credits.loading && (credits.data?.remaining_total ?? 0) < 5 ? (
+													<Button size="sm" onClick={() => setDepositOpen(true)}>
+														Top Up Wallet
+													</Button>
+												) : null}
+											</div>
+										</div>
+										{credits.error ? (
+											<p className="mt-2 text-xs text-red-600 dark:text-red-400">
+												Failed to load credits: {credits.error}
+											</p>
+										) : null}
+									</div>
+								) : null}
+
 								{walletStatus && walletStatus.wallet ? (
 									<div className="text-sm">
 										<span
@@ -480,14 +620,19 @@ const Billing: React.FC = () => {
 												walletStatus.wallet.status === 'active'
 													? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
 													: walletStatus.wallet.status === 'suspended'
-														? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+														? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
 														: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
 											}`}
 										>
 											Wallet: {walletStatus.wallet.status}
 										</span>
 										<span className="ml-2 text-gray-700 dark:text-gray-300">
-											Balance: ${((walletStatus.wallet.balance_cents ?? 0) / 100).toFixed(2)}
+											Balance: $
+											{(
+												((credits.data?.wallet_balance_cents ??
+													walletStatus.wallet.balance_cents ??
+													0) as number) / 100
+											).toFixed(2)}
 										</span>
 										{walletStatus.depositRequired && (
 											<Button size="sm" className="ml-2" onClick={() => setDepositOpen(true)}>
@@ -555,6 +700,31 @@ const Billing: React.FC = () => {
 							</CardContent>
 						</Card>
 					</div>
+
+					{/* Refund Support Notice */}
+					<Card className="max-w-md">
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2 text-base">
+								<Mail className="h-4 w-4" />
+								Refunds & Billing Issues
+							</CardTitle>
+						</CardHeader>
+						<CardContent>
+							<p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+								Need a refund or have a billing issue? Our support team is here to help.
+							</p>
+							<Button
+								variant="outline"
+								onClick={() =>
+									(window.location.href =
+										'mailto:support@truesight.com?subject=Billing%20Support%20Request')
+								}
+							>
+								<Mail className="mr-2 h-4 w-4" />
+								Contact Support
+							</Button>
+						</CardContent>
+					</Card>
 				</div>
 			)}
 
@@ -566,10 +736,10 @@ const Billing: React.FC = () => {
 						</CardHeader>
 						<CardContent>
 							<div className="grid grid-cols-1 gap-6 md:grid-cols-4">
-								<div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+								<div className="rounded-lg bg-white p-4 shadow dark:bg-gray-700">
 									<div className="flex items-center">
-										<div className="rounded-lg bg-red-100 p-2 dark:bg-red-900">
-											<DollarSign className="h-6 w-6 text-red-600 dark:text-red-400" />
+										<div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900">
+											<DollarSign className="h-6 w-6 text-blue-600 dark:text-blue-400" />
 										</div>
 										<div className="ml-4">
 											<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
@@ -582,20 +752,49 @@ const Billing: React.FC = () => {
 									</div>
 								</div>
 
-								<div className="rounded-lg bg-white p-6 shadow dark:bg-gray-800">
+								<div className="rounded-lg bg-white p-4 shadow dark:bg-gray-700">
 									<div className="flex items-center">
 										<div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900">
-											<Coins className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+											<TicketSlash className="h-6 w-6 text-blue-600 dark:text-blue-400" />
 										</div>
 										<div className="ml-4">
 											<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
 												Credits Used
 											</p>
 											<p className="text-2xl font-bold text-gray-900 dark:text-white">
-												{usageSummary?.credits.count || 0}
+												{monthlyCreditsUsed ?? 0}
 											</p>
-											<p className="text-sm text-gray-500 dark:text-gray-400">
-												{formatCurrency(usageSummary?.credits.cost || 0)}
+										</div>
+									</div>
+								</div>
+
+								<div className="rounded-lg bg-white p-4 shadow dark:bg-gray-700">
+									<div className="flex items-center">
+										<div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900">
+											<Coins className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+										</div>
+										<div className="ml-4">
+											<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+												Credits Remaining
+											</p>
+											<p className="text-2xl font-bold text-gray-900 dark:text-white">
+												{credits.loading ? '…' : (credits.data?.remaining_total ?? 0)}
+											</p>
+										</div>
+									</div>
+								</div>
+
+								<div className="rounded-lg bg-white p-4 shadow dark:bg-gray-700">
+									<div className="flex items-center">
+										<div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900">
+											<Mail className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+										</div>
+										<div className="ml-4">
+											<p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+												Messages Sent
+											</p>
+											<p className="text-2xl font-bold text-gray-900 dark:text-white">
+												{chatUsage ? `${chatUsage.used} / ${chatUsage.limit}` : '…'}
 											</p>
 										</div>
 									</div>

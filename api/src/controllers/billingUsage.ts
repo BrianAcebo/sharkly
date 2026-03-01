@@ -220,12 +220,14 @@ export const getUsageCatalog = async (_req: Request, res: Response) => {
 
 export const getPublicPlans = async (_req: Request, res: Response) => {
 	try {
+		const env = process.env.NODE_ENV === 'production' ? 'live' : 'test';
 		const { data, error } = await supabase
 			.from('plan_catalog')
 			.select(
 				'plan_code, name, description, included_seats, included_credits, base_price_cents'
 			)
 			.eq('active', true)
+			.eq('env', env)
 			.order('base_price_cents', { ascending: true });
 
 		if (error) {

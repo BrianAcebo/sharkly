@@ -1,21 +1,26 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import {
 	LayoutDashboard,
-	Bot,
-	Building2,
+	BarChart2,
 	Settings,
 	LogOut,
-	UserRoundSearch,
-	Glasses,
-	FolderSearch,
-	Users,
-	Factory,
-	Database
+	Building2,
+	Bot,
+	BookOpen,
+	GitFork,
+	Globe,
+	Key,
+	MapIcon,
+	ChevronDown,
+	Wrench,
+	CalendarDays,
+	TrendingUp
 } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
 import { useSidebar } from '../../hooks/useSidebar';
+import { Logo } from '../common/Logo';
 
 type MenuItem = {
 	icon: React.ComponentType<{ className?: string }>;
@@ -29,114 +34,67 @@ const Sidebar: React.FC = () => {
 	const { isExpanded, isMobileOpen } = useSidebar();
 	const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
-	const menuItems: MenuItem[] = [
-		{
-			icon: LayoutDashboard,
-			label: 'Cases',
-			path: '/cases'
-		},
-		{
-			icon: Database,
-			label: 'Records',
-			children: [
-				{ icon: Users, label: 'People', path: '/people' },
-				{ icon: Factory, label: 'Businesses', path: '/businesses' },
-				{ icon: Users, label: 'Emails', path: '/emails' },
-				{ icon: Users, label: 'Phones', path: '/phones' },
-				{ icon: Users, label: 'Social Profiles', path: '/profiles' },
-				{ icon: Users, label: 'Usernames', path: '/usernames' },
-				{ icon: Users, label: 'Leaks', path: '/leaks' },
-				{ icon: Users, label: 'Images', path: '/images' },
-				{ icon: Users, label: 'Documents', path: '/documents' },
-				{ icon: Users, label: 'IP Addresses', path: '/ips' },
-				{ icon: Users, label: 'Properties', path: '/properties' },
-				{ icon: Users, label: 'Domains', path: '/domains' }
-			]
-		},
-		{
-			icon: Bot,
-			label: 'AI Assistant',
-			path: '/assistant'
-		},
-		{
-			icon: FolderSearch,
-			label: 'Web Search',
-			path: '/web-search'
-		},
-		{
-			icon: Glasses,
-			label: 'Monitor',
-			path: '/monitor'
-		},
-		{
-			icon: UserRoundSearch,
-			label: 'Social',
-			path: '/social'
-		},
-		{
-			icon: Building2,
-			label: 'Organization',
-			path: '/organization'
-		},
-		{
-			icon: Settings,
-			label: 'Settings',
-			path: '/settings'
-		}
-	];
+	const menuItems: MenuItem[] = useMemo(
+		() => [
+			{ icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
+			{
+				icon: BookOpen,
+				label: 'Content',
+				children: [
+					{ icon: MapIcon, label: 'Strategy', path: '/strategy' },
+					{ icon: GitFork, label: 'Clusters', path: '/clusters' },
+					{ icon: CalendarDays, label: 'Calendar', path: '/calendar' },
+					{ icon: Key, label: 'Keywords', path: '/keywords' }
+				]
+			},
+			{ icon: BarChart2, label: 'Performance', path: '/performance' },
+			{ icon: TrendingUp, label: 'Rankings', path: '/rankings' },
+			{ icon: Wrench, label: 'Technical SEO', path: '/technical' },
+			{ icon: Globe, label: 'Sites', path: '/sites' },
+			{
+				icon: Bot,
+				label: 'AI Assistant',
+				path: '/assistant'
+			},
+			{
+				icon: Building2,
+				label: 'Organization',
+				path: '/organization'
+			},
+			{ icon: Settings, label: 'Settings', path: '/settings' }
+		],
+		[]
+	);
+
+	const isActive = useCallback((it: MenuItem): boolean => {
+		if (it.path) return window.location.pathname.startsWith(it.path);
+		if (it.children) return it.children.some((c) => isActive(c));
+		return false;
+	}, []);
+
+	useEffect(() => {
+		const initialOpenGroups: Record<string, boolean> = {};
+		menuItems.forEach((item) => {
+			if (item.children) {
+				initialOpenGroups[item.label] = item.children.some((c) => isActive(c));
+			}
+		});
+		setOpenGroups(initialOpenGroups);
+	}, [menuItems, isActive]);
 
 	return (
 		<aside
-			className={`fixed top-0 left-0 z-50 mt-16 flex h-screen flex-col border-r border-gray-200 bg-white text-gray-900 transition-all duration-300 ease-in-out lg:mt-0 dark:border-gray-600 dark:bg-gray-900 ${isExpanded || isMobileOpen ? 'w-[250px]' : 'w-[90px]'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+			className={`fixed top-0 left-0 z-50 mt-16 flex h-screen flex-col border-r border-gray-200 bg-white text-gray-900 transition-all duration-300 ease-in-out lg:mt-0 dark:border-gray-600 dark:bg-gray-900 ${isExpanded || isMobileOpen ? 'w-50' : 'w-22'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
 		>
 			<div className="h-header-height flex items-center justify-center border-b border-gray-200 pt-4 pb-2 dark:border-gray-600">
 				<Link to="/">
-					{isExpanded || isMobileOpen ? (
-						<>
-							<img
-								className="dark:hidden"
-								src="/images/logos/logo.svg"
-								alt="Logo"
-								width={200}
-								height={40}
-							/>
-							<img
-								className="hidden dark:block"
-								src="/images/logos/logo-dark.svg"
-								alt="Logo"
-								width={200}
-								height={40}
-							/>
-						</>
-					) : (
-						<>
-							<img
-								className="dark:hidden"
-								src="/images/logos/logo-icon.svg"
-								alt="Logo"
-								width={50}
-								height={50}
-							/>
-							<img
-								className="hidden dark:block"
-								src="/images/logos/logo-icon-dark.svg"
-								alt="Logo"
-								width={50}
-								height={50}
-							/>
-						</>
-					)}
+					<Logo isIcon={!(isExpanded || isMobileOpen)} width={115} height="auto" />
 				</Link>
 			</div>
 
-			<nav className="mb-6 flex flex-1 overflow-y-auto py-10">
-				<ul className="w-full space-y-2 px-4">
+			<nav className="mb-6 flex flex-1 overflow-y-auto py-8">
+				<ul className="w-full space-y-2 px-2">
 					{menuItems.map((item: MenuItem, index) => {
-						const isActive = (it: MenuItem): boolean => {
-							if (it.path) return window.location.pathname.startsWith(it.path);
-							if (it.children) return it.children.some((c) => isActive(c));
-							return false;
-						};
 						const active = isActive(item);
 						if (item.children) {
 							const group = item;
@@ -147,14 +105,15 @@ const Sidebar: React.FC = () => {
 										onClick={() => setOpenGroups((m) => ({ ...m, [item.label]: !isOpen }))}
 										className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
 											active
-												? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
-												: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
+												? 'bg-brand-300/30 text-brand-500 dark:bg-brand-900/20 dark:text-brand-400 font-semibold'
+												: 'hover:bg-gray-1-0 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
 										}`}
 									>
 										<item.icon className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
 										{(isExpanded || isMobileOpen) && (
 											<span className="font-medium">{item.label}</span>
 										)}
+										<ChevronDown className={`${isOpen ? 'rotate-180' : ''} mr-0 ml-auto size-4`} />
 									</button>
 									{(isExpanded || isMobileOpen) && isOpen ? (
 										<ul className="mt-1 space-y-1 pl-4">
@@ -164,8 +123,8 @@ const Sidebar: React.FC = () => {
 														<button
 															className={`flex w-full items-center space-x-3 rounded-lg px-4 py-2 text-sm transition-colors duration-200 ${
 																window.location.pathname.startsWith(r.path as string)
-																	? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
-																	: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
+																	? 'text-brand-500 font-semibold'
+																	: 'text-gray-600 hover:text-gray-400 dark:text-gray-300 hover:dark:text-gray-100'
 															}`}
 														>
 															<r.icon className="size-4" />
@@ -185,8 +144,8 @@ const Sidebar: React.FC = () => {
 									<button
 										className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
 											active
-												? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
-												: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
+												? 'bg-brand-300/30 text-brand-500 dark:bg-brand-900/70 dark:text-brand-400 font-semibold'
+												: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white'
 										}`}
 									>
 										<item.icon className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
@@ -201,8 +160,8 @@ const Sidebar: React.FC = () => {
 				</ul>
 			</nav>
 
-			<div className="border-t border-gray-200 p-4 dark:border-gray-600">
-				<div className="mb-4 flex items-center justify-center space-x-3">
+			<div className="border-t border-gray-200 py-2 dark:border-gray-600">
+				<div className="mb-4 flex items-center justify-center space-x-2 border-b border-gray-200 pb-2 dark:border-gray-600">
 					<div className="rounded-full border border-gray-200 dark:border-gray-600">
 						<UserAvatar
 							user={{
@@ -212,25 +171,25 @@ const Sidebar: React.FC = () => {
 										: user?.email || 'User',
 								avatar: user?.avatar
 							}}
-							size="md"
+							size="sm"
 						/>
 					</div>
 					{(isExpanded || isMobileOpen) && (
 						<div>
-							<p className="font-medium text-black dark:text-white">
+							<p className="text-xs font-medium text-black dark:text-white">
 								{user?.first_name} {user?.last_name}
 							</p>
-							<p className="text-sm text-gray-500 dark:text-gray-400">{user?.email}</p>
+							<p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
 						</div>
 					)}
 				</div>
 
 				<button
 					onClick={signOut}
-					className="text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-900/20 flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200"
+					className="text-brand-500 bg-brand-100/50 dark:text-brand-400 dark:bg-brand-900/30 mx-auto mb-4 flex w-5/6 items-center justify-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200"
 				>
-					<LogOut className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
-					{(isExpanded || isMobileOpen) && <span className="font-medium">Sign Out</span>}
+					<LogOut className={isExpanded || isMobileOpen ? 'size-4' : 'w-full'} />
+					{(isExpanded || isMobileOpen) && <span className="text-sm font-medium">Sign Out</span>}
 				</button>
 			</div>
 		</aside>

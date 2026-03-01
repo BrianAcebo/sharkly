@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { cn } from '../../utils/common';
 import { formatCurrency } from '../../utils/format';
 import { useUsageRates } from '../../hooks/useUsageRates';
+import { addWalletFunds } from '../../api/billingCredits';
 
 const DEPOSIT_PRESETS_CENTS = [1000, 2500, 5000, 10000] as const; // $10, $25, $50, $100
 const MIN_DEPOSIT_CENTS = 1000; // $10 minimum
@@ -247,6 +248,17 @@ function InnerModal({ onClose, forceAutoStep }: { onClose: () => void; forceAuto
 			setStep(2);
 			toast.success(`${formatCurrency(amountCents)} added to your wallet`);
 			await refreshWallet();
+			// Credit the new credits wallet as well (Supabase function)
+			try {
+				await addWalletFunds({
+					orgId: user.organization_id,
+					amountCents,
+					description: 'Wallet top-up'
+				});
+			} catch (e) {
+				// Non-fatal: the legacy wallet succeeded; credits wallet top-up failed
+				console.warn('add_wallet_funds failed', e);
+			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : 'Failed to process deposit';
 			setDepositError(message);
@@ -367,7 +379,7 @@ const handleSaveAutoRecharge = useCallback(async (): Promise<boolean> => {
 		<>
 			Deposits are processed instantly and charged to your default payment method. Need to change
 			it? Visit{' '}
-			<a href="/billing" className="text-rose-500 underline underline-offset-2 hover:text-rose-400">
+			<a href="/billing" className="text-blue-500 underline underline-offset-2 hover:text-blue-400">
 				Billing settings
 			</a>
 			.
@@ -510,14 +522,14 @@ function StepOne({
 						/>
 					</div>
 				)}
-				{minDepositMessage && <p className="mt-1 text-[11px] text-red-600">{minDepositMessage}</p>}
+				{minDepositMessage && <p className="mt-1 text-[11px] text-blue-600">{minDepositMessage}</p>}
 			</section>
 
 			<section>
 				<h3 className="mb-2 text-[11px] font-semibold tracking-wide text-gray-600 uppercase dark:text-gray-300">
 					Purchase power
 				</h3>
-				<div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/60">
+				<div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-600 dark:bg-gray-700">
 					<div className="flex w-full items-center justify-between text-left">
 						<div>
 							<span className="text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
@@ -534,7 +546,7 @@ function StepOne({
 							{purchasePower.map((item) => (
 								<div
 									key={item.key}
-									className="rounded-lg bg-white/70 p-2.5 text-center shadow-sm dark:bg-gray-900/40"
+									className="rounded-lg bg-white/70 p-2.5 text-center shadow-sm dark:bg-gray-600"
 								>
 									<div className="text-xxs tracking-wide text-gray-500 uppercase dark:text-gray-400">
 										{item.label}
@@ -570,13 +582,13 @@ function StepOne({
 					</Badge>
 				</div>
 				{!hasDefaultPaymentMethod && !defaultPmLoading && (
-					<p className="mt-2 text-[11px] text-red-600">
+					<p className="mt-2 text-[11px] text-blue-600">
 						Add a default payment method from the billing page before purchasing credit.
 					</p>
 				)}
 			</section>
 
-			{depositError ? <p className="text-[11px] text-red-600">{depositError}</p> : null}
+			{depositError ? <p className="text-[11px] text-blue-600">{depositError}</p> : null}
 
 			<div className="flex flex-col-reverse items-center justify-between gap-2 sm:flex-row">
 				<Button variant="outline" size="sm" onClick={onCancel} className="w-full sm:w-auto">
@@ -696,7 +708,7 @@ function StepTwo({
 					</div>
 				</div>
 
-				{autoError ? <p className="mt-2 text-[11px] text-red-500">{autoError}</p> : null}
+				{autoError ? <p className="mt-2 text-[11px] text-blue-500">{autoError}</p> : null}
 
 				<div className="mt-2.5 flex flex-col gap-1.5 sm:flex-row sm:justify-end">
 					<div className="flex flex-col gap-1.5 sm:flex-row">
@@ -742,7 +754,7 @@ function AmountButton({
 			className={cn(
 				'rounded-md border px-2 py-2 text-xs font-semibold transition',
 				active
-					? 'border-transparent bg-red-500 text-white shadow-md'
+					? 'border border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-700 dark:text-white shadow-md'
 					: 'border-gray-200 bg-white text-gray-700 hover:border-rose-200 hover:text-rose-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200'
 			)}
 		>

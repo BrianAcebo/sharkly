@@ -31,7 +31,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 			// Get the latest user profile
 			const { data: profile, error: profileError } = await supabase
 				.from('profiles')
-				.select(`
+				.select(
+					`
 					id,
 					first_name,
 					last_name,
@@ -41,7 +42,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 					phone,
 					location,
 					completed_onboarding
-				`)
+				`
+				)
 				.eq('id', user.id)
 				.single();
 
@@ -341,10 +343,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				setUser(currentUser as UserProfile);
 
 				if (currentUser) {
-									const { data: profile, error: profileError } = await supabase
-					.from('profiles')
-					.select(
-						`
+					const { data: profile, error: profileError } = await supabase
+						.from('profiles')
+						.select(
+							`
 						id,
 						first_name,
 						last_name,
@@ -355,35 +357,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 						location,
 						completed_onboarding
 					`
-					)
-					.eq('id', currentUser.id)
-					.single();
+						)
+						.eq('id', currentUser.id)
+						.single();
 
 					if (profileError) {
 						console.error('Error fetching profile:', profileError);
-						
+
 						// If profile doesn't exist, create it (fallback for new users)
 						if (profileError.code === 'PGRST116') {
 							try {
-								const { error: createError } = await supabase
-									.from('profiles')
-									.insert({
-										id: currentUser.id,
-										email: currentUser.email,
-										first_name: '',
-										last_name: '',
-										title: '',
-										bio: '',
-										phone: '',
-										location: '',
-										completed_onboarding: false
-									});
-								
+								const { error: createError } = await supabase.from('profiles').insert({
+									id: currentUser.id,
+									email: currentUser.email,
+									first_name: '',
+									last_name: '',
+									title: '',
+									bio: '',
+									phone: '',
+									location: '',
+									completed_onboarding: false
+								});
+
 								if (createError) {
 									console.error('Error creating profile:', createError);
 									return;
 								}
-								
+
 								// Set basic user with default profile
 								const basicUser = {
 									...currentUser,
@@ -398,7 +398,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 									organization_id: '',
 									role: ''
 								} as UserProfile;
-								
+
 								setUser(basicUser);
 								return;
 							} catch (err) {
@@ -406,7 +406,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 								return;
 							}
 						}
-						
+
 						return;
 					}
 
@@ -481,10 +481,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 			data: { subscription }
 		} = supabase.auth.onAuthStateChange((_event, session) => {
 			setSession(session);
-			
+
 			// Use debounced update to prevent excessive API calls
 			debouncedUpdateUser(session);
-			
+
 			setError(null);
 		});
 
@@ -497,130 +497,134 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		};
 	}, [debouncedUpdateUser]);
 
-			// Refresh user data when tab becomes visible (but only if we have a session)
-		useEffect(() => {
-			const handleVisibilityChange = () => {
-				if (!document.hidden && session?.user && user) {
-					updateUser();
-				}
-			};
+	// Refresh user data when tab becomes visible (but only if we have a session)
+	useEffect(() => {
+		const handleVisibilityChange = () => {
+			if (!document.hidden && session?.user && user) {
+				updateUser();
+			}
+		};
 
-			document.addEventListener('visibilitychange', handleVisibilityChange);
-			return () => {
-				document.removeEventListener('visibilitychange', handleVisibilityChange);
-			};
-		}, [session, user, updateUser]);
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		return () => {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+		};
+	}, [session, user, updateUser]);
 
-	const signIn = useCallback(async (email: string, password: string) => {
-		try {
-			// Capture invitation context before sign in
-			const searchParams = new URLSearchParams(window.location.search);
-			const inviteId = searchParams.get('invite');
-			
-			setLoadingState(AuthLoadingState.LOADING);
-			const { error } = await supabase.auth.signInWithPassword({ email, password });
-			if (error) throw error;
-			
-			// If this is an invitation sign-in, complete the invitation process
-			if (inviteId) {
-				try {
-					console.log('Completing invitation process for user:', email);
-					
-					// Fetch the invitation details
-					const { data: invite, error: inviteError } = await supabase
-						.from('organization_invites')
-						.select(`
+	const signIn = useCallback(
+		async (email: string, password: string) => {
+			try {
+				// Capture invitation context before sign in
+				const searchParams = new URLSearchParams(window.location.search);
+				const inviteId = searchParams.get('invite');
+
+				setLoadingState(AuthLoadingState.LOADING);
+				const { error } = await supabase.auth.signInWithPassword({ email, password });
+				if (error) throw error;
+
+				// If this is an invitation sign-in, complete the invitation process
+				if (inviteId) {
+					try {
+						console.log('Completing invitation process for user:', email);
+
+						// Fetch the invitation details
+						const { data: invite, error: inviteError } = await supabase
+							.from('organization_invites')
+							.select(
+								`
 							id,
 							email,
 							role,
 							organization_id,
 							status
-						`)
-						.eq('id', inviteId)
-						.eq('email', email)
-						.single();
+						`
+							)
+							.eq('id', inviteId)
+							.eq('email', email)
+							.single();
 
-					if (inviteError || !invite) {
-						console.error('Error fetching invitation:', inviteError);
-						toast.error('Invitation not found or invalid');
-						setLoadingState(AuthLoadingState.IDLE);
-						return;
-					}
+						if (inviteError || !invite) {
+							console.error('Error fetching invitation:', inviteError);
+							toast.error('Invitation not found or invalid');
+							setLoadingState(AuthLoadingState.IDLE);
+							return;
+						}
 
-					if (invite.status !== 'pending') {
-						console.log('Invitation already processed:', invite.status);
-						toast.error('Invitation has already been processed');
-						setLoadingState(AuthLoadingState.IDLE);
-						return;
-					}
+						if (invite.status !== 'pending') {
+							console.log('Invitation already processed:', invite.status);
+							toast.error('Invitation has already been processed');
+							setLoadingState(AuthLoadingState.IDLE);
+							return;
+						}
 
-					// Get the current user ID from the session
-					const { data: { session: currentSession } } = await supabase.auth.getSession();
-					if (!currentSession?.user) {
-						console.error('No session found after sign in');
-						setLoadingState(AuthLoadingState.IDLE);
-						return;
-					}
+						// Get the current user ID from the session
+						const {
+							data: { session: currentSession }
+						} = await supabase.auth.getSession();
+						if (!currentSession?.user) {
+							console.error('No session found after sign in');
+							setLoadingState(AuthLoadingState.IDLE);
+							return;
+						}
 
-					// Check if user is already in the organization
-					const { data: existingMember } = await supabase
-						.from('user_organizations')
-						.select('id')
-						.eq('user_id', currentSession.user.id)
-						.eq('organization_id', invite.organization_id)
-						.single();
-
-					if (!existingMember) {
-						// Add user to the organization
-						const { error: orgError } = await supabase
+						// Check if user is already in the organization
+						const { data: existingMember } = await supabase
 							.from('user_organizations')
-							.insert({
+							.select('id')
+							.eq('user_id', currentSession.user.id)
+							.eq('organization_id', invite.organization_id)
+							.single();
+
+						if (!existingMember) {
+							// Add user to the organization
+							const { error: orgError } = await supabase.from('user_organizations').insert({
 								user_id: currentSession.user.id,
 								organization_id: invite.organization_id,
 								role: invite.role
 							});
 
-						if (orgError) {
-							console.error('Error adding user to organization:', orgError);
-							toast.error('Failed to join organization');
-							setLoadingState(AuthLoadingState.IDLE);
-							return;
+							if (orgError) {
+								console.error('Error adding user to organization:', orgError);
+								toast.error('Failed to join organization');
+								setLoadingState(AuthLoadingState.IDLE);
+								return;
+							}
 						}
+
+						// Update invitation status to accepted
+						await supabase
+							.from('organization_invites')
+							.update({ status: 'accepted' })
+							.eq('id', inviteId);
+
+						// Immediately refresh user context to include organization data
+						// This prevents race condition with auth state change
+						await updateUser();
+
+						// Success - user is now in organization
+						toast.success('Successfully joined organization!');
+						setMessage('Sign in successful! You have been added to the organization.');
+					} catch (inviteError) {
+						console.error('Error completing invitation:', inviteError);
+						toast.error('Failed to complete invitation');
+						setLoadingState(AuthLoadingState.IDLE);
+						return;
 					}
-
-					// Update invitation status to accepted
-					await supabase
-						.from('organization_invites')
-						.update({ status: 'accepted' })
-						.eq('id', inviteId);
-
-					// Immediately refresh user context to include organization data
-					// This prevents race condition with auth state change
-					await updateUser();
-
-					// Success - user is now in organization
-					toast.success('Successfully joined organization!');
-					setMessage('Sign in successful! You have been added to the organization.');
-					
-				} catch (inviteError) {
-					console.error('Error completing invitation:', inviteError);
-					toast.error('Failed to complete invitation');
-					setLoadingState(AuthLoadingState.IDLE);
-					return;
+				} else {
+					setMessage('Sign in successful!');
 				}
-			} else {
-				setMessage('Sign in successful!');
+
+				setLoadingState(AuthLoadingState.IDLE);
+			} catch (err) {
+				setLoadingState(AuthLoadingState.IDLE);
+				setError(err as AuthError);
+				toast.error((err as AuthError).message);
+				console.error('Sign in error:', err);
+				throw err;
 			}
-			
-			setLoadingState(AuthLoadingState.IDLE);
-		} catch (err) {
-			setLoadingState(AuthLoadingState.IDLE);
-			setError(err as AuthError);
-			toast.error((err as AuthError).message);
-			console.error('Sign in error:', err);
-			throw err;
-		}
-	}, [updateUser]);
+		},
+		[updateUser]
+	);
 
 	const signUp = useCallback(async (email: string, password: string) => {
 		try {
@@ -641,10 +645,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 			});
 			if (error) throw error;
 			setLoadingState(AuthLoadingState.IDLE);
-			
+
 			if (inviteId) {
-				toast.success('Account created! Please check your email to verify your account, then complete your invitation.');
-				setMessage('Account created successfully! Please check your email for verification, then return to complete your invitation.');
+				toast.success(
+					'Account created! Please check your email to verify your account, then complete your invitation.'
+				);
+				setMessage(
+					'Account created successfully! Please check your email for verification, then return to complete your invitation.'
+				);
 			} else {
 				toast.success('Successfully signed up!');
 				setMessage('Sign up successful! Please check your email for verification.');
@@ -675,27 +683,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 	const signInWithGoogle = useCallback(async () => {
 		try {
 			const searchParams = new URLSearchParams(window.location.search);
-			const next = searchParams.get('next') ?? '/cases';
+			const next = searchParams.get('next') ?? '/dashboard';
 			const inviteId = searchParams.get('invite');
 
 			setLoadingState(AuthLoadingState.LOADING);
 			const { error } = await supabase.auth.signInWithOAuth({
 				provider: 'google',
 				options: {
-					redirectTo: inviteId 
+					redirectTo: inviteId
 						? `${window.location.origin}/oauth/callback?invite=${inviteId}&next=${next}`
 						: `${window.location.origin}/oauth/callback?next=${next}`,
-					scopes: [
-						"openid",
-						"email",
-						"https://www.googleapis.com/auth/calendar.readonly",
-						"https://www.googleapis.com/auth/calendar.events"
-					].join(" "),
+					// scopes: 'https://www.googleapis.com/auth/webmasters.readonly',
 					queryParams: {
-						access_type: "offline",
-						prompt: "consent"
+						access_type: 'offline',
+						prompt: 'consent'
 					}
-				},
+				}
 			});
 			if (error) throw error;
 			setLoadingState(AuthLoadingState.IDLE);
@@ -712,8 +715,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 		setError(null);
 		setMessage(null);
 	}, []);
-
-
 
 	return (
 		<AuthContext.Provider

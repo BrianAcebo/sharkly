@@ -117,7 +117,14 @@ export async function deleteImage(id: string) {
 }
 
 // Edge helpers (idempotent)
-async function attachEdge(source_type: string, source_id: string, target_type: string, target_id: string, transform_type = 'manual_link') {
+async function attachEdge(
+  source_type: string, 
+  source_id: string, 
+  target_type: string, 
+  target_id: string, 
+  transform_type = 'manual_link',
+  confidence_score = 1
+) {
   const { data: existing, error: pe } = await supabase
     .from('entity_edges')
     .select('id')
@@ -130,7 +137,7 @@ async function attachEdge(source_type: string, source_id: string, target_type: s
   if (existing) return;
   const { error } = await supabase
     .from('entity_edges')
-    .insert({ source_type, source_id, target_type, target_id, transform_type, confidence_score: 1, retrieved_at: new Date().toISOString(), metadata: {} });
+    .insert({ source_type, source_id, target_type, target_id, transform_type, confidence_score, retrieved_at: new Date().toISOString(), metadata: {} });
   if (error) throw error;
 }
 async function detachEdge(source_type: string, source_id: string, target_type: string, target_id: string) {
@@ -144,26 +151,26 @@ async function detachEdge(source_type: string, source_id: string, target_type: s
   if (error) throw error;
 }
 
-export async function attachImageToPerson(imageId: string, personId: string, opts?: { transform_type?: string }) {
-  return attachEdge('image', imageId, 'person', personId, opts?.transform_type);
+export async function attachImageToPerson(imageId: string, personId: string, opts?: { transform_type?: string; confidence?: number }) {
+  return attachEdge('image', imageId, 'person', personId, opts?.transform_type, opts?.confidence);
 }
 export async function detachImageFromPerson(imageId: string, personId: string) {
   return detachEdge('image', imageId, 'person', personId);
 }
-export async function attachImageToProfile(imageId: string, profileId: string, opts?: { transform_type?: string }) {
-  return attachEdge('image', imageId, 'social_profile', profileId, opts?.transform_type);
+export async function attachImageToProfile(imageId: string, profileId: string, opts?: { transform_type?: string; confidence?: number }) {
+  return attachEdge('image', imageId, 'social_profile', profileId, opts?.transform_type, opts?.confidence);
 }
 export async function detachImageFromProfile(imageId: string, profileId: string) {
   return detachEdge('image', imageId, 'social_profile', profileId);
 }
-export async function attachImageToUsername(imageId: string, usernameId: string, opts?: { transform_type?: string }) {
-  return attachEdge('image', imageId, 'username', usernameId, opts?.transform_type);
+export async function attachImageToUsername(imageId: string, usernameId: string, opts?: { transform_type?: string; confidence?: number }) {
+  return attachEdge('image', imageId, 'username', usernameId, opts?.transform_type, opts?.confidence);
 }
 export async function detachImageFromUsername(imageId: string, usernameId: string) {
   return detachEdge('image', imageId, 'username', usernameId);
 }
-export async function attachImageToProperty(imageId: string, propertyId: string, opts?: { transform_type?: string }) {
-  return attachEdge('image', imageId, 'property', propertyId, opts?.transform_type);
+export async function attachImageToProperty(imageId: string, propertyId: string, opts?: { transform_type?: string; confidence?: number }) {
+  return attachEdge('image', imageId, 'property', propertyId, opts?.transform_type, opts?.confidence);
 }
 export async function detachImageFromProperty(imageId: string, propertyId: string) {
   return detachEdge('image', imageId, 'property', propertyId);

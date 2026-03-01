@@ -3,15 +3,17 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 import { useNotifications } from '../../hooks/useNotifications';
 import { usePaymentStatus } from '../../hooks/usePaymentStatus';
-import { Search, Bell, Moon, Sun, ChevronDown, User, Settings, LogOut } from 'lucide-react';
+import { Search, Bell, Moon, Sun, ChevronDown, User, Settings, LogOut, Coins } from 'lucide-react';
 import CommandPalette from './CommandPalette';
 import NotificationPanel from './NotificationPanel';
+import SiteSelector from './SiteSelector';
 import { useSidebar } from '../../hooks/useSidebar';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
 import PaymentStatusBanner from '../billing/PaymentStatusBanner';
 import TrialBanner from '../billing/TrialBanner';
+import { useOrganization } from '../../hooks/useOrganization';
 
 const Header: React.FC = () => {
 	const { user, signOut } = useAuth();
@@ -23,6 +25,8 @@ const Header: React.FC = () => {
 		serviceAvailable
 	} = useNotifications(user?.id || undefined);
 	const { paymentStatus } = usePaymentStatus();
+	const { organization } = useOrganization();
+	const creditsRemaining = organization?.included_credits_remaining ?? organization?.included_credits ?? 0;
 	const [showCommandPalette, setShowCommandPalette] = useState(false);
 	const [showNotifications, setShowNotifications] = useState(false);
 	const [showUserMenu, setShowUserMenu] = useState(false);
@@ -125,7 +129,7 @@ const Header: React.FC = () => {
 					<div className="flex items-center justify-between gap-4">
 						<div className="flex items-center space-x-4">
 							<button
-								className="z-99999 h-10 w-10 items-center justify-center rounded-lg border-gray-200 text-gray-500 lg:flex lg:h-11 lg:w-11 lg:border dark:border-gray-800 dark:text-gray-400"
+								className="z-99999 h-10 w-10 items-center justify-center rounded-lg border-gray-200 text-gray-500 lg:flex lg:h-11 lg:w-11 lg:border-2 dark:border-gray-600 dark:text-gray-400"
 								onClick={handleToggleSidebar}
 								aria-label="Toggle Sidebar"
 							>
@@ -163,23 +167,7 @@ const Header: React.FC = () => {
 								{/* Cross Icon */}
 							</button>
 
-							<div className="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-								{returnTo ? (
-									<Link to={returnTo.path} onClick={() => setReturnTo(null)}>
-										<span>{returnTo.label}</span>
-									</Link>
-								) : (
-									<span>Home</span>
-								)}
-								{breadcrumbs.map((crumb, index) => (
-									<React.Fragment key={index}>
-										<span>›</span>
-										<span>{crumb}</span>
-									</React.Fragment>
-								))}
-								<span>›</span>
-								<span className="font-medium text-black dark:text-white">{title}</span>
-							</div>
+							<SiteSelector />
 						</div>
 
 						<div ref={searchRef} className="relative w-full max-w-[400px] 2xl:max-w-[600px]">
@@ -202,6 +190,18 @@ const Header: React.FC = () => {
 						</div>
 
 						<div className="flex items-center space-x-4">
+							<Link
+								to="/billing"
+								className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
+									creditsRemaining < 10
+										? 'bg-error-50 text-error-600 dark:bg-error-900/30 dark:text-error-400'
+										: 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+								}`}
+								title="Credits remaining"
+							>
+								<Coins className="size-4" />
+								<span>{creditsRemaining}</span>
+							</Link>
 							<button
 								type="button"
 								onClick={() => toggleTheme()}

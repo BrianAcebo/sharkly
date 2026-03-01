@@ -8,29 +8,46 @@ import billingRoutes from './routes/billing.js';
 import billingOnboardingRoutes from './routes/billingOnboarding.js';
 import organizationStatusRoutes from './routes/organizationStatus.js';
 import subscriptionStatusRoutes from './routes/subscriptionStatus.js';
-import webSearchRoutes from './routes/webSearch.js';
 import paymentStatusRoutes from './routes/paymentStatus.js';
 import emailRoutes from './routes/email.js';
 import imagesRoutes from './routes/images.js';
 import documentsRoutes from './routes/documents.js';
 import trialStatusRoutes from './routes/trialStatus.js';
+import onboardingRoutes from './routes/onboarding.js';
+import clustersRoutes from './routes/clusters.js';
+import pagesRoutes from './routes/pages.js';
+import gscRoutes from './routes/gsc.js';
+import rankingsRoutes from './routes/rankings.js';
+import contentGeneratorRoutes from './routes/contentGenerator.js';
+import crawlerRoutes from './routes/crawler.js';
+import { handleStripeWebhook } from './controllers/stripeWebhook.js';
 
 dotenv.config();
 
 const app = express();
 const isFly = Boolean(process.env.FLY_APP_NAME);
 const PORT = Number(process.env.PORT ?? 3000);
-const allowedOrigins = ['http://localhost:5173', 'https://paperboatcrm.com', 'https://www.paperboatcrm.com'];
+const allowedOrigins = [
+	'http://localhost:5173',
+	'https://paperboatcrm.com',
+	'https://www.paperboatcrm.com'
+];
 
 // CORS: allow local dev + production domains via env
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true
-}));
+app.use(
+	cors({
+		origin: allowedOrigins,
+		credentials: true
+	})
+);
 
 // Webhooks BEFORE JSON parsing (replace stubs with real handlers if needed)
-app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (_req, res) => res.sendStatus(200));
-app.post('/api/payments/webhook',       express.raw({ type: '*/*' }), (_req, res) => res.sendStatus(200));
+app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (req, res) =>
+	handleStripeWebhook(req, res)
+);
+app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res) =>
+	handleStripeWebhook(req, res)
+);
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
@@ -45,22 +62,28 @@ app.use('/api/subscription', subscriptionStatusRoutes);
 app.use('/api', paymentStatusRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/trial', trialStatusRoutes);
-app.use('/api/web-search', webSearchRoutes);
 app.use('/api/images', imagesRoutes);
 app.use('/api/documents', documentsRoutes);
+app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/clusters', clustersRoutes);
+app.use('/api/pages', pagesRoutes);
+app.use('/api/gsc', gscRoutes);
+app.use('/api/rankings', rankingsRoutes);
+app.use('/api/content', contentGeneratorRoutes);
+app.use('/api/crawler', crawlerRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 // Error handler
 type HttpError = Error & { statusCode?: number };
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  const e: HttpError = err as HttpError;
-  void _next;
-  if (typeof e?.statusCode === 'number') {
-    return res.status(e.statusCode).json({ error: { message: e.message } });
-  }
-  console.error(err);
-  res.status(500).json({ error: { message: 'Internal server error' } });
+	const e: HttpError = err as HttpError;
+	void _next;
+	if (typeof e?.statusCode === 'number') {
+		return res.status(e.statusCode).json({ error: { message: e.message } });
+	}
+	console.error(err);
+	res.status(500).json({ error: { message: 'Internal server error' } });
 });
 
 // ==== Listener: local vs Fly ====

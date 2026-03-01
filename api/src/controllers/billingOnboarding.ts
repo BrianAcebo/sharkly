@@ -58,10 +58,12 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     }
 
     // Get the plan from catalog
+    const env = process.env.NODE_ENV === 'production' ? 'live' : 'test';
     const { data: plan, error: planError } = await supabase
       .from('plan_catalog')
       .select('*')
       .eq('plan_code', planCode)
+      .eq('env', env)
       .eq('active', true)
       .single();
 
@@ -100,6 +102,10 @@ export const onboardOrganization = async (req: Request, res: Response) => {
             stripe_status: 'incomplete',
             plan_code: planCode,
             included_seats: plan.included_seats,
+            // initialize new credit fields from plan
+            included_credits_monthly: plan.included_credits,
+            included_credits_remaining: plan.included_credits,
+            // legacy field maintained temporarily for compatibility
             included_credits: plan.included_credits,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -268,13 +274,13 @@ export const onboardOrganization = async (req: Request, res: Response) => {
 
       org = existingOrg;
     } else {
-      // Create new organization in an active state; billing will be configured by the user
+      // Create new organization with payment_pending status - will be activated by webhook
       const { data: newOrg, error: createError } = await supabase
         .from('organizations')
         .insert({
           name,
           owner_id: userId,
-          status: 'active',
+          status: 'payment_pending',
           stripe_status: 'incomplete',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -499,8 +505,9 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     }
     let subscriptionClientSecret: string | null = null;
     let setupClientSecret: string | null = null;
-    // Organization is active upon creation
-    let computedOrgStatus: OrgStatus = (org.status as OrgStatus) || 'active';
+    // Organization is only set to active upon successful payment (via webhook)
+    // For new orgs, keep it in payment_pending until webhook confirms
+    let computedOrgStatus: OrgStatus = isRenewal ? ((org.status as OrgStatus) || 'active') : 'payment_pending';
 
     if (!stripeSubscriptionId) {
       // Reuse any existing relevant subscription for this org if present
@@ -629,6 +636,10 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         plan_code: planCode,
         plan_price_cents: plan.base_price_cents,
         included_seats: plan.included_seats,
+        // new credit fields
+        included_credits_monthly: plan.included_credits,
+        included_credits_remaining: plan.included_credits,
+        // legacy compatibility
         included_credits: plan.included_credits
       };
     }

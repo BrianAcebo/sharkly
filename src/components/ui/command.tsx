@@ -13,7 +13,7 @@ const Command = React.forwardRef<
 	<CommandPrimitive
 		ref={ref}
 		className={cn(
-			'bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md',
+			'flex h-full w-full flex-col overflow-hidden rounded-md bg-gray-50 text-gray-900 dark:bg-gray-800 dark:text-gray-100',
 			className
 		)}
 		{...props}
@@ -37,12 +37,15 @@ const CommandInput = React.forwardRef<
 	React.ElementRef<typeof CommandPrimitive.Input>,
 	React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
 >(({ className, ...props }, ref) => (
-	<div className="flex items-center border-b px-3" cmdk-input-wrapper="">
+	<div
+		className="flex items-center border-b border-gray-200 px-3 dark:border-gray-500"
+		cmdk-input-wrapper=""
+	>
 		<Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
 		<CommandPrimitive.Input
 			ref={ref}
 			className={cn(
-				'placeholder:text-muted-foreground flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-50',
+				'flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-gray-500 disabled:cursor-not-allowed disabled:opacity-50 dark:placeholder:text-gray-400',
 				className
 			)}
 			{...props}
@@ -96,7 +99,7 @@ const CommandSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<CommandPrimitive.Separator
 		ref={ref}
-		className={cn('bg-border -mx-1 h-px', className)}
+		className={cn('bg-border -mx-1 h-px border-gray-200 dark:border-gray-500', className)}
 		{...props}
 	/>
 ));
@@ -109,7 +112,7 @@ const CommandItem = React.forwardRef<
 	<CommandPrimitive.Item
 		ref={ref}
 		className={cn(
-			"data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50",
+			"relative flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm outline-none select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 data-[selected='true']:bg-gray-100 data-[selected=true]:text-gray-900 dark:data-[selected=true]:bg-gray-600 dark:data-[selected=true]:text-gray-100",
 			className
 		)}
 		{...props}

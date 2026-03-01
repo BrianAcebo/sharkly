@@ -25,7 +25,7 @@ export const AuthLoading: React.FC<AuthLoadingProps> = ({ state }) => {
 		<div className="flex min-h-[200px] flex-col items-center justify-center space-y-4">
 			<div className="relative h-8 w-8">
 				<motion.div
-					className="border-red-400/20 h-8 w-8 rounded-full border-2"
+					className="h-8 w-8 rounded-full border-2 border-red-400/20"
 					animate={{
 						rotate: 360
 					}}
@@ -36,7 +36,7 @@ export const AuthLoading: React.FC<AuthLoadingProps> = ({ state }) => {
 					}}
 				/>
 				<motion.div
-					className="border-t-red-400 absolute top-0 left-0 h-8 w-8 rounded-full border-2 border-r-transparent border-b-transparent border-l-transparent"
+					className="border-t-brand-400 absolute top-0 left-0 h-8 w-8 rounded-full border-2 border-r-transparent border-b-transparent border-l-transparent"
 					animate={{
 						rotate: -360
 					}}
@@ -55,15 +55,15 @@ export const AuthLoading: React.FC<AuthLoadingProps> = ({ state }) => {
 			>
 				Loading...
 			</motion.p>
-			
+
 			{showResetButton && (
 				<motion.div
 					initial={{ opacity: 0 }}
 					animate={{ opacity: 1 }}
 					transition={{ duration: 0.3 }}
 				>
-					<Button 
-						variant="outline" 
+					<Button
+						variant="outline"
 						size="sm"
 						onClick={() => window.location.reload()}
 						className="text-xs"

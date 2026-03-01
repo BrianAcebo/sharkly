@@ -213,10 +213,12 @@ export async function loadSeatSummary(orgId: string): Promise<SeatSummaryData> {
 	let extraSeatAddonCode: string | null = null;
 	let extraSeatAddonPriceId: string | null = null;
 
+	const env = process.env.NODE_ENV === 'production' ? 'live' : 'test';
 	const { data: plans, error: plansError } = await supabase
 		.from('plan_catalog')
 		.select('plan_code, name, included_seats, base_price_cents')
 		.eq('active', true)
+		.eq('env', env)
 		.order('included_seats', { ascending: true });
 
 	if (plansError) {
@@ -224,11 +226,15 @@ export async function loadSeatSummary(orgId: string): Promise<SeatSummaryData> {
 	}
 
 	if (plans && plans.length > 0) {
-		const currentPlan = planCode ? plans.find((plan) => plan.plan_code === planCode) : null;
+		// In test mode, plan_codes have _test suffix (e.g., starter_test)
+		// Handle both old orgs (plan_code='starter') and new orgs (plan_code='starter_test')
+		const planCodeToMatch = planCode 
+			? (env === 'live' ? planCode : (planCode.endsWith('_test') ? planCode : `${planCode}_test`))
+			: null;
+		const currentPlan = planCodeToMatch ? plans.find((plan) => plan.plan_code === planCodeToMatch) : null;
 		if (currentPlan) {
 			planPriceCents = planPriceCents ?? currentPlan.base_price_cents;
-			const addonCode = 'extra_seat'
-      const env = process.env.NODE_ENV === 'production' ? 'live' : 'test';
+			const addonCode = env === 'live' ? 'extra_seat' : 'extra_seat_test';
 			const { data: addonRow, error: addonError } = await supabase
 				.from('addon_catalog')
 				.select('addon_code, price_cents, stripe_price_id')
@@ -256,7 +262,9 @@ export async function loadSeatSummary(orgId: string): Promise<SeatSummaryData> {
 	const extraSeatMonthlyCostCents =
 		extraSeatUnitPriceCents !== null ? extraSeatsPurchased * extraSeatUnitPriceCents : null;
 
-	const limitBeforeUpgrade = nextPlan ? nextPlan.included_seats : null;
+	// Max seats allowed is one less than the next plan's included seats
+	// If there's no next plan (highest tier), there's no limit
+	const limitBeforeUpgrade = nextPlan ? nextPlan.included_seats - 1 : null;
 	const maxExtraSeatsBeforeUpgrade = nextPlan
 		? Math.max(0, nextPlan.included_seats - includedSeats - 1)
 		: null;
@@ -476,11 +484,13 @@ export async function computeMaxSeatsForPlan(
 	includedSeats: number | null
 ): Promise<number | null> {
 	const normalizedIncluded = includedSeats ?? 0;
+	const env = process.env.NODE_ENV === 'production' ? 'live' : 'test';
 
 	const { data: plans, error } = await supabase
 		.from('plan_catalog')
 		.select('plan_code, included_seats')
 		.eq('active', true)
+		.eq('env', env)
 		.order('included_seats', { ascending: true });
 
 	if (error) {
@@ -494,7 +504,12 @@ export async function computeMaxSeatsForPlan(
 		return normalizedIncluded > 0 ? normalizedIncluded : null;
 	}
 
-	const currentPlan = planCode ? planList.find((plan) => plan.plan_code === planCode) : null;
+	// In test mode, plan_codes have _test suffix
+	// Handle both old orgs (plan_code='starter') and new orgs (plan_code='starter_test')
+	const planCodeToMatch = planCode 
+		? (env === 'live' ? planCode : (planCode.endsWith('_test') ? planCode : `${planCode}_test`))
+		: null;
+	const currentPlan = planCodeToMatch ? planList.find((plan) => plan.plan_code === planCodeToMatch) : null;
 	const currentIncluded = currentPlan?.included_seats ?? normalizedIncluded;
 
 	const nextPlan = planList.find((plan) => plan.included_seats > currentIncluded);

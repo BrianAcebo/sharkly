@@ -7,12 +7,12 @@ export default function AssistantPage() {
 	const { setTitle } = useBreadcrumbs();
 
 	useEffect(() => {
-		setTitle('AI Assistant');
+		setTitle('Vera');
 	}, [setTitle]);
 
 	return (
 		<>
-			<PageMeta title="AI Assistant" description="Your AI assistant for managing cases" />
+			<PageMeta title="Vera" description="Your investigator assistant powered by AI" />
 			<AIAssistant />
 		</>
 	);

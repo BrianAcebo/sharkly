@@ -53,7 +53,7 @@ export const useNotifications = (userId?: string) => {
       if (Notification.permission === 'granted') {
         const pushNotification = new Notification(notification.title || 'Task Reminder', {
           body: notification.message,
-          icon: '/images/logos/logo.svg',
+          icon: '/images/logos/logo.png',
           tag: `task-reminder-${notification.id}`,
           requireInteraction: false,
           silent: false // Allow system sounds

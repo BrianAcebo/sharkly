@@ -3,17 +3,16 @@ import useAuth from '../../hooks/useAuth';
 import type { SeatSummary } from '../../types/organization';
 import { formatCurrency } from '../../utils/format';
 import { Card, CardContent, CardHeader } from '../../components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '../../components/ui/avatar';
 import { Tabs, TabsContent, TabsList } from '../../components/ui/tabs';
 import {
-    Calendar,
-    Users,
-    Building2,
-    Shield,
-    Trash2,
-    UserPlus,
-    AlertTriangle,
-    CreditCard,
+	Calendar,
+	Users,
+	Building2,
+	Shield,
+	Trash2,
+	UserPlus,
+	AlertTriangle,
+	CreditCard
 } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { toast } from 'sonner';
@@ -47,11 +46,12 @@ import {
 	AlertDialogAction,
 	AlertDialogCancel,
 	AlertDialogContent,
-    // AlertDialogDescription,
+	// AlertDialogDescription,
 	AlertDialogFooter,
 	AlertDialogHeader,
 	AlertDialogTitle
 } from '../../components/ui/alert-dialog';
+import UserAvatar from '../../components/common/UserAvatar';
 
 interface Organization {
 	id: string;
@@ -128,6 +128,12 @@ export default function OrganizationPage() {
 	const [showPurchaseModal, setShowPurchaseModal] = useState(false);
 	const [showReleaseModal, setShowReleaseModal] = useState(false);
 
+	const tabs = [
+		{ id: 'overview', label: 'Overview', icon: Building2 },
+		{ id: 'team-members', label: 'Team Members', icon: Users },
+		{ id: 'billing', label: 'Billing', icon: CreditCard, href: '/billing' }
+	];
+
 	useEffect(() => {
 		if (!seatSummary) {
 			setReleaseQuantity(1);
@@ -166,10 +172,10 @@ export default function OrganizationPage() {
 				return null;
 			}
 
-            const response = await api.get(`/api/organizations/${orgId}/seats`, {
+			const response = await api.get(`/api/organizations/${orgId}/seats`, {
 				headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json'
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
 				}
 			});
 
@@ -208,12 +214,12 @@ export default function OrganizationPage() {
 
 			setIsSeatActionLoading(true);
 
-            const response = await api.post(path, payload, {
-                headers: {
-                    Authorization: `Bearer ${session.access_token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+			const response = await api.post(path, payload, {
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				}
+			});
 
 			if (!response.ok) {
 				const err = await response.json().catch(() => ({}));
@@ -347,7 +353,8 @@ export default function OrganizationPage() {
 	};
 
 	const purchaseSubtotalCents =
-		seatSummary?.extraSeatUnitPriceCents !== null && seatSummary?.extraSeatUnitPriceCents !== undefined
+		seatSummary?.extraSeatUnitPriceCents !== null &&
+		seatSummary?.extraSeatUnitPriceCents !== undefined
 			? seatSummary.extraSeatUnitPriceCents * purchaseQuantity
 			: null;
 
@@ -356,12 +363,14 @@ export default function OrganizationPage() {
 	const releaseRemainingExtras = seatSummary
 		? Math.max(0, seatSummary.extraSeatsPurchased - releaseQuantity)
 		: null;
-	const purchaseBillingCopy = seatSummary?.extraSeatUnitPriceCents !== null
-		? 'We’ll add the new seats to your monthly invoice and adjust the current cycle automatically.'
-		: 'Extra seats are billed as an add-on to your active subscription.';
+	const purchaseBillingCopy =
+		seatSummary?.extraSeatUnitPriceCents !== null
+			? 'We’ll add the new seats to your monthly invoice and adjust the current cycle automatically.'
+			: 'Extra seats are billed as an add-on to your active subscription.';
 	const releaseBillingCopy =
 		'We’ll adjust your subscription right away. Any credit from unused time will appear on your next invoice.';
-	const formattedPurchaseSubtotal = purchaseSubtotalCents !== null ? formatCurrency(purchaseSubtotalCents) : null;
+	const formattedPurchaseSubtotal =
+		purchaseSubtotalCents !== null ? formatCurrency(purchaseSubtotalCents) : null;
 
 	const purchaseConfirmation = (
 		<AlertDialog open={showPurchaseModal} onOpenChange={handlePurchaseModalChange}>
@@ -371,12 +380,14 @@ export default function OrganizationPage() {
 				</AlertDialogHeader>
 				<div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
 					<p>
-						You&apos;re about to add {purchaseQuantity} extra seat{purchaseQuantity === 1 ? '' : 's'}.{` `}
+						You&apos;re about to add {purchaseQuantity} extra seat
+						{purchaseQuantity === 1 ? '' : 's'}.{` `}
 						We’ll sync this change to your subscription immediately.
 					</p>
 					{seatSummary?.extraSeatUnitPriceCents !== null && formattedPurchaseSubtotal && (
 						<p>
-							<strong>{formattedPurchaseSubtotal}</strong> is the monthly total for these seats. We’ll handle any proration automatically.
+							<strong>{formattedPurchaseSubtotal}</strong> is the monthly total for these seats.
+							We’ll handle any proration automatically.
 						</p>
 					)}
 					<p>{purchaseBillingCopy}</p>
@@ -405,7 +416,8 @@ export default function OrganizationPage() {
 				</AlertDialogHeader>
 				<div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
 					<p>
-						Releasing {releaseQuantity} extra seat{releaseQuantity === 1 ? '' : 's'} reduces your capacity right away. We’ll sync the change to your subscription automatically.
+						Releasing {releaseQuantity} extra seat{releaseQuantity === 1 ? '' : 's'} reduces your
+						capacity right away. We’ll sync the change to your subscription automatically.
 					</p>
 					<p>{releaseBillingCopy}</p>
 					{releaseNewCapacity !== null && releaseRemainingExtras !== null && seatSummary && (
@@ -582,8 +594,22 @@ export default function OrganizationPage() {
 
 		setIsInviting(true);
 		try {
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+
+			if (!session?.access_token) {
+				toast.error('Not authenticated');
+				return;
+			}
+
+			if (!organization) {
+				toast.error('No organization found');
+				return;
+			}
+
 			let latestSummary = seatSummary;
-			if ((!latestSummary || typeof latestSummary.capacity !== 'number') && organization?.id) {
+			if ((!latestSummary || typeof latestSummary.capacity !== 'number') && organization.id) {
 				latestSummary = await fetchSeatSummary(organization.id);
 			}
 			if (latestSummary && latestSummary.assignedSeats >= latestSummary.capacity) {
@@ -591,10 +617,25 @@ export default function OrganizationPage() {
 				return;
 			}
 
-			await api.post('/api/organizations/invite', {
-				email: inviteEmail,
-				role: inviteRole
-			});
+			const response = await api.post(
+				'/api/organizations/invite',
+				{
+					email: inviteEmail,
+					role: inviteRole,
+					organization: { id: organization.id }
+				},
+				{
+					headers: {
+						Authorization: `Bearer ${session.access_token}`,
+						'Content-Type': 'application/json'
+					}
+				}
+			);
+
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				throw new Error(err?.error || 'Failed to send invitation');
+			}
 
 			toast.success(`Invitation sent to ${inviteEmail}`);
 			setInviteEmail('');
@@ -604,7 +645,7 @@ export default function OrganizationPage() {
 			fetchOrganizationData();
 		} catch (error) {
 			console.error('Error sending invitation:', error);
-			toast.error('Failed to send invitation');
+			toast.error(error instanceof Error ? error.message : 'Failed to send invitation');
 		} finally {
 			setIsInviting(false);
 		}
@@ -698,18 +739,32 @@ export default function OrganizationPage() {
 	const handleCancelInvitation = async (invitationId: string) => {
 		if (!confirm('Are you sure you want to cancel this invitation?')) return;
 		try {
-			await api.delete(`/api/organizations/cancel-invite/${invitationId}`);
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+
+			if (!session?.access_token) {
+				toast.error('Not authenticated');
+				return;
+			}
+
+			const response = await api.delete(`/api/organizations/cancel-invite/${invitationId}`, {
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				throw new Error(err?.error || 'Failed to cancel invitation');
+			}
+
 			toast.success('Invitation cancelled successfully');
 			fetchOrganizationData();
 		} catch (error) {
 			console.error('Error cancelling invitation:', error);
-
-			if (error && typeof error === 'object' && 'status' in error) {
-				const apiError = error as { status: number; message: string };
-				toast.error(apiError.message);
-			} else {
-				toast.error('Failed to cancel invitation');
-			}
+			toast.error(error instanceof Error ? error.message : 'Failed to cancel invitation');
 		}
 	};
 
@@ -743,7 +798,27 @@ export default function OrganizationPage() {
 
 		setIsDeleting(true);
 		try {
-			await api.delete(`/api/organizations/${organization.id}`);
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+
+			if (!session?.access_token) {
+				toast.error('Not authenticated');
+				setIsDeleting(false);
+				return;
+			}
+
+			const response = await api.delete(`/api/organizations/${organization.id}`, {
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				throw new Error(err?.error || 'Failed to delete organization');
+			}
 
 			toast.success('Organization deleted successfully');
 
@@ -780,7 +855,7 @@ export default function OrganizationPage() {
 			<CardHeader>
 				<div className="flex items-center gap-2">
 					<Users className="h-5 w-5 text-gray-500" />
-					<h3 className="font-semibold">Seats</h3>
+					<h3 className="font-semibold text-gray-900 dark:text-white">Seats</h3>
 				</div>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -803,10 +878,10 @@ export default function OrganizationPage() {
 								<span className="text-gray-500">Extra seats</span>
 								<span>{seatSummary.extraSeatsPurchased}</span>
 							</div>
-							{seatSummary.extraSeatUnitPriceCents !== null && (
+							{seatSummary.limitBeforeUpgrade !== null && (
 								<div className="flex items-center justify-between">
-									<span className="text-gray-500">Extra seat price</span>
-									<span>{formatCurrency(seatSummary.extraSeatUnitPriceCents)}</span>
+									<span className="text-gray-500">Max seats allowed</span>
+									<span>{seatSummary.limitBeforeUpgrade}</span>
 								</div>
 							)}
 							{seatSummary.extraSeatMonthlyCostCents !== null &&
@@ -816,74 +891,90 @@ export default function OrganizationPage() {
 										<span>{formatCurrency(seatSummary.extraSeatMonthlyCostCents)}</span>
 									</div>
 								)}
-							{seatSummary.upgradeMessage && (
-								<div className="rounded-md bg-yellow-50 p-2 text-xs text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200">
-									{seatSummary.upgradeMessage}
-								</div>
-							)}
 						</div>
 
 						{canManageSeats && (
-						<div className="space-y-3 border-t pt-4">
+							<div className="space-y-3 border-t pt-4">
 								<div>
 									<div className="mb-1 text-sm font-medium text-gray-900 dark:text-gray-100">
 										Add extra seats
 									</div>
-									<div className="flex flex-wrap items-center gap-2">
-										<Input
-											type="number"
-											min={"1"}
-											value={String(purchaseQuantity)}
-											onChange={(event) => {
-												const next = parseInt(event.target.value, 10);
-												setPurchaseQuantity(Number.isNaN(next) || next < 1 ? 1 : next);
-											}}
-											className="w-24"
-											disabled={isSeatActionLoading}
-										/>
-				<Button onClick={handleSeatPurchase} disabled={isSeatActionLoading}>
-					{isSeatActionLoading ? 'Processing…' : 'Purchase Seats'}
-				</Button>
-									</div>
-									<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-										{seatSummary.extraSeatUnitPriceCents !== null
-											? `Each extra seat costs ${formatCurrency(seatSummary.extraSeatUnitPriceCents)} per billing period.`
-											: 'Extra seat pricing is determined by your current plan.'}
-									</p>
+									{seatSummary.extraSeatsPurchased < seatSummary.capacity ? (
+										<>
+											<div className="flex flex-wrap items-center gap-2">
+												<Input
+													type="number"
+													min={'1'}
+													value={String(purchaseQuantity)}
+													onChange={(event) => {
+														const next = parseInt(event.target.value, 10);
+														setPurchaseQuantity(Number.isNaN(next) || next < 1 ? 1 : next);
+													}}
+													className="w-24"
+													disabled={isSeatActionLoading}
+												/>
+												<Button onClick={handleSeatPurchase} disabled={isSeatActionLoading}>
+													{isSeatActionLoading ? 'Processing…' : 'Purchase Seats'}
+												</Button>
+											</div>
+											<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+												{seatSummary.extraSeatUnitPriceCents !== null
+													? `Each extra seat costs ${formatCurrency(seatSummary.extraSeatUnitPriceCents)} per billing period.`
+													: 'Extra seat pricing is determined by your current plan.'}
+											</p>
+										</>
+									) : (
+										<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+											You have reached the maximum number of extra seats. You can{' '}
+											<a
+												href="/billing"
+												className="text-blue-500 hover:underline dark:text-blue-400"
+											>
+												upgrade to a higher plan
+											</a>{' '}
+											to add more seats.
+										</p>
+									)}
 								</div>
-							<div className="border-t pt-4">
+								<div className="border-t pt-4">
 									<div className="mb-1 text-sm font-medium text-gray-900 dark:text-gray-100">
 										Release extra seats
 									</div>
-									<div className="flex flex-wrap items-center gap-2">
-										<Input
-											type="number"
-											min={"1"}
-											max={seatSummary.extraSeatsPurchased ? String(seatSummary.extraSeatsPurchased) : undefined}
-											value={String(releaseQuantity)}
-											onChange={(event) => {
-												const next = parseInt(event.target.value, 10);
-												if (Number.isNaN(next) || next < 1) {
-													setReleaseQuantity(1);
-													return;
+									{seatSummary.extraSeatsPurchased > 0 && (
+										<div className="flex flex-wrap items-center gap-2">
+											<Input
+												type="number"
+												min={'1'}
+												max={
+													seatSummary.extraSeatsPurchased
+														? String(seatSummary.extraSeatsPurchased)
+														: undefined
 												}
-												setReleaseQuantity(next);
-											}}
-											className="w-24"
-											disabled={isSeatActionLoading || seatSummary.extraSeatsPurchased === 0}
-										/>
-				<Button
-					onClick={handleSeatRelease}
-					disabled={
-						isSeatActionLoading ||
-						seatSummary.extraSeatsPurchased === 0 ||
-						releaseQuantity < 1
-					}
-					variant="outline"
-				>
-					{isSeatActionLoading ? 'Processing…' : 'Release Seats'}
-				</Button>
-									</div>
+												value={String(releaseQuantity)}
+												onChange={(event) => {
+													const next = parseInt(event.target.value, 10);
+													if (Number.isNaN(next) || next < 1) {
+														setReleaseQuantity(1);
+														return;
+													}
+													setReleaseQuantity(next);
+												}}
+												className="w-24"
+												disabled={isSeatActionLoading || seatSummary.extraSeatsPurchased === 0}
+											/>
+											<Button
+												onClick={handleSeatRelease}
+												disabled={
+													isSeatActionLoading ||
+													seatSummary.extraSeatsPurchased === 0 ||
+													releaseQuantity < 1
+												}
+												variant="outline"
+											>
+												{isSeatActionLoading ? 'Processing…' : 'Release Seats'}
+											</Button>
+										</div>
+									)}
 									<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
 										You currently have {seatSummary.extraSeatsPurchased} extra seat
 										{seatSummary.extraSeatsPurchased === 1 ? '' : 's'}.
@@ -897,8 +988,8 @@ export default function OrganizationPage() {
 				) : (
 					<div className="py-4 text-sm text-gray-500">No seat data</div>
 				)}
-		</CardContent>
-	</Card>
+			</CardContent>
+		</Card>
 	);
 
 	return (
@@ -907,7 +998,7 @@ export default function OrganizationPage() {
 			<div className="container mx-auto py-8">
 				<div className="mb-8">
 					<h1 className="text-3xl font-bold text-gray-900 dark:text-white">{organization.name}</h1>
-                    <div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+					<div className="mt-2 flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
 						<div className="flex items-center gap-1">
 							<Building2 className="h-4 w-4" />
 							<span>Organization ID: {organization.id}</span>
@@ -918,7 +1009,7 @@ export default function OrganizationPage() {
 						</div>
 						<div className="flex items-center gap-1">
 							<Calendar className="h-4 w-4" />
-                            <span>Created {new Date(String(organization.createdAt)).toLocaleDateString()}</span>
+							<span>Created {new Date(String(organization.createdAt)).toLocaleDateString()}</span>
 						</div>
 					</div>
 				</div>
@@ -927,28 +1018,27 @@ export default function OrganizationPage() {
 				{releaseConfirmation}
 
 				<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                    <TabsList className="flex items-center justify-start gap-3 p-0">
-						<Button
-							onClick={() => setActiveTab('overview')}
-							variant={activeTab === 'overview' ? 'default' : 'outline'}
-							size="sm"
-						>
-							Overview
-						</Button>
-						<Button
-							onClick={() => setActiveTab('team-members')}
-							variant={activeTab === 'team-members' ? 'default' : 'outline'}
-							size="sm"
-						>
-							Team Members
-						</Button>
-						<Button
-							onClick={() => setActiveTab('settings')}
-							variant={activeTab === 'settings' ? 'default' : 'outline'}
-							size="sm"
-						>
-							Settings
-						</Button>
+					<TabsList className="flex items-center justify-start gap-3 p-0">
+						{tabs.map((tab) => (
+							<button
+								key={tab.id}
+								onClick={() => {
+									if (tab.href) {
+										navigate(tab.href);
+									} else {
+										setActiveTab(tab.id);
+									}
+								}}
+								className={`flex items-center space-x-2 border-b-2 px-1 py-2 text-sm font-medium transition-colors duration-200 ${
+									activeTab === tab.id
+										? 'border-blue-500 text-blue-600 dark:text-blue-400'
+										: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300'
+								}`}
+							>
+								<tab.icon className="h-4 w-4" />
+								<span>{tab.label}</span>
+							</button>
+						))}
 					</TabsList>
 
 					<TabsContent value="overview" className="space-y-4">
@@ -957,12 +1047,14 @@ export default function OrganizationPage() {
 								<CardHeader>
 									<div className="flex items-center gap-2">
 										<Users className="h-5 w-5 text-gray-500" />
-										<h3 className="font-semibold">Team Members</h3>
+										<h3 className="font-semibold text-gray-900 dark:text-white">Team Members</h3>
 									</div>
 								</CardHeader>
 								<CardContent>
-									<p className="mt-2 text-2xl font-bold">{teamMembers.length}</p>
-									<p className="text-sm text-gray-500">Active team members</p>
+									<p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
+										{teamMembers.length}
+									</p>
+									<p className="text-sm text-gray-500 dark:text-gray-400">Active team members</p>
 								</CardContent>
 							</Card>
 
@@ -970,14 +1062,20 @@ export default function OrganizationPage() {
 								<CardHeader>
 									<div className="flex items-center gap-2">
 										<Shield className="h-5 w-5 text-gray-500" />
-										<h3 className="font-semibold">Managers</h3>
+										<h3 className="font-semibold text-gray-900 dark:text-white">Managers</h3>
 									</div>
 								</CardHeader>
 								<CardContent>
-									<p className="mt-2 text-2xl font-bold">
-										{teamMembers.filter((member) => member.role === TEAM_MEMBER_ROLES.ADMIN).length}
+									<p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
+										{
+											teamMembers.filter(
+												(member) =>
+													member.role === TEAM_MEMBER_ROLES.ADMIN ||
+													member.role === TEAM_MEMBER_ROLES.OWNER
+											).length
+										}
 									</p>
-									<p className="text-sm text-gray-500">Team managers</p>
+									<p className="text-sm text-gray-500 dark:text-gray-400">Team managers</p>
 								</CardContent>
 							</Card>
 
@@ -985,17 +1083,19 @@ export default function OrganizationPage() {
 								<CardHeader>
 									<div className="flex items-center gap-2">
 										<Calendar className="h-5 w-5 text-gray-500" />
-										<h3 className="font-semibold">Organization Age</h3>
+										<h3 className="font-semibold text-gray-900 dark:text-white">
+											Organization Age
+										</h3>
 									</div>
 								</CardHeader>
 								<CardContent>
-									<p className="mt-2 text-2xl font-bold">
+									<p className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">
 										{Math.floor(
-                                            (new Date().getTime() - new Date(String(organization.createdAt)).getTime()) /
+											(new Date().getTime() - new Date(String(organization.createdAt)).getTime()) /
 												(1000 * 60 * 60 * 24 * 30)
 										)}
 									</p>
-									<p className="text-sm text-gray-500">Months since creation</p>
+									<p className="text-sm text-gray-500 dark:text-gray-400">Months since creation</p>
 								</CardContent>
 							</Card>
 						</div>
@@ -1006,7 +1106,9 @@ export default function OrganizationPage() {
 						{isOwner && (
 							<Card className="p-4">
 								<CardHeader>
-									<h3 className="mb-4 font-semibold">Invite New Team Member</h3>
+									<h3 className="font-semibold text-gray-900 dark:text-white">
+										Invite New Team Member
+									</h3>
 								</CardHeader>
 								<CardContent>
 									<div className="flex gap-4">
@@ -1046,80 +1148,43 @@ export default function OrganizationPage() {
 							</Card>
 						)}
 
-						{/* Pending Invitations Section */}
-						{pendingInvitations.length > 0 && (
-							<Card className="p-4">
-								<CardHeader>
-									<h3 className="mb-4 flex items-center gap-2 font-semibold">
-										<Calendar className="h-4 w-4" />
-										Pending Invitations ({pendingInvitations.length})
-									</h3>
-								</CardHeader>
-								<CardContent>
-									<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
-										{pendingInvitations.map((invitation) => (
-											<Card key={invitation.id} className="border-dashed p-4">
-												<div className="flex flex-wrap items-center gap-4">
-													<div className="flex-1">
-														<h3 className="font-semibold">{invitation.email}</h3>
-														<p className="text-sm text-gray-500 capitalize">{invitation.role}</p>
-														<p className="mt-1 text-xs text-gray-400">
-															Invited by {invitation.inviter.first_name}{' '}
-															{invitation.inviter.last_name}
-														</p>
-														<p className="text-xs text-gray-400">
-															{new Date(invitation.created_at).toLocaleDateString()}
-														</p>
-													</div>
-													{isOwner && (
-														<Button
-															variant="outline"
-															size="sm"
-															onClick={() => handleCancelInvitation(invitation.id)}
-														>
-															Cancel
-														</Button>
-													)}
-												</div>
-											</Card>
-										))}
-									</div>
-								</CardContent>
-							</Card>
-						)}
-
 						{/* Current Members Section */}
 						<Card className="p-4">
 							<CardHeader>
-								<h3 className="mb-4 flex items-center gap-2 font-semibold">
-									<Users className="h-4 w-4" />
-									Current Members ({teamMembers.length})
+								<h3 className="flex items-center gap-2 font-semibold">
+									<Users className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+									<span className="text-gray-900 dark:text-white">
+										Current Members ({teamMembers.length})
+									</span>
 								</h3>
 							</CardHeader>
 							<CardContent>
-								<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+								<div className="flex flex-wrap gap-3">
 									{teamMembers.map((member: TeamMember) => (
-										<Card key={member.id} className="p-4">
-											<div className="flex flex-wrap items-center gap-4">
-												<Avatar>
-													<AvatarImage src={member.profile.avatar} />
-													<AvatarFallback>{member.profile.first_name.charAt(0)}</AvatarFallback>
-												</Avatar>
-												<div className="flex-1">
-													<h3 className="font-semibold">
+										<Card key={member.id} className="bg-gray-50 px-4 py-3 dark:bg-gray-600">
+											<div className="flex items-center gap-3">
+												<UserAvatar
+													user={{
+														name: `${member.profile.first_name} ${member.profile.last_name}`,
+														avatar: member.profile.avatar || null
+													}}
+													size="sm"
+												/>
+												<div>
+													<h3 className="font-semibold text-gray-900 dark:text-white">
 														{member.profile.first_name} {member.profile.last_name}
 													</h3>
 													<p className="text-sm text-gray-500 capitalize">{member.role}</p>
 												</div>
 												{isOwner && member.profile.id !== user?.id && (
-													<div className="flex gap-2">
+													<div className="ml-2 flex gap-2">
 														<Select
 															value={member.role}
 															onValueChange={(value: string) =>
 																handleUpdateRole(member.id, value as TeamMemberRole)
 															}
 														>
-															<SelectTrigger className="h-11 w-[100px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
+															<SelectTrigger className="h-9 w-[90px] border border-gray-200 bg-white text-xs dark:border-gray-900 dark:bg-white/[0.03]">
 																<SelectValue />
 															</SelectTrigger>
 															<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
@@ -1146,6 +1211,55 @@ export default function OrganizationPage() {
 								</div>
 							</CardContent>
 						</Card>
+
+						{/* Pending Invitations Section */}
+						{pendingInvitations.length > 0 && (
+							<Card className="p-4">
+								<CardHeader>
+									<h3 className="flex items-center gap-2 font-semibold">
+										<UserPlus className="h-4 w-4" />
+										Pending Invitations
+										<span className="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+											{pendingInvitations.length}
+										</span>
+									</h3>
+								</CardHeader>
+								<CardContent>
+									<div className="flex flex-wrap gap-3">
+										{pendingInvitations.map((invitation) => (
+											<Card
+												key={invitation.id}
+												className="border-dashed border-amber-300 bg-amber-50/50 px-4 py-3 dark:border-amber-700 dark:bg-amber-900/10"
+											>
+												<div className="flex items-center gap-3">
+													<div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30">
+														<UserPlus className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+													</div>
+													<div className="min-w-0">
+														<h3 className="truncate font-semibold">{invitation.email}</h3>
+														<p className="text-xs text-gray-500">
+															<span className="capitalize">{invitation.role}</span>
+															{' · '}
+															<span className="text-amber-600 dark:text-amber-400">Pending</span>
+														</p>
+													</div>
+													{isOwner && (
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => handleCancelInvitation(invitation.id)}
+															className="ml-2 h-8 border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+														>
+															Cancel
+														</Button>
+													)}
+												</div>
+											</Card>
+										))}
+									</div>
+								</CardContent>
+							</Card>
+						)}
 					</TabsContent>
 
 					<TabsContent value="settings" className="space-y-4">

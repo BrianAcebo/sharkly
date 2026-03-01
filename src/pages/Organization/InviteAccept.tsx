@@ -50,94 +50,27 @@ export default function InviteAccept() {
 		}
 
 		try {
-			// First, try to fetch just the basic invitation data
-			const { data: basicData, error: basicError } = await supabase
-				.from('organization_invites')
-				.select('*')
-				.eq('id', inviteId)
-				.single();
-
-			if (basicError || !basicData) {
-				console.error('Error fetching basic invitation:', basicError);
-				setError('Invitation not found or has expired');
+			// Use the API endpoint which runs with service role (bypasses RLS)
+			const response = await api.get(`/api/organizations/invite/${inviteId}`);
+			
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				setError(err?.error || 'Invitation not found or has expired');
 				return;
 			}
 
-			// Now fetch the full data with joins
-			const { data, error } = await supabase
-				.from('organization_invites')
-				.select(
-					`
-					id,
-					email,
-					role,
-					organization_id,
-					invited_by,
-					status,
-					created_at,
-					organization: organizations (
-						id,
-						name,
-						max_seats
-					),
-					inviter: profiles (
-						first_name,
-						last_name
-					)
-				`
-				)
-				.eq('id', inviteId)
-				.single();
+			const data = await response.json();
 
-			if (error) {
-				console.error('Error fetching invitation with joins:', error);
-				// If the join fails, we can still show basic invitation data
-				const invitation: Invitation = {
-					id: basicData.id,
-					email: basicData.email,
-					role: basicData.role,
-					organization_id: basicData.organization_id,
-					invited_by: basicData.invited_by,
-					status: basicData.status,
-					created_at: basicData.created_at,
-					organization: { id: '', name: 'Unknown Organization', max_seats: 0 },
-					inviter: { first_name: 'Unknown', last_name: 'User' }
-				};
-				setInvitation(invitation);
-				return;
-			}
-
-			if (!data) {
-				setError('Invitation not found');
-				return;
-			}
-
-			// Check if invitation is expired (7 days)
-			const createdAt = new Date(data.created_at);
-			const now = new Date();
-			const daysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
-
-			if (daysDiff > 7) {
-				setError('This invitation has expired');
-				return;
-			}
-
-			if (data.status !== 'pending') {
-				setError('This invitation has already been processed');
-				return;
-			}
-
-			// Transform the data to match our interface
 			const invitation: Invitation = {
 				id: data.id,
 				email: data.email,
 				role: data.role,
-				organization_id: data.organization_id,
-				invited_by: data.invited_by,
+				organization_id: data.organization?.id || '',
+				invited_by: '',
 				status: data.status,
 				created_at: data.created_at,
-				organization: Array.isArray(data.organization) ? data.organization[0] : data.organization,
-				inviter: Array.isArray(data.inviter) ? data.inviter[0] : data.inviter
+				organization: data.organization || { id: '', name: 'Unknown Organization', max_seats: 0 },
+				inviter: data.inviter || { first_name: 'Unknown', last_name: 'User' }
 			};
 
 			setInvitation(invitation);
@@ -167,26 +100,44 @@ export default function InviteAccept() {
 
 		setIsAccepting(true);
 		try {
+			// Get the session for auth
+			const { data: { session: currentSession } } = await supabase.auth.getSession();
+			
+			if (!currentSession?.access_token) {
+				toast.error('Not authenticated');
+				return;
+			}
+
 			// Accept the invitation via API
-			await api.post('/api/organizations/accept-invite', {
+			const response = await api.post('/api/organizations/accept-invite', {
 				inviteId: invitation.id
+			}, {
+				headers: {
+					Authorization: `Bearer ${currentSession.access_token}`,
+					'Content-Type': 'application/json'
+				}
 			});
 
-			toast.success('Successfully joined the organization!');
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				throw new Error(err?.error || 'Failed to accept invitation');
+			}
+
+			const result = await response.json().catch(() => ({}));
+			
+			if (result.alreadyMember) {
+				toast.success('You\'re already a member! Redirecting...');
+			} else {
+				toast.success('Successfully joined the organization!');
+			}
 
 			// Redirect to the organization page
 			setTimeout(() => {
 				navigate('/organization');
-			}, 1500);
+			}, 1000);
 		} catch (error) {
 			console.error('Error accepting invitation:', error);
-
-			if (error && typeof error === 'object' && 'status' in error) {
-				const apiError = error as { status: number; message: string };
-				toast.error(apiError.message);
-			} else {
-				toast.error('Failed to accept invitation');
-			}
+			toast.error(error instanceof Error ? error.message : 'Failed to accept invitation');
 		} finally {
 			setIsAccepting(false);
 		}
@@ -232,7 +183,7 @@ export default function InviteAccept() {
 						Invitation Error
 					</h1>
 					<p className="mb-6 text-gray-600 dark:text-gray-400">{error}</p>
-					<Button onClick={() => navigate('/')} variant="outline">
+					<Button onClick={() => navigate('/')} variant="outline" className="dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
 						Go Home
 					</Button>
 				</div>
@@ -243,7 +194,7 @@ export default function InviteAccept() {
 	return (
 		<div className="min-h-screen bg-gray-50 px-4 py-12 sm:px-6 lg:px-8 dark:bg-gray-900">
 			<div className="mx-auto max-w-md">
-				<Card className="p-6">
+				<Card className="p-6 bg-white dark:bg-gray-800 dark:border-gray-700">
 					<div className="mb-6 text-center">
 						<CheckCircle className="mx-auto mb-4 h-16 w-16 text-green-500" />
 						<h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -255,8 +206,8 @@ export default function InviteAccept() {
 					</div>
 
 					<div className="mb-6 space-y-4">
-						<div className="flex items-center gap-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
-							<Building2 className="h-5 w-5 text-blue-600" />
+						<div className="flex items-center gap-3 rounded-lg bg-blue-50 p-3 dark:bg-blue-900/30">
+							<Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
 							<div>
 								<h3 className="font-semibold text-gray-900 dark:text-white">
 									{invitation.organization?.name}
@@ -265,8 +216,8 @@ export default function InviteAccept() {
 							</div>
 						</div>
 
-						<div className="flex items-center gap-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/20">
-							<Shield className="h-5 w-5 text-purple-600" />
+						<div className="flex items-center gap-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/30">
+							<Shield className="h-5 w-5 text-purple-600 dark:text-purple-400" />
 							<div>
 								<h3 className="font-semibold text-gray-900 capitalize dark:text-white">
 									{invitation.role}
@@ -275,8 +226,8 @@ export default function InviteAccept() {
 							</div>
 						</div>
 
-						<div className="flex items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
-							<Users className="h-5 w-5 text-gray-600" />
+						<div className="flex items-center gap-3 rounded-lg bg-gray-100 p-3 dark:bg-gray-800">
+							<Users className="h-5 w-5 text-gray-600 dark:text-gray-400" />
 							<div>
 								<h3 className="font-semibold text-gray-900 dark:text-white">
 									{invitation.inviter.first_name} {invitation.inviter.last_name}
@@ -294,7 +245,7 @@ export default function InviteAccept() {
 							<Button onClick={() => navigate(`/signin?invite=${inviteId}`)} className="w-full">
 								Sign In
 							</Button>
-							<Button onClick={() => navigate(`/signup?invite=${inviteId}`)} variant="outline" className="w-full">
+							<Button onClick={() => navigate(`/signup?invite=${inviteId}`)} variant="outline" className="w-full dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
 								Create Account
 							</Button>
 						</div>
@@ -304,7 +255,7 @@ export default function InviteAccept() {
 								This invitation was sent to {invitation.email}, but you're signed in as{' '}
 								{user?.email}
 							</p>
-							<Button onClick={() => navigate(`/signin?invite=${inviteId}`)} variant="outline">
+							<Button onClick={() => navigate(`/signin?invite=${inviteId}`)} variant="outline" className="dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
 								Sign in with {invitation.email}
 							</Button>
 						</div>
@@ -320,7 +271,7 @@ export default function InviteAccept() {
 									'Accept Invitation'
 								)}
 							</Button>
-							<Button onClick={handleDeclineInvitation} variant="outline" className="w-full">
+							<Button onClick={handleDeclineInvitation} variant="outline" className="w-full dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
 								Decline
 							</Button>
 						</div>

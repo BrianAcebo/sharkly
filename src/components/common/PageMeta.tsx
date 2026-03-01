@@ -1,8 +1,18 @@
 import { HelmetProvider, Helmet } from 'react-helmet-async';
 
-const PageMeta = ({ isSmallTitle, title, description, noIndex }: { isSmallTitle?: boolean; title: string; description: string, noIndex?: boolean }) => (
+const PageMeta = ({
+	isSmallTitle,
+	title,
+	description,
+	noIndex
+}: {
+	isSmallTitle?: boolean;
+	title: string;
+	description: string;
+	noIndex?: boolean;
+}) => (
 	<Helmet>
-		<title>{isSmallTitle ? title : `${title} | True Sight`}</title>
+		<title>{isSmallTitle ? title : `${title} | Sharkly`}</title>
 		<meta name="description" content={description} />
 		{noIndex && <meta name="robots" content="noindex, nofollow, noarchive" />}
 	</Helmet>

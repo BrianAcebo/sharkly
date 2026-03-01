@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
-import { Upload, X } from 'lucide-react';
+import { useState } from 'react';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
 import { Button } from '../ui/button';
@@ -7,153 +6,141 @@ import { supabase } from '../../utils/supabaseClient';
 import useAuth from '../../hooks/useAuth';
 import { toast } from 'sonner';
 import { Navigate, useNavigate } from 'react-router-dom';
+import { buildApiUrl } from '../../utils/urls';
+import { Check, Loader2 } from 'lucide-react';
+
+const PLATFORMS = [
+	{ value: 'shopify', label: 'Shopify' },
+	{ value: 'woocommerce', label: 'WooCommerce' },
+	{ value: 'wordpress', label: 'WordPress' },
+	{ value: 'webflow', label: 'Webflow' },
+	{ value: 'custom', label: 'Custom' },
+	{ value: 'other', label: 'Other' }
+];
+
+type Step = 1 | 2 | 3 | 4 | 5;
 
 export default function OnboardingForm() {
-	const [firstName, setFirstName] = useState<string>('');
-	const [lastName, setLastName] = useState<string>('');
-	const [avatar, setAvatar] = useState<File | null>(null);
-	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-	const [error, setError] = useState<string>('');
-	const [isLoading, setIsLoading] = useState(false);
-	const [hasShownWelcomeToast, setHasShownWelcomeToast] = useState(false);
-	const fileInputRef = useRef<HTMLInputElement>(null);
 	const { user, updateUser } = useAuth();
 	const navigate = useNavigate();
+	const [step, setStep] = useState<Step>(1);
+	const [error, setError] = useState('');
+	const [isLoading, setIsLoading] = useState(false);
+
+	// Step 1
+	const [url, setUrl] = useState('https://');
+
+	// Step 2
+	const [businessName, setBusinessName] = useState('');
+	const [niche, setNiche] = useState('');
+	const [platform, setPlatform] = useState('custom');
+	const [customerDescription, setCustomerDescription] = useState('');
+
+	// Step 3
+	const [competitor1, setCompetitor1] = useState('');
+	const [competitor2, setCompetitor2] = useState('');
+	const [competitor3, setCompetitor3] = useState('');
+
+	// Step 5 result
+	const [result, setResult] = useState<{
+		topicsFound: number;
+		competitorsAnalyzed: number;
+		quickWinsAvailable: number;
+	} | null>(null);
 
 	const searchParams = new URLSearchParams(window.location.search);
-	const next = searchParams.get('next') ?? '/cases';
+	const next = searchParams.get('next') ?? '/dashboard';
 
-	// Show welcome toast when user first lands on onboarding
-	useEffect(() => {
-		if (user && !hasShownWelcomeToast) {
-			// Only show welcome toast for newly verified users (not existing users signing in)
-			// Check if user has just completed email verification by looking at URL params
-			const searchParams = new URLSearchParams(window.location.search);
-			const isNewlyVerified = searchParams.get('verified') === 'true' || 
-								   searchParams.get('type') === 'email' ||
-								   window.location.pathname.includes('/auth/confirm');
-			
-			if (isNewlyVerified) {
-				toast.success('🎉 Welcome! Your email has been verified successfully.');
-			}
-			setHasShownWelcomeToast(true);
-		}
-	}, [user, hasShownWelcomeToast]);
-
-	useEffect(() => {
-		const orig = Event.prototype.preventDefault;
-		Event.prototype.preventDefault = function (...args) {
-		  if (this.type === 'click') {
-			console.warn('preventDefault on click:', this, '\n', new Error('stack').stack);
-		  }
-		  return orig.apply(this, args);
-		};
-		return () => { Event.prototype.preventDefault = orig; };
-	  }, []);
-
-	const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (file) {
-			setAvatar(file);
-			const reader = new FileReader();
-			reader.onloadend = () => {
-				setAvatarPreview(reader.result as string);
-			};
-			reader.readAsDataURL(file);
-		}
-	};
-
-	const handleRemoveAvatar = () => {
-		setAvatar(null);
-		setAvatarPreview(null);
-		if (fileInputRef.current) {
-			fileInputRef.current.value = '';
-		}
-	};
-
-	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-		e.preventDefault();
-		
-		if (!user) {
-			console.log('No user found, returning');
-			return;
-		}
-
-		// Validate required fields
-		if (!firstName.trim() || !lastName.trim()) {
-			console.log('Validation failed:', { firstName: firstName.trim(), lastName: lastName.trim() });
-			setError('Please fill in all required fields');
-			return;
-		}
-
-		console.log('Validation passed, starting profile update...');
-		setIsLoading(true);
+	const normalizeUrl = (u: string) => {
+		let v = u.trim();
+		if (!v) return '';
+		if (!v.startsWith('http')) v = `https://${v}`;
 		try {
-			let avatarPath = null;
+			new URL(v);
+			return v;
+		} catch {
+			return '';
+		}
+	};
 
-			// Upload avatar if selected
-			if (avatar) {
-				console.log('Uploading avatar...');
-				// Generate a unique filename with user ID to prevent collisions
-				const fileExt = avatar.name.split('.').pop();
-				const fileName = `${Date.now()}.${fileExt}`;
+	const handleStep1Continue = () => {
+		setError('');
+		const normalized = normalizeUrl(url);
+		if (!normalized) {
+			setError('Please enter a valid, reachable URL');
+			return;
+		}
+		setUrl(normalized);
+		setStep(2);
+	};
 
-				const { error: uploadError } = await supabase.storage
-					.from('avatars')
-					.upload(fileName, avatar, {
-						upsert: true, // Allow overwriting if file exists
-						cacheControl: '3600',
-						contentType: avatar.type // Set proper content type
-					});
+	const handleStep2Continue = () => {
+		setError('');
+		if (!businessName.trim()) {
+			setError('Business name is required');
+			return;
+		}
+		setStep(3);
+	};
 
-				if (uploadError) {
-					console.error('Avatar upload error:', uploadError);
-					throw uploadError;
-				}
+	const handleStep3Analyze = () => {
+		setError('');
+		if (!competitor1.trim()) {
+			setError('At least one competitor URL is required');
+			return;
+		}
+		setStep(4);
+		runOnboarding();
+	};
 
-				console.log('Avatar uploaded successfully:', fileName);
-				// Store just the file path
-				avatarPath = fileName;
+	const runOnboarding = async () => {
+		if (!user) return;
+		setIsLoading(true);
+		setError('');
+		try {
+			const { data: { session } } = await supabase.auth.getSession();
+			const token = session?.access_token;
+			if (!token) {
+				throw new Error('Not authenticated');
 			}
 
-			console.log('Updating profile in database...');
-			// Update profile
-			const { data: updateData, error: updateError } = await supabase
-				.from('profiles')
-				.update({
-					first_name: firstName,
-					last_name: lastName,
-					avatar: avatarPath,
-					completed_onboarding: true
+			const competitorUrls = [competitor1, competitor2, competitor3]
+				.map((u) => normalizeUrl(u))
+				.filter(Boolean);
+
+			const res = await fetch(buildApiUrl('/api/onboarding/complete'), {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${token}`
+				},
+				body: JSON.stringify({
+					url,
+					businessName: businessName.trim(),
+					niche: niche.trim(),
+					customerDescription: customerDescription.trim(),
+					platform,
+					competitorUrls
 				})
-				.eq('id', user.id)
-				.select();
+			});
 
-			if (updateError) {
-				console.error('Profile update error:', updateError);
-				throw updateError;
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				throw new Error(data?.error || 'Something went wrong');
 			}
 
-			console.log('Profile update successful:', updateData);
-
-			console.log('Calling updateUser()...');
-			// Update the user state with new profile information
+			setResult({
+				topicsFound: data.topicsFound ?? 0,
+				competitorsAnalyzed: data.competitorsAnalyzed ?? 0,
+				quickWinsAvailable: data.quickWinsAvailable ?? 0
+			});
 			await updateUser();
-
-			console.log('updateUser completed, showing success toast...');
-			toast.success('Profile updated successfully!');
-			
-			console.log('Waiting 100ms before navigation...');
-			// Add a small delay to ensure the user state is updated
-			setTimeout(() => {
-				console.log('Navigating to:', next);
-				navigate(next);
-			}, 100);
-		} catch (error) {
-			console.error('Error in handleSubmit:', error);
-			setError('An error occurred while updating your profile');
+			setStep(5);
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Something went wrong analyzing your site. Please try again.';
+			setError(msg);
+			toast.error(msg);
 		} finally {
-			console.log('Setting isLoading to false');
 			setIsLoading(false);
 		}
 	};
@@ -164,114 +151,244 @@ export default function OnboardingForm() {
 
 	return (
 		<div className="flex w-full flex-1 flex-col">
-			<div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center pt-10">
-				<div>
-					<div className="mb-5 text-center sm:mb-8">
-						<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-900 dark:text-white/90">
-							Complete Your Profile
-						</h1>
-						<p className="text-sm text-gray-500 dark:text-gray-400">
-							Add your personal information to get started
+			<div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4 pt-10">
+				{/* Step 1: URL */}
+				{step === 1 && (
+					<div className="space-y-6">
+						<div className="text-center">
+							<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-900 dark:text-white/90">
+								Let&apos;s get started — what&apos;s your website?
+							</h1>
+						</div>
+						{error && <p className="text-center text-sm text-red-500 dark:text-red-400">{error}</p>}
+						<div>
+							<Label htmlFor="url">Website URL</Label>
+							<Input
+								id="url"
+								type="url"
+								value={url}
+								onChange={(e) => setUrl(e.target.value)}
+								placeholder="https://yoursite.com"
+							/>
+						</div>
+						<Button variant="primary" fullWidth onClick={handleStep1Continue}>
+							Continue
+						</Button>
+						<p className="text-center text-sm text-gray-500 dark:text-gray-400">
+							Don&apos;t have a website yet? That&apos;s okay — you can still plan your strategy
 						</p>
 					</div>
-					<div>
-						{error && (
-							<p className="mb-4 text-center text-sm text-red-500 dark:text-red-400">{error}</p>
-						)}
-						<form onSubmit={handleSubmit} id="onboarding-form" onInvalid={() => console.log('invalid')}
-							 onSubmitCapture={() => console.log('onSubmitCapture fired')}
-							 onClickCapture={(e) => {
-							   if ((e.target as HTMLElement).closest('button[type="submit"]')) {
-								 console.log('submit click captured');
-							   }
-							 }}>
-							<div className="space-y-6">
-								{/* Avatar Upload */}
-								<div className="flex flex-col items-center space-y-4">
-									<div className="relative">
-										{avatarPreview ? (
-											<div className="relative">
-												<img
-													src={avatarPreview}
-													alt="Avatar preview"
-													className="h-32 w-32 rounded-full object-cover"
-												/>
-												<Button
-													variant="icon"
-													size="sm"
-													startIcon={<X className="size-4" />}
-													onClick={handleRemoveAvatar}
-													className="absolute -top-2 -right-2"
-												/>
-											</div>
-										) : (
-											<div className="flex h-32 w-32 items-center justify-center rounded-full border-2 border-dashed border-gray-300 dark:border-gray-700">
-												<Upload className="size-8 text-gray-400" />
-											</div>
-										)}
-									</div>
-									<input
-										type="file"
-										accept="image/*"
-										onChange={handleAvatarChange}
-										ref={fileInputRef}
-										className="hidden"
-										id="avatar-upload"
-									/>
-									<label
-										htmlFor="avatar-upload"
-										className="cursor-pointer rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
-									>
-										{avatarPreview ? 'Change Avatar' : 'Upload Avatar'}
-									</label>
-								</div>
+				)}
 
-								{/* Name Fields */}
-								<div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-									<div className="sm:col-span-1">
-										<Label>
-											First Name<span className="text-error-500">*</span>
-										</Label>
-										<Input
-											type="text"
-											value={firstName}
-											onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFirstName(e.target.value)}
-											placeholder="Enter your first name"
-											required
-										/>
-									</div>
-									<div className="sm:col-span-1">
-										<Label>
-											Last Name<span className="text-error-500">*</span>
-										</Label>
-										<Input
-											type="text"
-											value={lastName}
-											onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLastName(e.target.value)}
-											placeholder="Enter your last name"
-											required
-										/>
-									</div>
-								</div>
-
-								{/* Submit Button */}
-								<div>
-									<Button
-										variant="primary"
-										type="submit"
-										disabled={isLoading}
-										fullWidth
-										form="onboarding-form"
-										onClickCapture={(e) => console.log('btn capture: defaultPrevented?', e.defaultPrevented)}
-  onClick={(e) => console.log('btn bubble: defaultPrevented?', e.defaultPrevented)}
-									>
-										{isLoading ? 'Updating Profile...' : 'Complete Profile'}
-									</Button>
-								</div>
-							</div>
-						</form>
+				{/* Step 2: Business Profile */}
+				{step === 2 && (
+					<div className="space-y-6">
+						<div className="text-center">
+							<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-900 dark:text-white/90">
+								Tell us about your business
+							</h1>
+						</div>
+						{error && <p className="text-center text-sm text-red-500 dark:text-red-400">{error}</p>}
+						<div>
+							<Label htmlFor="businessName">Business name</Label>
+							<Input
+								id="businessName"
+								value={businessName}
+								onChange={(e) => setBusinessName(e.target.value)}
+								placeholder="Acme Inc"
+							/>
+						</div>
+						<div>
+							<Label htmlFor="niche">What do you sell or offer?</Label>
+							<textarea
+								id="niche"
+								value={niche}
+								onChange={(e) => setNiche(e.target.value)}
+								placeholder="Helps AI generate relevant topics"
+								className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
+								rows={2}
+							/>
+						</div>
+						<div>
+							<Label htmlFor="platform">Platform</Label>
+							<select
+								id="platform"
+								value={platform}
+								onChange={(e) => setPlatform(e.target.value)}
+								className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+							>
+								{PLATFORMS.map((p) => (
+									<option key={p.value} value={p.value}>
+										{p.label}
+									</option>
+								))}
+							</select>
+						</div>
+						<div>
+							<Label htmlFor="customerDescription">Who are your ideal customers?</Label>
+							<textarea
+								id="customerDescription"
+								value={customerDescription}
+								onChange={(e) => setCustomerDescription(e.target.value)}
+								placeholder="Used for brand voice and content targeting"
+								className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
+								rows={2}
+							/>
+						</div>
+						<Button variant="primary" fullWidth onClick={handleStep2Continue}>
+							Continue
+						</Button>
 					</div>
-				</div>
+				)}
+
+				{/* Step 3: Competitors */}
+				{step === 3 && (
+					<div className="space-y-6">
+						<div className="text-center">
+							<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-900 dark:text-white/90">
+								Who are your main competitors?
+							</h1>
+							<p className="text-sm text-gray-500 dark:text-gray-400">
+								We&apos;ll analyze what&apos;s working for them and build your strategy around it.
+							</p>
+						</div>
+						{error && <p className="text-center text-sm text-red-500 dark:text-red-400">{error}</p>}
+						<div>
+							<Label htmlFor="competitor1">Competitor 1 (required)</Label>
+							<Input
+								id="competitor1"
+								type="url"
+								value={competitor1}
+								onChange={(e) => setCompetitor1(e.target.value)}
+								placeholder="https://competitor1.com"
+							/>
+						</div>
+						<div>
+							<Label htmlFor="competitor2">Competitor 2 (optional)</Label>
+							<Input
+								id="competitor2"
+								type="url"
+								value={competitor2}
+								onChange={(e) => setCompetitor2(e.target.value)}
+								placeholder="https://competitor2.com"
+							/>
+						</div>
+						<div>
+							<Label htmlFor="competitor3">Competitor 3 (optional)</Label>
+							<Input
+								id="competitor3"
+								type="url"
+								value={competitor3}
+								onChange={(e) => setCompetitor3(e.target.value)}
+								placeholder="https://competitor3.com"
+							/>
+						</div>
+						<Button
+							variant="primary"
+							fullWidth
+							onClick={handleStep3Analyze}
+							disabled={isLoading}
+						>
+							Analyze my competitors
+						</Button>
+					</div>
+				)}
+
+				{/* Step 4: Loading */}
+				{step === 4 && (
+					<div className="space-y-8 py-8">
+						<div className="text-center">
+							<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-900 dark:text-white/90">
+								Building your strategy
+							</h1>
+							<p className="text-sm text-gray-500 dark:text-gray-400">
+								This usually takes about 60 seconds
+							</p>
+						</div>
+						<div className="space-y-4">
+							{[
+								'Scanning your website...',
+								'Checking your site health...',
+								'Analyzing competitors...',
+								'Finding keyword opportunities...',
+								'Classifying your opportunities...',
+								'Building your strategy...'
+							].map((label, i) => (
+								<div key={i} className="flex items-center gap-3">
+									{isLoading ? (
+										<Loader2 className="size-5 animate-spin text-brand-500" />
+									) : (
+										<Check className="size-5 text-green-500" />
+									)}
+									<span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+								</div>
+							))}
+						</div>
+						{error && (
+							<div className="text-center">
+								<p className="text-sm text-red-500 dark:text-red-400">{error}</p>
+								<Button variant="outline" className="mt-4" onClick={() => setStep(3)}>
+									Try again
+								</Button>
+							</div>
+						)}
+					</div>
+				)}
+
+				{/* Step 5: Summary */}
+				{step === 5 && result && (
+					<div className="space-y-6">
+						<div className="text-center">
+							<h1 className="text-title-sm sm:text-title-md mb-2 font-semibold text-gray-900 dark:text-white/90">
+								Your SEO strategy is ready
+							</h1>
+						</div>
+						<div className="grid grid-cols-3 gap-4">
+							<div className="rounded-xl border border-gray-200 bg-white p-4 text-center dark:border-gray-700 dark:bg-gray-800">
+								<div className="text-2xl font-bold text-gray-900 dark:text-white">
+									{result.topicsFound}
+								</div>
+								<div className="text-xs text-gray-500 dark:text-gray-400">Topics Found</div>
+							</div>
+							<div className="rounded-xl border border-gray-200 bg-white p-4 text-center dark:border-gray-700 dark:bg-gray-800">
+								<div className="text-2xl font-bold text-gray-900 dark:text-white">
+									{result.competitorsAnalyzed}
+								</div>
+								<div className="text-xs text-gray-500 dark:text-gray-400">Competitors Analyzed</div>
+							</div>
+							<div className="rounded-xl border border-gray-200 bg-white p-4 text-center dark:border-gray-700 dark:bg-gray-800">
+								<div className="text-2xl font-bold text-gray-900 dark:text-white">
+									{result.quickWinsAvailable}
+								</div>
+								<div className="text-xs text-gray-500 dark:text-gray-400">Quick Wins Available</div>
+							</div>
+						</div>
+						<div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+							<p className="text-sm text-gray-700 dark:text-gray-300">
+								{result.quickWinsAvailable > 0
+									? `You have ${result.quickWinsAvailable} achievable topics ready to start. Focus on these first to build authority, then unlock the rest.`
+									: 'Your strategy is ready. Start with the highest-priority topics to build your site strength over time.'}
+							</p>
+						</div>
+						<div className="space-y-3">
+							<Button
+								variant="primary"
+								fullWidth
+								className="bg-brand-500 hover:bg-brand-600"
+								onClick={() => navigate('/strategy')}
+							>
+								View my strategy
+							</Button>
+							<Button
+								variant="outline"
+								fullWidth
+								onClick={() => navigate('/dashboard')}
+							>
+								Go to dashboard
+							</Button>
+						</div>
+					</div>
+				)}
 			</div>
 		</div>
 	);

@@ -36,7 +36,10 @@ export const createOrganization = async (req: Request, res: Response) => {
 			.insert({
 				name,
 				max_seats: maxSeats,
-				owner_id: userId
+				owner_id: userId,
+				// initialize new credit fields to 0
+				included_credits_monthly: 0,
+				included_credits_remaining: 0
 			})
 			.select()
 			.single();
@@ -381,9 +384,24 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 			return res.status(404).json({ error: 'Invitation not found' });
 		}
 
-		// Check if invitation is still pending
-		if (invitation.status !== 'pending') {
-			return res.status(400).json({ error: 'Invitation has already been processed' });
+		// Check if invitation is still pending or recently accepted
+		if (invitation.status === 'expired') {
+			return res.status(400).json({ error: 'Invitation has been cancelled or expired' });
+		}
+		
+		// If already accepted, check if user is a member and return success
+		if (invitation.status === 'accepted') {
+			const { data: existingMember } = await supabase
+				.from('user_organizations')
+				.select('id')
+				.eq('organization_id', invitation.organization_id)
+				.eq('user_id', userId)
+				.single();
+			
+			if (existingMember) {
+				return res.json({ message: 'You have already joined this organization', alreadyMember: true });
+			}
+			// If status is accepted but user isn't a member, continue with the flow
 		}
 
 		// Check if invitation is expired (7 days)
@@ -417,7 +435,12 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 			.single();
 
 		if (existingMember) {
-			return res.status(400).json({ error: 'You are already a member of this organization' });
+			// User is already a member - mark invite as accepted and return success
+			await supabase
+				.from('organization_invites')
+				.update({ status: 'accepted' })
+				.eq('id', inviteId);
+			return res.json({ message: 'You are already a member of this organization', alreadyMember: true });
 		}
 
 		// Check organization seat limit
@@ -532,6 +555,70 @@ export const cancelInvitation = async (req: Request, res: Response) => {
 		return res.json({ message: 'Invitation cancelled successfully' });
 	} catch (error) {
 		console.error('Error cancelling invitation:', error);
+		return res.status(500).json({ error: 'Internal server error' });
+	}
+};
+
+// Public endpoint - no auth required
+// Only returns limited info for displaying the invitation page
+export const getInviteDetails = async (req: Request, res: Response) => {
+	try {
+		const { inviteId } = req.params;
+
+		if (!inviteId) {
+			return res.status(400).json({ error: 'Invite ID is required' });
+		}
+
+		// Get the invitation with organization and inviter details
+		// Using service role, this bypasses RLS
+		const { data: invite, error: inviteError } = await supabase
+			.from('organization_invites')
+			.select('id, email, role, organization_id, invited_by, status, created_at')
+			.eq('id', inviteId)
+			.single();
+
+		if (inviteError || !invite) {
+			return res.status(404).json({ error: 'Invitation not found' });
+		}
+
+		// Check if invitation is expired (7 days)
+		const createdAt = new Date(invite.created_at);
+		const now = new Date();
+		const daysDiff = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
+
+		if (daysDiff > 7) {
+			return res.status(400).json({ error: 'This invitation has expired' });
+		}
+
+		if (invite.status !== 'pending') {
+			return res.status(400).json({ error: 'This invitation has already been processed' });
+		}
+
+		// Fetch organization name
+		const { data: org } = await supabase
+			.from('organizations')
+			.select('id, name')
+			.eq('id', invite.organization_id)
+			.single();
+
+		// Fetch inviter name
+		const { data: inviter } = await supabase
+			.from('profiles')
+			.select('first_name, last_name')
+			.eq('id', invite.invited_by)
+			.single();
+
+		return res.json({
+			id: invite.id,
+			email: invite.email,
+			role: invite.role,
+			status: invite.status,
+			created_at: invite.created_at,
+			organization: org ? { id: org.id, name: org.name } : null,
+			inviter: inviter ? { first_name: inviter.first_name, last_name: inviter.last_name } : null
+		});
+	} catch (error) {
+		console.error('Error fetching invite details:', error);
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };

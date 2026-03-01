@@ -212,7 +212,7 @@ const OrganizationAnalytics: React.FC<Props> = ({ orgId }) => {
     }, [history]);
 
     if (loading) {
-        return <div className="text-sm text-muted-foreground">Loading analytics…</div>;
+        return <div className="text-sm text-gray-500 dark:text-gray-400">Loading analytics…</div>;
     }
     if (error) {
         return <div className="text-sm text-red-500">{error}</div>;
@@ -231,25 +231,25 @@ const OrganizationAnalytics: React.FC<Props> = ({ orgId }) => {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <Card>
                         <CardContent className="p-4">
-                            <div className="text-sm text-muted-foreground">Total Calls</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Total Calls</div>
                             <div className="mt-1 text-2xl font-semibold">{totals.calls}</div>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="p-4">
-                            <div className="text-sm text-muted-foreground">Total Minutes</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Total Minutes</div>
                             <div className="mt-1 text-2xl font-semibold">{formatMinutes(totals.minutes)}</div>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="p-4">
-                            <div className="text-sm text-muted-foreground">Total Seconds</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Total Seconds</div>
                             <div className="mt-1 text-2xl font-semibold">{totals.seconds}</div>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="p-4">
-                            <div className="text-sm text-muted-foreground">Total Cost</div>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">Total Cost</div>
                             <div className="mt-1 text-2xl font-semibold">{formatCurrency(totals.cost)}</div>
                         </CardContent>
                     </Card>
@@ -268,7 +268,7 @@ const OrganizationAnalytics: React.FC<Props> = ({ orgId }) => {
                 <TableBody>
                     {(rows.length === 0 && fallbackRows.length === 0) && (
                         <TableRow>
-                            <TableCell colSpan={4} className="text-sm text-muted-foreground">No voice usage yet.</TableCell>
+                            <TableCell colSpan={4} className="text-sm text-gray-500 dark:text-gray-400">No voice usage yet.</TableCell>
                         </TableRow>
                     )}
                     {(rows.length > 0 ? rows : fallbackRows).map((r) => (
@@ -315,7 +315,7 @@ const OrganizationAnalytics: React.FC<Props> = ({ orgId }) => {
                     </div>
                 </div>
                 {historyLoading ? (
-                    <div className="text-sm text-muted-foreground">Loading history…</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Loading history…</div>
                 ) : (
                     <Table>
                         <TableHeader>
@@ -332,7 +332,7 @@ const OrganizationAnalytics: React.FC<Props> = ({ orgId }) => {
                         <TableBody>
                             {filteredHistory.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="text-sm text-muted-foreground">No calls yet.</TableCell>
+                                    <TableCell colSpan={7} className="text-sm text-gray-500 dark:text-gray-400">No calls yet.</TableCell>
                                 </TableRow>
                             )}
                             {filteredHistory.map((h) => (

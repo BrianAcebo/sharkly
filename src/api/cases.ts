@@ -5,6 +5,7 @@ import { getBusinessById } from './businesses';
 import { formatPersonName, normalizePersonName } from '../utils/person';
 import type { Case as CaseType } from '../types/case';
 import type { Case, CaseStatus, CasePriority, ListCasesParams } from '../types/case';
+import type { PersonName } from '../types/person';
 
 export async function listCases(params: ListCasesParams) {
   const page = params.page ?? 1;
@@ -35,8 +36,9 @@ export async function listCases(params: ListCasesParams) {
 
   if (params.search && params.search.trim().length > 0) {
     const s = `%${params.search.trim()}%`;
+    // Some deployments do not have a 'description' column; prefer 'summary'
     query = query.or(
-      ['title.ilike.', 'description.ilike.', 'category.ilike.']
+      ['title.ilike.', 'summary.ilike.', 'category.ilike.']
         .map((f) => `${f}${s}`)
         .join(',')
     );
@@ -68,8 +70,25 @@ export async function listCases(params: ListCasesParams) {
   }
 
   const { data, error, count } = await query.range(from, to);
-  if (error) throw error;
-  let rows = (data as Case[]) ?? [];
+  if (error) {
+    console.error('[listCases] Query failed:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      params: {
+        organizationId: params.organizationId,
+        page,
+        perPage,
+        sortBy: params.sortBy,
+        status: params.status,
+        priority: params.priority,
+        search: params.search
+      }
+    });
+    throw error;
+  }
+  let rows = (data ?? []) as unknown as Case[];
 
   // Hydrate subject snapshot for list views when missing
   try {
@@ -94,7 +113,7 @@ export async function listCases(params: ListCasesParams) {
         .select('id,name,avatar')
         .in('id', Array.from(new Set(personIds)));
       for (const p of (people as Array<{ id: string; name: unknown; avatar: string | null }> | null) ?? []) {
-        const normalizedName = normalizePersonName(p.name as Record<string, unknown> | string | null | undefined);
+        const normalizedName = normalizePersonName(p.name as PersonName);
         idToPerson.set(p.id, { name: formatPersonName(normalizedName), avatar: p.avatar ?? null });
       }
     }
@@ -138,9 +157,20 @@ export async function listCases(params: ListCasesParams) {
 }
 
 export async function getCaseById(id: string) {
+  console.log('[getCaseById] Fetching case:', id);
   const { data, error } = await supabase.from('cases').select('*').eq('id', id).single();
-  if (error) throw error;
-  const row = data as Case;
+  if (error) {
+    console.error('[getCaseById] Fetch failed:', {
+      id,
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint
+    });
+    throw error;
+  }
+  console.log('[getCaseById] Case found:', data?.id, 'subject_id:', data?.subject_id);
+  const row = { ...data } as Case;
   if ((row as unknown as CaseType).subject_id) {
     try {
       const stype = (row as unknown as { subject_type?: string | null }).subject_type ?? null;
@@ -165,6 +195,8 @@ export interface CreateCaseInput {
   organization_id: string;
   created_by: string;
   title: string;
+  summary?: string;
+  // deprecated: support existing callers temporarily
   description?: string;
   category?: string;
   status?: CaseStatus;
@@ -182,7 +214,7 @@ export async function createCase(input: CreateCaseInput) {
     organization_id: input.organization_id,
     created_by: input.created_by,
     title: input.title,
-    description: input.description ?? null,
+    summary: input.summary ?? input.description ?? null,
     category: input.category ?? null,
     status: input.status ?? 'active',
     priority: input.priority ?? 'low',
@@ -194,8 +226,19 @@ export async function createCase(input: CreateCaseInput) {
     graph_id: input.graph_id ?? null
   };
 
+  console.log('[createCase] Creating case with payload:', JSON.stringify(payload, null, 2));
   const { data, error } = await supabase.from('cases').insert(payload).select('*').single();
-  if (error) throw error;
+  if (error) {
+    console.error('[createCase] Insert failed:', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      payload
+    });
+    throw error;
+  }
+  console.log('[createCase] Case created successfully:', data?.id);
   const row = data as Case;
   // Write audit: case_created
   try {
@@ -218,6 +261,8 @@ export async function createCase(input: CreateCaseInput) {
 
 export interface UpdateCaseInput {
   title?: string;
+  summary?: string | null;
+  // deprecated
   description?: string | null;
   category?: string | null;
   status?: CaseStatus;
@@ -231,21 +276,49 @@ export interface UpdateCaseInput {
 }
 
 export async function updateCase(id: string, updates: UpdateCaseInput) {
+  console.log('[updateCase] Updating case:', id, 'updates:', JSON.stringify(updates, null, 2));
   // Fetch existing for change diff & org/case context
-  const { data: before } = await supabase
+  const { data: before, error: beforeError } = await supabase
     .from('cases')
     .select('*')
     .eq('id', id)
     .single();
+  if (beforeError) {
+    console.error('[updateCase] Failed to fetch existing case:', {
+      id,
+      message: beforeError.message,
+      code: beforeError.code,
+      details: beforeError.details
+    });
+  }
+
+  // summary is now the actual DB column name
+  const payload: Record<string, unknown> = { ...updates };
+  // Remove deprecated description field if present, use summary instead
+  if ((updates as { description?: string | null }).description !== undefined && updates.summary === undefined) {
+    payload.summary = (updates as { description?: string | null }).description ?? null;
+  }
+  delete (payload as { description?: string | null }).description;
 
   const { data, error } = await supabase
     .from('cases')
-    .update(updates)
+    .update(payload)
     .eq('id', id)
     .select('*')
     .single();
-  if (error) throw error;
-  const row = data as Case;
+  if (error) {
+    console.error('[updateCase] Update failed:', {
+      id,
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      payload
+    });
+    throw error;
+  }
+  console.log('[updateCase] Case updated successfully:', id);
+  const row = { ...data } as Case;
   // Compute changed fields (ignore updated_at)
   try {
     const changed: string[] = [];

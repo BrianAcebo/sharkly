@@ -23,12 +23,12 @@ interface SearchResult {
 // Pre-defined pages with static data
 const STATIC_PAGES: Omit<SearchResult, 'score'>[] = [
   {
-    id: 'cases',
+    id: 'dashboard',
     type: 'page',
-    title: 'Cases',
-    subtitle: 'View Cases',
+    title: 'Dashboard',
+    subtitle: 'View Dashboard',
     icon: <LayoutDashboard className="h-4 w-4" />,
-    path: '/cases',
+    path: '/dashboard',
     action: () => {}
   },
   {

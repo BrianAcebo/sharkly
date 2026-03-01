@@ -41,7 +41,7 @@ function NotFoundContent() {
 				</div>
 				{/* <!-- Footer --> */}
 				<p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center text-sm text-gray-500 dark:text-gray-400">
-					&copy; {new Date().getFullYear()} - True Sight Intelligence, LLC
+					&copy; {new Date().getFullYear()} - Sharkly, LLC
 				</p>
 			</div>
 		</>

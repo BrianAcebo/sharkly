@@ -8,12 +8,17 @@ import {
 	deleteOrganization,
 	getSeatSummary,
 	purchaseSeats,
-	releaseSeats
+	releaseSeats,
+	getInviteDetails
 } from '../controllers/organization.js';
 
 const router = express.Router();
 
-// All routes require authentication
+// Public routes (no auth required)
+// Get invite details for displaying invitation page
+router.get('/invite/:inviteId', getInviteDetails);
+
+// All routes below require authentication
 router.use(requireAuth);
 
 // Create a new organization

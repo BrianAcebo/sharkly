@@ -18,7 +18,9 @@ import ReadOnlyMode from '../components/common/ReadOnlyMode';
 import { useOrganization } from '../hooks/useOrganization';
 import { OrganizationRow } from '../types/billing';
 import Backdrop from './Backdrop';
-import { CaseProvider } from '../providers/CaseProvider';
+import ChatWidget from '../components/chat/ChatWidget';
+import { ChatProvider } from '../contexts/ChatContext';
+import { SiteProvider } from '../contexts/SiteContext';
 
 const LayoutContent: React.FC = () => {
 	const { pathname } = useLocation();
@@ -71,9 +73,9 @@ const LayoutContent: React.FC = () => {
 		}
 	}
 
-	// Safety fallback: if we're on organization-required but user has organization, redirect to casess
+	// Safety fallback: if we're on organization-required but user has organization, redirect to dashboard
 	if (pathname === '/organization-required' && hasOrganization) {
-		return <Navigate to="/cases" replace />;
+		return <Navigate to="/dashboard" replace />;
 	}
 
 	// Precedence: Force organization-required only AFTER onboarding is completed
@@ -81,9 +83,9 @@ const LayoutContent: React.FC = () => {
 		return <Navigate to="/organization-required" replace />;
 	}
 
-	// Safety fallback: if we're on onboarding but user completed it, redirect to cases
+	// Safety fallback: if we're on onboarding but user completed it, redirect to dashboard
 	if (pathname === '/onboarding' && user?.completed_onboarding) {
-		return <Navigate to="/cases" replace />;
+		return <Navigate to="/dashboard" replace />;
 	}
 
 	// Show screen size warning if screen is too small
@@ -165,13 +167,13 @@ const LayoutContent: React.FC = () => {
 					<Backdrop />
 				</div>
 				<div
-					className={`flex-1 transition-all duration-300 ease-in-out ${isExpanded ? 'lg:ml-[250px]' : 'lg:ml-[90px]'} ${isMobileOpen ? 'ml-0' : ''}`}
+					className={`flex-1 transition-all duration-300 ease-in-out ${isExpanded ? 'lg:ml-50' : 'lg:ml-22'} ${isMobileOpen ? 'ml-0' : ''}`}
 				>
 					<AppHeader />
 
 					<div className="w-full">
-						<main className="h-full w-full dark:bg-gray-800 bg-accent-foreground-dark p-6 min-h-screen-height-visible">
-							<div className="w-full h-full mx-auto max-w-(--breakpoint-2xl)">
+						<main className="bg-accent-foreground-dark min-h-screen-height-visible h-full w-full p-6 dark:bg-gray-800">
+							<div className="mx-auto h-full w-full max-w-(--breakpoint-2xl)">
 								<Outlet />
 							</div>
 						</main>
@@ -184,13 +186,16 @@ const LayoutContent: React.FC = () => {
 
 const AppLayout: React.FC = () => {
 	return (
-		<CaseProvider>
-			<SidebarProvider>
-				<BreadcrumbsProvider>
-					<LayoutContent />
-				</BreadcrumbsProvider>
-			</SidebarProvider>
-		</CaseProvider>
+		<SidebarProvider>
+			<BreadcrumbsProvider>
+				<SiteProvider>
+					<ChatProvider>
+						<LayoutContent />
+						<ChatWidget />
+					</ChatProvider>
+				</SiteProvider>
+			</BreadcrumbsProvider>
+		</SidebarProvider>
 	);
 };
 

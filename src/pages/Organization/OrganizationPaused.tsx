@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Button } from '../../components/ui/button';
 import { Pause, CreditCard, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useOrganizationStatus } from '../../hooks/useOrganizationStatus';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
-import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
 interface OrganizationPausedProps {
@@ -43,7 +42,7 @@ export default function OrganizationPaused({ reason = 'paused' }: OrganizationPa
         },
         secondaryAction: {
           text: 'Contact Support',
-          onClick: () => window.open('mailto:support@paperboat.com', '_blank'),
+          onClick: () => window.open('mailto:support@truesightintel.com', '_blank'),
           variant: 'outline' as const
         }
       };
@@ -102,7 +101,7 @@ export default function OrganizationPaused({ reason = 'paused' }: OrganizationPa
             {isLoading ? (
               <div className="flex items-center">
                 <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Processing...
+                <span className="text-gray-700 dark:text-gray-100">Processing...</span>
               </div>
             ) : (
               <>
