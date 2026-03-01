@@ -92,7 +92,7 @@ const Sidebar: React.FC = () => {
 				</Link>
 			</div>
 
-			<nav className="mb-6 flex flex-1 overflow-y-auto py-8">
+			<nav className="scrollbar-branded mb-6 flex flex-1 overflow-y-auto py-8">
 				<ul className="w-full space-y-2 px-2">
 					{menuItems.map((item: MenuItem, index) => {
 						const active = isActive(item);

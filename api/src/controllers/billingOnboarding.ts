@@ -620,7 +620,18 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       });
     }
 
-    // Mirror Stripe subscription data to organization
+    // CRITICAL: Ensure new organizations NEVER leave payment_pending state without webhook confirmation
+    // If somehow org is not in payment_pending at this point, it must be a renewal (existing customer)
+    if (!isRenewal && org.status !== 'payment_pending') {
+      console.warn('[CRITICAL] New org was not created in payment_pending state', {
+        orgId: org.id,
+        status: org.status,
+        isRenewal
+      });
+      // Force it back to payment_pending for safety
+      org.status = 'payment_pending' as OrgStatus;
+    }
+
     let subscriptionData: Partial<OrganizationRow> = {
       name,
       tz,
@@ -691,6 +702,23 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         ok: false, 
         error: 'Failed to update organization with billing information' 
       } as ApiError);
+    }
+
+    // CRITICAL SAFEGUARD: Verify org status before returning
+    // For new orgs, it MUST be payment_pending (not active)
+    if (!isRenewal && updatedOrg.status !== 'payment_pending') {
+      console.error('[CRITICAL] Organization returned with wrong status after onboarding!', {
+        orgId: updatedOrg.id,
+        status: updatedOrg.status,
+        isRenewal,
+        stripeStatus: updatedOrg.stripe_status
+      });
+      // Force correct status directly
+      await supabase
+        .from('organizations')
+        .update({ status: 'payment_pending' })
+        .eq('id', updatedOrg.id);
+      updatedOrg.status = 'payment_pending';
     }
 
     await ensureWallet(updatedOrg.id);
