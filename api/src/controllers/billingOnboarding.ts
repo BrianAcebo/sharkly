@@ -639,8 +639,11 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         stripeSubscriptionId = subscription.id;
 
       const invoice = subscription.latest_invoice as Stripe.Invoice | null;
-      // Keep organization active regardless of subscription creation state
-      computedOrgStatus = (org.status as OrgStatus) || 'active';
+      // For renewals: subscription creation is successful, so set org to active
+      // For new orgs: keep payment_pending until webhook confirms payment
+      if (isRenewal) {
+        computedOrgStatus = 'active';
+      }
       if (invoice) {
         const paymentIntent = (invoice as unknown as { payment_intent?: unknown }).payment_intent;
         if (paymentIntent && typeof paymentIntent === 'object' && 'client_secret' in (paymentIntent as Record<string, unknown>)) {
