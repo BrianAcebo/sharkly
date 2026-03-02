@@ -514,7 +514,7 @@ export class TechnicalAuditService {
 	private calculateAuditScore(
 		crawlResults: CrawlResult[],
 		domainAuthority: number,
-		cwv: { lcpEstimate: number; clsEstimate: number; inpEstimate: number },
+		cwv: { lcpEstimate: number; clsEstimate: number; inpEstimate: number; status?: string; error?: string },
 		issueAnalysis: { totalCount: number; criticalCount: number }
 	): number {
 		if (crawlResults.length === 0) return 0;
@@ -525,12 +525,16 @@ export class TechnicalAuditService {
 		score -= issueAnalysis.criticalCount * 5;
 		score -= issueAnalysis.totalCount * 1;
 
-		// Deduct for poor CWV
-		if (cwv.lcpEstimate > 4000) score -= 10;
-		else if (cwv.lcpEstimate > 2500) score -= 5;
+		// Deduct for poor CWV (if available)
+		if (cwv.lcpEstimate > 0) {
+			if (cwv.lcpEstimate > 4000) score -= 10;
+			else if (cwv.lcpEstimate > 2500) score -= 5;
+		}
 
-		if (cwv.clsEstimate > 0.25) score -= 5;
-		else if (cwv.clsEstimate > 0.1) score -= 2;
+		if (cwv.clsEstimate > 0) {
+			if (cwv.clsEstimate > 0.25) score -= 5;
+			else if (cwv.clsEstimate > 0.1) score -= 2;
+		}
 
 		// Deduct for low SSL coverage
 		const sslCoverage = crawlResults.filter((r) => r.hasSSL).length / crawlResults.length;
