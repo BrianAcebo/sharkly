@@ -209,117 +209,164 @@ export default function AuditResults() {
 				)}
 
 				{/* Domain Authority */}
-				<div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-800">
+				<div className={`rounded-lg p-6 border ${audit.domainAuthority.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800'}`}>
 					<h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
 						Domain Authority
 					</h3>
-					<div className="flex items-center justify-between">
-						<div>
-							<div className="text-4xl font-bold text-gray-900 dark:text-white">
-								{audit.domainAuthority.estimated}
+					{audit.domainAuthority.error ? (
+						<div className="flex items-start gap-3">
+							<AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+							<div>
+								<p className="font-medium text-red-900 dark:text-red-100">API Error</p>
+								<p className="text-red-700 dark:text-red-300 text-sm mt-1">
+									Could not fetch Domain Authority from Moz API: {audit.domainAuthority.error}
+								</p>
+								<p className="text-red-600 dark:text-red-400 text-xs mt-2">
+									Please try running the audit again.
+								</p>
 							</div>
-							<p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-								out of 100
-								<span className="ml-2 text-xs font-medium text-gray-500">
-									({audit.domainAuthority.confidence} confidence via {audit.domainAuthority.method})
-								</span>
-							</p>
 						</div>
-						{audit.domainAuthority.estimated < 20 && (
-							<p className="text-sm text-yellow-700 dark:text-yellow-300 max-w-xs">
-								Your domain authority is low. Focus on building quality backlinks to improve rankings.
-							</p>
-						)}
-					</div>
+					) : (
+						<div className="flex items-center justify-between">
+							<div>
+								<div className="text-4xl font-bold text-gray-900 dark:text-white">
+									{audit.domainAuthority.estimated}
+								</div>
+								<p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
+									out of 100
+									<span className="ml-2 text-xs font-medium text-gray-500">
+										({audit.domainAuthority.confidence} confidence via {audit.domainAuthority.method})
+									</span>
+								</p>
+							</div>
+							{audit.domainAuthority.estimated < 20 && (
+								<p className="text-sm text-yellow-700 dark:text-yellow-300 max-w-xs">
+									Your domain authority is low. Focus on building quality backlinks to improve rankings.
+								</p>
+							)}
+						</div>
+					)}
 				</div>
 
 				{/* Core Web Vitals */}
-				<div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-800">
+				<div className={`rounded-lg p-6 border ${audit.coreWebVitals.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800'}`}>
 					<h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
 						Core Web Vitals
 					</h3>
-					<p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-						Estimated based on crawl data. {getCWVStatus(audit.coreWebVitals.status)}
-					</p>
-
-					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-						<div>
-							<p className="font-medium text-gray-900 dark:text-white mb-2">
-								LCP (Largest Contentful Paint)
-							</p>
-							<div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-								{audit.coreWebVitals.lcpEstimate}ms
+					{audit.coreWebVitals.error ? (
+						<div className="flex items-start gap-3">
+							<AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+							<div>
+								<p className="font-medium text-red-900 dark:text-red-100">API Error</p>
+								<p className="text-red-700 dark:text-red-300 text-sm mt-1">
+									Could not fetch Core Web Vitals from Google PageSpeed Insights: {audit.coreWebVitals.error}
+								</p>
+								<p className="text-red-600 dark:text-red-400 text-xs mt-2">
+									Please try running the audit again.
+								</p>
 							</div>
-							<p className="text-sm text-gray-600 dark:text-gray-400">
-								{audit.coreWebVitals.lcpEstimate < 2500 ? (
-									<span className="text-green-600 dark:text-green-400">✓ Good (target: &lt;2.5s)</span>
-								) : (
-									<span className="text-red-600 dark:text-red-400">✗ Needs improvement (target: &lt;2.5s)</span>
-								)}
-							</p>
 						</div>
+					) : (
+						<>
+							<p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+								Real metrics from Google PageSpeed Insights. {getCWVStatus(audit.coreWebVitals.status)}
+							</p>
 
-						<div>
-							<p className="font-medium text-gray-900 dark:text-white mb-2">
-								CLS (Cumulative Layout Shift)
-							</p>
-							<div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-								{audit.coreWebVitals.clsEstimate.toFixed(2)}
-							</div>
-							<p className="text-sm text-gray-600 dark:text-gray-400">
-								{audit.coreWebVitals.clsEstimate < 0.1 ? (
-									<span className="text-green-600 dark:text-green-400">✓ Good (target: &lt;0.1)</span>
-								) : (
-									<span className="text-red-600 dark:text-red-400">✗ Needs improvement (target: &lt;0.1)</span>
-								)}
-							</p>
-						</div>
+							<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+								<div>
+									<p className="font-medium text-gray-900 dark:text-white mb-2">
+										LCP (Largest Contentful Paint)
+									</p>
+									<div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+										{audit.coreWebVitals.lcpEstimate}ms
+									</div>
+									<p className="text-sm text-gray-600 dark:text-gray-400">
+										{audit.coreWebVitals.lcpEstimate < 2500 ? (
+											<span className="text-green-600 dark:text-green-400">✓ Good (target: &lt;2.5s)</span>
+										) : (
+											<span className="text-red-600 dark:text-red-400">✗ Needs improvement (target: &lt;2.5s)</span>
+										)}
+									</p>
+								</div>
 
-						<div>
-							<p className="font-medium text-gray-900 dark:text-white mb-2">
-								INP (Interaction to Next Paint)
-							</p>
-							<div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-								{audit.coreWebVitals.inpEstimate}ms
+								<div>
+									<p className="font-medium text-gray-900 dark:text-white mb-2">
+										CLS (Cumulative Layout Shift)
+									</p>
+									<div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+										{audit.coreWebVitals.clsEstimate.toFixed(2)}
+									</div>
+									<p className="text-sm text-gray-600 dark:text-gray-400">
+										{audit.coreWebVitals.clsEstimate < 0.1 ? (
+											<span className="text-green-600 dark:text-green-400">✓ Good (target: &lt;0.1)</span>
+										) : (
+											<span className="text-red-600 dark:text-red-400">✗ Needs improvement (target: &lt;0.1)</span>
+										)}
+									</p>
+								</div>
+
+								<div>
+									<p className="font-medium text-gray-900 dark:text-white mb-2">
+										INP (Interaction to Next Paint)
+									</p>
+									<div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+										{audit.coreWebVitals.inpEstimate}ms
+									</div>
+									<p className="text-sm text-gray-600 dark:text-gray-400">
+										{audit.coreWebVitals.inpEstimate < 200 ? (
+											<span className="text-green-600 dark:text-green-400">✓ Good (target: &lt;200ms)</span>
+										) : (
+											<span className="text-red-600 dark:text-red-400">✗ Needs improvement (target: &lt;200ms)</span>
+										)}
+									</p>
+								</div>
 							</div>
-							<p className="text-sm text-gray-600 dark:text-gray-400">
-								{audit.coreWebVitals.inpEstimate < 200 ? (
-									<span className="text-green-600 dark:text-green-400">✓ Good (target: &lt;200ms)</span>
-								) : (
-									<span className="text-red-600 dark:text-red-400">✗ Needs improvement (target: &lt;200ms)</span>
-								)}
-							</p>
-						</div>
-					</div>
+						</>
+					)}
 				</div>
 
 				{/* Indexation Status */}
-				<div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-800">
+				<div className={`rounded-lg p-6 border ${audit.indexationStatus.error ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800'}`}>
 					<h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
 						Indexation Status
 					</h3>
-					<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-						<div>
-							<p className="text-gray-600 dark:text-gray-400 text-sm mb-1">
-								GSC Connection
-							</p>
-							<p className="text-lg font-semibold text-gray-900 dark:text-white">
-								{audit.indexationStatus.gscConnected ? (
-									<span className="text-green-600 dark:text-green-400">✓ Connected</span>
-								) : (
-									<span className="text-yellow-600 dark:text-yellow-400">⚠ Not Connected</span>
-								)}
-							</p>
+					{audit.indexationStatus.error ? (
+						<div className="flex items-start gap-3">
+							<AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+							<div>
+								<p className="font-medium text-red-900 dark:text-red-100">Check Failed</p>
+								<p className="text-red-700 dark:text-red-300 text-sm mt-1">
+									{audit.indexationStatus.error}
+								</p>
+								<p className="text-red-600 dark:text-red-400 text-xs mt-2">
+									Connect Google Search Console to see indexation data.
+								</p>
+							</div>
 						</div>
-						<div>
-							<p className="text-gray-600 dark:text-gray-400 text-sm mb-1">
-								Estimated Crawl Budget
-							</p>
-							<p className="text-lg font-semibold text-gray-900 dark:text-white">
-								{audit.indexationStatus.estimatedCrawlBudget}
-							</p>
+					) : (
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+							<div>
+								<p className="text-gray-600 dark:text-gray-400 text-sm mb-1">
+									GSC Connection
+								</p>
+								<p className="text-lg font-semibold text-gray-900 dark:text-white">
+									{audit.indexationStatus.gscConnected ? (
+										<span className="text-green-600 dark:text-green-400">✓ Connected</span>
+									) : (
+										<span className="text-yellow-600 dark:text-yellow-400">⚠ Not Connected</span>
+									)}
+								</p>
+							</div>
+							<div>
+								<p className="text-gray-600 dark:text-gray-400 text-sm mb-1">
+									Estimated Crawl Budget
+								</p>
+								<p className="text-lg font-semibold text-gray-900 dark:text-white">
+									{audit.indexationStatus.estimatedCrawlBudget}
+								</p>
+							</div>
 						</div>
-					</div>
+					)}
 				</div>
 
 				{/* Recommendations */}

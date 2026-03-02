@@ -67,23 +67,27 @@ export const getLatestAudit = async (req: Request, res: Response) => {
 			domainAuthority: {
 				estimated: audit.domain_authority_estimated,
 				method: audit.domain_authority_method,
-				confidence: audit.domain_authority_confidence
+				confidence: audit.domain_authority_confidence,
+				error: audit.domain_authority_error || undefined
 			},
 			coreWebVitals: {
 				lcpEstimate: audit.cwv_lcp_estimate,
 				clsEstimate: audit.cwv_cls_estimate,
 				inpEstimate: audit.cwv_inp_estimate,
-				status: audit.cwv_status
+				status: audit.cwv_status,
+				error: audit.cwv_error || undefined
 			},
 			indexationStatus: {
 				pagesIndexed: audit.indexation_pages_indexed,
 				totalPages: audit.indexation_total_pages,
 				estimatedCrawlBudget: audit.indexation_crawl_budget,
-				gscConnected: audit.indexation_gsc_connected
+				gscConnected: audit.indexation_gsc_connected,
+				error: audit.indexation_error || undefined
 			},
 			overallScore: audit.overall_score,
 			healthStatus: audit.health_status,
-			recommendations: audit.recommendations || []
+			recommendations: audit.recommendations || [],
+			apiErrors: audit.api_errors || {}
 		};
 
 		return res.json({ audit: formattedAudit, inProgress: false });

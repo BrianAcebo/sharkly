@@ -27,24 +27,28 @@ export interface TechnicalAuditResult {
 		estimated: number;
 		method: string;
 		confidence: 'low' | 'medium' | 'high';
+		error?: string; // Error message if API fails
 	};
 	coreWebVitals: {
 		lcpEstimate: number;
 		clsEstimate: number;
 		inpEstimate: number;
 		status: 'good' | 'needs_improvement' | 'poor';
+		error?: string; // Error message if API fails
 	};
 	indexationStatus: {
 		pagesIndexed: number | null;
 		totalPages: number;
 		estimatedCrawlBudget: string;
 		gscConnected: boolean;
+		error?: string; // Error message if GSC check fails
 	};
 	overallScore: number; // 0-100
 	healthStatus: 'critical' | 'warning' | 'good';
 	recommendations: string[];
 	scanStartedAt: string;
 	scanCompletedAt: string;
+	apiErrors?: Record<string, string>; // Store all API errors for transparency
 }
 
 export class TechnicalAuditService {
@@ -53,6 +57,7 @@ export class TechnicalAuditService {
 	 */
 	async runFullAudit(siteUrl: string, siteId: string, organizationId: string): Promise<TechnicalAuditResult> {
 		const scanStartedAt = new Date().toISOString();
+		const apiErrors: Record<string, string> = {}; // Track all API errors
 		console.log('[TechnicalAudit] Starting full audit for:', siteUrl);
 
 		// 1. Check crawlability first
@@ -116,11 +121,14 @@ export class TechnicalAuditService {
 		try {
 			daEstimate = await this.estimateDomainAuthority(siteUrl);
 		} catch (e) {
-			console.error('[TechnicalAudit] DA fetch failed:', e);
+			const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+			console.error('[TechnicalAudit] DA fetch failed:', errorMsg);
+			apiErrors['domainAuthority'] = errorMsg;
 			daEstimate = {
 				estimated: 0,
-				method: 'not_configured',
-				confidence: 'low' as const
+				method: 'error',
+				confidence: 'low' as const,
+				error: errorMsg
 			};
 		}
 
@@ -130,18 +138,35 @@ export class TechnicalAuditService {
 		try {
 			cwvEstimate = await this.fetchCoreWebVitals(siteUrl);
 		} catch (e) {
-			console.error('[TechnicalAudit] CWV fetch failed:', e);
+			const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+			console.error('[TechnicalAudit] CWV fetch failed:', errorMsg);
+			apiErrors['coreWebVitals'] = errorMsg;
 			cwvEstimate = {
 				lcpEstimate: 0,
 				clsEstimate: 0,
 				inpEstimate: 0,
-				status: 'poor' as const
+				status: 'poor' as const,
+				error: errorMsg
 			};
 		}
 
 		// 5. Check indexation status
 		console.log('[TechnicalAudit] Step 5: Checking indexation status...');
-		const indexationStatus = await this.checkIndexationStatus(organizationId, siteUrl);
+		let indexationStatus;
+		try {
+			indexationStatus = await this.checkIndexationStatus(organizationId, siteUrl);
+		} catch (e) {
+			const errorMsg = e instanceof Error ? e.message : 'Unknown error';
+			console.error('[TechnicalAudit] Indexation check failed:', errorMsg);
+			apiErrors['indexationStatus'] = errorMsg;
+			indexationStatus = {
+				pagesIndexed: null,
+				totalPages: 0,
+				estimatedCrawlBudget: 'unknown - error',
+				gscConnected: false,
+				error: errorMsg
+			};
+		}
 
 		// 6. Analyze results and generate recommendations
 		const issueAnalysis = this.analyzeIssues(crawlResults);
@@ -170,7 +195,8 @@ export class TechnicalAuditService {
 			healthStatus,
 			recommendations,
 			scanStartedAt,
-			scanCompletedAt: new Date().toISOString()
+			scanCompletedAt: new Date().toISOString(),
+			apiErrors: Object.keys(apiErrors).length > 0 ? apiErrors : undefined
 		};
 
 		// 7. Store audit results in database
@@ -548,8 +574,59 @@ export class TechnicalAuditService {
 				console.error('[TechnicalAudit] Failed to update site:', siteError);
 			}
 
-			// Store detailed crawl results if needed (optional - can be heavy)
-			// for now we're just storing summary in sites table
+			// Store detailed audit results including error tracking
+			const { error: auditError } = await supabase
+				.from('audit_results')
+				.insert({
+					site_id: siteId,
+					organization_id: auditResult.siteId ? null : auditResult.siteId, // Will be set by trigger or app logic
+					// Crawlability
+					crawlability_is_crawlable: auditResult.crawlabilityCheck.isCrawlable,
+					crawlability_site_reachable: auditResult.crawlabilityCheck.siteReachable,
+					crawlability_dns_resolvable: auditResult.crawlabilityCheck.dnsResolvable,
+					crawlability_ssl_valid: auditResult.crawlabilityCheck.sslValid,
+					crawlability_status_code: auditResult.crawlabilityCheck.statusCode,
+					crawlability_robots_exists: auditResult.crawlabilityCheck.robotsTxtExists,
+					crawlability_bot_allowed: auditResult.crawlabilityCheck.botAllowed,
+					crawlability_response_time: auditResult.crawlabilityCheck.responseTime,
+					crawlability_issues: auditResult.crawlabilityCheck.issues,
+					// Crawl results
+					crawl_total_pages: auditResult.crawlResults.totalPagesCrawled,
+					crawl_total_issues: auditResult.crawlResults.totalIssuesFound,
+					crawl_critical_issues: auditResult.crawlResults.criticalIssues,
+					crawl_warning_issues: auditResult.crawlResults.warningIssues,
+					crawl_info_issues: auditResult.crawlResults.infoIssues,
+					crawl_avg_response_time: auditResult.crawlResults.avgResponseTime,
+					crawl_pages_with_ssl: auditResult.crawlResults.pagesWithSSL,
+					crawl_indexable_pages: auditResult.crawlResults.indexablePages,
+					crawl_issues_by_type: auditResult.crawlResults.issuesByType,
+					// Domain Authority
+					domain_authority_estimated: auditResult.domainAuthority.estimated,
+					domain_authority_method: auditResult.domainAuthority.method,
+					domain_authority_confidence: auditResult.domainAuthority.confidence,
+					domain_authority_error: auditResult.domainAuthority.error || null,
+					// Core Web Vitals
+					cwv_lcp_estimate: auditResult.coreWebVitals.lcpEstimate,
+					cwv_cls_estimate: auditResult.coreWebVitals.clsEstimate,
+					cwv_inp_estimate: auditResult.coreWebVitals.inpEstimate,
+					cwv_status: auditResult.coreWebVitals.status,
+					cwv_error: auditResult.coreWebVitals.error || null,
+					// Indexation
+					indexation_pages_indexed: auditResult.indexationStatus.pagesIndexed,
+					indexation_total_pages: auditResult.indexationStatus.totalPages,
+					indexation_crawl_budget: auditResult.indexationStatus.estimatedCrawlBudget,
+					indexation_gsc_connected: auditResult.indexationStatus.gscConnected,
+					indexation_error: auditResult.indexationStatus.error || null,
+					// Overall
+					overall_score: auditResult.overallScore,
+					health_status: auditResult.healthStatus,
+					recommendations: auditResult.recommendations,
+					api_errors: auditResult.apiErrors || {}
+				});
+
+			if (auditError) {
+				console.error('[TechnicalAudit] Failed to store detailed results:', auditError);
+			}
 		} catch (e) {
 			console.error('[TechnicalAudit] Failed to store audit results:', e);
 		}

@@ -34,6 +34,7 @@ export interface AuditDomainAuthority {
 	estimated: number;
 	method: string;
 	confidence: 'low' | 'medium' | 'high';
+	error?: string;
 }
 
 export interface AuditCoreWebVitals {
@@ -41,6 +42,7 @@ export interface AuditCoreWebVitals {
 	clsEstimate: number;
 	inpEstimate: number;
 	status: 'good' | 'needs_improvement' | 'poor';
+	error?: string;
 }
 
 export interface AuditIndexationStatus {
@@ -48,6 +50,7 @@ export interface AuditIndexationStatus {
 	totalPages: number;
 	estimatedCrawlBudget: string;
 	gscConnected: boolean;
+	error?: string;
 }
 
 export interface AuditResult {
@@ -62,6 +65,7 @@ export interface AuditResult {
 	overallScore: number;
 	healthStatus: 'critical' | 'warning' | 'good';
 	recommendations: string[];
+	apiErrors?: Record<string, string>;
 }
 
 export interface AuditHistoryItem {
