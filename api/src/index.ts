@@ -19,6 +19,7 @@ import gscRoutes from './routes/gsc.js';
 import rankingsRoutes from './routes/rankings.js';
 import contentGeneratorRoutes from './routes/contentGenerator.js';
 import crawlerRoutes from './routes/crawler.js';
+import auditRoutes from './routes/audit.js';
 import { handleStripeWebhook } from './controllers/stripeWebhook.js';
 
 dotenv.config();
@@ -69,6 +70,7 @@ app.use('/api/gsc', gscRoutes);
 app.use('/api/rankings', rankingsRoutes);
 app.use('/api/content', contentGeneratorRoutes);
 app.use('/api/crawler', crawlerRoutes);
+app.use('/api/audit', auditRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
