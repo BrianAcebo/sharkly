@@ -110,13 +110,34 @@ export class TechnicalAuditService {
 			// Continue with other checks even if crawl fails
 		}
 
-		// 3. Estimate Domain Authority
-		console.log('[TechnicalAudit] Step 3: Estimating domain authority...');
-		const daEstimate = await this.estimateDomainAuthority(siteUrl);
+		// 3. Get Domain Authority from Moz API
+		console.log('[TechnicalAudit] Step 3: Fetching domain authority from Moz...');
+		let daEstimate;
+		try {
+			daEstimate = await this.estimateDomainAuthority(siteUrl);
+		} catch (e) {
+			console.error('[TechnicalAudit] DA fetch failed:', e);
+			daEstimate = {
+				estimated: 0,
+				method: 'not_configured',
+				confidence: 'low' as const
+			};
+		}
 
-		// 4. Estimate Core Web Vitals
-		console.log('[TechnicalAudit] Step 4: Estimating Core Web Vitals...');
-		const cwvEstimate = this.estimateCoreWebVitals(crawlResults);
+		// 4. Get Real Core Web Vitals from Google PSI
+		console.log('[TechnicalAudit] Step 4: Fetching Core Web Vitals from Google PSI...');
+		let cwvEstimate;
+		try {
+			cwvEstimate = await this.fetchCoreWebVitals(siteUrl);
+		} catch (e) {
+			console.error('[TechnicalAudit] CWV fetch failed:', e);
+			cwvEstimate = {
+				lcpEstimate: 0,
+				clsEstimate: 0,
+				inpEstimate: 0,
+				status: 'poor' as const
+			};
+		}
 
 		// 5. Check indexation status
 		console.log('[TechnicalAudit] Step 5: Checking indexation status...');
@@ -159,102 +180,94 @@ export class TechnicalAuditService {
 	}
 
 	/**
-	 * Estimate domain authority (0-100)
-	 * Currently uses simple heuristics; can integrate MozBar, Ahrefs, etc.
+	 * Get domain authority from Moz API
+	 * Uses real data from Moz, required for accurate audits
 	 */
 	private async estimateDomainAuthority(
 		siteUrl: string
 	): Promise<{ estimated: number; method: string; confidence: 'low' | 'medium' | 'high' }> {
-		try {
-			// Try to fetch from Moz API if available
-			const mozApiKey = process.env.MOZ_API_KEY;
-			if (mozApiKey) {
-				const daEstimate = await this.fetchFromMozApi(siteUrl, mozApiKey);
-				if (daEstimate) {
-					return daEstimate;
-				}
-			}
-		} catch (e) {
-			console.warn('[TechnicalAudit] Moz API failed, using heuristic');
+		const mozApiKey = process.env.MOZ_API_KEY;
+		if (!mozApiKey) {
+			console.warn('[TechnicalAudit] MOZ_API_KEY not configured, cannot get real DA');
+			return {
+				estimated: 0,
+				method: 'not_configured',
+				confidence: 'low'
+			};
 		}
 
-		// Fallback: estimate based on domain age, TLD, etc
-		const heuristicDA = this.estimateDAHeuristic(siteUrl);
-		return {
-			estimated: heuristicDA,
-			method: 'heuristic',
-			confidence: 'low'
-		};
+		try {
+			const daEstimate = await this.fetchFromMozApi(siteUrl, mozApiKey);
+			if (daEstimate) {
+				return daEstimate;
+			}
+		} catch (e) {
+			console.error('[TechnicalAudit] Moz API error:', e);
+			throw new Error(`Failed to fetch Domain Authority: ${e instanceof Error ? e.message : 'Unknown error'}`);
+		}
+
+		throw new Error('Failed to get Domain Authority from Moz');
 	}
 
 	/**
-	 * Fetch DA from Moz API
+	 * Fetch DA from Moz API v2
+	 * Uses real Domain Authority data from Moz
 	 */
 	private async fetchFromMozApi(
 		siteUrl: string,
 		apiKey: string
-	): Promise<{ estimated: number; method: string; confidence: 'low' | 'medium' | 'high' } | null> {
+	): Promise<{ estimated: number; method: string; confidence: 'low' | 'medium' | 'high' }> {
 		try {
 			const domain = new URL(siteUrl).hostname.replace(/^www\./, '');
-			const response = await axios.get(`https://api.moz.com/v2/url`, {
+			
+			console.log('[TechnicalAudit] Fetching DA from Moz for:', domain);
+			
+			// Moz API v2 endpoint
+			const response = await axios.get('https://api.moz.com/v2/link/top-pages', {
 				params: {
-					url: domain,
-					cols: 'DomainAuthority',
+					target: domain,
+					cols: 'DA,UID',
+					limit: 1,
 					access_token: apiKey
 				},
-				timeout: 5000
+				timeout: 10000,
+				headers: {
+					'Accept': 'application/json'
+				}
 			});
 
-			const da = Math.round(response.data.pda || 25);
+			// Extract DA from response
+			let da = 0;
+			if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+				da = response.data[0].da || 0;
+			}
+
+			console.log('[TechnicalAudit] Got DA from Moz:', da);
+
 			return {
-				estimated: da,
+				estimated: Math.round(da),
 				method: 'moz_api',
 				confidence: 'high'
 			};
 		} catch (e) {
-			return null;
+			console.error('[TechnicalAudit] Moz API error:', e instanceof Error ? e.message : String(e));
+			throw e;
 		}
 	}
 
-	/**
-	 * Simple DA estimation based on domain characteristics
-	 */
-	private estimateDAHeuristic(siteUrl: string): number {
-		try {
-			const url = new URL(siteUrl);
-			const domain = url.hostname;
-
-			let score = 20; // Base score
-
-			// TLD bonus
-			if (domain.endsWith('.edu') || domain.endsWith('.gov')) score += 15;
-			else if (domain.endsWith('.com') || domain.endsWith('.org')) score += 5;
-
-			// Subdomain penalty
-			if (domain.startsWith('www.')) score -= 0; // No penalty
-			else if (!domain.startsWith('www.')) score -= 2; // Slight penalty for subdomains
-
-			// Domain length (shorter is better)
-			const domainPart = domain.replace('www.', '').split('.')[0];
-			if (domainPart.length < 5) score += 2;
-			else if (domainPart.length > 15) score -= 2;
-
-			return Math.max(5, Math.min(score, 50)); // Between 5-50
-		} catch {
-			return 25; // Default middle ground
-		}
-	}
 
 	/**
-	 * Estimate Core Web Vitals based on crawl data
+	 * Get real Core Web Vitals from Google PageSpeed Insights API
 	 */
-	private estimateCoreWebVitals(crawlResults: CrawlResult[]): {
+	private async fetchCoreWebVitals(siteUrl: string): Promise<{
 		lcpEstimate: number;
 		clsEstimate: number;
 		inpEstimate: number;
 		status: 'good' | 'needs_improvement' | 'poor';
-	} {
-		if (crawlResults.length === 0) {
+	}> {
+		const psiApiKey = process.env.GOOGLE_PSI_API_KEY;
+		if (!psiApiKey) {
+			console.warn('[TechnicalAudit] GOOGLE_PSI_API_KEY not configured');
 			return {
 				lcpEstimate: 0,
 				clsEstimate: 0,
@@ -263,26 +276,50 @@ export class TechnicalAuditService {
 			};
 		}
 
-		// Average CWV estimates from crawl
-		const avgLcp = crawlResults.reduce((sum, r) => sum + (r.coreWebVitals?.lcp || 2500), 0) / crawlResults.length;
-		const avgCls = crawlResults.reduce((sum, r) => sum + (r.coreWebVitals?.cls || 0.1), 0) / crawlResults.length;
-		const avgInp = crawlResults.reduce((sum, r) => sum + (r.coreWebVitals?.inp || 200), 0) / crawlResults.length;
+		try {
+			console.log('[TechnicalAudit] Fetching CWV from Google PSI for:', siteUrl);
 
-		// Determine status
-		let status: 'good' | 'needs_improvement' | 'poor' = 'good';
-		if (avgLcp > 4000 || avgCls > 0.25 || avgInp > 500) status = 'poor';
-		else if (avgLcp > 2500 || avgCls > 0.1 || avgInp > 200) status = 'needs_improvement';
+			const response = await axios.get('https://www.googleapis.com/pagespeedonline/v5/runPagespeed', {
+				params: {
+					url: siteUrl,
+					key: psiApiKey,
+					category: ['performance']
+				},
+				timeout: 30000
+			});
 
-		return {
-			lcpEstimate: Math.round(avgLcp),
-			clsEstimate: Math.round(avgCls * 100) / 100,
-			inpEstimate: Math.round(avgInp),
-			status
-		};
+			const loadingExperience = response.data.loadingExperience?.metrics;
+			
+			if (!loadingExperience) {
+				throw new Error('No loading experience data in PSI response');
+			}
+
+			// Extract CWV metrics
+			const lcp = loadingExperience['LARGEST_CONTENTFUL_PAINT_ms']?.percentile || 2500;
+			const cls = loadingExperience['CUMULATIVE_LAYOUT_SHIFT_score']?.percentile || 0.1;
+			const inp = loadingExperience['INTERACTION_TO_NEXT_PAINT_ms']?.percentile || 200;
+
+			console.log('[TechnicalAudit] Got CWV from PSI:', { lcp, cls, inp });
+
+			// Determine status based on Google thresholds
+			let status: 'good' | 'needs_improvement' | 'poor' = 'good';
+			if (lcp > 4000 || cls > 0.25 || inp > 500) status = 'poor';
+			else if (lcp > 2500 || cls > 0.1 || inp > 200) status = 'needs_improvement';
+
+			return {
+				lcpEstimate: Math.round(lcp),
+				clsEstimate: Math.round(cls * 100) / 100,
+				inpEstimate: Math.round(inp),
+				status
+			};
+		} catch (e) {
+			console.error('[TechnicalAudit] Google PSI error:', e instanceof Error ? e.message : String(e));
+			throw new Error(`Failed to fetch Core Web Vitals: ${e instanceof Error ? e.message : 'Unknown error'}`);
+		}
 	}
 
 	/**
-	 * Check indexation status (if GSC connected)
+	 * Check indexation status from GSC
 	 */
 	private async checkIndexationStatus(organizationId: string, siteUrl: string): Promise<{
 		pagesIndexed: number | null;
@@ -292,13 +329,14 @@ export class TechnicalAuditService {
 	}> {
 		try {
 			// Check if org has GSC connection
-			const { data: gscData } = await supabase
+			const { data: gscData, error: gscError } = await supabase
 				.from('gsc_tokens')
-				.select('property_name')
+				.select('site_id, encrypted_refresh_token, gsc_property_url')
 				.eq('organization_id', organizationId)
 				.maybeSingle();
 
-			if (!gscData) {
+			if (gscError || !gscData) {
+				console.log('[TechnicalAudit] No GSC connection found for org:', organizationId);
 				return {
 					pagesIndexed: null,
 					totalPages: 0,
@@ -307,19 +345,53 @@ export class TechnicalAuditService {
 				};
 			}
 
-			// Try to fetch indexed pages from GSC
-			// This would require additional GSC API call implementation
+			console.log('[TechnicalAudit] Found GSC connection, fetching indexed pages...');
+
+			// Fetch GSC performance data to estimate indexed pages
+			const { data: performanceData, error: perfError } = await supabase
+				.from('performance_data')
+				.select('page')
+				.eq('site_id', gscData.site_id)
+				.eq('gsc_property_url', gscData.gsc_property_url)
+				// Get last 7 days
+				.gte('date', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+
+			if (perfError) {
+				console.warn('[TechnicalAudit] Failed to fetch GSC performance data:', perfError);
+				return {
+					pagesIndexed: null,
+					totalPages: 0,
+					estimatedCrawlBudget: 'unknown - GSC error',
+					gscConnected: true
+				};
+			}
+
+			// Count unique indexed pages from GSC data
+			const uniquePages = new Set((performanceData || []).map((row: any) => row.page)).size;
+
+			console.log('[TechnicalAudit] Got indexed pages from GSC:', uniquePages);
+
+			// Estimate crawl budget based on indexed pages
+			let crawlBudget = 'Unknown';
+			if (uniquePages > 0) {
+				if (uniquePages > 50000) crawlBudget = '>50,000 (Enterprise)';
+				else if (uniquePages > 10000) crawlBudget = '10,000-50,000 (Large site)';
+				else if (uniquePages > 1000) crawlBudget = '1,000-10,000 (Medium site)';
+				else crawlBudget = '<1,000 (Small site)';
+			}
+
 			return {
-				pagesIndexed: null,
-				totalPages: 0,
-				estimatedCrawlBudget: 'Pending GSC sync',
+				pagesIndexed: uniquePages > 0 ? uniquePages : null,
+				totalPages: uniquePages,
+				estimatedCrawlBudget: crawlBudget,
 				gscConnected: true
 			};
 		} catch (e) {
+			console.error('[TechnicalAudit] Indexation check error:', e);
 			return {
 				pagesIndexed: null,
 				totalPages: 0,
-				estimatedCrawlBudget: 'unknown',
+				estimatedCrawlBudget: 'unknown - error',
 				gscConnected: false
 			};
 		}
