@@ -3,7 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { CheckCircle, Users, Coins } from 'lucide-react';
 import { PlanCatalogRow } from '../../types/billing';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle
+} from '../ui/dialog';
 
 interface PricingTableProps {
 	plans: PlanCatalogRow[];
@@ -22,7 +29,7 @@ const PricingTable: React.FC<PricingTableProps> = ({
 	trialSelected = false,
 	onTrialToggle
 }) => {
-    const [showTrialDisclaimer, setShowTrialDisclaimer] = useState(false);
+	const [showTrialDisclaimer, setShowTrialDisclaimer] = useState(false);
 	const getPlanFeatures = (plan: PlanCatalogRow) => {
 		const features = [
 			{ icon: Users, text: `${plan.included_seats} seat${plan.included_seats !== 1 ? 's' : ''}` },
@@ -115,47 +122,48 @@ const PricingTable: React.FC<PricingTableProps> = ({
 			</div>
 
 			{showTrialOption && onTrialToggle && (
-            <>
-                <TrialToggle
-                    checked={trialSelected}
-                    onRequestChange={(next) => {
-                        if (!next) return onTrialToggle(false);
-                        setShowTrialDisclaimer(true);
-                    }}
-                />
+				<>
+					<TrialToggle
+						checked={trialSelected}
+						onRequestChange={(next) => {
+							if (!next) return onTrialToggle(false);
+							setShowTrialDisclaimer(true);
+						}}
+					/>
 
-                <Dialog open={showTrialDisclaimer} onOpenChange={setShowTrialDisclaimer}>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>How the 7‑day pay‑as‑you‑go trial works</DialogTitle>
-                            <DialogDescription>
-                                During the trial, your monthly subscription won’t be charged until the 7 days are up. However,
-                                usage for LLM credits is billed as you go and must be paid during the trial.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <DialogFooter className="flex gap-2 sm:justify-end">
-                            <button
-                                className="rounded-md border px-3 py-2 text-sm"
-                                onClick={() => {
-                                    setShowTrialDisclaimer(false);
-                                    onTrialToggle(false);
-                                }}
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white"
-                                onClick={() => {
-                                    setShowTrialDisclaimer(false);
-                                    onTrialToggle(true);
-                                }}
-                            >
-                                I Understand
-                            </button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-            </>
+					<Dialog open={showTrialDisclaimer} onOpenChange={setShowTrialDisclaimer}>
+						<DialogContent>
+							<DialogHeader>
+								<DialogTitle>How the 7‑day pay‑as‑you‑go trial works</DialogTitle>
+								<DialogDescription>
+									During the trial, your monthly subscription won’t be charged until the 7 days are
+									up. However, usage for LLM credits is billed as you go and must be paid during the
+									trial.
+								</DialogDescription>
+							</DialogHeader>
+							<DialogFooter className="flex gap-2 sm:justify-end">
+								<button
+									className="rounded-md border px-3 py-2 text-sm"
+									onClick={() => {
+										setShowTrialDisclaimer(false);
+										onTrialToggle(false);
+									}}
+								>
+									Cancel
+								</button>
+								<button
+									className="rounded-md bg-blue-600 px-3 py-2 text-sm text-white"
+									onClick={() => {
+										setShowTrialDisclaimer(false);
+										onTrialToggle(true);
+									}}
+								>
+									I Understand
+								</button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				</>
 			)}
 		</div>
 	);
@@ -163,19 +171,31 @@ const PricingTable: React.FC<PricingTableProps> = ({
 
 export default PricingTable;
 
-function TrialToggle({ checked, onRequestChange }: { checked: boolean; onRequestChange: (next: boolean) => void }) {
-    return (
-        <div className="mt-6 flex items-center justify-center">
-            <button
-                type="button"
-                onClick={() => onRequestChange(!checked)}
-                className="group inline-flex items-center gap-3 rounded-full px-0 py-0"
-            >
-                <span className={`relative inline-flex h-5 w-10 items-center rounded-full transition ${checked ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'}`}>
-                    <span className={`absolute left-0 top-0 h-5 w-5 rounded-full bg-white shadow transition ${checked ? 'translate-x-5' : ''}`}></span>
-                </span>
-                <span className="text-sm text-gray-700 dark:text-gray-300">Start with a 7‑day pay‑as‑you‑go trial</span>
-            </button>
-        </div>
-    );
+function TrialToggle({
+	checked,
+	onRequestChange
+}: {
+	checked: boolean;
+	onRequestChange: (next: boolean) => void;
+}) {
+	return (
+		<div className="mt-6 flex items-center justify-center">
+			<button
+				type="button"
+				onClick={() => onRequestChange(!checked)}
+				className="group inline-flex items-center gap-3 rounded-full px-0 py-0"
+			>
+				<span
+					className={`relative inline-flex h-5 w-10 items-center rounded-full transition ${checked ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-700'}`}
+				>
+					<span
+						className={`absolute top-0 left-0 h-5 w-5 rounded-full bg-white shadow transition ${checked ? 'translate-x-5' : ''}`}
+					></span>
+				</span>
+				<span className="text-sm text-gray-700 dark:text-gray-300">
+					Start with a 7‑day pay‑as‑you‑go trial
+				</span>
+			</button>
+		</div>
+	);
 }

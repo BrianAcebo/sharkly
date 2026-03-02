@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { technicalAuditService } from '../services/technicalAuditService.js';
 import fetch from 'node-fetch';
 
 const SERPER_API_KEY = process.env.SERPER_API_KEY || '';
@@ -203,6 +204,12 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 			console.error('[Onboarding] Site creation failed:', siteErr);
 			return res.status(500).json({ error: 'Failed to create site' });
 		}
+
+		// Run technical audit in background (don't block response)
+		// Will be available on dashboard when complete
+		technicalAuditService.runFullAudit(url, site.id, organizationId).catch((e) => {
+			console.error('[Onboarding] Technical audit failed (non-blocking):', e);
+		});
 
 		// 3. Competitor analysis (Serper)
 		const competitorData: Array<{
