@@ -83,7 +83,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           .from('organizations')
           .select('*')
           .eq('owner_id', userId)
-          .eq('status', 'active')
+          .eq('status', 'payment_pending')
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -98,7 +98,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           .insert({
             name,
             owner_id: userId,
-            status: 'active',
+            status: 'payment_pending',
             stripe_status: 'incomplete',
             plan_code: planCode,
             included_seats: plan.included_seats,
