@@ -19,6 +19,82 @@ router.use((req, res, next) => {
 
 router.use('/public', billingPublicRoutes);
 
+// Manual webhook trigger for testing (development only)
+router.post('/test/confirm-payment', async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ error: 'Not available in production' });
+  }
+
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get the user's most recent payment_pending organization
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('owner_id', userId)
+      .eq('status', 'payment_pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (orgError || !org) {
+      return res.status(404).json({ error: 'No pending organization found' });
+    }
+
+    // Verify the subscription exists and get its latest invoice
+    if (!org.stripe_subscription_id) {
+      return res.status(400).json({ error: 'Organization has no subscription' });
+    }
+
+    const subscription = await stripe.subscriptions.retrieve(org.stripe_subscription_id, {
+      expand: ['latest_invoice.payment_intent']
+    });
+
+    const invoice = subscription.latest_invoice as Stripe.Invoice | null;
+    if (!invoice || invoice.status !== 'paid') {
+      return res.status(400).json({ 
+        error: 'Invoice not in paid state',
+        invoiceStatus: invoice?.status,
+        subscriptionStatus: subscription.status
+      });
+    }
+
+    // Manually trigger the status update that would normally come from webhook
+    console.log('[TEST] Manually confirming payment for org:', org.id);
+    const { error: updateError } = await supabase
+      .from('organizations')
+      .update({
+        status: 'active',
+        stripe_status: 'active',
+        stripe_latest_invoice_id: invoice.id,
+        stripe_latest_invoice_status: invoice.status,
+        payment_action_required: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', org.id);
+
+    if (updateError) {
+      console.error('[TEST] Failed to update org status:', updateError);
+      return res.status(500).json({ error: 'Failed to update organization' });
+    }
+
+    console.log('[TEST] ✓ Organization activated:', org.id);
+    return res.json({ 
+      ok: true,
+      message: 'Organization activated',
+      orgId: org.id,
+      status: 'active'
+    });
+  } catch (error) {
+    console.error('[TEST] Error confirming payment:', error);
+    return res.status(500).json({ error: 'Failed to confirm payment' });
+  }
+});
+
 router.get('/wallet/status', getWalletStatus);
 router.get('/usage-catalog', getUsageCatalog);
 router.get('/wallet/auto-recharge/:organizationId', async (req, res) => {

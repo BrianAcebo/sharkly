@@ -198,6 +198,30 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 				// The subscription and PI were created in the previous step.
 				// Do NOT call /onboard again here or you'll create a second subscription that auto-pays.
 				toast.success('Payment succeeded. Finalizing organization setup...');
+				
+				// In test/development, manually trigger webhook confirmation since webhooks may not fire
+				if (process.env.NODE_ENV !== 'production') {
+					try {
+						const {
+							data: { session }
+						} = await supabase.auth.getSession();
+						if (session?.access_token) {
+							await api.post(
+								'/api/billing/test/confirm-payment',
+								{},
+								{
+									headers: {
+										Authorization: `Bearer ${session.access_token}`
+									}
+								}
+							);
+						}
+					} catch (e) {
+						console.warn('[PaymentForm] Failed to trigger test webhook confirmation:', e);
+						// Continue anyway; webhook may still fire
+					}
+				}
+				
 				await onSuccess();
 				return;
 			}
@@ -215,18 +239,18 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 		<form onSubmit={handleSubmit} className="flex flex-col">
 			<div className="space-y-6">
 				<PlanSummary orgName={orgName} selectedPlan={selectedPlan} trialSelected={trialSelected} />
-			<PaymentElement
-				options={{
-					layout: { type: 'tabs', defaultCollapsed: false },
-					appearance: {
-						theme: 'night',
-						variables: {
-							colorText: '#f3f4f6',
-							colorDanger: '#ef4444'
+				<PaymentElement
+					options={{
+						layout: { type: 'tabs', defaultCollapsed: false },
+						appearance: {
+							theme: 'night',
+							variables: {
+								colorText: '#f3f4f6',
+								colorDanger: '#ef4444'
+							}
 						}
-					}
-				}}
-			/>
+					}}
+				/>
 				{isLoading && <div className="text-sm text-blue-500">Processing payment...</div>}
 			</div>
 			<FormActions onBack={onBack} isLoading={isLoading} primaryLabel="Complete" />
@@ -773,7 +797,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 			// no-op; we'll hard refresh regardless
 		}
 		onClose();
-		window.location.assign('/cases');
+		window.location.assign('/dashboard');
 	};
 
 	const renderSavedCardOptions = () => {
@@ -971,7 +995,9 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 										theme: document.documentElement.classList.contains('dark') ? 'night' : 'light',
 										variables: {
 											colorPrimary: '#f6339a',
-											colorText: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#1f2937',
+											colorText: document.documentElement.classList.contains('dark')
+												? '#f3f4f6'
+												: '#1f2937',
 											colorDanger: '#ef4444'
 										}
 									}

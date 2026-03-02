@@ -127,16 +127,16 @@ const SubscriptionForm = ({
 		setErrorMessage(undefined);
 
 		try {
-            const response = await api.post(
-                '/api/payments/create-intent',
-                { amount: 2000, currency: 'usd' },
-                {
-                    headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: `Bearer ${session.access_token}`
-                    }
-                }
-            );
+			const response = await api.post(
+				'/api/payments/create-intent',
+				{ amount: 2000, currency: 'usd' },
+				{
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${session.access_token}`
+					}
+				}
+			);
 
 			if (!response.ok) {
 				throw new HttpError(response.statusText, response.status);
@@ -311,7 +311,7 @@ const PaymentForm = ({
 			toast.success('Payment successful');
 			await onPaymentSuccess();
 			toast.success('Organization created successfully');
-			navigate('/cases');
+			navigate('/dashboard');
 		} catch (error) {
 			console.error('Error:', error);
 			toast.error(error instanceof Error ? error.message : 'Payment failed');
@@ -369,7 +369,11 @@ export default function OrganizationRequired() {
 					<p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
 						You need to be part of an organization to use this feature.
 					</p>
-					<Button size="sm" onClick={() => setShowSeamlessBilling(true)} className="mx-auto block w-40 mt-6">
+					<Button
+						size="sm"
+						onClick={() => setShowSeamlessBilling(true)}
+						className="mx-auto mt-6 block w-40"
+					>
 						Get Started
 					</Button>
 				</div>
@@ -389,7 +393,7 @@ export default function OrganizationRequired() {
 			</div>
 
 			<Modal isOpen={isOpen} onClose={closeModal} className="m-4 max-w-[500px]">
-				<div className="no-scrollbar relative lg:max-h-[800px] max-h-96 w-full overflow-y-auto rounded-3xl bg-white p-4 lg:p-11 dark:bg-gray-900">
+				<div className="no-scrollbar relative max-h-96 w-full overflow-y-auto rounded-3xl bg-white p-4 lg:max-h-[800px] lg:p-11 dark:bg-gray-900">
 					<div className="px-2 pr-14">
 						<h4 className="mb-2 text-2xl font-semibold text-gray-900 dark:text-white/90">
 							Let's get started
