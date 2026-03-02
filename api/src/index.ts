@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
-import paymentRoutes from './routes/payment.js';
 import organizationRoutes from './routes/organization.js';
 import billingRoutes from './routes/billing.js';
 import billingOnboardingRoutes from './routes/billingOnboarding.js';
@@ -52,7 +51,6 @@ app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res) =>
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/billing', billingOnboardingRoutes);
