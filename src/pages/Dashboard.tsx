@@ -12,6 +12,7 @@ import { useClusters } from '../hooks/useClusters';
 import { useTopics } from '../hooks/useTopics';
 import { useOrganization } from '../hooks/useOrganization';
 import { useDashboardStats } from '../hooks/useDashboardStats';
+import AuditScoreCard from '../components/audit/AuditScoreCard';
 
 export default function Dashboard() {
 	const { user } = useAuth();
@@ -109,12 +110,19 @@ export default function Dashboard() {
 				<StatCard label="SEO Score (0–115)" value={avgSeoScore != null ? String(avgSeoScore) : 'N/A'} delta={avgSeoScore != null ? 'avg of published' : 'Publish content first'} deltaDirection="neutral" />
 			</div>
 
-			{/* Section 4b: SEO Growth Stage Panel — V1 Section 7.3, 12.2, 17.8 */}
-			<div className="mt-6">
-				<SEOGrowthStagePanel stage={growthStage} />
-			</div>
+		{/* Section 4b: SEO Growth Stage Panel — V1 Section 7.3, 12.2, 17.8 */}
+		<div className="mt-6">
+			<SEOGrowthStagePanel stage={growthStage} />
+		</div>
 
-			{/* Section 5: Two column - Active Cluster + Quick Wins */}
+		{/* Section 4c: Site Audit Card */}
+		{selectedSite && (
+			<div className="mt-6 lg:max-w-sm">
+				<AuditScoreCard siteId={selectedSite.id} siteName={selectedSite.name} />
+			</div>
+		)}
+
+		{/* Section 5: Two column - Active Cluster + Quick Wins */}
 			<div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-5">
 				{/* Left: Active Cluster Card */}
 				<div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-3 dark:border-gray-700 dark:bg-gray-900">

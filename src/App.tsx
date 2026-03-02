@@ -43,6 +43,7 @@ import Sites from './pages/Sites';
 import RefundAdmin from './pages/Admin/RefundAdmin';
 import StripeAudit from './pages/Admin/StripeAudit';
 import AdminDashboard from './pages/Admin/AdminDashboard';
+import AuditResults from './pages/AuditResults';
 
 export default function App() {
 	return (
@@ -65,9 +66,10 @@ export default function App() {
 						<Route path="/workspace/:id" element={<Workspace />} />
 						<Route path="/performance" element={<Performance />} />
 						<Route path="/rankings" element={<Rankings />} />
-						<Route path="/technical" element={<Technical />} />
-						<Route path="/calendar" element={<Calendar />} />
-						<Route path="/projects" element={<Navigate to="/sites" replace />} />
+					<Route path="/technical" element={<Technical />} />
+					<Route path="/audit/:siteId" element={<AuditResults />} />
+					<Route path="/calendar" element={<Calendar />} />
+					<Route path="/projects" element={<Navigate to="/sites" replace />} />
 						<Route path="/sites" element={<Sites />} />
 						<Route path="/settings" element={<SettingsLayout />}>
 							<Route index element={<Navigate to="integrations" replace />} />
