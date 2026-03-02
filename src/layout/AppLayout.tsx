@@ -58,6 +58,8 @@ const LayoutContent: React.FC = () => {
 	}
 
 	const hasOrganization = Boolean(user?.organization_id);
+	// Check if org is in payment_pending status (not yet paid)
+	const isOrgPaymentPending = currentOrg?.status === 'payment_pending';
 
 	// Only after onboarding is complete, check organization status
 	if (user?.completed_onboarding) {
@@ -66,6 +68,11 @@ const LayoutContent: React.FC = () => {
 		if (!hasCheckedOrg) {
 			setTimeout(() => setHasCheckedOrg(true), 100);
 			return <AuthLoading state={AuthLoadingState.LOADING} />;
+		}
+
+		// CRITICAL: Block access if org hasn't completed payment yet
+		if (isOrgPaymentPending && pathname !== '/organization-required') {
+			return <Navigate to="/organization-required" replace />;
 		}
 
 		if (!hasOrganization && pathname !== '/organization-required') {
