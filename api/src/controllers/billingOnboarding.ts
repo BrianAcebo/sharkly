@@ -552,7 +552,8 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     let setupClientSecret: string | null = null;
     // Organization is only set to active upon successful payment (via webhook)
     // For new orgs, keep it in payment_pending until webhook confirms
-    let computedOrgStatus: OrgStatus = isRenewal ? ((org.status as OrgStatus) || 'active') : 'payment_pending';
+    // For renewals, they're already an active customer, so set them to active (not payment_pending)
+    let computedOrgStatus: OrgStatus = isRenewal ? 'active' : 'payment_pending';
     console.log('[ONBOARD] computedOrgStatus:', computedOrgStatus, '(isRenewal:', isRenewal, ', org.status:', org.status, ')');
 
     if (!stripeSubscriptionId) {
