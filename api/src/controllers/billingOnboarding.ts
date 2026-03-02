@@ -140,8 +140,42 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         console.warn('[onboard] membership upsert warning', mErr);
       }
 
+      // If org already has a subscription from previous attempt, return it immediately
+      if (pendingOrg.stripe_subscription_id) {
+        console.log('[ONBOARD] ✓ Org already has subscription:', pendingOrg.stripe_subscription_id);
+        try {
+          const existingSub = await stripe.subscriptions.retrieve(pendingOrg.stripe_subscription_id, { expand: ['latest_invoice.payment_intent'] });
+          const inv = existingSub.latest_invoice as Stripe.Invoice | null;
+          let clientSecret: string | null = null;
+          if (inv) {
+            const paymentIntent = (inv as unknown as { payment_intent?: unknown }).payment_intent;
+            if (paymentIntent && typeof paymentIntent === 'object' && 'client_secret' in (paymentIntent as Record<string, unknown>)) {
+              const cs = (paymentIntent as { client_secret?: string }).client_secret;
+              clientSecret = cs || null;
+            }
+          }
+          let setupClientSecret: string | null = null;
+          if (!clientSecret && pendingOrg.stripe_customer_id) {
+            setupClientSecret = await createSetupIntentForCustomer({
+              customerId: pendingOrg.stripe_customer_id,
+              organizationId: pendingOrg.id,
+              userId,
+            });
+          }
+          return res.json({
+            ok: true,
+            org: pendingOrg as OrganizationRow,
+            subscriptionClientSecret: clientSecret,
+            setupClientSecret,
+            pendingPayment: true
+          } as OrgOnboardResponse);
+        } catch (e) {
+          console.warn('[ONBOARD] Failed to retrieve existing subscription, will continue to create new one:', e);
+        }
+      }
+
       // Create Stripe Customer for new org's
-      let stripeCustomerId: string | null = null;
+      let stripeCustomerId: string | null = pendingOrg.stripe_customer_id || null;
       if (!stripeCustomerId) {
         const customer = await stripe.customers.create({
           name,
