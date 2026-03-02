@@ -32,7 +32,9 @@ async function createSetupIntentForCustomer(opts: { customerId: string; organiza
 
 export const onboardOrganization = async (req: Request, res: Response) => {
   try {
+    console.log('[ONBOARD] ========== START onboardOrganization ==========');
     const userId = req.user?.id;
+    console.log('[ONBOARD] userId:', userId);
     if (!userId) {
       return res.status(401).json({ ok: false, error: 'Unauthorized' } as ApiError);
     }
@@ -46,8 +48,10 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       paymentMethodId: paymentMethodIdFromRequest,
       useExistingPaymentMethod
     }: OrgOnboardRequest = req.body;
+    console.log('[ONBOARD] Request:', { orgId, name, planCode, trialDays, isRenewal: !!orgId });
 
     const isRenewal = Boolean(orgId);
+    console.log('[ONBOARD] isRenewal:', isRenewal);
 
     // Validate required fields
     if (!name || !planCode) {
@@ -76,9 +80,11 @@ export const onboardOrganization = async (req: Request, res: Response) => {
 
     // Create organization immediately if orgId is not provided
     if (!orgId) {
+      console.log('[ONBOARD] NEW ORG path - creating new organization');
       // Reuse any existing pending org owned by this user
       let pendingOrg: OrganizationRow | null = null;
       try {
+        console.log('[ONBOARD] Looking for existing payment_pending org...');
         const { data: existingPending } = await supabase
           .from('organizations')
           .select('*')
@@ -88,11 +94,13 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           .limit(1)
           .maybeSingle();
         pendingOrg = (existingPending as unknown as OrganizationRow) || null;
+        console.log('[ONBOARD] Found existing pending org:', pendingOrg?.id);
       } catch (lookupErr) {
         console.warn('[onboard] failed to lookup existing pending org (continuing)', lookupErr);
       }
 
       if (!pendingOrg) {
+        console.log('[ONBOARD] Creating NEW org with status=payment_pending');
         const { data: created, error: pendingErr } = await supabase
           .from('organizations')
           .insert({
@@ -118,6 +126,9 @@ export const onboardOrganization = async (req: Request, res: Response) => {
           return res.status(500).json({ ok: false, error: 'Failed to create organization' } as ApiError);
         }
         pendingOrg = created as unknown as OrganizationRow;
+        console.log('[ONBOARD] ✓ Created org:', pendingOrg.id, 'with status:', pendingOrg.status);
+      } else {
+        console.log('[ONBOARD] ✓ Reusing existing org:', pendingOrg.id, 'with status:', pendingOrg.status);
       }
 
       // Upsert owner membership
@@ -508,6 +519,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     // Organization is only set to active upon successful payment (via webhook)
     // For new orgs, keep it in payment_pending until webhook confirms
     let computedOrgStatus: OrgStatus = isRenewal ? ((org.status as OrgStatus) || 'active') : 'payment_pending';
+    console.log('[ONBOARD] computedOrgStatus:', computedOrgStatus, '(isRenewal:', isRenewal, ', org.status:', org.status, ')');
 
     if (!stripeSubscriptionId) {
       // Reuse any existing relevant subscription for this org if present
@@ -706,6 +718,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
 
     // CRITICAL SAFEGUARD: Verify org status before returning
     // For new orgs, it MUST be payment_pending (not active)
+    console.log('[ONBOARD] Updated org returned with status:', updatedOrg.status, 'isRenewal:', isRenewal);
     if (!isRenewal && updatedOrg.status !== 'payment_pending') {
       console.error('[CRITICAL] Organization returned with wrong status after onboarding!', {
         orgId: updatedOrg.id,
@@ -714,12 +727,14 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         stripeStatus: updatedOrg.stripe_status
       });
       // Force correct status directly
+      console.log('[ONBOARD] FORCE CORRECTING status to payment_pending');
       await supabase
         .from('organizations')
         .update({ status: 'payment_pending' })
         .eq('id', updatedOrg.id);
       updatedOrg.status = 'payment_pending';
     }
+    console.log('[ONBOARD] ✓ Final org status:', updatedOrg.status);
 
     await ensureWallet(updatedOrg.id);
 

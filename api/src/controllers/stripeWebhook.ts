@@ -1379,6 +1379,7 @@ const handleSubscriptionScheduleEvent = async (event: Stripe.Event) => {
 };
 
 const handleInvoicePaid = async (event: Stripe.Event) => {
+	console.log('[WEBHOOK] ========== handleInvoicePaid START ==========');
 	const invoice = event.data.object as Stripe.Invoice & {
 		subscription?: string | Stripe.Subscription | null;
 		last_payment_error?: { message?: string } | null;
@@ -1386,10 +1387,13 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 	const subscriptionId = (invoice.subscription ?? null) as string | null;
 	const customerId = invoice.customer as string | null;
 	const billingReason = (invoice.billing_reason ?? null) as string | null;
+	console.log('[WEBHOOK] Invoice details:', { invoiceId: invoice.id, billingReason, subscriptionId, customerId });
 
 	const org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
+	console.log('[WEBHOOK] Found org:', org?.id, 'current status:', org?.status);
 
 	if (!org) {
+		console.log('[WEBHOOK] No org found, returning early');
 		return;
 	}
 
@@ -1398,11 +1402,16 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 
 	// CRITICAL: Only set org to 'active' if it's in payment_pending or provisioning
 	// Prevent accidental activation if organization is already active (e.g., from previous payment or trial)
+	console.log('[WEBHOOK] Checking status transition. Current org.status:', org.status);
 	let finalOrgStatus: string = org.status;
 	if (org.status === 'payment_pending' || org.status === 'provisioning') {
 		finalOrgStatus = 'active';
+		console.log('[WEBHOOK] ✓ Transitioning', org.status, '→ active');
 	} else if (org.status === 'active') {
 		finalOrgStatus = 'active'; // Already active, keep it
+		console.log('[WEBHOOK] Org already active, keeping it active');
+	} else {
+		console.log('[WEBHOOK] WARNING: Org in unexpected status:', org.status);
 	}
 	
 	const updateData: Record<string, unknown> = {
@@ -1415,7 +1424,6 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 		stripe_latest_invoice_status: invoice.status,
 		stripe_status: 'active',
 		status: finalOrgStatus,
-		org_status: org.org_status === 'disabled' ? 'active' : org.org_status,
 		updated_at: new Date().toISOString()
 	};
 
@@ -1470,6 +1478,7 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 		}
 	}
 
+	console.log('[WEBHOOK] Updating org with data:', { status: updateData.status, stripe_status: updateData.stripe_status });
 	const { error } = await supabase.from('organizations').update(updateData).eq('id', org.id);
 
 	if (error) {
@@ -1479,6 +1488,7 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 		});
 		return;
 	}
+	console.log('[WEBHOOK] ✓ Successfully updated org to status:', finalOrgStatus);
 
 	await logSubscriptionChange(
 		org.id,
