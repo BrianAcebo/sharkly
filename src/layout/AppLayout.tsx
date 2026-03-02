@@ -80,14 +80,9 @@ const LayoutContent: React.FC = () => {
 		}
 	}
 
-	// Safety fallback: if we're on organization-required but user has organization, redirect to dashboard
-	if (pathname === '/organization-required' && hasOrganization) {
+	// Safety fallback: if we're on organization-required but user has organization AND payment is complete, redirect to dashboard
+	if (pathname === '/organization-required' && hasOrganization && !isOrgPaymentPending) {
 		return <Navigate to="/dashboard" replace />;
-	}
-
-	// Precedence: Force organization-required only AFTER onboarding is completed
-	if (user?.completed_onboarding && !hasOrganization && pathname !== '/organization-required') {
-		return <Navigate to="/organization-required" replace />;
 	}
 
 	// Safety fallback: if we're on onboarding but user completed it, redirect to dashboard
