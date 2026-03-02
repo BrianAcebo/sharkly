@@ -104,7 +104,7 @@ export class TechnicalAuditService {
 		console.log('[TechnicalAudit] Step 2: Running technical crawl...');
 		let crawlResults: CrawlResult[] = [];
 		try {
-			crawlResults = await crawlerService.crawl(siteUrl, siteId, 50); // Limit to 50 pages for onboarding
+			crawlResults = await crawlerService.crawlSite(siteId, siteUrl, 'system', organizationId, 50); // Limit to 50 pages for onboarding
 		} catch (e) {
 			console.error('[TechnicalAudit] Crawl failed:', e);
 			// Continue with other checks even if crawl fails
@@ -443,7 +443,7 @@ export class TechnicalAuditService {
 
 		// Critical issues first
 		if (issueAnalysis.criticalCount > 0) {
-			recommendations.push('Fix critical technical issues immediately - they're blocking search engines');
+			recommendations.push('Fix critical technical issues immediately - they are blocking search engines');
 		}
 
 		// Missing metadata
