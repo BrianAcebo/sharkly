@@ -1,0 +1,238 @@
+---
+import '../styles/global.css';
+import Logo from '../components/Logo.astro';
+import ThemeToggle from '../components/ThemeToggle.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  canonical?: string;
+  schema?: object;
+  noIndex?: boolean;
+}
+
+const {
+  title,
+  description = 'Sharkly is an AI-powered SEO assistant that makes SEO easy for non-SEO people. Build your SEO strategy, generate optimized content, and track your rankings without becoming an SEO expert.',
+  ogImage = 'https://sharkly.co/og-default.png',
+  canonical,
+  schema,
+  noIndex = false,
+} = Astro.props;
+
+const siteUrl = import.meta.env.SITE_URL ?? 'https://sharkly.co';
+const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
+const canonicalUrl = canonical ?? `${siteUrl}${Astro.url.pathname}`;
+
+const defaultSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Sharkly',
+  url: siteUrl,
+  description,
+};
+
+const navLinks = [
+  { href: '/#hero', label: 'Home' },
+  { href: '/#research', label: 'Research' },
+  { href: '/#features', label: 'Features' },
+  { href: '/#pricing', label: 'Pricing' },
+  { href: '/blog', label: 'Blog' },
+];
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <script is:inline>
+      (function(){var t=localStorage.getItem("theme");if(t==="dark")document.documentElement.classList.add("dark");else document.documentElement.classList.remove("dark");})();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Favicon & Webclip -->
+    <link rel="shortcut icon" href=`${appUrl}/images/favicon.ico` type="image/x-icon" />
+    <link rel="apple-touch-icon" href=`${appUrl}/images/webclip.jpg` />
+
+    <!-- Primary SEO -->
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    {noIndex && <meta name="robots" content="noindex, nofollow" />}
+    <meta name="keywords"
+                  content="SEO, SEO assistant, SEO strategy, SEO content, SEO ranking, SEO optimization" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Sharkly" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
+
+    <!-- JSON-LD -->
+    <script type="application/ld+json" set:html={JSON.stringify(schema ?? defaultSchema)} />
+
+    <!-- RSS -->
+    <link rel="alternate" type="application/rss+xml" title="Sharkly Blog" href="/rss.xml" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  </head>
+  <body class="font-lato min-h-screen bg-stone-100 dark:bg-neutral-900 text-neutral-900 dark:text-stone-100 leading-relaxed transition-colors duration-300">
+    <header class="bg-stone-100 sticky top-0 z-50 border-b border-black/10 dark:border-white/15 dark:bg-neutral-900 px-4 md:px-6 py-3 md:py-5 transition-colors duration-300">
+      <div class="max-w-[1200px] mx-auto flex items-center justify-between gap-4">
+        <a href="/" class="flex items-center gap-2 font-bold text-xl text-neutral-900 dark:text-stone-100 shrink-0">
+          <Logo className="hidden md:block md:w-30 w-25" width={120} height="auto" />
+        </a>
+
+        {/* Desktop nav */}
+        <nav class="hidden md:flex gap-2 items-center text-sm font-medium" aria-label="Main navigation">
+          {navLinks.map(link => {
+            const isCurrent = (link.href === '/' && Astro.url.pathname === '/') || (link.href.startsWith('/blog') && Astro.url.pathname.startsWith('/blog'));
+            return (
+              <a
+                href={link.href}
+                class:list={[
+                  'px-4 py-2 rounded-xl transition-colors duration-200 whitespace-nowrap',
+                  'bg-stone-100 dark:bg-neutral-900 text-neutral-900 dark:text-stone-100 border border-black/10 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10',
+                  isCurrent && 'bg-black/5 dark:bg-white/10',
+                ]}
+              >
+                {link.label}
+              </a>
+            );
+          })}
+          <a
+            href={`${appUrl}/signup`}
+            class="px-4 py-2 rounded-xl transition-colors duration-200 whitespace-nowrap bg-black text-white border-none hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 font-medium"
+          >
+            Get Started
+          </a>
+        </nav>
+
+        {/* Mobile menu button */}
+        <button
+          id="nav-toggle"
+          type="button"
+          class="md:hidden md:p-2 p-1 rounded-lg text-neutral-900 dark:text-stone-100 border border-black/10 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          aria-label="Toggle menu"
+          aria-expanded="false"
+          aria-controls="mobile-nav"
+        >
+          <svg id="nav-icon-open" class="md:size-6 size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+          <svg id="nav-icon-close" class="md:size-6 size-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Mobile nav dropdown */}
+      <nav
+        id="mobile-nav"
+        class="md:hidden hidden flex-col gap-1 py-4 mt-3 border-t border-black/10 dark:border-white/15 bg-stone-100 dark:bg-neutral-900"
+        aria-label="Mobile navigation"
+      >
+        {navLinks.map(link => {
+          const isCurrent = (link.href === '/' && Astro.url.pathname === '/') || (link.href.startsWith('/blog') && Astro.url.pathname.startsWith('/blog'));
+          return (
+            <a
+              href={link.href}
+              class:list={[
+                'block px-4 py-3 rounded-lg text-neutral-900 dark:text-stone-100 transition-colors',
+                'hover:bg-black/5 dark:hover:bg-white/10',
+                isCurrent && 'bg-black/5 dark:bg-white/10 font-semibold',
+              ]}
+            >
+              {link.label}
+            </a>
+          );
+        })}
+        <a
+          href={`${appUrl}/signup`}
+          class="block mx-4 mt-2 py-2 text-sm rounded-lg text-center font-semibold bg-black text-white dark:bg-white dark:text-black hover:opacity-90 transition-opacity"
+        >
+          Get Started
+        </a>
+      </nav>
+    </header>
+
+    <script is:inline>
+      (function () {
+        const toggle = document.getElementById('nav-toggle');
+        const menu = document.getElementById('mobile-nav');
+        const iconOpen = document.getElementById('nav-icon-open');
+        const iconClose = document.getElementById('nav-icon-close');
+        if (!toggle || !menu) return;
+        toggle.addEventListener('click', function () {
+          const isClosed = menu.classList.toggle('hidden');
+          toggle.setAttribute('aria-expanded', isClosed ? 'false' : 'true');
+          if (iconOpen) iconOpen.classList.toggle('hidden', !isClosed);
+          if (iconClose) iconClose.classList.toggle('hidden', isClosed);
+        });
+        menu.querySelectorAll('a').forEach(function (link) {
+          link.addEventListener('click', function () {
+            menu.classList.add('hidden');
+            toggle.setAttribute('aria-expanded', 'false');
+            if (iconOpen) iconOpen.classList.remove('hidden');
+            if (iconClose) iconClose.classList.add('hidden');
+          });
+        });
+      })();
+    </script>
+
+    <main>
+      <slot />
+    </main>
+
+    <div class="fixed right-10 bottom-10 z-50 hidden sm:block">
+      <ThemeToggle />
+    </div>
+
+    <footer class="bg-neutral-900 border-t border-neutral-800 text-white mt-0 py-16 px-6">
+      <div class="max-w-[1200px] mx-auto">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-12 mb-12 flex-wrap">
+          <div>
+            <div class="font-bold text-xl mb-4">Sharkly</div>
+            <p class="text-white/70 text-[0.9375rem] leading-relaxed max-w-60">
+              SEO made simple for small businesses. Topic strategy, content clusters, and keyword research — all automated.
+            </p>
+          </div>
+          <div>
+            <div class="text-sm font-semibold mb-4 text-white/90">Product</div>
+            <div class="flex flex-col gap-2">
+              <a href="/" class="text-white/80 text-[0.9375rem] hover:text-white">Overview</a>
+              <a href="/#strategy" class="text-white/80 text-[0.9375rem] hover:text-white">Strategy</a>
+              <a href="/#clusters" class="text-white/80 text-[0.9375rem] hover:text-white">Clusters</a>
+              <a href="/#rankings" class="text-white/80 text-[0.9375rem] hover:text-white">Rankings</a>
+              <a href="/blog" class="text-white/80 text-[0.9375rem] hover:text-white">Blog</a>
+            </div>
+          </div>
+          <div>
+            <div class="text-sm font-semibold mb-4 text-white/90">Company</div>
+            <div class="flex flex-col gap-2">
+              <a href={`${appUrl}/privacy`} class="text-white/80 text-[0.9375rem] hover:text-white">Privacy</a>
+              <a href={`${appUrl}/terms`} class="text-white/80 text-[0.9375rem] hover:text-white">Terms</a>
+              <a href="/blog/rss.xml" class="text-white/80 text-[0.9375rem] hover:text-white">RSS</a>
+              <a href={`${appUrl}/signup`} class="text-white/80 text-[0.9375rem] hover:text-white">Sign up</a>
+            </div>
+          </div>
+        </div>
+        <div class="border-t border-white/20 pt-8 text-center text-white/50 text-sm">
+          © {new Date().getFullYear()} Sharkly. SEO made simple for small businesses.
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

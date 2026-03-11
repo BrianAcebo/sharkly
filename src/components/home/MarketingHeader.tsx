@@ -1,71 +1,68 @@
-import React from 'react';
-import { Menu } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { Link, useLocation } from 'react-router';
 import { ThemeToggleButton } from '../common/ThemeToggleButton';
-import { Link } from 'react-router';
-import Logo from '../common/Logo';
+
+const MARKETING_URL = import.meta.env.VITE_MARKETING_URL ?? 'https://sharkly.co';
+const APP_URL = import.meta.env.VITE_APP_URL ?? 'https://app.sharkly.co';
 
 const Header: React.FC = () => {
+	const location = useLocation();
+	const headerRef = useRef<HTMLElement>(null);
+
+	useEffect(() => {
+		const el = headerRef.current;
+		if (el) {
+			const height = el.offsetHeight;
+			document.documentElement.style.setProperty('--header-height', `${height}px`);
+			return () => {
+				document.documentElement.style.setProperty('--header-height', '0px');
+			};
+		}
+	}, []);
+
+	const isHome = location.pathname === '/';
+
 	return (
-		<header className="fixed top-0 right-0 left-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-md dark:border-gray-900 dark:bg-gray-900/80">
-			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-				<div className="flex h-16 items-center justify-between">
-					{/* Logo */}
-					<div className="flex items-center space-x-3">
-						<Link to="/" className="block">
-							<Logo isIcon={false} width={125} height="auto" />
-						</Link>
-					</div>
-
-					{/* Desktop Navigation */}
-					<nav className="hidden items-center space-x-8 md:flex">
-						<a
-							href="#features"
-							className="hover:text-brand-500 dark:hover:text-brand-400 text-gray-700 transition-colors dark:text-gray-300"
-						>
-							Features
-						</a>
-						<a
-							href="#pricing"
-							className="hover:text-brand-500 dark:hover:text-brand-400 text-gray-700 transition-colors dark:text-gray-300"
-						>
-							Pricing
-						</a>
-						<a
-							href="#demo"
-							className="hover:text-brand-500 dark:hover:text-brand-400 text-gray-700 transition-colors dark:text-gray-300"
-						>
-							Demo
-						</a>
-						<a
-							href="#testimonials"
-							className="hover:text-brand-500 dark:hover:text-brand-400 text-gray-700 transition-colors dark:text-gray-300"
-						>
-							Testimonials
-						</a>
-						<a
-							href="#contact"
-							className="hover:text-brand-500 dark:hover:text-brand-400 text-gray-700 transition-colors dark:text-gray-300"
-						>
-							Contact
-						</a>
-					</nav>
-
-					{/* Right Side */}
-					<div className="flex items-center space-x-4">
-						<ThemeToggleButton />
-						<Link to="/signup">
-							<button className="bg-brand-500 hover:bg-brand-600 hidden items-center rounded-lg px-4 py-2 font-medium text-white transition-colors md:inline-flex">
-								Start free trial
-							</button>
-						</Link>
-						<button className="rounded-lg p-2 hover:bg-gray-100 md:hidden dark:hover:bg-gray-900">
-							<Menu className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-						</button>
-					</div>
-				</div>
+		<header ref={headerRef} className="fixed top-0 right-0 left-0 z-50 bg-[#f5f3ed] dark:bg-gray-950 min-h-[80px] flex items-center justify-center border-b border-transparent dark:border-gray-800">
+			<div className="mx-auto max-w-[1200px] w-full px-4 sm:px-6 flex items-center justify-between flex-wrap gap-4">
+				<Link to="/" className="font-bold text-xl text-black dark:text-white">
+					Sharkly
+				</Link>
+				<nav className="flex gap-2 items-center flex-wrap">
+					<Link
+						to="/"
+						className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+							isHome
+								? 'bg-black/5 text-black dark:bg-white/10 dark:text-white'
+								: 'bg-[#f5f3ed] text-black border border-black/[0.08] hover:bg-black/5 dark:bg-gray-950 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-white/10'
+						}`}
+					>
+						Home
+					</Link>
+					<a href={`${APP_URL}/strategy`} className="px-4 py-2 rounded-xl text-sm font-medium bg-[#f5f3ed] text-black border border-black/[0.08] hover:bg-black/5 dark:bg-gray-950 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-white/10 transition-colors">
+						Strategy
+					</a>
+					<a href={`${APP_URL}/clusters`} className="px-4 py-2 rounded-xl text-sm font-medium bg-[#f5f3ed] text-black border border-black/[0.08] hover:bg-black/5 dark:bg-gray-950 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-white/10 transition-colors">
+						Clusters
+					</a>
+					<a href={`${APP_URL}/rankings`} className="px-4 py-2 rounded-xl text-sm font-medium bg-[#f5f3ed] text-black border border-black/[0.08] hover:bg-black/5 dark:bg-gray-950 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-white/10 transition-colors">
+						Rankings
+					</a>
+					<a href={`${MARKETING_URL}/blog`} className="px-4 py-2 rounded-xl text-sm font-medium bg-[#f5f3ed] text-black border border-black/[0.08] hover:bg-black/5 dark:bg-gray-950 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-white/10 transition-colors">
+						Blog
+					</a>
+					<ThemeToggleButton />
+					<Link
+						to="/signup"
+						className="px-4 py-2 rounded-xl text-sm font-medium bg-black text-white hover:bg-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-200 transition-colors"
+					>
+						Sign up
+					</Link>
+				</nav>
 			</div>
 		</header>
 	);
 };
+
 
 export default Header;

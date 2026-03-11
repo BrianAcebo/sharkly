@@ -58,8 +58,13 @@ const LayoutContent: React.FC = () => {
 	}
 
 	const hasOrganization = Boolean(user?.organization_id);
-	// Check if org is in payment_pending status (not yet paid)
-	const isOrgPaymentPending = currentOrg?.status === 'payment_pending';
+	// Check if Stripe subscription is incomplete (payment required)
+	const isStripeIncomplete =
+		currentOrg?.stripe_status === 'incomplete' ||
+		currentOrg?.stripe_status === 'incomplete_expired';
+	// Check if Stripe subscription is canceled or expired (need new subscription)
+	const isStripeExpired =
+		currentOrg?.stripe_status === 'canceled' || currentOrg?.stripe_status === 'incomplete_expired';
 
 	// Only after onboarding is complete, check organization status
 	if (user?.completed_onboarding) {
@@ -70,18 +75,19 @@ const LayoutContent: React.FC = () => {
 			return <AuthLoading state={AuthLoadingState.LOADING} />;
 		}
 
-		// CRITICAL: Block access if org hasn't completed payment yet
-		if (isOrgPaymentPending && pathname !== '/organization-required') {
-			return <Navigate to="/organization-required" replace />;
-		}
-
+		// CRITICAL: If user has NO organization at all, send to organization-required
 		if (!hasOrganization && pathname !== '/organization-required') {
 			return <Navigate to="/organization-required" replace />;
 		}
 	}
 
 	// Safety fallback: if we're on organization-required but user has organization AND payment is complete, redirect to dashboard
-	if (pathname === '/organization-required' && hasOrganization && !isOrgPaymentPending) {
+	if (
+		pathname === '/organization-required' &&
+		hasOrganization &&
+		!isStripeIncomplete &&
+		!isStripeExpired
+	) {
 		return <Navigate to="/dashboard" replace />;
 	}
 
@@ -108,11 +114,18 @@ const LayoutContent: React.FC = () => {
 	let reason: 'paused' | 'disabled' | 'trial_expired' | 'payment_required' | 'past_due' = 'paused';
 	let paymentFailureReason: string | undefined;
 
-	// If the organization status is already active, do NOT render read-only gate,
-	// even if other derived fields are momentarily stale.
+	// Active org — no gate ever
 	if (orgStatus === 'active') {
 		shouldShowReadOnly = false;
+	} else if (stripeStatus === 'canceled' || stripeStatus === 'incomplete_expired') {
+		// Subscription is DEAD — needs a brand-new subscription, not a payment update.
+		// Check this BEFORE isOrganizationBehindOnPayments because a canceled/expired
+		// subscription may still have payment_action_required=true from a prior failure,
+		// which would otherwise show the wrong "Update payment method" UI.
+		shouldShowReadOnly = true;
+		reason = 'trial_expired';
 	} else if (isOrganizationBehindOnPayments(organizationForBilling)) {
+		// Subscription exists but payment has a problem (past_due, card declined, etc.)
 		shouldShowReadOnly = true;
 		if (orgStatus === 'payment_required') {
 			reason = 'payment_required';
@@ -126,9 +139,6 @@ const LayoutContent: React.FC = () => {
 	} else if (isDisabled) {
 		shouldShowReadOnly = true;
 		reason = 'disabled';
-	} else if (stripeStatus === 'canceled' || stripeStatus === 'incomplete_expired') {
-		shouldShowReadOnly = true;
-		reason = 'trial_expired';
 	}
 
 	if (shouldShowReadOnly) {
@@ -165,11 +175,11 @@ const LayoutContent: React.FC = () => {
 		<>
 			<div className="min-h-screen">
 				<div>
-					<AppSidebar />
+					<AppSidebar organization={organizationForBilling} />
 					<Backdrop />
 				</div>
 				<div
-					className={`flex-1 transition-all duration-300 ease-in-out ${isExpanded ? 'lg:ml-50' : 'lg:ml-22'} ${isMobileOpen ? 'ml-0' : ''}`}
+					className={`flex-1 transition-all duration-300 ease-in-out ${isExpanded ? 'lg:ml-55' : 'lg:ml-22'} ${isMobileOpen ? 'ml-0' : ''}`}
 				>
 					<AppHeader />
 

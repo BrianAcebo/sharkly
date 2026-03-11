@@ -2,10 +2,15 @@
  * Hook: usePerformanceData
  * Fetches and manages GSC performance data for the current user.
  * Aggregates clicks, impressions, CTR, position by page, query, or date.
+ *
+ * Note: seoScore, topFix, workspaceId on PerformanceByPage are optional —
+ * they come from Sharkly's pages table via a secondary join, not from GSC.
+ * Performance.tsx's re-optimization queue handles the null/undefined case.
  */
 
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { findPageIdForGscUrl } from '../lib/gscUrlMatch';
 
 export interface PerformanceMetrics {
 	clicks: number;
@@ -23,6 +28,12 @@ export interface PerformanceRecord extends PerformanceMetrics {
 export interface PerformanceByPage extends PerformanceMetrics {
 	page: string;
 	queryCount: number;
+	/** SEO score (0–115) from Sharkly pages table — undefined if page not in Sharkly */
+	seoScore?: number | null;
+	/** Highest-priority fix from the page's current SEO issues — undefined if not scored */
+	topFix?: string | null;
+	/** Workspace ID for direct navigation to editor — undefined if page not in Sharkly */
+	workspaceId?: string | null;
 }
 
 export interface PerformanceByQuery extends PerformanceMetrics {
@@ -32,7 +43,7 @@ export interface PerformanceByQuery extends PerformanceMetrics {
 
 interface UsePerformanceDataProps {
 	siteId?: string;
-	days?: number; // Number of days to fetch (default 28)
+	days?: number;
 	enabled?: boolean;
 }
 
@@ -57,6 +68,9 @@ export function usePerformanceData({
 	enabled = true
 }: UsePerformanceDataProps = {}): UsePerformanceDataResult {
 	const [records, setRecords] = useState<PerformanceRecord[]>([]);
+	const [pageMetaMap, setPageMetaMap] = useState<
+		Map<string, { seoScore: number | null; topFix: string | null; workspaceId: string | null }>
+	>(new Map());
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -67,27 +81,62 @@ export function usePerformanceData({
 		setError(null);
 
 		try {
-			// Build query
-			let query = supabase.from('performance_data').select('*');
-
-			// Filter by site_id
-			query = query.eq('site_id', siteId);
-
-			// Filter by date range (last N days)
+			// 1. Fetch raw GSC performance rows
 			const startDate = new Date();
 			startDate.setDate(startDate.getDate() - days);
 			const startDateStr = startDate.toISOString().split('T')[0];
 
-			query = query.gte('date', startDateStr);
-
-			// Order by date descending
-			query = query.order('date', { ascending: false });
-
-			const { data, error: fetchError } = await query;
+			const { data, error: fetchError } = await supabase
+				.from('performance_data')
+				.select('*')
+				.eq('site_id', siteId)
+				.gte('date', startDateStr)
+				.order('date', { ascending: false });
 
 			if (fetchError) throw fetchError;
 
-			setRecords((data as PerformanceRecord[]) || []);
+			const performanceRows = (data as PerformanceRecord[]) || [];
+			setRecords(performanceRows);
+
+			// 2. Fetch SEO scores + top fixes from Sharkly pages table (L11: use published_url for GSC matching)
+			if (performanceRows.length > 0) {
+				const { data: siteRow } = await supabase
+					.from('sites')
+					.select('url')
+					.eq('id', siteId)
+					.single();
+				const siteUrl = (siteRow as { url?: string } | null)?.url ?? null;
+
+				const { data: pageRows } = await supabase
+					.from('pages')
+					.select('id, published_url, seo_score, top_fix')
+					.eq('site_id', siteId);
+
+				const map = new Map<
+					string,
+					{ seoScore: number | null; topFix: string | null; workspaceId: string | null }
+				>();
+				const pagesWithUrl = (pageRows ?? []).map((p) => ({
+					id: p.id,
+					published_url: (p as { published_url?: string }).published_url ?? null
+				}));
+				for (const gscPage of [...new Set(performanceRows.map((r) => r.page))]) {
+					const pageId = findPageIdForGscUrl(gscPage, pagesWithUrl, siteUrl);
+					if (pageId) {
+						const meta = (pageRows as Array<{ id: string; seo_score: number | null; top_fix: string | null }>).find(
+							(p) => p.id === pageId
+						);
+						if (meta) {
+							map.set(gscPage, {
+								seoScore: meta.seo_score,
+								topFix: meta.top_fix,
+								workspaceId: meta.id
+							});
+						}
+					}
+				}
+				setPageMetaMap(map);
+			}
 		} catch (err) {
 			console.error('Error fetching performance data:', err);
 			setError(err instanceof Error ? err.message : 'Failed to load performance data');
@@ -101,73 +150,63 @@ export function usePerformanceData({
 	}, [fetchData]);
 
 	// Aggregate data by page
-	const byPage = records.reduce(
-		(acc, record) => {
-			const existing = acc.find((p) => p.page === record.page);
-			if (existing) {
-				existing.clicks += record.clicks;
-				existing.impressions += record.impressions;
-				existing.ctr = (existing.clicks / existing.impressions) * 100 || 0;
-				existing.position = (existing.position + record.position) / 2;
-				existing.queryCount = new Set([...acc.flatMap((p) =>
-					records.filter((r) => r.page === p.page).map((r) => r.query)
-				)]).size;
-			} else {
-				acc.push({
-					page: record.page,
-					clicks: record.clicks,
-					impressions: record.impressions,
-					ctr: record.ctr,
-					position: record.position,
-					queryCount: records.filter((r) => r.page === record.page).length
-				});
-			}
-			return acc;
-		},
-		[] as PerformanceByPage[]
-	);
+	const byPage = records.reduce((acc, record) => {
+		const existing = acc.find((p) => p.page === record.page);
+		if (existing) {
+			existing.clicks += record.clicks;
+			existing.impressions += record.impressions;
+			existing.ctr = existing.impressions > 0 ? (existing.clicks / existing.impressions) * 100 : 0;
+			existing.position = (existing.position + record.position) / 2;
+			existing.queryCount++;
+		} else {
+			const meta = pageMetaMap.get(record.page);
+			acc.push({
+				page: record.page,
+				clicks: record.clicks,
+				impressions: record.impressions,
+				ctr: record.ctr,
+				position: record.position,
+				queryCount: 1,
+				seoScore: meta?.seoScore ?? null,
+				topFix: meta?.topFix ?? null,
+				workspaceId: meta?.workspaceId ?? null
+			});
+		}
+		return acc;
+	}, [] as PerformanceByPage[]);
 
 	// Aggregate data by query
-	const byQuery = records.reduce(
-		(acc, record) => {
-			const existing = acc.find((q) => q.query === record.query);
-			if (existing) {
-				existing.clicks += record.clicks;
-				existing.impressions += record.impressions;
-				existing.ctr = (existing.clicks / existing.impressions) * 100 || 0;
-				existing.position = (existing.position + record.position) / 2;
-				existing.pageCount = new Set([...acc.flatMap((q) =>
-					records.filter((r) => r.query === q.query).map((r) => r.page)
-				)]).size;
-			} else {
-				acc.push({
-					query: record.query,
-					clicks: record.clicks,
-					impressions: record.impressions,
-					ctr: record.ctr,
-					position: record.position,
-					pageCount: records.filter((r) => r.query === record.query).length
-				});
-			}
-			return acc;
-		},
-		[] as PerformanceByQuery[]
-	);
+	const byQuery = records.reduce((acc, record) => {
+		const existing = acc.find((q) => q.query === record.query);
+		if (existing) {
+			existing.clicks += record.clicks;
+			existing.impressions += record.impressions;
+			existing.ctr = existing.impressions > 0 ? (existing.clicks / existing.impressions) * 100 : 0;
+			existing.position = (existing.position + record.position) / 2;
+			existing.pageCount++;
+		} else {
+			acc.push({
+				query: record.query,
+				clicks: record.clicks,
+				impressions: record.impressions,
+				ctr: record.ctr,
+				position: record.position,
+				pageCount: 1
+			});
+		}
+		return acc;
+	}, [] as PerformanceByQuery[]);
 
 	// Top pages and queries by clicks
-	const topPages = byPage.sort((a, b) => b.clicks - a.clicks).slice(0, 10);
-	const topQueries = byQuery.sort((a, b) => b.clicks - a.clicks).slice(0, 10);
+	const topPages = [...byPage].sort((a, b) => b.clicks - a.clicks).slice(0, 10);
+	const topQueries = [...byQuery].sort((a, b) => b.clicks - a.clicks).slice(0, 10);
 
-	// Calculate totals
+	// Totals
 	const totalClicks = records.reduce((sum, r) => sum + r.clicks, 0);
 	const totalImpressions = records.reduce((sum, r) => sum + r.impressions, 0);
 	const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-
-	// Average position across all records
 	const avgPosition =
-		records.length > 0
-			? records.reduce((sum, r) => sum + r.position, 0) / records.length
-			: 0;
+		records.length > 0 ? records.reduce((sum, r) => sum + r.position, 0) / records.length : 0;
 
 	return {
 		records,

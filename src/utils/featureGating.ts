@@ -1,9 +1,67 @@
 import { OrganizationRow } from '../types/billing';
+import type { PlanCode } from '../types/billing';
 
 /**
- * Feature gating based on Stripe subscription status
+ * Feature gating based on Stripe subscription status and plan tier
  * Uses Stripe data as source of truth
  */
+
+/** Tier order for comparison (lower index = lower tier) */
+const TIER_ORDER = ['builder', 'growth', 'scale', 'pro'] as const;
+type Tier = (typeof TIER_ORDER)[number];
+
+/**
+ * Normalize plan_code to base tier (strip _test suffix)
+ */
+function toBaseTier(planCode: PlanCode | string | null): Tier | null {
+  if (!planCode || typeof planCode !== 'string') return null;
+  const base = planCode.replace(/_test$/, '');
+  return TIER_ORDER.includes(base as Tier) ? (base as Tier) : null;
+}
+
+/**
+ * Check if organization has at least the required plan tier.
+ * Order: builder < growth < scale < pro
+ */
+export function hasPlanAtLeast(organization: OrganizationRow | null, requiredTier: Tier): boolean {
+  if (!organization?.plan_code) return false;
+  const plan = toBaseTier(organization.plan_code);
+  if (!plan) return false;
+  const requiredIdx = TIER_ORDER.indexOf(requiredTier);
+  const currentIdx = TIER_ORDER.indexOf(plan);
+  if (requiredIdx < 0 || currentIdx < 0) return false;
+  return currentIdx >= requiredIdx;
+}
+
+/**
+ * Check if organization has Fin (AI Assistant) access.
+ * Regular plan feature: included when plan has included_chat_messages_monthly > 0.
+ */
+export function hasFinAccess(organization: OrganizationRow | null): boolean {
+  if (!organization) return false;
+  return (organization.included_chat_messages_monthly ?? 0) > 0;
+}
+
+/**
+ * Check if organization can access Performance page (traffic chart, page-level GSC data)
+ */
+export function canAccessPerformance(organization: OrganizationRow | null): boolean {
+  return hasPlanAtLeast(organization, 'growth');
+}
+
+/**
+ * Check if organization can access Rankings page (keyword positions, CTR, Navboost)
+ */
+export function canAccessRankings(organization: OrganizationRow | null): boolean {
+  return hasPlanAtLeast(organization, 'growth');
+}
+
+/**
+ * Check if organization can access Technical page (full audit, EEAT, toxic links, etc.)
+ */
+export function canAccessTechnical(organization: OrganizationRow | null): boolean {
+  return hasPlanAtLeast(organization, 'scale');
+}
 
 /**
  * Check if organization has access to bundled features

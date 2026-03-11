@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChat, ChatMessage, ToolExecution } from '../../contexts/ChatContext';
+import { useOrganization } from '../../hooks/useOrganization';
+import { hasFinAccess } from '../../utils/featureGating';
 import { ChatMarkdown } from './ChatMarkdown';
 import {
   MessageCircle,
   X,
-  XCircle,
   Send,
   Loader2,
   Bot,
@@ -16,236 +17,28 @@ import {
   Sparkles,
   Search,
   FileText,
-  Phone,
-  Mail,
   CheckCircle2,
   AlertCircle,
   ExternalLink,
-  Building2,
-  UserSearch,
   Globe,
-  Heart,
   ShieldCheck,
-  ShieldAlert,
-  UserCircle,
   Server,
-  Shield,
-  MapPin,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../../utils/common';
 
-// Tool icons, labels, and result paths
-// All major actions should have resultPath for View button
+// Sharkly SEO tools only
 const TOOL_CONFIG: Record<string, { icon: typeof Search; label: string; color: string; resultPath?: (result: any) => string | null }> = {
-  // Core investigation tools
-  run_public_presence: { 
-    icon: Globe, 
-    label: 'Public Presence Scan', 
-    color: 'text-indigo-500',
-    resultPath: (result) => result?.run_id ? `/runs/${result.run_id}` : null,
-  },
-  cancel_scan: { 
-    icon: XCircle, 
-    label: 'Cancelling Scan', 
-    color: 'text-orange-500',
-  },
-  find_subject_for_action: { icon: UserSearch, label: 'Finding Subject', color: 'text-cyan-500' },
-  create_subject: { 
-    icon: Sparkles, 
-    label: 'Creating Subject', 
-    color: 'text-green-500',
-    resultPath: (result) => {
-      if (result?.person_id) return `/people/${result.person_id}`;
-      if (result?.business_id) return `/businesses/${result.business_id}`;
-      return null;
-    },
-  },
-  lookup_phone: { 
-    icon: Phone, 
-    label: 'Phone Lookup', 
-    color: 'text-green-500',
-    resultPath: (result) => result?.phone_id ? `/phones/${result.phone_id}` : null,
-  },
-  lookup_email: { 
-    icon: Mail, 
-    label: 'Email Lookup', 
-    color: 'text-blue-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  search_case_entities: { icon: Search, label: 'Searching Records', color: 'text-gray-500' },
-  search_business_emails: { 
-    icon: Building2, 
-    label: 'Finding Business Emails', 
-    color: 'text-orange-500',
-    resultPath: (result) => {
-      if (result?.domain_id) return `/domains/${result.domain_id}`;
-      if (result?.business_id) return `/businesses/${result.business_id}`;
-      return null;
-    },
-  },
-  get_person_summary: { 
-    icon: FileText, 
-    label: 'Getting Summary', 
-    color: 'text-purple-500',
-    resultPath: (result) => result?.person_id ? `/people/${result.person_id}` : null,
-  },
-  get_business_summary: { 
-    icon: Building2, 
-    label: 'Getting Business Summary', 
-    color: 'text-purple-500',
-    resultPath: (result) => result?.business_id ? `/businesses/${result.business_id}` : null,
-  },
-  add_case_note: { icon: FileText, label: 'Adding Note', color: 'text-yellow-500' },
-  draft_report_section: { icon: FileText, label: 'Drafting Report', color: 'text-orange-500' },
-  create_entity: { 
-    icon: Sparkles, 
-    label: 'Creating Record', 
-    color: 'text-pink-500',
-    resultPath: (result) => {
-      if (result?.email_id) return `/emails/${result.email_id}`;
-      if (result?.phone_id) return `/phones/${result.phone_id}`;
-      if (result?.person_id) return `/people/${result.person_id}`;
-      return null;
-    },
-  },
-  suggest_next_steps: { icon: Sparkles, label: 'Analyzing Case', color: 'text-cyan-500' },
-  explain_capability: { icon: Sparkles, label: 'Explaining', color: 'text-gray-500' },
-  
-  // Site Registration Scan (email account discovery)
-  holehe_check_email: {
-    icon: Heart,
-    label: 'Site Registration Scan',
-    color: 'text-pink-500',
-    resultPath: (result) => result?.view_url || (result?.email_id ? `/emails/${result.email_id}?action=site_scan` : null),
-  },
-  // Username Search (account discovery)
-  search_username_accounts: {
-    icon: UserSearch,
-    label: 'Username Search',
-    color: 'text-orange-500',
-    resultPath: (result) => result?.view_url || (result?.username_id ? `/usernames/${result.username_id}?action=username_search` : null),
-  },
-  // Breach Check (Have I Been Pwned)
-  check_email_breaches: {
-    icon: ShieldAlert,
-    label: 'Breach Check',
-    color: 'text-red-500',
-    resultPath: (result) => result?.view_url || (result?.email_id ? `/emails/${result.email_id}?action=breach_check` : null),
-  },
-  // Deep Breach Search
-  deep_breach_search: {
-    icon: ShieldAlert,
-    label: 'Deep Breach Search',
-    color: 'text-red-600',
-    resultPath: (result) => result?.view_url || (result?.email_id ? `/emails/${result.email_id}?action=deep_breach` : null),
-  },
-  // Court Records
-  search_court_records: {
-    icon: FileText,
-    label: 'Court Records Search',
-    color: 'text-amber-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  search_party_records: {
-    icon: FileText,
-    label: 'Party Records Search',
-    color: 'text-amber-500',
-    resultPath: (result) => result?.view_url || null,
-  },
-  search_bankruptcy_records: {
-    icon: AlertCircle,
-    label: 'Bankruptcy Search',
-    color: 'text-red-500',
-    resultPath: (result) => result?.view_url || null,
-  },
-  search_judge_records: {
-    icon: FileText,
-    label: 'Judge Lookup',
-    color: 'text-purple-500',
-    resultPath: (result) => result?.view_url || null,
-  },
-  search_financial_disclosures: {
-    icon: FileText,
-    label: 'Financial Disclosures',
-    color: 'text-green-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-
-  // Phone lookup
-  phone_carrier_lookup: {
-    icon: Phone,
-    label: 'Phone Carrier Lookup',
-    color: 'text-emerald-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  
-  // Domain intelligence
-  dns_lookup: {
-    icon: Server,
-    label: 'DNS Lookup',
-    color: 'text-cyan-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  whois_lookup: {
-    icon: Shield,
-    label: 'WHOIS Lookup',
-    color: 'text-indigo-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-
-  // IP intelligence
-  ip_geolocation: {
-    icon: MapPin,
-    label: 'IP Geolocation',
-    color: 'text-orange-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  reverse_dns: {
-    icon: Globe,
-    label: 'Reverse DNS',
-    color: 'text-teal-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  
-  // Email intelligence tools
-  hunter_domain_search: {
-    icon: Mail,
-    label: 'Email Discovery',
-    color: 'text-blue-500',
-    resultPath: (result) => result?.domain_id ? `/domains/${result.domain_id}` : null,
-  },
-  hunter_email_finder: {
-    icon: UserSearch,
-    label: 'Email Finder',
-    color: 'text-cyan-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  hunter_email_verify: {
-    icon: ShieldCheck,
-    label: 'Email Verification',
-    color: 'text-green-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  hunter_enrich_person: {
-    icon: UserCircle,
-    label: 'Person Enrichment',
-    color: 'text-purple-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  hunter_enrich_company: {
-    icon: Building2,
-    label: 'Company Enrichment',
-    color: 'text-orange-500',
-    resultPath: (result) => result?.domain_id ? `/domains/${result.domain_id}` : null,
-  },
-  hunter_full_enrichment: {
-    icon: Sparkles,
-    label: 'Full Enrichment',
-    color: 'text-indigo-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  hunter_email_count: { icon: Mail, label: 'Email Count', color: 'text-gray-500' },
+  get_sites_summary: { icon: Globe, label: 'Listing Sites', color: 'text-indigo-500' },
+  get_site_details: { icon: FileText, label: 'Getting Site Details', color: 'text-blue-500', resultPath: (r) => r?.id ? `/sites` : null },
+  get_clusters_summary: { icon: Search, label: 'Loading Clusters', color: 'text-purple-500' },
+  get_cluster_details: { icon: FileText, label: 'Getting Cluster Details', color: 'text-purple-500', resultPath: (r) => r?.id ? `/clusters/${r.id}` : null },
+  get_page_summary: { icon: FileText, label: 'Getting Page', color: 'text-amber-500', resultPath: (r) => r?.id ? `/workspace/${r.id}` : null },
+  get_audit_summary: { icon: ShieldCheck, label: 'Getting Audit', color: 'text-green-500' },
+  get_weekly_priority_stack: { icon: Sparkles, label: 'Loading Priorities', color: 'text-cyan-500' },
+  get_refresh_queue: { icon: FileText, label: 'Loading Refresh Queue', color: 'text-orange-500' },
+  suggest_next_actions: { icon: Sparkles, label: 'Suggesting Actions', color: 'text-cyan-500' },
+  trigger_technical_audit: { icon: Server, label: 'Starting Technical Audit', color: 'text-red-500' },
 };
 
 function MessageBubble({ message }: { message: ChatMessage }) {
@@ -402,6 +195,7 @@ function ToolExecutionBadge({ tool }: { tool: ToolExecution }) {
 }
 
 export default function ChatWidget() {
+  const { organization } = useOrganization();
   const {
     messages,
     isOpen,
@@ -415,6 +209,11 @@ export default function ChatWidget() {
   } = useChat();
   
   const navigate = useNavigate();
+
+  // Fin requires Growth+ and Fin add-on (or Scale/Pro)
+  if (!organization || !hasFinAccess(organization)) {
+    return null;
+  }
   
   const [input, setInput] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
@@ -460,7 +259,7 @@ export default function ChatWidget() {
           'hover:scale-105 transition-transform duration-200',
           'ring-4 ring-white/20 dark:ring-gray-900/20'
         )}
-        aria-label="Chat with Vera"
+        aria-label="Open Fin"
       >
         <MessageCircle className="w-6 h-6" />
         <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-400 rounded-full border-2 border-white dark:border-gray-900" />
@@ -485,8 +284,8 @@ export default function ChatWidget() {
             <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold text-white">Vera</h3>
-            <p className="text-xs text-white/70">Your investigator assistant</p>
+            <h3 className="font-semibold text-white">AI Assistant</h3>
+            <p className="text-xs text-white/70">Your SEO assistant</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -535,17 +334,17 @@ export default function ChatWidget() {
               <Sparkles className="w-8 h-8 text-indigo-500" />
             </div>
             <h4 className="font-semibold text-gray-900 dark:text-white mb-2">
-              Hi, I'm Vera
+              Hi, I'm Fin
             </h4>
             <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 max-w-xs">
-              Your investigator assistant. I can search for people, look up contact info, analyze findings, and draft reports.
+              Your SEO assistant. I can read your sites and clusters, explain audit findings, and suggest next actions.
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {[
-                'Run a public presence scan',
-                'Find emails for Acme Corp',
+                'What should I focus on?',
+                'How\'s my site doing?',
                 'What can you help me with?',
-                'Suggest next steps',
+                'Suggest next actions',
               ].map((suggestion) => (
                 <button
                   key={suggestion}
@@ -566,31 +365,10 @@ export default function ChatWidget() {
             
             {/* Tool executions - show panels for major actions */}
             {currentTools.length > 0 && currentTools.map((tool, i) => {
-              // Major actions get full panel treatment with running/complete/error states
               const majorActions = [
-                'run_public_presence', 
-                'search_business_emails', 
-                'create_subject',
-                'holehe_check_email',
-                'search_username_accounts',
-                'check_email_breaches',
-                'deep_breach_search',
-                'search_court_records',
-                'search_party_records',
-                'search_bankruptcy_records',
-                'search_judge_records',
-                'search_financial_disclosures',
-                'phone_carrier_lookup',
-                'dns_lookup',
-                'whois_lookup',
-                'ip_geolocation',
-                'reverse_dns',
-                'hunter_domain_search',
-                'hunter_email_finder',
-                'hunter_email_verify',
-                'hunter_enrich_person',
-                'hunter_enrich_company',
-                'hunter_full_enrichment',
+                'get_sites_summary', 'get_site_details', 'get_clusters_summary', 'get_cluster_details',
+                'get_audit_summary', 'get_weekly_priority_stack', 'get_refresh_queue', 'trigger_technical_audit',
+                'suggest_next_actions',
               ];
               if (majorActions.includes(tool.name)) {
                 return <ToolExecutionPanel key={`${tool.name}-${i}`} tool={tool} />;
@@ -602,29 +380,9 @@ export default function ChatWidget() {
             {currentTools.length > 0 && (
               <div className="flex flex-wrap gap-2 px-4 py-2">
                 {currentTools.filter(tool => ![
-                  'run_public_presence', 
-                  'search_business_emails', 
-                  'create_subject',
-                  'holehe_check_email',
-                  'search_username_accounts',
-                  'check_email_breaches',
-                  'deep_breach_search',
-                  'search_court_records',
-                  'search_party_records',
-                  'search_bankruptcy_records',
-                  'search_judge_records',
-                  'search_financial_disclosures',
-                  'phone_carrier_lookup',
-                  'dns_lookup',
-                  'whois_lookup',
-                  'ip_geolocation',
-                  'reverse_dns',
-                  'hunter_domain_search',
-                  'hunter_email_finder',
-                  'hunter_email_verify',
-                  'hunter_enrich_person',
-                  'hunter_enrich_company',
-                  'hunter_full_enrichment',
+                  'get_sites_summary', 'get_site_details', 'get_clusters_summary', 'get_cluster_details',
+                  'get_audit_summary', 'get_weekly_priority_stack', 'get_refresh_queue', 'trigger_technical_audit',
+                  'suggest_next_actions',
                 ].includes(tool.name)).map((tool, i) => (
                   <ToolExecutionBadge key={`${tool.name}-${i}`} tool={tool} />
                 ))}

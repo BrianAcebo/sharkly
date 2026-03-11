@@ -1,7 +1,7 @@
 import { useParams } from 'react-router-dom';
 import { useAudit } from '../hooks/useAudit';
 import { Button } from '../components/ui/button';
-import { AlertCircle, CheckCircle2, AlertTriangle, RotateCcw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, AlertTriangle, XCircle, RotateCcw } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { useEffect } from 'react';
@@ -95,13 +95,13 @@ export default function AuditResults() {
 	const getCWVStatus = (status: string) => {
 		switch (status) {
 			case 'good':
-				return '🟢 Good';
+				return <span className="inline-flex items-center gap-1 text-success-600 dark:text-success-400"><CheckCircle2 className="size-3.5" /> Good</span>;
 			case 'needs_improvement':
-				return '🟡 Needs Improvement';
+				return <span className="inline-flex items-center gap-1 text-warning-600 dark:text-warning-400"><AlertTriangle className="size-3.5" /> Needs Improvement</span>;
 			case 'poor':
-				return '🔴 Poor';
+				return <span className="inline-flex items-center gap-1 text-error-600 dark:text-error-400"><XCircle className="size-3.5" /> Poor</span>;
 			default:
-				return 'Unknown';
+				return <span className="text-gray-400">Unknown</span>;
 		}
 	};
 
@@ -281,11 +281,11 @@ export default function AuditResults() {
 										{audit.coreWebVitals.lcpEstimate}ms
 									</div>
 									<p className="text-sm text-gray-600 dark:text-gray-400">
-										{audit.coreWebVitals.lcpEstimate < 2500 ? (
-											<span className="text-green-600 dark:text-green-400">✓ Good (target: &lt;2.5s)</span>
-										) : (
-											<span className="text-red-600 dark:text-red-400">✗ Needs improvement (target: &lt;2.5s)</span>
-										)}
+								{audit.coreWebVitals.lcpEstimate < 2500 ? (
+										<span className="inline-flex items-center gap-1 text-success-600 dark:text-success-400"><CheckCircle2 className="size-3.5" /> Good (target: &lt;2.5s)</span>
+									) : (
+										<span className="inline-flex items-center gap-1 text-error-600 dark:text-error-400"><XCircle className="size-3.5" /> Needs improvement (target: &lt;2.5s)</span>
+									)}
 									</p>
 								</div>
 
@@ -297,11 +297,11 @@ export default function AuditResults() {
 										{audit.coreWebVitals.clsEstimate.toFixed(2)}
 									</div>
 									<p className="text-sm text-gray-600 dark:text-gray-400">
-										{audit.coreWebVitals.clsEstimate < 0.1 ? (
-											<span className="text-green-600 dark:text-green-400">✓ Good (target: &lt;0.1)</span>
-										) : (
-											<span className="text-red-600 dark:text-red-400">✗ Needs improvement (target: &lt;0.1)</span>
-										)}
+								{audit.coreWebVitals.clsEstimate < 0.1 ? (
+										<span className="inline-flex items-center gap-1 text-success-600 dark:text-success-400"><CheckCircle2 className="size-3.5" /> Good (target: &lt;0.1)</span>
+									) : (
+										<span className="inline-flex items-center gap-1 text-error-600 dark:text-error-400"><XCircle className="size-3.5" /> Needs improvement (target: &lt;0.1)</span>
+									)}
 									</p>
 								</div>
 
@@ -313,11 +313,11 @@ export default function AuditResults() {
 										{audit.coreWebVitals.inpEstimate}ms
 									</div>
 									<p className="text-sm text-gray-600 dark:text-gray-400">
-										{audit.coreWebVitals.inpEstimate < 200 ? (
-											<span className="text-green-600 dark:text-green-400">✓ Good (target: &lt;200ms)</span>
-										) : (
-											<span className="text-red-600 dark:text-red-400">✗ Needs improvement (target: &lt;200ms)</span>
-										)}
+								{audit.coreWebVitals.inpEstimate < 200 ? (
+										<span className="inline-flex items-center gap-1 text-success-600 dark:text-success-400"><CheckCircle2 className="size-3.5" /> Good (target: &lt;200ms)</span>
+									) : (
+										<span className="inline-flex items-center gap-1 text-error-600 dark:text-error-400"><XCircle className="size-3.5" /> Needs improvement (target: &lt;200ms)</span>
+									)}
 									</p>
 								</div>
 							</div>
@@ -350,11 +350,11 @@ export default function AuditResults() {
 									GSC Connection
 								</p>
 								<p className="text-lg font-semibold text-gray-900 dark:text-white">
-									{audit.indexationStatus.gscConnected ? (
-										<span className="text-green-600 dark:text-green-400">✓ Connected</span>
-									) : (
-										<span className="text-yellow-600 dark:text-yellow-400">⚠ Not Connected</span>
-									)}
+								{audit.indexationStatus.gscConnected ? (
+									<span className="inline-flex items-center gap-1 text-success-600 dark:text-success-400"><CheckCircle2 className="size-4" /> Connected</span>
+								) : (
+									<span className="inline-flex items-center gap-1 text-warning-600 dark:text-warning-400"><AlertTriangle className="size-4" /> Not Connected</span>
+								)}
 								</p>
 							</div>
 							<div>

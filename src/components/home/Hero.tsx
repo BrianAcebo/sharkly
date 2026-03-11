@@ -1,176 +1,27 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import {
-	MessageSquare,
-	Users,
-	Zap,
-	ArrowRight,
-	Play,
-	Pause,
-	Volume2,
-	VolumeX,
-	RotateCcw,
-	ChevronDown
-} from 'lucide-react';
-import { Lightbox } from '../ui/Lightbox';
+import React from 'react';
 import { Link } from 'react-router';
 
 interface HeroProps {
 	isLoading?: boolean;
 }
 
+const heroImages = [
+	{ src: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600', alt: 'Team collaboration', rotate: '1deg' },
+	{ src: 'https://images.unsplash.com/photo-1618477388954-7852f32655ec?w=600', alt: 'Person at computer', rotate: '-2deg' },
+	{ src: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600', alt: 'Content creation', rotate: '6deg' },
+	{ src: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=600', alt: 'Business meeting', rotate: '-3deg' },
+	{ src: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600', alt: 'Analytics dashboard', rotate: '1deg' },
+];
+
 const Hero: React.FC<HeroProps> = ({ isLoading = false }) => {
-	const [introOpen, setIntroOpen] = useState(false);
-	const videoRef = useRef<HTMLVideoElement | null>(null);
-	const [isPlaying, setIsPlaying] = useState(true);
-	const [isMuted, setIsMuted] = useState(false);
-	const [progress, setProgress] = useState(0);
-	const [duration, setDuration] = useState(0);
-	const [volume, setVolume] = useState(1);
-	const previousVolumeRef = useRef(1);
-
-	const closeIntro = useCallback(() => {
-		const video = videoRef.current;
-		if (video) {
-			video.pause();
-			video.currentTime = 0;
-		}
-		setIsPlaying(false);
-		setIntroOpen(false);
-	}, []);
-
-	const formattedTime = useMemo(() => {
-		const remaining = Math.max(duration - progress, 0);
-		const minutes = Math.floor(remaining / 60)
-			.toString()
-			.padStart(2, '0');
-		const seconds = Math.floor(remaining % 60)
-			.toString()
-			.padStart(2, '0');
-		return `${minutes}:${seconds}`;
-	}, [duration, progress]);
-
-	const handleTimeUpdate = useCallback(() => {
-		const video = videoRef.current;
-		if (!video) return;
-		setProgress(video.currentTime);
-	}, []);
-
-	const handleLoadedMetadata = useCallback(() => {
-		const video = videoRef.current;
-		if (!video) return;
-		setDuration(video.duration);
-		setProgress(video.currentTime);
-		setIsPlaying(!video.paused);
-		setIsMuted(video.muted);
-		setVolume(video.volume ?? 1);
-		previousVolumeRef.current = video.volume ?? 1;
-	}, []);
-
-	const togglePlay = useCallback(() => {
-		const video = videoRef.current;
-		if (!video) return;
-		if (video.paused) {
-			void video.play();
-			setIsPlaying(true);
-		} else {
-			video.pause();
-			setIsPlaying(false);
-		}
-	}, []);
-
-	const toggleMute = useCallback(() => {
-		const video = videoRef.current;
-		if (!video) return;
-		if (video.muted || volume === 0) {
-			const restore = previousVolumeRef.current > 0 ? previousVolumeRef.current : 0.5;
-			video.muted = false;
-			video.volume = restore;
-			setVolume(restore);
-			setIsMuted(false);
-		} else {
-			previousVolumeRef.current = volume;
-			video.muted = true;
-			setIsMuted(true);
-		}
-	}, [volume]);
-
-	const handleScrub = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-		const video = videoRef.current;
-		if (!video) return;
-		const newTime = Number(event.target.value);
-		video.currentTime = newTime;
-		setProgress(newTime);
-	}, []);
-
-	const handleVolumeChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-		const video = videoRef.current;
-		if (!video) return;
-		const value = Number(event.target.value);
-		video.volume = value;
-		setVolume(value);
-		if (value === 0) {
-			video.muted = true;
-			setIsMuted(true);
-		} else {
-			video.muted = false;
-			setIsMuted(false);
-			previousVolumeRef.current = value;
-		}
-	}, []);
-
-	const handleReplay = useCallback(() => {
-		const video = videoRef.current;
-		if (!video) return;
-		video.currentTime = 0;
-		void video.play();
-		setIsPlaying(true);
-	}, []);
-
 	if (isLoading) {
 		return (
-			<section className="relative overflow-hidden pt-24 pb-16">
-				{/* Background Elements - Keep the same gradient */}
-				<div className="from-brand-50 via-blue-light-25 dark:to-brand-950/20 absolute inset-0 bg-gradient-to-br to-gray-50 dark:from-gray-900 dark:via-gray-900"></div>
-				<div className="bg-brand-200/20 dark:bg-brand-500/10 absolute top-1/4 left-1/4 h-72 w-72 rounded-full blur-3xl"></div>
-				<div className="bg-blue-light-200/20 dark:bg-blue-light-500/10 absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full blur-3xl"></div>
-
-				<div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-					<div className="text-center">
-						{/* Badge Skeleton */}
-						<div className="mb-8 inline-flex items-center rounded-full px-4 py-2">
-							<div className="h-4 w-4 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
-							<div className="ml-2 h-4 w-32 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
-						</div>
-
-						{/* Main Headline Skeleton */}
-						<div className="mb-6 flex flex-col items-center space-y-4">
-							<div className="h-12 w-3/4 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"></div>
-							<div className="h-12 w-1/2 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"></div>
-							<div className="h-12 w-2/3 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"></div>
-						</div>
-
-						{/* Subtitle Skeleton */}
-						<div className="mx-auto mb-8 max-w-3xl space-y-2">
-							<div className="h-6 w-full animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"></div>
-							<div className="mx-auto h-6 w-5/6 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"></div>
-						</div>
-
-						{/* CTA Buttons Skeleton */}
-						<div className="mb-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
-							<div className="h-14 w-48 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"></div>
-							<div className="h-14 w-48 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"></div>
-						</div>
-
-						{/* Feature Icons Skeleton */}
-						<div className="mx-auto grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-3">
-							{[...Array(3)].map((_, index) => (
-								<div key={index} className="flex flex-col items-center">
-									<div className="mb-4 h-16 w-16 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-700"></div>
-									<div className="mb-2 h-5 w-24 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"></div>
-									<div className="h-4 w-32 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700"></div>
-								</div>
-							))}
-						</div>
+			<section className="relative overflow-hidden bg-[#f5f3ed] dark:bg-gray-950 pt-32 pb-16 min-h-[80vh] flex flex-col justify-center">
+				<div className="mx-auto max-w-[1200px] w-full px-4 sm:px-6">
+					<div className="animate-pulse space-y-4">
+						<div className="h-12 w-3/4 bg-gray-300 dark:bg-gray-700 rounded" />
+						<div className="h-6 w-1/2 bg-gray-200 dark:bg-gray-800 rounded" />
+						<div className="h-10 w-32 bg-gray-200 dark:bg-gray-800 rounded" />
 					</div>
 				</div>
 			</section>
@@ -178,164 +29,46 @@ const Hero: React.FC<HeroProps> = ({ isLoading = false }) => {
 	}
 
 	return (
-		<section className="relative overflow-hidden pt-24 pb-16">
-			{/* Background Elements */}
-			<div className="via-brand-50/50 dark:via-brand-950/50 absolute inset-0 bg-gradient-to-r from-transparent to-gray-50 dark:from-transparent dark:to-gray-900"></div>
-			<div className="bg-brand-200/20 dark:bg-brand-500/10 absolute top-1/4 left-1/4 h-72 w-72 rounded-full blur-3xl"></div>
-			<div className="bg-blue-light-200/20 dark:bg-blue-light-500/10 absolute right-1/4 bottom-1/4 h-96 w-96 rounded-full blur-3xl"></div>
-
-			<div className="relative mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-				<div className="text-center">
-					{/* Main Headline */}
-					<h1 className="font-montserrat mb-6 text-4xl leading-tight font-semibold tracking-tighter text-gray-900 md:text-6xl lg:text-8xl dark:text-white">
-						<div className="relative inline-block w-fit">
-							<div className="absolute top-15 left-0 h-2 w-full rotate-8 rounded-full bg-red-700"></div>
-							<span>Search</span>
-							<span className="absolute -top-12 right-0 left-0 rotate-8 bg-gradient-to-r from-gray-300 via-gray-400 to-gray-500 bg-clip-text text-5xl font-bold tracking-tight text-transparent italic">
-								Shark
-							</span>
-							<ChevronDown className="absolute top-0 right-0 left-0 mx-auto size-7 rotate-8 text-gray-500" />
-						</div>{' '}
-						Engine
-						<br />
-						<span className="from-brand-400 via-brand-500 to-brand-600 bg-gradient-to-r bg-clip-text font-bold text-transparent">
-							Optimization
-						</span>
-					</h1>
-
-					{/* Subtitle */}
-					<p className="mx-auto mb-8 max-w-3xl text-xl leading-relaxed text-gray-600 md:text-xl dark:text-gray-300">
-						Sharkly is an AI-powered search assistant that does SEO for non-SEO people. Build your
-						strategy, generate optimized content, and get expert-level results without becoming an
-						expert.
-					</p>
-
-					{/* CTA Buttons */}
-					<div className="mb-12 flex flex-col items-center justify-center gap-4 sm:flex-row">
-						<Link to="/signup">
-							<button className="bg-brand-500 hover:bg-brand-600 shadow-theme-lg hover:shadow-theme-xl inline-flex items-center rounded-lg px-8 py-4 text-lg font-semibold text-white transition-all duration-200 hover:scale-105">
-								Start free trial
-								<ArrowRight className="ml-2 h-5 w-5" />
-							</button>
-						</Link>
-						<button
-							className="hover:border-brand-500 dark:hover:border-brand-400 hover:text-brand-500 dark:hover:text-brand-400 inline-flex items-center gap-3 rounded-lg border-2 border-gray-300 px-8 py-4 text-lg font-semibold text-gray-700 transition-all duration-200 dark:border-gray-600 dark:text-gray-300"
-							onClick={() => {
-								setIntroOpen(true);
-								const video = videoRef.current;
-								if (video) {
-									void video.play();
-								}
-								setIsPlaying(true);
-							}}
+		<section className="relative overflow-hidden bg-[#f5f3ed] dark:bg-gray-950 pt-32 pb-24 min-h-[100vh] flex flex-col justify-center">
+			<div className="mx-auto max-w-[1200px] w-full px-4 sm:px-6">
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center mb-16">
+					<div>
+						<h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-black dark:text-white leading-tight tracking-tight mb-6">
+							SEO platform that helps you rank better, faster.
+						</h1>
+						<p className="text-xl text-gray-700 dark:text-gray-300 leading-relaxed mb-8">
+							Build your strategy, find winning keywords, and publish content that ranks — automatically.
+							Cut weeks off your SEO process.
+						</p>
+						<Link
+							to="/signup"
+							className="inline-flex items-center gap-3 bg-black dark:bg-white text-white dark:text-black px-6 py-3.5 rounded-xl font-medium text-base hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
 						>
-							<Play className="h-5 w-5" />
-							Watch Intro
-						</button>
+							<span>Get started</span>
+							<span className="text-lg">→</span>
+						</Link>
 					</div>
-
-					{/* Feature Icons */}
-					<div className="mx-auto grid max-w-2xl grid-cols-1 gap-8 sm:grid-cols-3">
-						<div className="flex flex-col items-center">
-							<div className="bg-brand-100 dark:bg-brand-500/20 mb-4 flex h-16 w-16 items-center justify-center rounded-2xl">
-								<MessageSquare className="text-brand-500 dark:text-brand-400 h-8 w-8" />
+					{/* Polaroid-style images */}
+					<div className="relative h-[400px] min-h-[300px] hidden md:block">
+						{heroImages.map((img, i) => (
+							<div
+								key={i}
+								className="absolute overflow-hidden rounded-lg shadow-xl"
+								style={{
+									width: '45%',
+									aspectRatio: '3/4',
+									top: `${10 + i * 15}%`,
+									left: `${5 + i * 18}%`,
+									transform: `translate(-50%, -50%) rotate(${img.rotate})`,
+									zIndex: i,
+								}}
+							>
+								<img src={img.src} alt={img.alt} loading="lazy" className="w-full h-full object-cover" />
 							</div>
-							<h3 className="mb-2 font-semibold text-gray-900 dark:text-white">Deep Search</h3>
-							<p className="text-center text-sm text-gray-600 dark:text-gray-400">
-								Access social media, web, breaches in one place
-							</p>
-						</div>
-
-						<div className="flex flex-col items-center">
-							<div className="bg-blue-light-100 dark:bg-blue-light-500/20 mb-4 flex h-16 w-16 items-center justify-center rounded-2xl">
-								<Users className="text-blue-light-500 dark:text-blue-light-400 h-8 w-8" />
-							</div>
-							<h3 className="mb-2 font-semibold text-gray-900 dark:text-white">OSINT Graphs</h3>
-							<p className="text-center text-sm text-gray-600 dark:text-gray-400">
-								See links across people, assets, and entities
-							</p>
-						</div>
-
-						<div className="flex flex-col items-center">
-							<div className="bg-success-100 dark:bg-success-500/20 mb-4 flex h-16 w-16 items-center justify-center rounded-2xl">
-								<Zap className="text-success-500 dark:text-success-400 h-8 w-8" />
-							</div>
-							<h3 className="mb-2 font-semibold text-gray-900 dark:text-white">Real‑time Intel</h3>
-							<p className="text-center text-sm text-gray-600 dark:text-gray-400">
-								Monitor threats and updates continuously
-							</p>
-						</div>
+						))}
 					</div>
 				</div>
 			</div>
-			<Lightbox open={introOpen} onClose={closeIntro} ariaLabel="Paperboat intro video">
-				<div className="flex flex-col">
-					<video
-						ref={videoRef}
-						src="/videos/paperboatcrm-intro.mp4"
-						autoPlay
-						playsInline
-						onTimeUpdate={handleTimeUpdate}
-						onLoadedMetadata={handleLoadedMetadata}
-						onPause={() => setIsPlaying(false)}
-						onPlay={() => setIsPlaying(true)}
-						className="aspect-video w-full bg-black"
-					/>
-					<div className="flex items-center justify-between gap-4 bg-gradient-to-r from-gray-950 via-gray-900 to-black px-6 py-4">
-						<div className="flex items-center gap-3">
-							<button
-								type="button"
-								onClick={togglePlay}
-								className="hover:bg-brand-500 inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-gray-900 transition hover:text-white"
-								aria-label={isPlaying ? 'Pause intro video' : 'Play intro video'}
-							>
-								{isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-							</button>
-							<button
-								type="button"
-								onClick={toggleMute}
-								className="hover:border-brand-400 hover:text-brand-300 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 text-white transition"
-								aria-label={isMuted ? 'Unmute intro video' : 'Mute intro video'}
-							>
-								{isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-							</button>
-							<input
-								type="range"
-								min={0}
-								max={1}
-								step={0.05}
-								value={volume}
-								onChange={handleVolumeChange}
-								className="accent-brand-400 h-1 w-28"
-								aria-label="Volume"
-							/>
-							<button
-								type="button"
-								onClick={handleReplay}
-								className="hover:border-brand-400 hover:text-brand-300 inline-flex h-12 w-12 items-center justify-center rounded-full border border-white/20 text-white transition"
-								aria-label="Replay intro video"
-							>
-								<RotateCcw className="h-5 w-5" />
-							</button>
-						</div>
-						<div className="flex flex-1 items-center gap-4">
-							<input
-								type="range"
-								min={0}
-								max={duration || 0}
-								step={0.1}
-								value={progress}
-								onChange={handleScrub}
-								className="accent-brand-400 flex-1"
-								aria-label="Video progress"
-							/>
-							<span className="w-16 text-right text-sm font-medium text-white/80">
-								{formattedTime}
-							</span>
-						</div>
-					</div>
-				</div>
-			</Lightbox>
 		</section>
 	);
 };

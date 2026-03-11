@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { AlertTriangle, Pause, Shield, CreditCard, Play, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, Pause, Shield, CreditCard, Play, RefreshCcw, LogOut } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { STRIPE_CUSTOMER_PORTAL_URL, canManageBilling } from '../../utils/billing';
 import { OrganizationRow } from '../../types/billing';
 import SeamlessBillingFlow from '../billing/SeamlessBillingFlow';
+import { useAuth } from '../../hooks/useAuth';
 
 interface ReadOnlyModeProps {
 	children: React.ReactNode;
@@ -34,10 +35,16 @@ export const ReadOnlyMode: React.FC<ReadOnlyModeProps> = ({
 	onStartNewSubscription
 }) => {
 	const [showRenewalFlow, setShowRenewalFlow] = useState(false);
+	const { signOut } = useAuth();
 
 	if (!isReadOnly) {
 		return <>{children}</>;
 	}
+
+	const handleLogout = async () => {
+		await signOut();
+		window.location.href = '/signin';
+	};
 
 	const isOrgOwner = !!userId && organization?.owner_id === userId;
 	const canManage = canManageBilling(userRole) || isOrgOwner;
@@ -51,7 +58,7 @@ export const ReadOnlyMode: React.FC<ReadOnlyModeProps> = ({
 					icon: <AlertTriangle className="h-5 w-5" />,
 					title: 'Subscription Ended',
 					message: canManage
-						? 'Start a new subscription to regain access to Sharkly.'
+						? 'Start a new subscription to regain access to Paperboat CRM.'
 						: 'Your subscription has ended. An owner or admin can restart it.',
 					showResume: false,
 					showManagePortal: false,
@@ -185,6 +192,23 @@ export const ReadOnlyMode: React.FC<ReadOnlyModeProps> = ({
 										Only an organization owner or admin can manage billing.
 									</p>
 								)}
+								<p className="mt-5 block text-xs text-gray-500 dark:text-gray-400">
+									Need help? Contact our support team at hello@paperboatcrm.com
+								</p>
+
+								{/* Logout option - always visible */}
+								<div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+									<p className="mb-2 text-xs text-gray-500 dark:text-gray-400">Wrong account?</p>
+									<Button
+										onClick={handleLogout}
+										variant="ghost"
+										size="sm"
+										className="w-full text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+									>
+										<LogOut className="mr-2 h-4 w-4" />
+										Sign out
+									</Button>
+								</div>
 							</div>
 						</CardContent>
 					</Card>

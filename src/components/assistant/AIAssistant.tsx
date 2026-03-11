@@ -14,8 +14,6 @@ import {
   Sparkles,
   Search,
   FileText,
-  Phone,
-  Mail,
   CheckCircle2,
   AlertCircle,
   Lightbulb,
@@ -28,227 +26,26 @@ import {
   Image,
   FileSpreadsheet,
   ExternalLink,
-  Building2,
-  UserSearch,
   Globe,
-  Heart,
   ShieldCheck,
-  ShieldAlert,
-  UserCircle,
   Server,
-  Shield,
-  MapPin,
   Menu,
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { cn } from '../../utils/common';
 
-// Tool icons, labels, and result paths
-// All major actions should have resultPath for View button
+// Tool icons, labels, and result paths — Sharkly SEO tools only
 const TOOL_CONFIG: Record<string, { icon: typeof Search; label: string; color: string; resultPath?: (result: any) => string | null }> = {
-  // Core investigation tools
-  run_public_presence: { 
-    icon: Globe, 
-    label: 'Public Presence Scan', 
-    color: 'text-indigo-500',
-    resultPath: (result) => result?.run_id ? `/runs/${result.run_id}` : null,
-  },
-  find_subject_for_action: { icon: UserSearch, label: 'Finding Subject', color: 'text-cyan-500' },
-  create_subject: { 
-    icon: Sparkles, 
-    label: 'Creating Subject', 
-    color: 'text-green-500',
-    resultPath: (result) => {
-      if (result?.person_id) return `/people/${result.person_id}`;
-      if (result?.business_id) return `/businesses/${result.business_id}`;
-      return null;
-    },
-  },
-  lookup_phone: { 
-    icon: Phone, 
-    label: 'Phone Lookup', 
-    color: 'text-green-500',
-    resultPath: (result) => result?.phone_id ? `/phones/${result.phone_id}` : null,
-  },
-  lookup_email: { 
-    icon: Mail, 
-    label: 'Email Lookup', 
-    color: 'text-blue-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  search_case_entities: { icon: Search, label: 'Searching Records', color: 'text-gray-500' },
-  search_business_emails: { 
-    icon: Building2, 
-    label: 'Finding Business Emails', 
-    color: 'text-orange-500',
-    resultPath: (result) => {
-      if (result?.domain_id) return `/domains/${result.domain_id}`;
-      if (result?.business_id) return `/businesses/${result.business_id}`;
-      return null;
-    },
-  },
-  get_person_summary: { 
-    icon: FileText, 
-    label: 'Getting Summary', 
-    color: 'text-purple-500',
-    resultPath: (result) => result?.person_id ? `/people/${result.person_id}` : null,
-  },
-  get_business_summary: { 
-    icon: Building2, 
-    label: 'Getting Business Summary', 
-    color: 'text-purple-500',
-    resultPath: (result) => result?.business_id ? `/businesses/${result.business_id}` : null,
-  },
-  add_case_note: { icon: FileText, label: 'Adding Note', color: 'text-yellow-500' },
-  draft_report_section: { icon: FileText, label: 'Drafting Report', color: 'text-orange-500' },
-  create_entity: { 
-    icon: Sparkles, 
-    label: 'Creating Record', 
-    color: 'text-pink-500',
-    resultPath: (result) => {
-      if (result?.email_id) return `/emails/${result.email_id}`;
-      if (result?.phone_id) return `/phones/${result.phone_id}`;
-      if (result?.person_id) return `/people/${result.person_id}`;
-      return null;
-    },
-  },
-  suggest_next_steps: { icon: Sparkles, label: 'Analyzing Case', color: 'text-cyan-500' },
-  explain_capability: { icon: Sparkles, label: 'Explaining', color: 'text-gray-500' },
-  
-  // Site Registration Scan (email account discovery)
-  holehe_check_email: {
-    icon: Heart,
-    label: 'Site Registration Scan',
-    color: 'text-pink-500',
-    resultPath: (result) => result?.view_url || (result?.email_id ? `/emails/${result.email_id}?action=site_scan` : null),
-  },
-  // Username Search (account discovery)
-  search_username_accounts: {
-    icon: UserSearch,
-    label: 'Username Search',
-    color: 'text-orange-500',
-    resultPath: (result) => result?.view_url || (result?.username_id ? `/usernames/${result.username_id}?action=username_search` : null),
-  },
-  // Breach Check (Have I Been Pwned)
-  check_email_breaches: {
-    icon: ShieldAlert,
-    label: 'Breach Check',
-    color: 'text-red-500',
-    resultPath: (result) => result?.view_url || (result?.email_id ? `/emails/${result.email_id}?action=breach_check` : null),
-  },
-  // Deep Breach Search
-  deep_breach_search: {
-    icon: ShieldAlert,
-    label: 'Deep Breach Search',
-    color: 'text-red-600',
-    resultPath: (result) => result?.view_url || (result?.email_id ? `/emails/${result.email_id}?action=deep_breach` : null),
-  },
-  // Court Records
-  search_court_records: {
-    icon: FileText,
-    label: 'Court Records Search',
-    color: 'text-amber-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  search_party_records: {
-    icon: FileText,
-    label: 'Party Records Search',
-    color: 'text-amber-500',
-    resultPath: (result) => result?.view_url || null,
-  },
-  search_bankruptcy_records: {
-    icon: AlertCircle,
-    label: 'Bankruptcy Search',
-    color: 'text-red-500',
-    resultPath: (result) => result?.view_url || null,
-  },
-  search_judge_records: {
-    icon: FileText,
-    label: 'Judge Lookup',
-    color: 'text-purple-500',
-    resultPath: (result) => result?.view_url || null,
-  },
-  search_financial_disclosures: {
-    icon: FileText,
-    label: 'Financial Disclosures',
-    color: 'text-green-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-
-  // Phone lookup
-  phone_carrier_lookup: {
-    icon: Phone,
-    label: 'Phone Carrier Lookup',
-    color: 'text-emerald-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  
-  // Domain intelligence
-  dns_lookup: {
-    icon: Server,
-    label: 'DNS Lookup',
-    color: 'text-cyan-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  whois_lookup: {
-    icon: Shield,
-    label: 'WHOIS Lookup',
-    color: 'text-indigo-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-
-  // IP intelligence
-  ip_geolocation: {
-    icon: MapPin,
-    label: 'IP Geolocation',
-    color: 'text-orange-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  reverse_dns: {
-    icon: Globe,
-    label: 'Reverse DNS',
-    color: 'text-teal-600',
-    resultPath: (result) => result?.view_url || null,
-  },
-  
-  // Email intelligence tools
-  hunter_domain_search: {
-    icon: Mail,
-    label: 'Email Discovery',
-    color: 'text-blue-500',
-    resultPath: (result) => result?.domain_id ? `/domains/${result.domain_id}` : null,
-  },
-  hunter_email_finder: {
-    icon: UserSearch,
-    label: 'Email Finder',
-    color: 'text-cyan-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  hunter_email_verify: {
-    icon: ShieldCheck,
-    label: 'Email Verification',
-    color: 'text-green-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  hunter_enrich_person: {
-    icon: UserCircle,
-    label: 'Person Enrichment',
-    color: 'text-purple-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  hunter_enrich_company: {
-    icon: Building2,
-    label: 'Company Enrichment',
-    color: 'text-orange-500',
-    resultPath: (result) => result?.domain_id ? `/domains/${result.domain_id}` : null,
-  },
-  hunter_full_enrichment: {
-    icon: Sparkles,
-    label: 'Full Enrichment',
-    color: 'text-indigo-500',
-    resultPath: (result) => result?.email_id ? `/emails/${result.email_id}` : null,
-  },
-  hunter_email_count: { icon: Mail, label: 'Email Count', color: 'text-gray-500' },
+  get_sites_summary: { icon: Globe, label: 'Listing Sites', color: 'text-indigo-500' },
+  get_site_details: { icon: FileText, label: 'Getting Site Details', color: 'text-blue-500', resultPath: (r) => r?.id ? `/sites` : null },
+  get_clusters_summary: { icon: Search, label: 'Loading Clusters', color: 'text-purple-500' },
+  get_cluster_details: { icon: FileText, label: 'Getting Cluster Details', color: 'text-purple-500', resultPath: (r) => r?.id ? `/clusters/${r.id}` : null },
+  get_page_summary: { icon: FileText, label: 'Getting Page', color: 'text-amber-500', resultPath: (r) => r?.id ? `/workspace/${r.id}` : null },
+  get_audit_summary: { icon: ShieldCheck, label: 'Getting Audit', color: 'text-green-500' },
+  get_weekly_priority_stack: { icon: Sparkles, label: 'Loading Priorities', color: 'text-cyan-500' },
+  get_refresh_queue: { icon: FileText, label: 'Loading Refresh Queue', color: 'text-orange-500' },
+  suggest_next_actions: { icon: Lightbulb, label: 'Suggesting Actions', color: 'text-cyan-500' },
+  trigger_technical_audit: { icon: Server, label: 'Starting Technical Audit', color: 'text-red-500' },
 };
 
 // File type icons
@@ -479,12 +276,12 @@ function FilePreview({ file, onRemove }: { file: AttachedFile; onRemove: () => v
 }
 
 const QUICK_PROMPTS = [
-  { icon: Search, text: 'Run a public presence scan for John Doe', category: 'search' },
-  { icon: Mail, text: 'Find emails for Acme Corporation', category: 'search' },
-  { icon: Lightbulb, text: 'What can you help me with?', category: 'explain' },
-  { icon: Target, text: 'How do I find someone\'s work email?', category: 'explain' },
-  { icon: FileText, text: 'Draft an executive summary', category: 'report' },
-  { icon: Users, text: 'Suggest next investigative steps', category: 'suggest' },
+  { icon: Lightbulb, text: 'What should I focus on?', category: 'suggest' },
+  { icon: Search, text: 'How\'s my site doing?', category: 'audit' },
+  { icon: FileText, text: 'Which pages need the most work?', category: 'audit' },
+  { icon: Target, text: 'What can you help me with?', category: 'explain' },
+  { icon: Zap, text: 'Run a technical audit for my site', category: 'audit' },
+  { icon: Users, text: 'Suggest next actions for my SEO', category: 'suggest' },
 ];
 
 const ALLOWED_FILE_TYPES = [
@@ -646,21 +443,21 @@ const AIAssistant: React.FC = () => {
                 <Bot className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Vera</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Your investigator assistant</p>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Fin</h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Your SEO assistant — read data, explain findings, suggest actions</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button 
+              <Button
                 onClick={() => setActionsDrawerOpen(true)}
                 className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
               >
                 <Menu className="w-4 h-4 mr-2" />
                 Actions
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleNewChat}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
@@ -678,10 +475,10 @@ const AIAssistant: React.FC = () => {
                 <Sparkles className="w-10 h-10 text-indigo-500" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">
-                Hi, I'm Vera
+                How can I help?
               </h2>
               <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-md">
-                Your investigator assistant. I can search for people, look up contact info, analyze your findings, suggest next steps, and help draft reports.
+                I'm Fin, your SEO assistant. I can read your sites and clusters, explain audit findings, suggest next actions, and help prioritize what to fix. Ask me "what should I do?" or "how's my site doing?"
               </p>
               
               {/* Quick Prompts Grid */}
@@ -705,28 +502,20 @@ const AIAssistant: React.FC = () => {
                 <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-4">CAPABILITIES</h3>
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                    <Zap className="w-4 h-4 text-indigo-500" />
-                    <span>Run OSINT scans</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                     <Search className="w-4 h-4 text-indigo-500" />
-                    <span>Search your data</span>
+                    <span>Read sites & clusters</span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                     <FileText className="w-4 h-4 text-indigo-500" />
-                    <span>Draft reports</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                    <Phone className="w-4 h-4 text-indigo-500" />
-                    <span>Look up phones</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
-                    <Mail className="w-4 h-4 text-indigo-500" />
-                    <span>Verify emails</span>
+                    <span>Explain audit findings</span>
                   </div>
                   <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
                     <Lightbulb className="w-4 h-4 text-indigo-500" />
-                    <span>Suggest next steps</span>
+                    <span>Suggest priorities</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-600 dark:text-gray-300">
+                    <Zap className="w-4 h-4 text-indigo-500" />
+                    <span>Trigger audits (Scale+)</span>
                   </div>
                 </div>
               </div>
@@ -739,99 +528,41 @@ const AIAssistant: React.FC = () => {
               ))}
               
               {/* Major tool executions as panels */}
-              {currentTools.length > 0 && currentTools.map((tool, i) => {
+              {currentTools.length > 0 && (() => {
                 const majorActions = [
-                  'run_public_presence', 
-                  'search_business_emails', 
-                  'create_subject',
-                  'holehe_check_email',
-                  'search_username_accounts',
-                  'check_email_breaches',
-                  'deep_breach_search',
-                  'search_court_records',
-                  'search_party_records',
-                  'search_bankruptcy_records',
-                  'search_judge_records',
-                  'search_financial_disclosures',
-                  'phone_carrier_lookup',
-                  'dns_lookup',
-                  'whois_lookup',
-                  'ip_geolocation',
-                  'reverse_dns',
-                  'hunter_domain_search',
-                  'hunter_email_finder',
-                  'hunter_email_verify',
-                  'hunter_enrich_person',
-                  'hunter_enrich_company',
-                  'hunter_full_enrichment',
+                  'get_sites_summary', 'get_site_details', 'get_clusters_summary', 'get_cluster_details',
+                  'get_audit_summary', 'get_weekly_priority_stack', 'get_refresh_queue', 'trigger_technical_audit',
+                  'suggest_next_actions',
                 ];
-                if (majorActions.includes(tool.name)) {
-                  return <ToolExecutionPanel key={`${tool.name}-${i}`} tool={tool} />;
-                }
-                return null;
-              })}
-              
-              {/* Minor tool executions as badges */}
-              {currentTools.filter(tool => ![
-                'run_public_presence', 
-                'search_business_emails', 
-                'create_subject',
-                'holehe_check_email',
-                'search_username_accounts',
-                'check_email_breaches',
-                'deep_breach_search',
-                'search_court_records',
-                'search_party_records',
-                'search_bankruptcy_records',
-                'search_judge_records',
-                'search_financial_disclosures',
-                'phone_carrier_lookup',
-                'dns_lookup',
-                'whois_lookup',
-                'ip_geolocation',
-                'reverse_dns',
-                'hunter_domain_search',
-                'hunter_email_finder',
-                'hunter_email_verify',
-                'hunter_enrich_person',
-                'hunter_enrich_company',
-                'hunter_full_enrichment',
-              ].includes(tool.name)).length > 0 && (
-                <div className="flex flex-wrap gap-2 py-4 pl-14">
-                  {currentTools.filter(tool => ![
-                    'run_public_presence', 
-                    'search_business_emails', 
-                    'create_subject',
-                    'holehe_check_email',
-                    'search_username_accounts',
-                    'check_email_breaches',
-                    'deep_breach_search',
-                    'search_court_records',
-                    'search_party_records',
-                    'search_bankruptcy_records',
-                    'search_judge_records',
-                    'search_financial_disclosures',
-                    'phone_carrier_lookup',
-                    'dns_lookup',
-                    'whois_lookup',
-                    'ip_geolocation',
-                    'reverse_dns',
-                    'hunter_domain_search',
-                    'hunter_email_finder',
-                    'hunter_email_verify',
-                    'hunter_enrich_person',
-                    'hunter_enrich_company',
-                    'hunter_full_enrichment',
-                  ].includes(tool.name)).map((tool, i) => (
-                    <ToolExecutionBadge key={`${tool.name}-${i}`} tool={tool} />
-                  ))}
-                </div>
-              )}
+                return (
+                  <>
+                    {currentTools.map((tool, i) =>
+                      majorActions.includes(tool.name) ? <ToolExecutionPanel key={`${tool.name}-${i}`} tool={tool} /> : null
+                    )}
+                    {currentTools.filter(t => !majorActions.includes(t.name)).length > 0 && (
+                      <div className="flex flex-wrap gap-2 py-4 pl-14">
+                        {currentTools.filter(t => !majorActions.includes(t.name)).map((tool, i) => (
+                          <ToolExecutionBadge key={`${tool.name}-${i}`} tool={tool} />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               
               <div ref={messagesEndRef} />
             </div>
           )}
         </div>
+
+        {/* Quick Actions Drawer */}
+        <QuickActionsDrawer
+          isOpen={actionsDrawerOpen}
+          onClose={() => setActionsDrawerOpen(false)}
+          onSelectAction={handleActionSelect}
+          creditsAvailable={organization?.included_credits_remaining ?? organization?.included_credits ?? 0}
+          creditsIncluded={organization?.included_credits_monthly ?? organization?.included_credits ?? 0}
+        />
 
         {/* Input Area */}
         <div className="flex-shrink-0 p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
@@ -922,13 +653,6 @@ const AIAssistant: React.FC = () => {
       </div>
 
       {/* Quick Actions Drawer */}
-      <QuickActionsDrawer
-        isOpen={actionsDrawerOpen}
-        onClose={() => setActionsDrawerOpen(false)}
-        onSelectAction={handleActionSelect}
-        creditsAvailable={organization?.included_credits_remaining || 0}
-        creditsIncluded={organization?.included_credits_monthly || 0}
-      />
     </div>
   );
 };

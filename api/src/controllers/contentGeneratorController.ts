@@ -9,18 +9,12 @@
 import { Request, Response } from 'express';
 import { OpenAI } from 'openai';
 import { supabase } from '../utils/supabaseClient';
+import { CREDIT_COSTS } from '../../../shared/credits.mjs';
 
+const GPT_CONTENT_MODEL = process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini';
 const openai = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY
 });
-
-const CREDIT_COSTS = {
-	metaTitles: 6, // 3 for titles + 3 for descriptions
-	productDescription: 10,
-	faq: 5,
-	sectionRewrite: 5,
-	toneAdjustment: 3
-};
 
 /**
  * POST /api/content/meta-suggestions
@@ -38,7 +32,7 @@ export async function generateMetaSuggestions(req: Request, res: Response): Prom
 
 		// Generate meta titles and descriptions via GPT
 		const completion = await openai.chat.completions.create({
-			model: 'gpt-4o-mini',
+			model: GPT_CONTENT_MODEL,
 			messages: [
 				{
 					role: 'system',
@@ -71,7 +65,7 @@ Requirements:
 		// Spend credits using RPC (handles included + wallet automatically)
 		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
 			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.metaTitles,
+			p_credits: CREDIT_COSTS.META_GENERATION,
 			p_reference_type: 'content_generation',
 			p_reference_id: null,
 			p_description: `Meta suggestions for keyword: ${keyword}`
@@ -80,7 +74,7 @@ Requirements:
 		if (spendError || !spendResult?.ok) {
 			res.status(402).json({
 				error: 'Insufficient credits',
-				required: CREDIT_COSTS.metaTitles,
+				required: CREDIT_COSTS.META_GENERATION,
 				needs_topup: spendResult?.reason?.includes('insufficient') || false
 			});
 			return;
@@ -94,7 +88,7 @@ Requirements:
 					titles: suggestions.titles || [],
 					descriptions: suggestions.descriptions || []
 				},
-				creditsUsed: CREDIT_COSTS.metaTitles
+				creditsUsed: CREDIT_COSTS.META_GENERATION
 			}
 		});
 	} catch (error) {
@@ -119,7 +113,7 @@ export async function rewriteProductDescription(req: Request, res: Response): Pr
 
 		// Generate rewritten descriptions via GPT
 		const completion = await openai.chat.completions.create({
-			model: 'gpt-4o-mini',
+			model: GPT_CONTENT_MODEL,
 			messages: [
 				{
 					role: 'system',
@@ -154,7 +148,7 @@ Each version should:
 		// Spend credits using RPC (handles included + wallet automatically)
 		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
 			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.productDescription,
+			p_credits: CREDIT_COSTS.PRODUCT_DESCRIPTION,
 			p_reference_type: 'content_generation',
 			p_reference_id: null,
 			p_description: `Product description rewrite for: ${productName}`
@@ -163,7 +157,7 @@ Each version should:
 		if (spendError || !spendResult?.ok) {
 			res.status(402).json({
 				error: 'Insufficient credits',
-				required: CREDIT_COSTS.productDescription,
+				required: CREDIT_COSTS.PRODUCT_DESCRIPTION,
 				needs_topup: spendResult?.reason?.includes('insufficient') || false
 			});
 			return;
@@ -174,7 +168,7 @@ Each version should:
 			data: {
 				productName,
 				suggestions: suggestions.descriptions || [],
-				creditsUsed: CREDIT_COSTS.productDescription
+				creditsUsed: CREDIT_COSTS.PRODUCT_DESCRIPTION
 			}
 		});
 	} catch (error) {
@@ -199,7 +193,7 @@ export async function generateFAQ(req: Request, res: Response): Promise<void> {
 
 		// Generate FAQ via GPT
 		const completion = await openai.chat.completions.create({
-			model: 'gpt-4o-mini',
+			model: GPT_CONTENT_MODEL,
 			messages: [
 				{
 					role: 'system',
@@ -236,7 +230,7 @@ Generate 8 questions/answers that:
 		// Spend credits using RPC (handles included + wallet automatically)
 		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
 			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.faq,
+			p_credits: CREDIT_COSTS.FAQ_GENERATION,
 			p_reference_type: 'content_generation',
 			p_reference_id: null,
 			p_description: `FAQ generation for: ${topic}`
@@ -245,7 +239,7 @@ Generate 8 questions/answers that:
 		if (spendError || !spendResult?.ok) {
 			res.status(402).json({
 				error: 'Insufficient credits',
-				required: CREDIT_COSTS.faq,
+				required: CREDIT_COSTS.FAQ_GENERATION,
 				needs_topup: spendResult?.reason?.includes('insufficient') || false
 			});
 			return;
@@ -256,7 +250,7 @@ Generate 8 questions/answers that:
 			data: {
 				topic,
 				faqs: suggestions.faqs || [],
-				creditsUsed: CREDIT_COSTS.faq
+				creditsUsed: CREDIT_COSTS.FAQ_GENERATION
 			}
 		});
 	} catch (error) {
@@ -281,7 +275,7 @@ export async function rewriteSection(req: Request, res: Response): Promise<void>
 
 		// Generate rewritten sections via GPT
 		const completion = await openai.chat.completions.create({
-			model: 'gpt-4o-mini',
+			model: GPT_CONTENT_MODEL,
 			messages: [
 				{
 					role: 'system',
@@ -314,7 +308,7 @@ Each version should:
 		// Spend credits using RPC (handles included + wallet automatically)
 		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
 			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.sectionRewrite,
+			p_credits: CREDIT_COSTS.SECTION_REWRITE,
 			p_reference_type: 'content_generation',
 			p_reference_id: null,
 			p_description: 'Content section rewrite'
@@ -323,7 +317,7 @@ Each version should:
 		if (spendError || !spendResult?.ok) {
 			res.status(402).json({
 				error: 'Insufficient credits',
-				required: CREDIT_COSTS.sectionRewrite,
+				required: CREDIT_COSTS.SECTION_REWRITE,
 				needs_topup: spendResult?.reason?.includes('insufficient') || false
 			});
 			return;
@@ -333,7 +327,7 @@ Each version should:
 			success: true,
 			data: {
 				rewrites: suggestions.rewrites || [],
-				creditsUsed: CREDIT_COSTS.sectionRewrite
+				creditsUsed: CREDIT_COSTS.SECTION_REWRITE
 			}
 		});
 	} catch (error) {
@@ -364,7 +358,7 @@ export async function adjustTone(req: Request, res: Response): Promise<void> {
 
 		// Adjust tone via GPT
 		const completion = await openai.chat.completions.create({
-			model: 'gpt-4o-mini',
+			model: GPT_CONTENT_MODEL,
 			messages: [
 				{
 					role: 'system',
@@ -388,7 +382,7 @@ Return ONLY the rewritten content, no JSON, no markdown blocks.`
 		// Spend credits using RPC (handles included + wallet automatically)
 		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
 			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.toneAdjustment,
+			p_credits: CREDIT_COSTS.TONE_ADJUSTMENT,
 			p_reference_type: 'content_generation',
 			p_reference_id: null,
 			p_description: `Tone adjustment to: ${targetTone}`
@@ -397,7 +391,7 @@ Return ONLY the rewritten content, no JSON, no markdown blocks.`
 		if (spendError || !spendResult?.ok) {
 			res.status(402).json({
 				error: 'Insufficient credits',
-				required: CREDIT_COSTS.toneAdjustment,
+				required: CREDIT_COSTS.TONE_ADJUSTMENT,
 				needs_topup: spendResult?.reason?.includes('insufficient') || false
 			});
 			return;
@@ -409,7 +403,7 @@ Return ONLY the rewritten content, no JSON, no markdown blocks.`
 				originalTone: 'original',
 				targetTone,
 				rewritten,
-				creditsUsed: CREDIT_COSTS.toneAdjustment
+				creditsUsed: CREDIT_COSTS.TONE_ADJUSTMENT
 			}
 		});
 	} catch (error) {

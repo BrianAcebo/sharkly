@@ -10,7 +10,7 @@ const Testimonials: React.FC = () => {
 			avatar:
 				'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
 			content:
-				'Sharkly has revolutionized our SEO process. The AI assistant handles initial outreach and qualification, allowing our team to focus on closing deals. Our conversion rates have increased by 40%.',
+				'Sharkly has revolutionized our SEO process. Fin surfaces priorities and suggests next actions so our team focuses on high-impact work. Our organic traffic is up 40%.',
 			rating: 5,
 			industry: 'SaaS'
 		},
@@ -21,7 +21,7 @@ const Testimonials: React.FC = () => {
 			avatar:
 				'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
 			content:
-				'The automated sequences and knowledge base features ensure consistent messaging across our entire sales team. The AI qualification has helped us identify high-value prospects much faster.',
+				'The cluster intelligence and content briefs keep our entire team aligned. Fin helps us spot low-scoring pages and prioritize fixes—we ship improvements faster.',
 			rating: 5,
 			industry: 'Consulting'
 		},
@@ -32,7 +32,7 @@ const Testimonials: React.FC = () => {
 			avatar:
 				'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?auto=compress&cs=tinysrgb&w=150&h=150&dpr=2',
 			content:
-				'Having an AI assistant that can investigate cases 24/7 has been a game-changer. Our response times went from hours to minutes, and the lead qualification accuracy is impressive.',
+				'Fin gives us instant summaries of our audit results and priority stack. We know exactly what to fix next—no more guessing. Game-changer for our SEO workflow.',
 			rating: 5,
 			industry: 'Technology'
 		}

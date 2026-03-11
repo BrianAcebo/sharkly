@@ -36,6 +36,9 @@ export default function OnboardingForm() {
 	const [platform, setPlatform] = useState('custom');
 	const [customerDescription, setCustomerDescription] = useState('');
 
+	// Step 2 — domain authority
+	const [domainAuthority, setDomainAuthority] = useState(10);
+
 	// Step 3
 	const [competitor1, setCompetitor1] = useState('');
 	const [competitor2, setCompetitor2] = useState('');
@@ -120,7 +123,8 @@ export default function OnboardingForm() {
 					niche: niche.trim(),
 					customerDescription: customerDescription.trim(),
 					platform,
-					competitorUrls
+					competitorUrls,
+					domainAuthority
 				})
 			});
 
@@ -234,6 +238,30 @@ export default function OnboardingForm() {
 								className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
 								rows={2}
 							/>
+						</div>
+						<div>
+							<Label htmlFor="domainAuthority">
+								Domain Authority (DA): <span className="font-bold text-gray-900 dark:text-white">{domainAuthority}</span>
+							</Label>
+							<input
+								id="domainAuthority"
+								type="range"
+								min={0}
+								max={100}
+								value={domainAuthority}
+								onChange={(e) => setDomainAuthority(Number(e.target.value))}
+								className="w-full accent-brand-500"
+							/>
+							<div className="mt-1 flex justify-between text-[11px] text-gray-400 dark:text-gray-500">
+								<span>New site (0)</span>
+								<span>Established (100)</span>
+							</div>
+							<p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+								Find your free DA at{' '}
+								<a href="https://moz.com/domain-analysis" target="_blank" rel="noopener noreferrer" className="underline hover:text-brand-500">
+									moz.com/domain-analysis
+								</a>. New sites start around 1–5.
+							</p>
 						</div>
 						<Button variant="primary" fullWidth onClick={handleStep2Continue}>
 							Continue

@@ -15,6 +15,8 @@ import { HttpError } from '../../utils/error';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
 import SeamlessBillingFlow from '../../components/billing/SeamlessBillingFlow';
 import UpfrontBillingDisclaimer from '../../components/billing/UpfrontBillingDisclaimer';
+import { useOrganization } from '../../hooks/useOrganization';
+import { AlertCircle } from 'lucide-react';
 
 // Initialize Stripe
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -350,6 +352,7 @@ export default function OrganizationRequired() {
 	});
 	const [showSeamlessBilling, setShowSeamlessBilling] = useState(false);
 	const { setTitle } = useBreadcrumbs();
+	const { organization: currentOrg } = useOrganization();
 
 	useEffect(() => {
 		setTitle('Organization Required');
@@ -359,22 +362,46 @@ export default function OrganizationRequired() {
 		return <SeamlessBillingFlow onClose={() => setShowSeamlessBilling(false)} />;
 	}
 
+	const isIncompleteSubscription = 
+		currentOrg?.stripe_status === 'incomplete' || 
+		currentOrg?.stripe_status === 'incomplete_expired';
+	const isPaymentPending = currentOrg?.status === 'payment_pending';
+	const isPaymentRequired = currentOrg?.status === 'payment_required';
+	const hasIncompletePayment = isIncompleteSubscription || isPaymentPending || isPaymentRequired;
+
 	return (
 		<div className="flex h-full flex-col items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8 dark:bg-gray-900">
 			<div className="w-full max-w-md space-y-8">
 				<div className="text-center">
+					{hasIncompletePayment && (
+						<div className="mb-8 rounded-lg bg-red-50 p-4 dark:bg-red-900/20">
+							<div className="flex items-start gap-3">
+								<AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+								<div className="text-left">
+									<h3 className="font-semibold text-red-900 dark:text-red-100">
+										Payment Confirmation Required
+									</h3>
+									<p className="mt-1 text-sm text-red-800 dark:text-red-200">
+										Your subscription payment is incomplete. Please complete the payment process to continue using the app.
+									</p>
+								</div>
+							</div>
+						</div>
+					)}
 					<h1 className="mt-6 text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-						Organization Required
+						{hasIncompletePayment ? 'Complete Your Payment' : 'Organization Required'}
 					</h1>
 					<p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-						You need to be part of an organization to use this feature.
+						{hasIncompletePayment 
+							? 'Finalize your subscription to access all features'
+							: 'You need to be part of an organization to use this feature.'}
 					</p>
 					<Button
 						size="sm"
 						onClick={() => setShowSeamlessBilling(true)}
 						className="mx-auto mt-6 block w-40"
 					>
-						Get Started
+						{hasIncompletePayment ? 'Complete Payment' : 'Get Started'}
 					</Button>
 				</div>
 

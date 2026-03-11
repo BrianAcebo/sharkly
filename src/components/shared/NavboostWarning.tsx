@@ -1,6 +1,6 @@
 /**
  * V1 — Section 12.2
- * Shown when CTR < 2% with declining 4-week trend (Navboost risk).
+ * Shown when CTR < 2% with weakening 4-week trend (CTR momentum risk).
  * Amber badge; links to CTR optimization action (3 credits).
  */
 import React from 'react';
@@ -29,7 +29,7 @@ export function NavboostWarning({ pageId, keyword }: Props) {
 				</p>
 				<Link
 					to={optimizeUrl}
-					className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-700 dark:text-amber-300 hover:underline"
+					className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-700 hover:underline dark:text-amber-300"
 				>
 					<TrendingDown className="size-3.5" />
 					Optimize title (3 credits)

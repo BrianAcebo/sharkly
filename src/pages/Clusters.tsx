@@ -9,6 +9,7 @@ import { cn } from '../utils/common';
 import { useSiteContext } from '../contexts/SiteContext';
 import { useClusters } from '../hooks/useClusters';
 import { useTopics } from '../hooks/useTopics';
+import { useTargets } from '../hooks/useTargets';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
 import {
@@ -47,15 +48,27 @@ export default function Clusters() {
 	const { selectedSite } = useSiteContext();
 	const { clusters, loading, refetch: refetchClusters } = useClusters(selectedSite?.id ?? null);
 	const { topics, refetch: refetchTopics } = useTopics(selectedSite?.id ?? null);
+	const { targets } = useTargets(selectedSite?.id ?? null);
 
 	const [createOpen, setCreateOpen] = useState(false);
 	const [createSubmitting, setCreateSubmitting] = useState(false);
-	const [createForm, setCreateForm] = useState({ topicId: '', title: '', targetKeyword: '' });
+	const [createForm, setCreateForm] = useState({
+		topicId: '',
+		title: '',
+		targetKeyword: '',
+		destinationPageUrl: '',
+		destinationPageLabel: ''
+	});
 	const [topicPopoverOpen, setTopicPopoverOpen] = useState(false);
 
 	const [editCluster, setEditCluster] = useState<Cluster | null>(null);
 	const [editSubmitting, setEditSubmitting] = useState(false);
-	const [editForm, setEditForm] = useState({ title: '', targetKeyword: '' });
+	const [editForm, setEditForm] = useState({
+		title: '',
+		targetKeyword: '',
+		destinationPageUrl: '',
+		destinationPageLabel: ''
+	});
 
 	const [deleteCluster, setDeleteCluster] = useState<Cluster | null>(null);
 	const [deleteSubmitting, setDeleteSubmitting] = useState(false);
@@ -75,6 +88,9 @@ export default function Clusters() {
 		}
 		const title = createForm.title.trim() || 'Untitled cluster';
 		const targetKeyword = createForm.targetKeyword.trim() || title;
+		const destUrl = createForm.destinationPageUrl.trim() || null;
+		const destLabel = createForm.destinationPageLabel.trim() || null;
+		const hasDestination = !!destUrl;
 		setCreateSubmitting(true);
 		try {
 			const { data: cluster, error: clusterErr } = await supabase
@@ -86,7 +102,12 @@ export default function Clusters() {
 					target_keyword: targetKeyword,
 					status: 'active',
 					funnel_coverage: { tofu: 0, mofu: 0, bofu: 0 },
-					completion_pct: 0
+					completion_pct: 0,
+					...(hasDestination && {
+						architecture: 'B',
+						destination_page_url: destUrl,
+						destination_page_label: destLabel || destUrl
+					})
 				})
 				.select('id')
 				.single();
@@ -117,7 +138,13 @@ export default function Clusters() {
 
 			toast.success('Cluster created');
 			setCreateOpen(false);
-			setCreateForm({ topicId: '', title: '', targetKeyword: '' });
+			setCreateForm({
+				topicId: '',
+				title: '',
+				targetKeyword: '',
+				destinationPageUrl: '',
+				destinationPageLabel: ''
+			});
 			await refetchClusters();
 			await refetchTopics();
 		} catch (err) {
@@ -131,26 +158,92 @@ export default function Clusters() {
 		e.preventDefault();
 		e.stopPropagation();
 		setEditCluster(cluster);
-		setEditForm({ title: cluster.title, targetKeyword: cluster.targetKeyword });
+		setEditForm({
+			title: cluster.title,
+			targetKeyword: cluster.targetKeyword,
+			destinationPageUrl: cluster.destinationPageUrl ?? '',
+			destinationPageLabel: cluster.destinationPageLabel ?? ''
+		});
 	}, []);
 
 	const handleEditSubmit = useCallback(async () => {
 		if (!editCluster) return;
 		setEditSubmitting(true);
 		try {
-			const { error } = await supabase
+			const newTitle = editForm.title.trim() || editCluster.title;
+			const newKeyword = editForm.targetKeyword.trim() || editCluster.targetKeyword;
+			const keywordChanged = newKeyword !== editCluster.targetKeyword;
+			const titleChanged = newTitle !== editCluster.title;
+
+			const destUrl = editForm.destinationPageUrl.trim() || null;
+			const destLabel = editForm.destinationPageLabel.trim() || null;
+			const hasDestination = !!destUrl;
+
+			// 1. Update the cluster
+			const { error: clusterErr } = await supabase
 				.from('clusters')
 				.update({
-					title: editForm.title.trim() || editCluster.title,
-					target_keyword: editForm.targetKeyword.trim() || editCluster.targetKeyword,
+					title: newTitle,
+					target_keyword: newKeyword,
+					...(hasDestination
+						? {
+								architecture: 'B',
+								destination_page_url: destUrl,
+								destination_page_label: destLabel || destUrl
+							}
+						: {
+								architecture: 'A',
+								destination_page_url: null,
+								destination_page_label: null
+							}),
 					updated_at: new Date().toISOString()
 				})
 				.eq('id', editCluster.id);
-			if (error) throw error;
+			if (clusterErr) throw clusterErr;
+
+			// 2. Sync the parent topic — keyword and title stay in lockstep
+			if (editCluster.topicId && (keywordChanged || titleChanged)) {
+				console.log('1');
+				const { error: topicErr, count } = await supabase
+					.from('topics')
+					.update({
+						...(keywordChanged && { keyword: newKeyword }),
+						...(titleChanged && { title: newTitle })
+					})
+					.eq('id', editCluster.topicId)
+					.single();
+				if (topicErr) {
+					console.error('[ClusterDetail] Topic sync error:', topicErr);
+					throw new Error(`Cluster saved but topic sync failed: ${topicErr.message}`);
+				}
+				if (count === 0) {
+					console.warn(
+						'[ClusterDetail] Topic sync: 0 rows updated — RLS may be blocking. Run migration: 2026-03-04_topics_update_rls.sql'
+					);
+					throw new Error(
+						'Cluster saved but topic sync was blocked. Run the topics update RLS migration in Supabase.'
+					);
+				}
+			} else if (!editCluster.topicId) {
+				console.warn('[ClusterDetail] No topicId on cluster — cannot sync to parent topic');
+			}
+
+			// 3. Sync the cluster's focus page keyword so the workspace uses the right keyword
+			if (keywordChanged) {
+				console.log('2');
+				const { error: pageErr } = await supabase
+					.from('pages')
+					.update({ keyword: newKeyword })
+					.eq('cluster_id', editCluster.id)
+					.eq('type', 'focus_page');
+				if (pageErr)
+					console.warn('[ClusterDetail] Focus page keyword sync error:', pageErr.message);
+			}
 			toast.success('Cluster updated');
 			setEditCluster(null);
 			await refetchClusters();
 		} catch (err) {
+			console.error(err);
 			toast.error(err instanceof Error ? err.message : 'Failed to update cluster');
 		} finally {
 			setEditSubmitting(false);
@@ -167,12 +260,21 @@ export default function Clusters() {
 		if (!deleteCluster) return;
 		setDeleteSubmitting(true);
 		try {
+			// Reset topic first so it can be re-used
 			await supabase
 				.from('topics')
 				.update({ status: 'queued', cluster_id: null })
 				.eq('id', deleteCluster.topicId);
-			const { error } = await supabase.from('clusters').delete().eq('id', deleteCluster.id);
+
+			const { error, count } = await supabase
+				.from('clusters')
+				.delete({ count: 'exact' })
+				.eq('id', deleteCluster.id);
+
 			if (error) throw error;
+			// count === 0 means RLS silently blocked the delete
+			if (count === 0) throw new Error('Permission denied — could not delete cluster.');
+
 			toast.success('Cluster deleted');
 			setDeleteCluster(null);
 			await refetchClusters();
@@ -187,14 +289,18 @@ export default function Clusters() {
 	const onSelectTopic = useCallback(
 		(topicId: string) => {
 			const t = topics.find((x) => x.id === topicId);
+			// Pre-fill cluster destination from target (Phase 5: target destination as default)
+			const target = t?.targetId ? targets.find((x) => x.id === t.targetId) : null;
 			setCreateForm((f) => ({
 				...f,
 				topicId,
 				title: t?.title ?? f.title,
-				targetKeyword: t?.keyword ?? f.targetKeyword
+				targetKeyword: t?.keyword ?? f.targetKeyword,
+				destinationPageUrl: target?.destinationPageUrl ?? f.destinationPageUrl ?? '',
+				destinationPageLabel: target?.destinationPageLabel ?? f.destinationPageLabel ?? ''
 			}));
 		},
-		[topics]
+		[topics, targets]
 	);
 
 	return (
@@ -258,7 +364,16 @@ export default function Clusters() {
 										</div>
 										<FunnelTag stage="money" />
 									</div>
-									<div className="mt-6 flex items-center justify-between gap-4 text-sm text-gray-600 dark:text-gray-400">
+									<div className="mt-4">
+										<p className="text-[12px] text-gray-500 dark:text-gray-400">
+											<span className="font-medium text-gray-700 dark:text-gray-300">
+												{cluster.articleCount} supporting article
+												{cluster.articleCount !== 1 ? 's' : ''}
+											</span>{' '}
+											covering the complete topic
+										</p>
+									</div>
+									<div className="mt-3 flex items-center justify-between gap-4 text-sm text-gray-600 dark:text-gray-400">
 										<div className="flex items-center gap-4">
 											<span>
 												{cluster.completion} of {cluster.total} complete
@@ -391,6 +506,31 @@ export default function Clusters() {
 							onChange={(e) => setCreateForm((f) => ({ ...f, targetKeyword: e.target.value }))}
 							placeholder="e.g. cyber crime investigation"
 						/>
+						<div className="space-y-2 rounded-lg border border-dashed border-gray-200 bg-gray-50/50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+							<p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+								Destination page (optional)
+							</p>
+							<p className="text-[11px] text-gray-500 dark:text-gray-400">
+								Does this cluster drive visitors to a product page, signup page, or service booking
+								page? We&apos;ll optimize linking to send the right visitors there.
+							</p>
+							<InputField
+								label="Page URL"
+								value={createForm.destinationPageUrl}
+								onChange={(e) =>
+									setCreateForm((f) => ({ ...f, destinationPageUrl: e.target.value }))
+								}
+								placeholder="https://yoursite.com/product or /signup"
+							/>
+							<InputField
+								label="Page label"
+								value={createForm.destinationPageLabel}
+								onChange={(e) =>
+									setCreateForm((f) => ({ ...f, destinationPageLabel: e.target.value }))
+								}
+								placeholder="e.g. Cooling Sheets Product Page"
+							/>
+						</div>
 					</div>
 					<DialogFooter>
 						<Button
@@ -429,6 +569,27 @@ export default function Clusters() {
 								label="Target keyword"
 								value={editForm.targetKeyword}
 								onChange={(e) => setEditForm((f) => ({ ...f, targetKeyword: e.target.value }))}
+							/>
+							<hr className="my-4 border-gray-200 dark:border-gray-600" />
+							<p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+								Destination page (optional...but recommended)
+							</p>
+							<p className="text-[11px] text-gray-500 dark:text-gray-400">
+								Product, signup, or service page this content drives visitors toward.
+							</p>
+							<InputField
+								label="Page URL"
+								value={editForm.destinationPageUrl}
+								onChange={(e) => setEditForm((f) => ({ ...f, destinationPageUrl: e.target.value }))}
+								placeholder="https://yoursite.com/product"
+							/>
+							<InputField
+								label="Page label"
+								value={editForm.destinationPageLabel}
+								onChange={(e) =>
+									setEditForm((f) => ({ ...f, destinationPageLabel: e.target.value }))
+								}
+								placeholder="e.g. Product Page"
 							/>
 						</div>
 					)}

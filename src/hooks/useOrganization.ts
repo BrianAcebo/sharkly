@@ -87,6 +87,8 @@ export function useOrganization() {
         included_credits: (data.organization as unknown as { included_credits?: number | null })?.included_credits ?? null,
         included_credits_monthly: (data.organization as unknown as { included_credits_monthly?: number | null })?.included_credits_monthly ?? ((data.organization as unknown as { included_credits?: number | null })?.included_credits ?? null),
         included_credits_remaining: (data.organization as unknown as { included_credits_remaining?: number | null })?.included_credits_remaining ?? null,
+        included_chat_messages_monthly: (data.organization as unknown as { included_chat_messages_monthly?: number | null })?.included_chat_messages_monthly ?? null,
+        chat_messages_remaining: (data.organization as unknown as { chat_messages_remaining?: number | null })?.chat_messages_remaining ?? null,
         trial_end: data.subscription.trial_end,
         payment_action_required: null,
         dunning_enabled: null,

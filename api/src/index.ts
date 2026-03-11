@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 
+import paymentRoutes from './routes/payment.js';
 import organizationRoutes from './routes/organization.js';
 import billingRoutes from './routes/billing.js';
 import billingOnboardingRoutes from './routes/billingOnboarding.js';
@@ -20,6 +21,17 @@ import rankingsRoutes from './routes/rankings.js';
 import contentGeneratorRoutes from './routes/contentGenerator.js';
 import crawlerRoutes from './routes/crawler.js';
 import auditRoutes from './routes/audit.js';
+import keywordsRoutes from './routes/keywords.js';
+import strategyRoutes from './routes/strategy.js';
+import sitesRoutes from './routes/sites.js';
+import targetsRoutes from './routes/targets.js';
+import blogRoutes from './routes/blog.js';
+import billingAdminRoutes from './routes/billingAdmin.js';
+import refundsRoutes from './routes/refunds.js';
+import aiChatRoutes from './routes/aiChat.js';
+import chatFilesRoutes from './routes/chatFiles.js';
+import priorityStackRoutes from './routes/priorityStack.js';
+import shopifyRoutes from './routes/shopify.js';
 import { handleStripeWebhook } from './controllers/stripeWebhook.js';
 
 dotenv.config();
@@ -27,16 +39,27 @@ dotenv.config();
 const app = express();
 const isFly = Boolean(process.env.FLY_APP_NAME);
 const PORT = Number(process.env.PORT ?? 3000);
-const allowedOrigins = [
-	'http://localhost:5173',
-	'https://paperboatcrm.com',
-	'https://www.paperboatcrm.com'
-];
 
-// CORS: allow local dev + production domains via env
+// Build allowed origins from env + always allow local dev
+const allowedOrigins: string[] = [
+	'http://localhost:5173', // Vite app
+	'http://localhost:4321', // Astro dev server
+	'http://localhost:4321'
+];
+// Support comma-separated list e.g. FRONTEND_URL=https://app.sharkly.co,https://sharkly.co
+if (process.env.FRONTEND_URL) {
+	allowedOrigins.push(...process.env.FRONTEND_URL.split(',').map((u) => u.trim()));
+}
+
+// CORS: allow local dev + production domains via FRONTEND_URL env var
 app.use(
 	cors({
-		origin: allowedOrigins,
+		origin: (origin, callback) => {
+			// Allow requests with no origin (e.g. server-to-server, curl)
+			if (!origin) return callback(null, true);
+			if (allowedOrigins.includes(origin)) return callback(null, true);
+			callback(new Error(`CORS: origin ${origin} not allowed`));
+		},
 		credentials: true
 	})
 );
@@ -52,15 +75,16 @@ app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res) =>
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
+app.use('/api/payments', paymentRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/billing', billingOnboardingRoutes);
+app.use('/api/billing/admin', billingAdminRoutes);
 app.use('/api/organizations', organizationStatusRoutes);
 app.use('/api/trial', trialStatusRoutes);
 app.use('/api/subscription', subscriptionStatusRoutes);
 app.use('/api', paymentStatusRoutes);
 app.use('/api/email', emailRoutes);
-app.use('/api/trial', trialStatusRoutes);
 app.use('/api/images', imagesRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/onboarding', onboardingRoutes);
@@ -71,6 +95,16 @@ app.use('/api/rankings', rankingsRoutes);
 app.use('/api/content', contentGeneratorRoutes);
 app.use('/api/crawler', crawlerRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/keywords', keywordsRoutes);
+app.use('/api/strategy', strategyRoutes);
+app.use('/api/sites', sitesRoutes);
+app.use('/api/targets', targetsRoutes);
+app.use('/api/blog', blogRoutes);
+app.use('/api/refunds', refundsRoutes);
+app.use('/api/ai', aiChatRoutes);
+app.use('/api/ai/files', chatFilesRoutes);
+app.use('/api/priority-stack', priorityStackRoutes);
+app.use('/api/shopify', shopifyRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

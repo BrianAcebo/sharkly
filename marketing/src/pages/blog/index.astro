@@ -1,0 +1,83 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { getPosts, getCategories, getFeaturedPosts } from '../../lib/supabase';
+
+const [categories, featured, recent] = await Promise.all([
+  getCategories(),
+  getFeaturedPosts(3),
+  getPosts(),
+]);
+
+const recentNonFeatured = recent.filter(p => !p.featured).slice(0, 9);
+
+const siteUrl = (import.meta.env.SITE_URL as string | undefined) ?? 'https://sharkly.co';
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'Blog',
+  name: 'Sharkly Blog',
+  description: 'SEO insights, glossary, and guides for small business owners.',
+  url: `${siteUrl}/blog`,
+  publisher: {
+    '@type': 'Organization',
+    name: 'Sharkly',
+    url: siteUrl,
+  },
+};
+---
+
+<BaseLayout
+  title="Sharkly Blog — SEO for Small Businesses"
+  description="Plain-English SEO guides, glossary definitions backed by Google patents, and real strategies for small business owners."
+  schema={schema}
+>
+  <div class="max-w-[1100px] mx-auto py-12 px-6">
+
+    <div class="text-center mb-12">
+      <h1 class="text-4xl font-bold text-neutral-900 mb-3 dark:text-stone-100">
+        SEO Knowledge, Plain and Simple
+      </h1>
+      <p class="text-lg text-gray-500 max-w-[560px] mx-auto dark:text-gray-400">
+        No jargon. No fluff. Just the stuff that actually moves the needle — backed by real data and Google patents.
+      </p>
+    </div>
+
+    {categories.length > 0 && (
+      <div class="flex gap-2 flex-wrap mb-10 justify-center">
+        {categories.map(cat => (
+          <a
+            href={`/blog/${cat.slug}`}
+            class="px-4 py-1.5 rounded-full border border-gray-200 text-sm text-gray-700 transition-colors duration-150 hover:bg-gray-50 hover:border-gray-300 dark:border-neutral-700 dark:text-gray-300 dark:hover:bg-neutral-800 dark:hover:border-neutral-600"
+          >
+            {cat.name}
+          </a>
+        ))}
+      </div>
+    )}
+
+    {featured.length > 0 && (
+      <section class="mb-12">
+        <h2 class="text-lg font-semibold text-neutral-900 mb-5 dark:text-stone-100">Featured</h2>
+        <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {featured.map(post => <PostCard post={post} featured={true} />)}
+        </div>
+      </section>
+    )}
+
+    {recentNonFeatured.length > 0 && (
+      <section>
+        <h2 class="text-lg font-semibold text-neutral-900 mb-5 dark:text-stone-100">Latest</h2>
+        <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {recentNonFeatured.map(post => <PostCard post={post} />)}
+        </div>
+      </section>
+    )}
+
+    {recent.length === 0 && (
+      <div class="text-center py-16 text-gray-400 dark:text-gray-500">
+        <p>Coming soon. Check back shortly.</p>
+      </div>
+    )}
+  </div>
+</BaseLayout>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../utils/api';
+import { supabase } from '../utils/supabaseClient';
 
 export interface AuditCrawlabilityCheck {
 	isCrawlable: boolean;
@@ -92,7 +93,13 @@ export const useAudit = (siteId: string | undefined) => {
 		setError(null);
 
 		try {
-			const response = await api.get(`/api/audit/${siteId}/latest`);
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			if (!session?.access_token) return;
+			const response = await api.get(`/api/audit/${siteId}/latest`, {
+				headers: { Authorization: `Bearer ${session.access_token}` }
+			});
 			if (!response.ok) {
 				throw new Error('Failed to fetch audit');
 			}
@@ -111,7 +118,13 @@ export const useAudit = (siteId: string | undefined) => {
 		if (!siteId) return;
 
 		try {
-			const response = await api.get(`/api/audit/${siteId}/history`);
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			if (!session?.access_token) return;
+			const response = await api.get(`/api/audit/${siteId}/history`, {
+				headers: { Authorization: `Bearer ${session.access_token}` }
+			});
 			if (!response.ok) {
 				throw new Error('Failed to fetch history');
 			}

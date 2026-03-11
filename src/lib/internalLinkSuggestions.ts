@@ -19,7 +19,7 @@ export type ExistingLink = {
 
 export type LinkSuggestion = {
 	from_page_id: string;
-	to_page_id: string;
+	to_page_id: string; // Empty string when to_url is set (destination link)
 	anchor_text: string;
 	placement_hint: 'intro' | 'body' | 'other';
 	equity_multiplier: number;
@@ -28,6 +28,8 @@ export type LinkSuggestion = {
 	// For UI display
 	from_title?: string;
 	to_title?: string;
+	/** When set, this is a destination-page link (focus → product/collection). Connects to store. */
+	to_url?: string;
 };
 
 function generateVariationAnchor(keyword: string): string {
@@ -52,18 +54,36 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 /**
  * Generate internal link suggestions for a cluster (Section 17.6).
  * - Reverse silo: every article MUST link to focus page
+ * - Focus page links to destination (product/collection) when set — many-to-one-to-one
  * - Focus must link back to at least 3 articles
  * - Article-to-article mesh within groups of 5
  */
 export function generateInternalLinkSuggestions(
 	pages: ClusterPage[],
-	existingLinks: ExistingLink[] = []
+	existingLinks: ExistingLink[] = [],
+	destination?: { url: string; label: string }
 ): LinkSuggestion[] {
 	const suggestions: LinkSuggestion[] = [];
 	const focusPage = pages.find((p) => p.type === 'focus_page');
 	const articles = pages.filter((p) => p.type === 'article');
 
 	if (!focusPage) return suggestions;
+
+	// 0. Focus page → destination (reverse silo exit; many-to-one-to-one)
+	if (destination?.url && destination?.label) {
+		suggestions.push({
+			from_page_id: focusPage.id,
+			to_page_id: '',
+			to_url: destination.url,
+			anchor_text: destination.label,
+			placement_hint: 'body',
+			equity_multiplier: 1.0,
+			priority: 'critical',
+			note: 'Connects to your store — main conversion link from focus page',
+			from_title: focusPage.title,
+			to_title: destination.label
+		});
+	}
 
 	// 1. Reverse silo: every article MUST link to focus page
 	for (const article of articles) {
@@ -85,9 +105,11 @@ export function generateInternalLinkSuggestions(
 		}
 	}
 
-	// 2. Focus page must link back to at least 3 articles
+	// 2. Focus page must link back: max 3 total. When destination set: 1 destination + 2 articles.
+	const hasDestination = Boolean(destination?.url && destination?.label);
+	const articleSlots = hasDestination ? 2 : 3;
 	const focusOutLinks = existingLinks.filter((l) => l.from_page_id === focusPage.id);
-	const needFocusOut = Math.max(0, 3 - focusOutLinks.length);
+	const needFocusOut = Math.max(0, articleSlots - focusOutLinks.length);
 	for (let i = 0; i < needFocusOut && i < articles.length; i++) {
 		const article = articles[i];
 		const alreadyLinked = existingLinks.some(
@@ -141,11 +163,11 @@ export function generateInternalLinkSuggestions(
 export function getPlacementLabel(hint: LinkSuggestion['placement_hint']): string {
 	switch (hint) {
 		case 'intro':
-			return 'Body-early ★★★★★';
+			return 'Place in first 400 words';
 		case 'body':
-			return 'Body-late ★★★★';
+			return 'Place in end of body text';
 		default:
-			return 'Other ★';
+			return 'Place in other text';
 	}
 }
 

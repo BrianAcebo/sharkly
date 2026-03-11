@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { CREDIT_COSTS } from '../../../shared/credits.mjs';
 
 export const getLatestAudit = async (req: Request, res: Response) => {
 	try {
@@ -23,17 +24,12 @@ export const getLatestAudit = async (req: Request, res: Response) => {
 		}
 
 		if (!audit) {
-			// No audit yet - check if one is in progress
-			const { data: site } = await supabase
-				.from('sites')
-				.select('last_audit_at, audit_score, audit_health_status')
-				.eq('id', siteId)
-				.single();
-
+			// No audit yet — never show inProgress just because last_audit_at is null.
+			// inProgress should only be true when a run was explicitly triggered and
+			// hasn't completed yet. Without a result row we have no evidence of that.
 			return res.json({
 				audit: null,
-				inProgress: !site?.last_audit_at,
-				site
+				inProgress: false,
 			});
 		}
 
@@ -154,13 +150,54 @@ export const runAudit = async (req: Request, res: Response) => {
 			return res.status(403).json({ error: 'Not authorized' });
 		}
 
-		// Start audit in background
+		// Charge credits (crawl + Moz) — same cost as manual crawl
+		const cost = CREDIT_COSTS.SITE_CRAWL;
+		const { data: org } = await supabase
+			.from('organizations')
+			.select('included_credits_remaining, included_credits')
+			.eq('id', site.organization_id)
+			.single();
+
+		const creditsRemaining = Number(org?.included_credits_remaining ?? org?.included_credits ?? 0);
+		if (creditsRemaining < cost) {
+			return res.status(402).json({
+				error: 'Insufficient credits',
+				required: cost,
+				available: creditsRemaining,
+				needs_topup: true,
+			});
+		}
+
+		const newCredits = Math.max(0, creditsRemaining - cost);
+		const { error: deductErr } = await supabase
+			.from('organizations')
+			.update({
+				included_credits_remaining: newCredits,
+				...(org?.included_credits != null && { included_credits: newCredits }),
+			})
+			.eq('id', site.organization_id);
+
+		if (deductErr) {
+			console.error('[AuditController] Failed to deduct credits:', deductErr);
+			return res.status(500).json({ error: 'Failed to deduct credits' });
+		}
+
+		// Start audit in background — refund on failure
 		const { technicalAuditService } = await import('../services/technicalAuditService.js');
 		technicalAuditService.runFullAudit(site.url, siteId, site.organization_id).catch((e) => {
 			console.error('[AuditController] Audit failed:', e);
+			// Refund credits on failure
+			supabase
+				.from('organizations')
+				.update({
+					included_credits_remaining: creditsRemaining,
+					...(org?.included_credits != null && { included_credits: creditsRemaining }),
+				})
+				.eq('id', site.organization_id)
+				.then(() => console.log('[AuditController] Refunded credits after audit failure'));
 		});
 
-		return res.json({ ok: true, message: 'Audit started in background' });
+		return res.json({ ok: true, message: 'Audit started in background', creditsUsed: cost });
 	} catch (error) {
 		console.error('[AuditController] Error:', error);
 		return res.status(500).json({ error: 'Internal server error' });

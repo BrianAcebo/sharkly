@@ -71,7 +71,7 @@ export class CrawlabilityChecker {
 			const startTime = Date.now();
 			try {
 				const response = await axios.get(siteUrl, {
-					timeout: 10000,
+					timeout: 30000, // Increased from 10s to 30s for slow sites
 					maxRedirects: 5,
 					headers: {
 						'User-Agent': 'Mozilla/5.0 (compatible; SharklyBot/1.0; +https://sharkly.co)'
@@ -164,14 +164,14 @@ export class CrawlabilityChecker {
 						solution:
 							'Verify the site URL is correct and the site is online. Check if the domain is registered and the server is running'
 					});
-				} else if (axiosError.code === 'ECONNABORTED' || axiosError.message.includes('timeout')) {
-					result.issues.push({
-						type: 'critical',
-						title: 'Connection Timeout',
-						message: 'Site took too long to respond',
-						solution:
-							'The site is either offline or extremely slow. Check the server status and try again later'
-					});
+			} else if (axiosError.code === 'ECONNABORTED' || axiosError.message.includes('timeout')) {
+				result.issues.push({
+					type: 'critical',
+					title: 'Connection Timeout',
+					message: `Site took too long to respond (30+ seconds). This indicates the server is either offline, experiencing heavy load, or has network connectivity issues.`,
+					solution:
+						'Wait a few minutes for the server to recover, then try the audit again. If the problem persists, contact your hosting provider to investigate the server performance'
+				});
 				} else if (axiosError.code === 'ERR_TLS_CERT_ALTNAME_INVALID') {
 					result.issues.push({
 						type: 'critical',
@@ -213,28 +213,36 @@ export class CrawlabilityChecker {
 		try {
 			const robotsUrl = `${url.protocol}//${url.host}/robots.txt`;
 			const response = await axios.get(robotsUrl, {
-				timeout: 5000,
+				timeout: 10000, // Increased from 5s to 10s
 				validateStatus: () => true
 			});
 
 			if (response.status === 200) {
 				result.robotsTxtExists = true;
-				const parser = robotsParser(robotsUrl, response.data);
+				const robotsContent = typeof response.data === 'string'
+					? response.data
+					: response.data?.toString?.() ?? '';
+				const parser = robotsParser(robotsUrl, robotsContent);
 
-				// Check if Googlebot is allowed
-				const isAllowed = parser.isAllowed('/', 'Googlebot');
+				// Check Googlebot first, then fall back to wildcard (*).
+				// isAllowed() returns true, false, or null (null = no rule matched = allowed).
+				// Only treat explicit false as blocked.
+				const isGooglebotAllowed = parser.isAllowed('/', 'Googlebot');
+				const isWildcardAllowed = parser.isAllowed('/', '*');
+				const isAllowed = isGooglebotAllowed !== false && isWildcardAllowed !== false;
+
 				result.botAllowed = isAllowed;
 
 				if (!isAllowed) {
 					result.issues.push({
 						type: 'warning',
 						title: 'Blocked by robots.txt',
-						message: 'robots.txt is blocking crawlers from accessing the site',
-						solution: 'Update robots.txt to allow search engines. Remove or update Disallow rules'
+						message: 'robots.txt is blocking search engine crawlers from accessing the site',
+						solution: 'Update robots.txt to allow search engines. Add "User-agent: *" with "Allow: /" or remove blocking Disallow rules'
 					});
 				}
 			} else if (response.status === 404) {
-				// No robots.txt - this is actually OK, means all bots allowed
+				// No robots.txt — means all bots are allowed
 				result.botAllowed = true;
 			}
 		} catch (error) {

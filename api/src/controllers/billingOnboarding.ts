@@ -550,10 +550,9 @@ export const onboardOrganization = async (req: Request, res: Response) => {
     }
     let subscriptionClientSecret: string | null = null;
     let setupClientSecret: string | null = null;
-    // Organization is only set to active upon successful payment (via webhook)
-    // For new orgs, keep it in payment_pending until webhook confirms
-    // For renewals, they're already an active customer, so set them to active (not payment_pending)
-    let computedOrgStatus: OrgStatus = isRenewal ? 'active' : 'payment_pending';
+    // Status must NEVER be set to active here — only the webhook (invoice.paid) does that.
+    // Renewals go to payment_pending just like new orgs; the webhook activates on successful payment.
+    let computedOrgStatus: OrgStatus = 'payment_pending';
     console.log('[ONBOARD] computedOrgStatus:', computedOrgStatus, '(isRenewal:', isRenewal, ', org.status:', org.status, ')');
 
     if (!stripeSubscriptionId) {
@@ -640,11 +639,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
         stripeSubscriptionId = subscription.id;
 
       const invoice = subscription.latest_invoice as Stripe.Invoice | null;
-      // For renewals: subscription creation is successful, so set org to active
-      // For new orgs: keep payment_pending until webhook confirms payment
-      if (isRenewal) {
-        computedOrgStatus = 'active';
-      }
+      // Keep payment_pending — webhook activates the org only after invoice.paid fires
       if (invoice) {
         const paymentIntent = (invoice as unknown as { payment_intent?: unknown }).payment_intent;
         if (paymentIntent && typeof paymentIntent === 'object' && 'client_secret' in (paymentIntent as Record<string, unknown>)) {

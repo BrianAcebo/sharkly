@@ -9,6 +9,23 @@ export interface Site {
 	niche: string;
 	customerDescription: string;
 	competitorUrls: string[];
+	domainAuthority: number;
+	tone?: string | null;
+	includeTerms?: string | null;
+	avoidTerms?: string | null;
+	targetLanguage: string;
+	targetRegion: string;
+	authorBio?: string | null;
+	// S1-5: AggregateRating + sameAs
+	googleReviewCount?: number | null;
+	googleAverageRating?: number | null;
+	gbpUrl?: string | null;
+	facebookUrl?: string | null;
+	linkedinUrl?: string | null;
+	twitterUrl?: string | null;
+	yelpUrl?: string | null;
+	wikidataUrl?: string | null;
+	isYMYL?: boolean;
 	createdAt: string;
 	updatedAt: string;
 }

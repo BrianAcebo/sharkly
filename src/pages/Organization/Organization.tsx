@@ -1127,7 +1127,7 @@ export default function OrganizationPage() {
 												setInviteRole(value as AssignableTeamMemberRole)
 											}
 										>
-											<SelectTrigger className="h-11 w-[180px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03]">
+											<SelectTrigger className="h-11 w-[180px] border border-gray-200 bg-white dark:border-gray-900 dark:bg-white/[0.03] ">
 												<SelectValue placeholder="Select role" />
 											</SelectTrigger>
 											<SelectContent className="cursor-pointer bg-white text-gray-700 ring-1 ring-gray-300 ring-inset dark:bg-gray-900 dark:text-gray-400 dark:ring-gray-700">
@@ -1402,59 +1402,59 @@ export default function OrganizationPage() {
 							</CardContent>
 						</Card>
 
-						{/* Danger Zone */}
-						{/* TODO: Improve with soft delete */}
-						{/* {isOwner && (
-							<Card className="p-4 border-red-200 dark:border-red-800">
-								<CardHeader>
-									<div className="flex items-center space-x-2">
-										<AlertTriangle className="h-5 w-5 text-red-600" />
-										<h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
-											Danger Zone
-										</h3>
-									</div>
-									<p className="text-sm text-gray-600 dark:text-gray-400">
-										Irreversible and destructive actions
-									</p>
-								</CardHeader>
-								<CardContent>
-									<div className="space-y-4">
-										<div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-											<div className="flex items-start justify-between">
-												<div className="flex-1">
-													<h4 className="text-sm font-medium text-red-800 dark:text-red-200">
-														Delete Organization
-													</h4>
-													<p className="text-sm text-red-700 dark:text-red-300 mt-1">
-														Permanently delete this organization and all of its data. This action cannot be undone.
-														All team members will be removed and lose access to the organization.
-													</p>
-													<div className="mt-3 text-xs text-red-600 dark:text-red-400">
-														<p><strong>This will delete:</strong></p>
-														<ul className="list-disc list-inside mt-1 space-y-1">
-															<li>All leads and customer data</li>
-															<li>All tasks and notes</li>
-															<li>All team member access</li>
-															<li>All organization settings</li>
-															<li>All billing and subscription data</li>
-														</ul>
-													</div>
-												</div>
-												<Button
-													variant="destructive"
-													size="sm"
-													onClick={() => setShowDeleteModal(true)}
-													className="ml-4"
-												>
-													<Trash2 className="h-4 w-4 mr-2" />
+					{/* Danger Zone */}
+					{isOwner && (
+						<Card className="p-4 border-red-200 dark:border-red-800">
+							<CardHeader>
+								<div className="flex items-center space-x-2">
+									<AlertTriangle className="h-5 w-5 text-red-600" />
+									<h3 className="text-lg font-semibold text-red-600 dark:text-red-400">
+										Danger Zone
+									</h3>
+								</div>
+								<p className="text-sm text-gray-600 dark:text-gray-400">
+									Irreversible and destructive actions
+								</p>
+							</CardHeader>
+							<CardContent>
+								<div className="space-y-4">
+									<div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+										<div className="flex items-start justify-between">
+											<div className="flex-1">
+												<h4 className="text-sm font-medium text-red-800 dark:text-red-200">
 													Delete Organization
-												</Button>
+												</h4>
+												<p className="text-sm text-red-700 dark:text-red-300 mt-1">
+													Permanently delete this organization and all of its data. This action cannot be undone.
+													All team members will be removed and lose access to the organization.
+												</p>
+												<div className="mt-3 text-xs text-red-600 dark:text-red-400">
+													<p><strong>This will delete:</strong></p>
+													<ul className="list-disc list-inside mt-1 space-y-1">
+														<li>All leads and customer data</li>
+														<li>All tasks and notes</li>
+														<li>All team member access</li>
+														<li>All organization settings</li>
+														<li>All billing and subscription data</li>
+														<li>Stripe subscription and billing history</li>
+													</ul>
+												</div>
 											</div>
+											<Button
+												variant="destructive"
+												size="sm"
+												onClick={() => setShowDeleteModal(true)}
+												className="ml-4"
+											>
+												<Trash2 className="h-4 w-4 mr-2" />
+												Delete Organization
+											</Button>
 										</div>
 									</div>
-								</CardContent>
-							</Card>
-						)} */}
+								</div>
+							</CardContent>
+						</Card>
+					)}
 					</TabsContent>
 				</Tabs>
 			</div>

@@ -7,7 +7,7 @@ import { supabase } from './supabaseClient.js';
 export type ActionSpendParams = {
   orgId: string;
   creditCost: number;
-  category: string;        // e.g. 'hunter_domain_search', 'vera_tool'
+  category: string;        // e.g. 'site_crawl', 'fin_tool'
   description: string;     // Human-readable description
 };
 

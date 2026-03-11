@@ -5,7 +5,7 @@ import MarketingFooter from '../components/home/MarketingFooter';
 
 const LayoutContent: React.FC = () => {
 	return (
-		<div className="min-h-screen">
+		<div className="min-h-screen bg-[#f5f3ed] dark:bg-gray-950">
 			<div className="flex-1 transition-all duration-300 ease-in-out">
 				<MarketingHeader />
 				<main className="min-h-screen-height-visible mx-auto max-w-(--breakpoint-2xl) px-4 pb-4 md:px-6 md:pb-6 pt-header-height">

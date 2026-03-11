@@ -586,11 +586,11 @@ const Billing: React.FC = () => {
 														{credits.loading ? '…' : (credits.data?.remaining_total ?? 0)}
 													</strong>
 												</div>
-												{/* Vera Chat Messages */}
+												{/* Fin messages */}
 												<div className="mt-2 flex items-center gap-2 border-t border-gray-200 pt-2 dark:border-gray-600">
 													<MessageSquare className="h-4 w-4 text-gray-500" />
 													<span className="text-gray-500 dark:text-gray-400">
-														Vera messages used:
+														Fin messages used:
 													</span>
 													<strong className="text-gray-900 dark:text-white">
 														{chatUsage ? `${chatUsage.used} / ${chatUsage.limit}` : '…'}
@@ -717,7 +717,7 @@ const Billing: React.FC = () => {
 								variant="outline"
 								onClick={() =>
 									(window.location.href =
-										'mailto:support@truesight.com?subject=Billing%20Support%20Request')
+										'mailto:hello@sharkly.co?subject=Billing%20Support%20Request')
 								}
 							>
 								<Mail className="mr-2 h-4 w-4" />

@@ -10,14 +10,14 @@ import {
 import { Button } from '../../components/ui/button';
 import InputField from '../../components/form/input/InputField';
 
-import { DollarSign, FileText, Shield, Lock, Eye, EyeOff, Loader2, LogOut } from 'lucide-react';
+import { DollarSign, FileText, Shield, Lock, Eye, EyeOff, Loader2, LogOut, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import PageMeta from '../../components/common/PageMeta';
 import { api } from '../../utils/api';
 import { supabase } from '../../utils/supabaseClient';
 
-const ADMIN_SESSION_KEY = 'truesight_admin_auth';
-const ADMIN_SESSION_TIME_KEY = 'truesight_admin_last_activity';
+const ADMIN_SESSION_KEY = 'sharkly_admin_auth';
+const ADMIN_SESSION_TIME_KEY = 'sharkly_admin_last_activity';
 const SESSION_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
 
 // Helper to get auth headers
@@ -246,6 +246,29 @@ export default function AdminDashboard() {
 									<li>• Wallet refunds</li>
 									<li>• Action credit-backs</li>
 									<li>• Subscription management</li>
+								</ul>
+							</CardContent>
+						</Card>
+					</Link>
+					<Link to="/admin/blog">
+						<Card className="h-full cursor-pointer transition-all hover:border-purple-500 hover:shadow-lg">
+							<CardHeader>
+								<div className="flex items-center gap-3">
+									<div className="rounded-lg bg-purple-100 p-2 dark:bg-purple-900">
+										<BookOpen className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+									</div>
+									<div>
+										<CardTitle>Blog CMS</CardTitle>
+										<CardDescription>Write & publish SEO content</CardDescription>
+									</div>
+								</div>
+							</CardHeader>
+							<CardContent>
+								<ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+									<li>• Tiptap rich text editor</li>
+									<li>• Categories & glossary</li>
+									<li>• SEO meta tags & SERP preview</li>
+									<li>• Draft / publish workflow</li>
 								</ul>
 							</CardContent>
 						</Card>

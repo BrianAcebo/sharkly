@@ -6,7 +6,12 @@ import Input from '../form/input/InputField';
 import { Button } from '../ui/button';
 import useAuth from '../../hooks/useAuth';
 import { AuthLoadingState } from '../../contexts/AuthContext';
-import { validateEmail, sanitizeInput, checkRateLimit, resetRateLimit } from '../../utils/validation';
+import {
+	validateEmail,
+	sanitizeInput,
+	checkRateLimit,
+	resetRateLimit
+} from '../../utils/validation';
 
 export default function SignInForm() {
 	const [showPassword, setShowPassword] = useState(false);
@@ -19,6 +24,8 @@ export default function SignInForm() {
 	const [searchParams] = useSearchParams();
 	const inviteId = searchParams.get('invite');
 	const navigate = useNavigate();
+
+	const marketingUrl = import.meta.env.VITE_MARKETING_URL;
 
 	// Reset rate limit when component unmounts
 	useEffect(() => {
@@ -96,7 +103,7 @@ export default function SignInForm() {
 		<div className="flex flex-1 flex-col">
 			<div className="mx-auto w-full max-w-md pt-10">
 				<Link
-					to="/"
+					to={marketingUrl}
 					className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
 				>
 					<ChevronLeft className="size-5" />

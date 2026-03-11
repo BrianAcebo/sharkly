@@ -53,7 +53,7 @@ export interface OrganizationRow {
 	stripe_customer_id: string | null;
 	stripe_subscription_id: string | null;
 	stripe_status: StripeSubStatus | null;
-	org_status: OrgStatus;
+	status: OrgStatus;
 	plan_code: PlanCode | null;
 	plan_price_cents: number | null;
 	included_seats: number | null;
@@ -66,6 +66,9 @@ export interface OrganizationRow {
 	ai_credit_balance?: number | null;
 	has_ai_addon?: boolean | null;
 	ai_addon_started_at?: string | null;
+	/** Fin (AI Assistant): included when plan has chat messages. Use included_chat_messages_monthly > 0. */
+	included_chat_messages_monthly?: number | null;
+	chat_messages_remaining?: number | null;
 	stripe_trial_end: string | null;
 	stripe_cancel_at_period_end?: boolean | null;
 	payment_action_required?: boolean | null;
@@ -88,6 +91,8 @@ export interface PlanCatalogRow {
 	base_price_cents: number;
 	included_seats: number;
 	included_credits: number;
+	/** Fin (AI Assistant) chat messages included per month. 0 = plan does not include Fin. */
+	included_chat_messages?: number;
 	stripe_price_id: string;
 	active: boolean;
 }

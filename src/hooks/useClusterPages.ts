@@ -8,7 +8,9 @@ export type PageData = {
 	keyword: string;
 	volume: number;
 	kd: number;
+	cpc?: number | null;
 	funnel: 'tofu' | 'mofu' | 'bofu';
+	pageType?: string | null;
 	status: 'planned' | 'brief_generated' | 'draft' | 'published';
 	type: 'focus_page' | 'article';
 	seoScore: number;
@@ -36,7 +38,7 @@ export function useClusterPages(clusterId: string | null) {
 			const { data, error: fetchErr } = await supabase
 				.from('pages')
 				.select(
-					'id, cluster_id, title, keyword, monthly_searches, keyword_difficulty, funnel_stage, status, type, seo_score, word_count, target_word_count, position_x, position_y'
+					'id, cluster_id, title, keyword, monthly_searches, keyword_difficulty, cpc, funnel_stage, page_type, status, type, seo_score, cro_score, word_count, target_word_count, position_x, position_y'
 				)
 				.eq('cluster_id', clusterId)
 				.order('sort_order', { ascending: true });
@@ -57,13 +59,15 @@ export function useClusterPages(clusterId: string | null) {
 				clusterId: row.cluster_id,
 				title: row.title,
 				keyword: row.keyword || '',
-				volume: row.monthly_searches ?? 0,
-				kd: row.keyword_difficulty ?? 0,
-				funnel: (row.funnel_stage as PageData['funnel']) || 'mofu',
-				status: (row.status as PageData['status']) || 'planned',
+			volume: row.monthly_searches ?? 0,
+			kd: row.keyword_difficulty ?? 0,
+			cpc: row.cpc ?? null,
+		funnel: (row.funnel_stage as PageData['funnel']) || 'mofu',
+			pageType: (row.page_type as string | null) ?? null,
+			status: (row.status as PageData['status']) || 'planned',
 				type: (row.type as PageData['type']) || 'article',
 				seoScore: row.seo_score ?? 0,
-				croScore: 0,
+				croScore: row.cro_score ?? 0,
 				wordCount: row.word_count ?? 0,
 				targetWordCount: row.target_word_count ?? 1000,
 				position_x: row.position_x ?? 0,

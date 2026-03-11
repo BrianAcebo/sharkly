@@ -1,0 +1,57 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import PostCard from '../../../components/PostCard.astro';
+import { getCategories, getPosts } from '../../../lib/supabase';
+
+// SSR mode — fetch on every request so new posts appear instantly
+const { category: slug } = Astro.params;
+
+const [categories, posts] = await Promise.all([
+  getCategories(),
+  getPosts(slug),
+]);
+
+const category = categories.find(c => c.slug === slug);
+if (!category) return Astro.redirect('/404');
+
+const siteUrl = (import.meta.env.SITE_URL as string | undefined) ?? 'https://sharkly.co';
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: category.meta_title ?? `${category.name} | Sharkly Blog`,
+  description: category.meta_description ?? category.description ?? '',
+  url: `${siteUrl}/blog/${category.slug}`,
+};
+---
+
+<BaseLayout
+  title={category.meta_title ?? `${category.name} | Sharkly Blog`}
+  description={category.meta_description ?? category.description ?? ''}
+  schema={schema}
+>
+  <div class="max-w-[1100px] mx-auto py-12 px-6">
+    <nav class="text-sm text-gray-400 mb-6 dark:text-gray-500">
+      <a href="/blog" class="hover:text-gray-600 dark:hover:text-gray-400">Blog</a>
+      <span class="mx-2">›</span>
+      <span class="text-gray-700 font-medium dark:text-gray-300">{category.name}</span>
+    </nav>
+
+    <div class="mb-10">
+      <h1 class="text-3xl font-bold text-neutral-900 mb-2 dark:text-stone-100">{category.name}</h1>
+      {category.description && (
+        <p class="text-base text-gray-500 max-w-[640px] dark:text-gray-400">{category.description}</p>
+      )}
+      <p class="text-sm text-gray-400 mt-2 dark:text-gray-500">{posts.length} article{posts.length !== 1 ? 's' : ''}</p>
+    </div>
+
+    {posts.length === 0 ? (
+      <div class="text-center py-16 text-gray-400 dark:text-gray-500">
+        <p>No posts in this category yet. Check back soon.</p>
+      </div>
+    ) : (
+      <div class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {posts.map(post => <PostCard post={post} />)}
+      </div>
+    )}
+  </div>
+</BaseLayout>

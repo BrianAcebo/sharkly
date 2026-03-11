@@ -408,10 +408,13 @@ const handleTierCreditsChange = async (
 			.single();
 
 		if (orgCheck && orgCheck.included_credits_remaining === 0 && newPlan.included_credits > 0) {
-			console.warn('[WEBHOOK] CRITICAL: included_credits_remaining was not set by RPC, forcing reset', {
-				orgId: org.id,
-				expectedCredits: newPlan.included_credits
-			});
+			console.warn(
+				'[WEBHOOK] CRITICAL: included_credits_remaining was not set by RPC, forcing reset',
+				{
+					orgId: org.id,
+					expectedCredits: newPlan.included_credits
+				}
+			);
 
 			await supabase
 				.from('organizations')
@@ -442,12 +445,10 @@ const handleTierCreditsChange = async (
 // =====================================================
 const getExtraSeatAddonPriceId = async (): Promise<string | null> => {
 	try {
-		const env = process.env.NODE_ENV === 'production' ? 'live' : 'test';
 		const { data } = await supabase
 			.from('addon_catalog')
 			.select('stripe_price_id')
 			.eq('addon_code', getExtraSeatAddonCode())
-			.eq('env', env)
 			.maybeSingle();
 		return data?.stripe_price_id ?? null;
 	} catch {
@@ -640,7 +641,10 @@ const getPlanFromPriceId = async (priceId: string): Promise<PlanCatalogRow | nul
 	}
 
 	if (data.length > 1) {
-		console.warn('[WEBHOOK] Multiple plans found for price ID, using most recent', { priceId, count: data.length });
+		console.warn('[WEBHOOK] Multiple plans found for price ID, using most recent', {
+			priceId,
+			count: data.length
+		});
 	}
 
 	return (data[0] as PlanCatalogRow) ?? null;
@@ -651,6 +655,8 @@ const mapPlanFields = (plan: PlanCatalogRow | null, isNewSubscription = false) =
 		return {};
 	}
 
+	const chatMessages = plan.included_chat_messages ?? 0;
+
 	const fields: Partial<OrganizationRow> = {
 		plan_code: plan.plan_code,
 		plan_price_cents: plan.base_price_cents,
@@ -659,14 +665,16 @@ const mapPlanFields = (plan: PlanCatalogRow | null, isNewSubscription = false) =
 		included_credits_monthly: plan.included_credits,
 		// legacy compatibility (kept in sync for reads that still reference it)
 		included_credits: plan.included_credits,
-		// Chat message allowance
-		included_chat_messages_monthly: plan.included_chat_messages ?? 200
+		// Fin (AI Assistant): regular plan feature — chat messages from plan_catalog.included_chat_messages
+		included_chat_messages_monthly: chatMessages,
+		...(isNewSubscription && chatMessages > 0 && { chat_messages_remaining: chatMessages }),
+		// Downgrade: clear remaining when plan has 0 chat messages
+		...(chatMessages === 0 && { chat_messages_remaining: 0 })
 	};
 
-	// For new subscriptions, also set initial remaining values
+	// For new subscriptions, also set initial remaining values for credits
 	if (isNewSubscription) {
 		fields.included_credits_remaining = plan.included_credits;
-		fields.chat_messages_remaining = plan.included_chat_messages ?? 200;
 	}
 
 	return fields;
@@ -920,8 +928,11 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
 		console.warn('[WEBHOOK] Org not found for subscription event', {
 			eventType: event.type,
 			subscriptionId,
-			customerId
+			customerId,
+			reason: 'This may indicate a subscription created outside your app or a Stripe test event'
 		});
+		// Still log the event for audit purposes
+		await logWebhookEvent(event, 'skipped', null, 'Organization not found for subscription');
 		return;
 	}
 
@@ -1006,18 +1017,49 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
 		updateData.stripe_subscription_metadata = subscription.metadata as Record<string, unknown>;
 	}
 
-	// CRITICAL: Only transition out of payment_pending when payment is confirmed
-	// Trialing subscriptions can go to provisioning (they're paid via upfront trial conversion)
-	// But active subscriptions without a trial must have had payment confirmed
-	if (org.status === 'payment_pending') {
-		if (subscription.status === 'trialing') {
-			// Trials are OK - customer will pay when trial ends
+	// CRITICAL: Sync stripe_status to organization status
+	if (subscription.status === 'incomplete') {
+		// First payment not yet confirmed — give the customer a chance to complete it
+		updateData.status = 'payment_required';
+		console.log('[WEBHOOK] Marking org as payment_required due to incomplete subscription', {
+			orgId: org.id
+		});
+	} else if (subscription.status === 'incomplete_expired') {
+		// Payment was never completed and the window closed — subscription is dead.
+		// Requires a BRAND NEW subscription, not a payment method update.
+		updateData.status = 'disabled';
+		updateData.payment_action_required = false; // clear so payment-required gate doesn't show
+		console.log('[WEBHOOK] Marking org as disabled due to incomplete_expired subscription', {
+			orgId: org.id
+		});
+	} else if (subscription.status === 'canceled') {
+		// Subscription canceled - disable org
+		updateData.status = 'disabled';
+		console.log('[WEBHOOK] Marking org as disabled due to canceled subscription', {
+			orgId: org.id
+		});
+	} else if (subscription.status === 'past_due') {
+		// Payment past due - mark as past_due
+		updateData.status = 'past_due';
+		console.log('[WEBHOOK] Marking org as past_due due to payment failure', {
+			orgId: org.id
+		});
+	} else if (subscription.status === 'active' || subscription.status === 'trialing') {
+		// Active or trialing - org should be active
+		// CRITICAL: Only transition OUT of payment_pending when we have a good stripe status
+		if (org.status === 'payment_pending') {
 			updateData.status = 'provisioning';
-		} else if (subscription.status === 'active') {
-			// For active subscriptions from payment_pending state, only proceed if we have evidence of payment
-			// The payment confirmation will come via invoice.payment_succeeded webhook
-			// So keep it in provisioning until that webhook fires
-			updateData.status = 'provisioning';
+			console.log('[WEBHOOK] Transitioning org from payment_pending to provisioning', {
+				orgId: org.id,
+				stripe_status: subscription.status
+			});
+		} else if (org.status === 'payment_required') {
+			// If org was marked as payment_required and now stripe says active, activate it
+			updateData.status = 'active';
+			console.log('[WEBHOOK] Transitioning org from payment_required to active', {
+				orgId: org.id,
+				stripe_status: subscription.status
+			});
 		}
 	}
 
@@ -1166,6 +1208,7 @@ const handleSubscriptionDeleted = async (event: Stripe.Event) => {
 		stripe_status: 'canceled' as StripeSubStatus,
 		status: 'disabled',
 		stripe_subscription_id: null,
+		payment_action_required: false, // clear so "payment required" gate doesn't block "Start New Subscription" UI
 		updated_at: new Date().toISOString()
 	};
 
@@ -1387,7 +1430,12 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 	const subscriptionId = (invoice.subscription ?? null) as string | null;
 	const customerId = invoice.customer as string | null;
 	const billingReason = (invoice.billing_reason ?? null) as string | null;
-	console.log('[WEBHOOK] Invoice details:', { invoiceId: invoice.id, billingReason, subscriptionId, customerId });
+	console.log('[WEBHOOK] Invoice details:', {
+		invoiceId: invoice.id,
+		billingReason,
+		subscriptionId,
+		customerId
+	});
 
 	const org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
 	console.log('[WEBHOOK] Found org:', org?.id, 'current status:', org?.status);
@@ -1400,20 +1448,28 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 	// Save invoice to database
 	await saveInvoice(org.id, invoice);
 
-	// CRITICAL: Only set org to 'active' if it's in payment_pending or provisioning
-	// Prevent accidental activation if organization is already active (e.g., from previous payment or trial)
+	// Activate the org when a real payment succeeds.
+	// payment_pending   → new sub waiting for first payment (or renewal after fix)
+	// provisioning      → sub created, waiting for activation
+	// payment_required  → sub was incomplete/past-due, customer just paid
+	// active            → renewal cycle payment — keep active
 	console.log('[WEBHOOK] Checking status transition. Current org.status:', org.status);
 	let finalOrgStatus: string = org.status;
-	if (org.status === 'payment_pending' || org.status === 'provisioning') {
+	if (
+		org.status === 'payment_pending' ||
+		org.status === 'provisioning' ||
+		org.status === 'payment_required' ||
+		org.status === 'past_due'
+	) {
 		finalOrgStatus = 'active';
 		console.log('[WEBHOOK] ✓ Transitioning', org.status, '→ active');
 	} else if (org.status === 'active') {
-		finalOrgStatus = 'active'; // Already active, keep it
+		finalOrgStatus = 'active';
 		console.log('[WEBHOOK] Org already active, keeping it active');
 	} else {
 		console.log('[WEBHOOK] WARNING: Org in unexpected status:', org.status);
 	}
-	
+
 	const updateData: Record<string, unknown> = {
 		payment_action_required: false,
 		last_payment_failed_at: null,
@@ -1478,7 +1534,10 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 		}
 	}
 
-	console.log('[WEBHOOK] Updating org with data:', { status: updateData.status, stripe_status: updateData.stripe_status });
+	console.log('[WEBHOOK] Updating org with data:', {
+		status: updateData.status,
+		stripe_status: updateData.stripe_status
+	});
 	const { error } = await supabase.from('organizations').update(updateData).eq('id', org.id);
 
 	if (error) {
@@ -1597,7 +1656,7 @@ const handleInvoicePaymentFailed = async (event: Stripe.Event) => {
 	const { error } = await supabase
 		.from('organizations')
 		.update({
-			org_status: 'past_due',
+			status: 'past_due',
 			stripe_status: 'past_due' as StripeSubStatus,
 			payment_action_required: true,
 			last_payment_failed_at: new Date().toISOString(),
@@ -1681,7 +1740,7 @@ const handleInvoicePaymentActionRequired = async (event: Stripe.Event) => {
 		.from('organizations')
 		.update({
 			payment_action_required: true,
-			org_status: 'payment_required',
+			status: 'payment_required',
 			last_payment_failed_at: new Date().toISOString(),
 			payment_failure_reason: 'Payment action required',
 			updated_at: new Date().toISOString()
@@ -2078,6 +2137,14 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
 					await saveInvoice(orgId, actionRequiredInvoice);
 				}
 				await handleInvoicePaymentActionRequired(event);
+				break;
+			}
+			case 'invoice.voided': {
+				const voidedInvoice = event.data.object as Stripe.Invoice;
+				if (orgId) {
+					await saveInvoice(orgId, voidedInvoice);
+				}
+				console.log('[WEBHOOK] Invoice voided', { invoiceId: voidedInvoice.id, orgId });
 				break;
 			}
 			case 'customer.subscription.trial_will_end':

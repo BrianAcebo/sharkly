@@ -153,10 +153,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 				type={type}
 				{...props}
 			>
-				{loading && <LoadingSpinner />}
-				{!loading && startIcon && <span className="flex items-center">{startIcon}</span>}
-				{children}
-				{!loading && endIcon && <span className="flex items-center">{endIcon}</span>}
+				<>
+					{loading && <LoadingSpinner />}
+					{!loading && startIcon && <span className="flex items-center">{startIcon}</span>}
+					{children}
+					{!loading && endIcon && <span className="flex items-center">{endIcon}</span>}
+				</>
 			</Comp>
 		);
 

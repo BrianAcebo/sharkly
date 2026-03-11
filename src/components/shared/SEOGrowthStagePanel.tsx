@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import { TrendingUp } from 'lucide-react';
+import { LawTooltip } from './LawTooltip';
 
 export type GrowthStage = {
 	phase: 1 | 2 | 3 | 4;
@@ -23,6 +24,7 @@ export function SEOGrowthStagePanel({ stage }: Props) {
 			<div className="flex items-center gap-2 text-[10px] font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">
 				<TrendingUp className="size-3.5" />
 				SEO Growth Stage
+				<LawTooltip lawId="trust_takes_time" />
 			</div>
 			<p className="mt-2 text-[15px] font-semibold text-gray-900 dark:text-white">
 				You&apos;re in Stage {stage.phase} of 4. {stage.label}

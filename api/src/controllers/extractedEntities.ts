@@ -1015,7 +1015,7 @@ export async function postAiSuggestForRunHttp(req: Request, res: Response) {
 
     // Use Anthropic Claude for AI suggestions
     const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY;
-    const model = process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
+    const model = process.env.CLAUDE_SONNET_MODEL || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929';
     if (!anthropicKey) {
       return res.json({
         runId,

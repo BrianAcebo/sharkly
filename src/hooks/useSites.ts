@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { buildApiUrl } from '../utils/urls';
+import { isYMYLNiche } from '../lib/ymyl';
 import type { Site } from '../types/site';
 import { useAuth } from './useAuth';
 
@@ -35,7 +37,9 @@ export function useSites() {
 			setError(null);
 			const { data, error: fetchError } = await supabase
 				.from('sites')
-				.select('id, name, description, logo, url, platform, niche, customer_description, competitor_urls, created_at, updated_at')
+				.select(
+					'id, name, description, logo, url, platform, niche, customer_description, competitor_urls, domain_authority, tone, include_terms, avoid_terms, target_language, target_region, author_bio, google_review_count, google_average_rating, gbp_url, facebook_url, linkedin_url, twitter_url, yelp_url, wikidata_url, is_ymyl, created_at, updated_at'
+				)
 				.eq('organization_id', organizationId)
 				.order('created_at', { ascending: false });
 
@@ -52,11 +56,28 @@ export function useSites() {
 				niche: row.niche ?? '',
 				customerDescription: row.customer_description ?? '',
 				competitorUrls: Array.isArray(row.competitor_urls) ? row.competitor_urls : [],
+				domainAuthority: Number(row.domain_authority ?? 0),
+			tone: (row.tone as string | null) ?? null,
+			includeTerms: (row.include_terms as string | null) ?? null,
+			avoidTerms: (row.avoid_terms as string | null) ?? null,
+			targetLanguage: (row.target_language as string | null) ?? 'English',
+			targetRegion: (row.target_region as string | null) ?? 'United States',
+				authorBio: (row.author_bio as string | null) ?? null,
+				googleReviewCount: (row.google_review_count as number | null) ?? null,
+				googleAverageRating: (row.google_average_rating as number | null) ?? null,
+				gbpUrl: (row.gbp_url as string | null) ?? null,
+				facebookUrl: (row.facebook_url as string | null) ?? null,
+				linkedinUrl: (row.linkedin_url as string | null) ?? null,
+				twitterUrl: (row.twitter_url as string | null) ?? null,
+				yelpUrl: (row.yelp_url as string | null) ?? null,
+				wikidataUrl: (row.wikidata_url as string | null) ?? null,
+				isYMYL: Boolean(row.is_ymyl),
 				createdAt: row.created_at,
 				updatedAt: row.updated_at
 			}));
 			setSites(withUrls);
 		} catch (err) {
+			console.error(err);
 			setError(err instanceof Error ? err.message : 'Failed to load sites');
 			setSites([]);
 		} finally {
@@ -77,6 +98,21 @@ export function useSites() {
 			niche?: string;
 			customerDescription?: string;
 			competitorUrls?: string[];
+			domainAuthority?: number;
+			tone?: string;
+			includeTerms?: string;
+			avoidTerms?: string;
+			targetLanguage?: string;
+			targetRegion?: string;
+			authorBio?: string | null;
+			googleReviewCount?: number | null;
+			googleAverageRating?: number | null;
+			gbpUrl?: string | null;
+			facebookUrl?: string | null;
+			linkedinUrl?: string | null;
+			twitterUrl?: string | null;
+			yelpUrl?: string | null;
+			wikidataUrl?: string | null;
 			logoFile?: File | null;
 		}) => {
 			if (!organizationId) throw new Error('No organization');
@@ -91,30 +127,56 @@ export function useSites() {
 					niche: data.niche || '',
 					customer_description: data.customerDescription || '',
 					competitor_urls: data.competitorUrls ?? [],
+					domain_authority: data.domainAuthority ?? 0,
+					tone: data.tone || null,
+					include_terms: data.includeTerms || null,
+					avoid_terms: data.avoidTerms || null,
+					target_language: data.targetLanguage || 'English',
+					target_region: data.targetRegion || 'United States',
+					author_bio: data.authorBio ?? null,
+					is_ymyl: isYMYLNiche(data.niche || '', data.name || '', data.description || ''),
+					google_review_count: data.googleReviewCount ?? null,
+					google_average_rating: data.googleAverageRating ?? null,
+					gbp_url: data.gbpUrl ?? null,
+					facebook_url: data.facebookUrl ?? null,
+					linkedin_url: data.linkedinUrl ?? null,
+					twitter_url: data.twitterUrl ?? null,
+					yelp_url: data.yelpUrl ?? null,
+					wikidata_url: data.wikidataUrl ?? null,
 					logo: null
 				})
 				.select('id')
 				.single();
 
-			if (insertError) throw insertError;
-			const siteId = inserted.id;
+		if (insertError) throw insertError;
+		const siteId = inserted.id;
 
-			let logoPath: string | null = null;
-			if (data.logoFile) {
-				const ext = data.logoFile.name.split('.').pop() || 'png';
-				const path = storagePath(organizationId, siteId, ext);
-				const { error: uploadError } = await supabase.storage
-					.from(ASSETS_BUCKET)
-					.upload(path, data.logoFile, {
-						upsert: true,
-						cacheControl: '3600',
-						contentType: data.logoFile.type
-					});
-				if (!uploadError) {
-					logoPath = path;
-					await supabase.from('sites').update({ logo: path }).eq('id', siteId);
-				}
+		// Auto-fetch DA from Moz in the background — don't block site creation if it fails
+		supabase.auth.getSession().then(({ data: { session } }) => {
+			if (!session?.access_token) return;
+			fetch(buildApiUrl(`/api/sites/${siteId}/refresh-authority`), {
+				method: 'POST',
+				headers: { Authorization: `Bearer ${session.access_token}` },
+			})
+				.then((r) => r.json())
+				.then((d) => { if (d.updated) console.log(`[Sites] DA fetched for new site: ${d.domain_authority}`); })
+				.catch(() => { /* non-fatal */ });
+		});
+
+		if (data.logoFile) {
+			const ext = data.logoFile.name.split('.').pop() || 'png';
+			const path = storagePath(organizationId, siteId, ext);
+			const { error: uploadError } = await supabase.storage
+				.from(ASSETS_BUCKET)
+				.upload(path, data.logoFile, {
+					upsert: true,
+					cacheControl: '3600',
+					contentType: data.logoFile.type
+				});
+			if (!uploadError) {
+				await supabase.from('sites').update({ logo: path }).eq('id', siteId);
 			}
+		}
 
 			await fetchSites();
 			return siteId;
@@ -133,6 +195,21 @@ export function useSites() {
 				niche?: string;
 				customerDescription?: string;
 				competitorUrls?: string[];
+				domainAuthority?: number;
+				tone?: string;
+				includeTerms?: string;
+				avoidTerms?: string;
+				targetLanguage?: string;
+				targetRegion?: string;
+				authorBio?: string | null;
+				googleReviewCount?: number | null;
+				googleAverageRating?: number | null;
+				gbpUrl?: string | null;
+				facebookUrl?: string | null;
+				linkedinUrl?: string | null;
+				twitterUrl?: string | null;
+				yelpUrl?: string | null;
+				wikidataUrl?: string | null;
 				logoFile?: File | null;
 				removeLogo?: boolean;
 			}
@@ -173,7 +250,23 @@ export function useSites() {
 					niche: data.niche ?? '',
 					customer_description: data.customerDescription ?? '',
 					competitor_urls: data.competitorUrls ?? [],
-					logo: logoPath
+					domain_authority: data.domainAuthority ?? 0,
+				tone: data.tone || null,
+				include_terms: data.includeTerms || null,
+				avoid_terms: data.avoidTerms || null,
+				target_language: data.targetLanguage || 'English',
+				target_region: data.targetRegion || 'United States',
+				author_bio: data.authorBio ?? null,
+				is_ymyl: isYMYLNiche(data.niche || '', data.name || '', data.description || ''),
+				google_review_count: data.googleReviewCount ?? null,
+				google_average_rating: data.googleAverageRating ?? null,
+				gbp_url: data.gbpUrl ?? null,
+				facebook_url: data.facebookUrl ?? null,
+				linkedin_url: data.linkedinUrl ?? null,
+				twitter_url: data.twitterUrl ?? null,
+				yelp_url: data.yelpUrl ?? null,
+				wikidata_url: data.wikidataUrl ?? null,
+				logo: logoPath
 				})
 				.eq('id', siteId)
 				.eq('organization_id', organizationId);
@@ -205,5 +298,28 @@ export function useSites() {
 		[organizationId, sites, fetchSites]
 	);
 
-	return { sites, loading, error, createSite, updateSite, deleteSite, refetch: fetchSites };
+	/**
+	 * Fetch the latest Domain Authority from Moz for a site and update the DB.
+	 * Returns the new DA value, or null if the fetch failed / Moz not configured.
+	 */
+	const refreshSiteAuthority = useCallback(async (siteId: string): Promise<number | null> => {
+		const { data: { session } } = await supabase.auth.getSession();
+		if (!session?.access_token) return null;
+		try {
+			const res = await fetch(buildApiUrl(`/api/sites/${siteId}/refresh-authority`), {
+				method: 'POST',
+				headers: { Authorization: `Bearer ${session.access_token}` },
+			});
+			const d = await res.json();
+			if (d.updated || d.domain_authority != null) {
+				await fetchSites(); // re-load so UI shows new value
+				return d.domain_authority as number;
+			}
+			return null;
+		} catch {
+			return null;
+		}
+	}, [fetchSites]);
+
+	return { sites, loading, error, createSite, updateSite, deleteSite, refetch: fetchSites, refreshSiteAuthority };
 }

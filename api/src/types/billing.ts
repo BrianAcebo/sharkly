@@ -16,7 +16,10 @@ export type OrgStatus =
 	| 'disabled'
 	| 'deleted'
 	| 'payment_required'
-	| 'past_due';
+	| 'past_due'
+	| 'payment_pending'
+	| 'provisioning'
+	| 'pending';
 
 export type UsageResourceType = 'llm_credit' | 'other';
 

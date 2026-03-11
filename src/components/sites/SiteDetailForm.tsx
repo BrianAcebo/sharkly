@@ -1,16 +1,11 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, Plus } from 'lucide-react';
+import { Upload, X, Plus, Trash2 } from 'lucide-react';
+import { isYMYLNiche } from '../../lib/ymyl';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
 import TextArea from '../form/input/TextArea';
 import { Button } from '../ui/button';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue
-} from '../ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { validateUrl } from '../../utils/validation';
 import { GSCConnectionManager } from '../gsc/GSCConnectionManager';
 import type { Site } from '../../types/site';
@@ -26,6 +21,57 @@ const PLATFORM_OPTIONS = [
 	{ value: 'custom', label: 'Custom' }
 ];
 
+const TONE_OPTIONS = [
+	{ value: 'professional', label: 'Professional' },
+	{ value: 'conversational', label: 'Conversational' },
+	{ value: 'authoritative', label: 'Authoritative' },
+	{ value: 'friendly', label: 'Friendly' },
+	{ value: 'technical', label: 'Technical' },
+	{ value: 'casual', label: 'Casual' }
+];
+
+const LANGUAGE_OPTIONS = [
+	{ value: 'English', label: 'English' },
+	{ value: 'Spanish', label: 'Spanish' },
+	{ value: 'French', label: 'French' },
+	{ value: 'German', label: 'German' },
+	{ value: 'Italian', label: 'Italian' },
+	{ value: 'Portuguese', label: 'Portuguese' },
+	{ value: 'Dutch', label: 'Dutch' },
+	{ value: 'Polish', label: 'Polish' },
+	{ value: 'Japanese', label: 'Japanese' },
+	{ value: 'Korean', label: 'Korean' },
+	{ value: 'Chinese (Simplified)', label: 'Chinese (Simplified)' },
+	{ value: 'Chinese (Traditional)', label: 'Chinese (Traditional)' },
+	{ value: 'Arabic', label: 'Arabic' },
+	{ value: 'Hindi', label: 'Hindi' },
+	{ value: 'Russian', label: 'Russian' },
+	{ value: 'Swedish', label: 'Swedish' },
+	{ value: 'Norwegian', label: 'Norwegian' },
+	{ value: 'Danish', label: 'Danish' }
+];
+
+const REGION_OPTIONS = [
+	{ value: 'United States', label: '🇺🇸 United States' },
+	{ value: 'United Kingdom', label: '🇬🇧 United Kingdom' },
+	{ value: 'Canada', label: '🇨🇦 Canada' },
+	{ value: 'Australia', label: '🇦🇺 Australia' },
+	{ value: 'Ireland', label: '🇮🇪 Ireland' },
+	{ value: 'New Zealand', label: '🇳🇿 New Zealand' },
+	{ value: 'South Africa', label: '🇿🇦 South Africa' },
+	{ value: 'Germany', label: '🇩🇪 Germany' },
+	{ value: 'France', label: '🇫🇷 France' },
+	{ value: 'Spain', label: '🇪🇸 Spain' },
+	{ value: 'Italy', label: '🇮🇹 Italy' },
+	{ value: 'Netherlands', label: '🇳🇱 Netherlands' },
+	{ value: 'Brazil', label: '🇧🇷 Brazil' },
+	{ value: 'Mexico', label: '🇲🇽 Mexico' },
+	{ value: 'India', label: '🇮🇳 India' },
+	{ value: 'Japan', label: '🇯🇵 Japan' },
+	{ value: 'South Korea', label: '🇰🇷 South Korea' },
+	{ value: 'Singapore', label: '🇸🇬 Singapore' }
+];
+
 export interface SiteFormData {
 	name: string;
 	description: string;
@@ -34,6 +80,22 @@ export interface SiteFormData {
 	niche: string;
 	customerDescription: string;
 	competitorUrls: string[];
+	domainAuthority: number;
+	tone: string;
+	includeTerms: string;
+	avoidTerms: string;
+	targetLanguage: string;
+	targetRegion: string;
+	authorBio?: string | null;
+	// S1-5: AggregateRating + sameAs
+	googleReviewCount?: number | null;
+	googleAverageRating?: number | null;
+	gbpUrl?: string | null;
+	facebookUrl?: string | null;
+	linkedinUrl?: string | null;
+	twitterUrl?: string | null;
+	yelpUrl?: string | null;
+	wikidataUrl?: string | null;
 	logoFile?: File | null;
 	removeLogo?: boolean;
 }
@@ -43,13 +105,15 @@ interface SiteDetailFormProps {
 	onSubmit: (data: SiteFormData) => void;
 	onCancel: () => void;
 	disabled?: boolean;
+	onDelete: () => void;
 }
 
 export default function SiteDetailForm({
 	initial,
 	onSubmit,
 	onCancel,
-	disabled = false
+	disabled = false,
+	onDelete
 }: SiteDetailFormProps) {
 	const [name, setName] = useState(initial?.name ?? '');
 	const [description, setDescription] = useState(initial?.description ?? '');
@@ -57,22 +121,39 @@ export default function SiteDetailForm({
 	const [platform, setPlatform] = useState(initial?.platform ?? '');
 	const [niche, setNiche] = useState(initial?.niche ?? '');
 	const [customerDescription, setCustomerDescription] = useState(
-		initial?.customerDescription ?? ''
+		typeof initial?.customerDescription === 'string' ? initial.customerDescription : ''
 	);
-	const [competitorUrls, setCompetitorUrls] = useState<string[]>(
-		initial?.competitorUrls ?? []
-	);
+	const [competitorUrls, setCompetitorUrls] = useState<string[]>(initial?.competitorUrls ?? []);
 	const [competitorInput, setCompetitorInput] = useState('');
 	const [competitorError, setCompetitorError] = useState('');
+	const [domainAuthority] = useState(initial?.domainAuthority ?? 0);
+	const [tone, setTone] = useState(initial?.tone ?? 'professional');
+	const [includeTerms, setIncludeTerms] = useState(initial?.includeTerms ?? '');
+	const [avoidTerms, setAvoidTerms] = useState(initial?.avoidTerms ?? '');
+	const [targetLanguage, setTargetLanguage] = useState(initial?.targetLanguage ?? 'English');
+	const [targetRegion, setTargetRegion] = useState(initial?.targetRegion ?? 'United States');
+	const [authorBio, setAuthorBio] = useState(initial?.authorBio ?? '');
+	const [googleReviewCount, setGoogleReviewCount] = useState(
+		initial?.googleReviewCount != null ? String(initial.googleReviewCount) : ''
+	);
+	const [googleAverageRating, setGoogleAverageRating] = useState(
+		initial?.googleAverageRating != null ? String(initial.googleAverageRating) : ''
+	);
+	const [gbpUrl, setGbpUrl] = useState(initial?.gbpUrl ?? '');
+	const [facebookUrl, setFacebookUrl] = useState(initial?.facebookUrl ?? '');
+	const [linkedinUrl, setLinkedinUrl] = useState(initial?.linkedinUrl ?? '');
+	const [twitterUrl, setTwitterUrl] = useState(initial?.twitterUrl ?? '');
+	const [yelpUrl, setYelpUrl] = useState(initial?.yelpUrl ?? '');
+	const [wikidataUrl, setWikidataUrl] = useState(initial?.wikidataUrl ?? '');
 	const [logo, setLogo] = useState<File | null>(null);
 	const [logoPreview, setLogoPreview] = useState<string | null>(initial?.logo ?? null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	const [errors, setErrors] = useState<{
-		name: string;
-		url: string;
-		logo: string;
-	}>({ name: '', url: '', logo: '' });
+	const [errors, setErrors] = useState<{ name: string; url: string; logo: string }>({
+		name: '',
+		url: '',
+		logo: ''
+	});
 
 	const clearError = (field: keyof typeof errors) => {
 		setErrors((prev) => ({ ...prev, [field]: '' }));
@@ -90,17 +171,12 @@ export default function SiteDetailForm({
 				return;
 			}
 			if (file.size > MAX_LOGO_SIZE_MB * 1024 * 1024) {
-				setErrors((prev) => ({
-					...prev,
-					logo: `Logo must be under ${MAX_LOGO_SIZE_MB}MB`
-				}));
+				setErrors((prev) => ({ ...prev, logo: `Logo must be under ${MAX_LOGO_SIZE_MB}MB` }));
 				return;
 			}
 			setLogo(file);
 			const reader = new FileReader();
-			reader.onloadend = () => {
-				setLogoPreview(reader.result as string);
-			};
+			reader.onloadend = () => setLogoPreview(reader.result as string);
 			reader.readAsDataURL(file);
 		}
 	};
@@ -109,9 +185,7 @@ export default function SiteDetailForm({
 		clearError('logo');
 		setLogo(null);
 		setLogoPreview(null);
-		if (fileInputRef.current) {
-			fileInputRef.current.value = '';
-		}
+		if (fileInputRef.current) fileInputRef.current.value = '';
 	};
 
 	const handleAddCompetitor = () => {
@@ -130,31 +204,19 @@ export default function SiteDetailForm({
 		setCompetitorInput('');
 	};
 
-	const handleRemoveCompetitor = (url: string) => {
-		setCompetitorUrls((prev) => prev.filter((u) => u !== url));
+	const handleRemoveCompetitor = (u: string) => {
+		setCompetitorUrls((prev) => prev.filter((c) => c !== u));
 	};
 
 	const validateForm = (): boolean => {
-		const newErrors = {
-			name: '',
-			url: '',
-			logo: ''
-		};
-
-		if (!name.trim()) {
-			newErrors.name = 'Name is required';
-		}
-
-		if (url.trim() && !validateUrl(url)) {
+		const newErrors = { name: '', url: '', logo: '' };
+		if (!name.trim()) newErrors.name = 'Name is required';
+		if (url.trim() && !validateUrl(url))
 			newErrors.url = 'Please enter a valid URL (e.g. https://example.com)';
-		}
-
-		if (logo && !ALLOWED_LOGO_TYPES.includes(logo.type)) {
+		if (logo && !ALLOWED_LOGO_TYPES.includes(logo.type))
 			newErrors.logo = 'Please upload a valid image (JPEG, PNG, GIF, or WebP)';
-		} else if (logo && logo.size > MAX_LOGO_SIZE_MB * 1024 * 1024) {
+		else if (logo && logo.size > MAX_LOGO_SIZE_MB * 1024 * 1024)
 			newErrors.logo = `Logo must be under ${MAX_LOGO_SIZE_MB}MB`;
-		}
-
 		setErrors(newErrors);
 		return !newErrors.name && !newErrors.url && !newErrors.logo;
 	};
@@ -162,7 +224,6 @@ export default function SiteDetailForm({
 	const handleSubmit = (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!validateForm()) return;
-
 		onSubmit({
 			name: name.trim(),
 			description: description.trim(),
@@ -171,6 +232,21 @@ export default function SiteDetailForm({
 			niche: niche.trim(),
 			customerDescription: customerDescription.trim(),
 			competitorUrls,
+			domainAuthority,
+			tone: tone || 'professional',
+			includeTerms: includeTerms.trim(),
+			avoidTerms: avoidTerms.trim(),
+			targetLanguage: targetLanguage || 'English',
+			targetRegion: targetRegion || 'United States',
+			authorBio: authorBio.trim() || null,
+			googleReviewCount: googleReviewCount.trim() ? parseInt(googleReviewCount, 10) || null : null,
+			googleAverageRating: googleAverageRating.trim() ? parseFloat(googleAverageRating) || null : null,
+			gbpUrl: gbpUrl.trim() || null,
+			facebookUrl: facebookUrl.trim() || null,
+			linkedinUrl: linkedinUrl.trim() || null,
+			twitterUrl: twitterUrl.trim() || null,
+			yelpUrl: yelpUrl.trim() || null,
+			wikidataUrl: wikidataUrl.trim() || null,
 			logoFile: logo ?? undefined,
 			removeLogo: Boolean(initial?.logo && !logoPreview && !logo)
 		});
@@ -178,7 +254,7 @@ export default function SiteDetailForm({
 
 	return (
 		<form onSubmit={handleSubmit} className="space-y-6">
-			{/* Logo Upload - same pattern as OnboardingForm */}
+			{/* Logo */}
 			<div className="flex flex-col items-start space-y-4">
 				<Label>Logo</Label>
 				<div className="flex items-center gap-4">
@@ -188,7 +264,7 @@ export default function SiteDetailForm({
 								<img
 									src={logoPreview}
 									alt="Logo preview"
-									className="size-20 rounded-xl border-1 border-gray-200 object-cover dark:border-gray-600"
+									className="size-20 rounded-xl border border-gray-200 object-cover dark:border-gray-600"
 								/>
 								<Button
 									type="button"
@@ -230,6 +306,7 @@ export default function SiteDetailForm({
 				</div>
 			</div>
 
+			{/* Name */}
 			<div>
 				<Label htmlFor="site-name">
 					Name <span className="text-error-500">*</span>
@@ -249,6 +326,7 @@ export default function SiteDetailForm({
 				/>
 			</div>
 
+			{/* URL */}
 			<div>
 				<Label htmlFor="site-url">URL</Label>
 				<Input
@@ -265,25 +343,30 @@ export default function SiteDetailForm({
 				/>
 			</div>
 
+			{/* Description */}
 			<div>
 				<Label htmlFor="site-description">Description</Label>
 				<TextArea
 					placeholder="Brief description of this website..."
 					rows={3}
 					value={description}
-					onChange={setDescription}
+					onChange={(e) => setDescription(e.target.value)}
 				/>
 			</div>
 
+			{/* Platform */}
 			<div>
 				<Label>Platform</Label>
-				<Select value={platform || '__empty__'} onValueChange={(v) => setPlatform(v === '__empty__' ? '' : v)}>
+				<Select
+					value={platform || '__empty__'}
+					onValueChange={(v) => setPlatform(v === '__empty__' ? '' : v)}
+				>
 					<SelectTrigger className="h-11 border-gray-300 dark:border-gray-700">
 						<SelectValue placeholder="Select platform" />
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="__empty__">Select platform</SelectItem>
-						{PLATFORM_OPTIONS.filter((o) => o.value !== '').map((opt) => (
+						{PLATFORM_OPTIONS.map((opt) => (
 							<SelectItem key={opt.value} value={opt.value}>
 								{opt.label}
 							</SelectItem>
@@ -292,6 +375,7 @@ export default function SiteDetailForm({
 				</Select>
 			</div>
 
+			{/* Niche */}
 			<div>
 				<Label htmlFor="site-niche">Niche</Label>
 				<Input
@@ -301,18 +385,249 @@ export default function SiteDetailForm({
 					onChange={(e) => setNiche(e.target.value)}
 					placeholder="e.g. Fashion, Tech, Health"
 				/>
+				{isYMYLNiche(niche, name, description) && (
+					<div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+						<p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+							YMYL niche detected
+						</p>
+						<p className="mt-0.5 text-[11px] text-amber-700/90 dark:text-amber-400/90">
+							Google applies stricter EEAT to health, legal, and financial content. Article generation will
+							include citation, credential, and disclaimer requirements.
+						</p>
+					</div>
+				)}
 			</div>
 
+			{/* Customer description */}
 			<div>
 				<Label htmlFor="site-customer-description">Customer description</Label>
 				<TextArea
 					placeholder="Describe your target customer for content generation..."
 					rows={3}
-					value={customerDescription}
-					onChange={setCustomerDescription}
+					value={typeof customerDescription === 'string' ? customerDescription : ''}
+					onChange={(e) => setCustomerDescription(e.target.value)}
 				/>
 			</div>
 
+			{/* Domain Authority is shown on the Performance page, auto-fetched from Moz */}
+
+			{/* Brand voice section */}
+			<div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-600">
+				<h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+					Brand Voice &amp; Content Settings
+				</h3>
+				<p className="text-xs text-gray-500 dark:text-gray-400">
+					These settings are injected into every brief and article prompt so AI-generated content
+					matches your style.
+				</p>
+
+				{/* Tone */}
+				<div>
+					<Label>Writing tone</Label>
+					<Select value={tone || 'professional'} onValueChange={setTone}>
+						<SelectTrigger className="h-11 border-gray-300 dark:border-gray-700">
+							<SelectValue placeholder="Select tone" />
+						</SelectTrigger>
+						<SelectContent>
+							{TONE_OPTIONS.map((opt) => (
+								<SelectItem key={opt.value} value={opt.value}>
+									{opt.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+
+				{/* Include terms */}
+				<div>
+					<Label htmlFor="include-terms">Always include these terms</Label>
+					<TextArea
+						placeholder="Comma-separated keywords or phrases to always weave in, e.g. free consultation, same-day service"
+						rows={2}
+						value={typeof includeTerms === 'string' ? includeTerms : ''}
+						onChange={(e) => setIncludeTerms(e.target.value)}
+					/>
+					<p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+						Comma-separated. These will appear in every brief and article prompt.
+					</p>
+				</div>
+
+				{/* Avoid terms */}
+				<div>
+					<Label htmlFor="avoid-terms">Never use these terms</Label>
+					<TextArea
+						placeholder="Comma-separated words or phrases to avoid, e.g. cheap, low-quality, competitor names"
+						rows={2}
+						value={typeof avoidTerms === 'string' ? avoidTerms : ''}
+						onChange={(e) => setAvoidTerms(e.target.value)}
+					/>
+					<p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+						Comma-separated. AI will be instructed to avoid these in all generated content.
+					</p>
+				</div>
+
+				{/* Author / EEAT — default for all content; can be overridden per page in the Workspace */}
+				<div>
+					<Label htmlFor="author-bio">Default author bio (EEAT)</Label>
+					<TextArea
+						id="author-bio"
+						placeholder="e.g. Sarah Chen, 10+ years in digital marketing. Former Head of Content at Acme Corp."
+						rows={2}
+						value={typeof authorBio === 'string' ? authorBio : ''}
+						onChange={(e) => setAuthorBio(e.target.value)}
+					/>
+					<p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+						Inject into briefs and articles for EEAT. Can be overridden per page in the Workspace.
+					</p>
+				</div>
+
+				{/* Your business profiles (S1-5) — sameAs + AggregateRating */}
+				<div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-600">
+					<h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+						Your business profiles
+					</h3>
+					<p className="text-xs text-gray-500 dark:text-gray-400">
+						These help Google confirm your business is real and connect all your online presence
+						together. Used in LocalBusiness schema (sameAs) and AggregateRating.
+					</p>
+
+					<div className="grid gap-3 sm:grid-cols-2">
+						<div>
+							<Label htmlFor="gbp-url">Google Business Profile URL</Label>
+							<Input
+								id="gbp-url"
+								type="url"
+								value={gbpUrl}
+								onChange={(e) => setGbpUrl(e.target.value)}
+								placeholder="https://www.google.com/maps/place/..."
+							/>
+						</div>
+						<div>
+							<Label htmlFor="facebook-url">Facebook</Label>
+							<Input
+								id="facebook-url"
+								type="url"
+								value={facebookUrl}
+								onChange={(e) => setFacebookUrl(e.target.value)}
+								placeholder="https://facebook.com/yourbusiness"
+							/>
+						</div>
+						<div>
+							<Label htmlFor="linkedin-url">LinkedIn</Label>
+							<Input
+								id="linkedin-url"
+								type="url"
+								value={linkedinUrl}
+								onChange={(e) => setLinkedinUrl(e.target.value)}
+								placeholder="https://linkedin.com/company/yourbusiness"
+							/>
+						</div>
+						<div>
+							<Label htmlFor="twitter-url">Twitter / X</Label>
+							<Input
+								id="twitter-url"
+								type="url"
+								value={twitterUrl}
+								onChange={(e) => setTwitterUrl(e.target.value)}
+								placeholder="https://twitter.com/yourbusiness"
+							/>
+						</div>
+						<div>
+							<Label htmlFor="yelp-url">Yelp</Label>
+							<Input
+								id="yelp-url"
+								type="url"
+								value={yelpUrl}
+								onChange={(e) => setYelpUrl(e.target.value)}
+								placeholder="https://yelp.com/biz/yourbusiness"
+							/>
+						</div>
+						<div>
+							<Label htmlFor="wikidata-url">Wikidata (optional)</Label>
+							<Input
+								id="wikidata-url"
+								type="url"
+								value={wikidataUrl}
+								onChange={(e) => setWikidataUrl(e.target.value)}
+								placeholder="https://www.wikidata.org/wiki/..."
+							/>
+						</div>
+					</div>
+
+					<div className="grid gap-3 sm:grid-cols-2">
+						<div>
+							<Label htmlFor="google-review-count">Google review count</Label>
+							<Input
+								id="google-review-count"
+								type="number"
+								min={0}
+								value={googleReviewCount}
+								onChange={(e) => setGoogleReviewCount(e.target.value)}
+								placeholder="127"
+							/>
+							<p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+								For AggregateRating schema (stars in search)
+							</p>
+						</div>
+						<div>
+							<Label htmlFor="google-average-rating">Google average rating</Label>
+							<Input
+								id="google-average-rating"
+								type="number"
+								min={0}
+								max={5}
+								step={0.1}
+								value={googleAverageRating}
+								onChange={(e) => setGoogleAverageRating(e.target.value)}
+								placeholder="4.8"
+							/>
+							<p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+								1–5 scale
+							</p>
+						</div>
+					</div>
+				</div>
+
+				{/* Language & Region */}
+				<div className="grid grid-cols-2 gap-4">
+					<div>
+						<Label>Content language</Label>
+						<Select value={targetLanguage} onValueChange={setTargetLanguage}>
+							<SelectTrigger className="h-11 border-gray-300 dark:border-gray-700">
+								<SelectValue placeholder="Select language" />
+							</SelectTrigger>
+							<SelectContent>
+								{LANGUAGE_OPTIONS.map((opt) => (
+									<SelectItem key={opt.value} value={opt.value}>
+										{opt.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					<div>
+						<Label>Target region / dialect</Label>
+						<Select value={targetRegion} onValueChange={setTargetRegion}>
+							<SelectTrigger className="h-11 border-gray-300 dark:border-gray-700">
+								<SelectValue placeholder="Select region" />
+							</SelectTrigger>
+							<SelectContent>
+								{REGION_OPTIONS.map((opt) => (
+									<SelectItem key={opt.value} value={opt.value}>
+										{opt.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+				</div>
+				<p className="text-[11px] text-gray-500 dark:text-gray-400">
+					All AI-generated articles and briefs will be written in this language for this region's
+					spelling and conventions (e.g. UK English uses "colour" not "color").
+				</p>
+			</div>
+
+			{/* Competitor URLs */}
 			<div>
 				<Label>Competitor URLs</Label>
 				<div className="space-y-2">
@@ -353,8 +668,7 @@ export default function SiteDetailForm({
 									<button
 										type="button"
 										onClick={() => handleRemoveCompetitor(u)}
-										className="text-gray-500 hover:text-error-500 dark:text-gray-400 dark:hover:text-error-400"
-										aria-label={`Remove ${u}`}
+										className="hover:text-error-500 dark:hover:text-error-400 text-gray-500 dark:text-gray-400"
 									>
 										<X className="size-3.5" />
 									</button>
@@ -365,18 +679,28 @@ export default function SiteDetailForm({
 				</div>
 			</div>
 
-			{/* GSC Connection Section - Only show when editing existing site */}
+			{/* GSC — edit only */}
 			{initial && (
 				<div className="space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
-					<div>
-						<h3 className="font-medium text-gray-900 dark:text-white mb-3">
-							Google Search Console
-						</h3>
-						<GSCConnectionManager siteId={initial.id} siteName={initial.name} />
-					</div>
+					<h3 className="mb-3 font-medium text-gray-900 dark:text-white">Google Search Console</h3>
+					<GSCConnectionManager siteId={initial.id} siteName={initial.name} />
 				</div>
 			)}
 
+			{/* Delete */}
+			{initial && (
+				<Button
+					variant="outline"
+					size="sm"
+					className="border-error-200 text-error-600 hover:bg-error-50 dark:border-error-900 dark:text-error-400 dark:hover:bg-error-900/20"
+					onClick={onDelete}
+					startIcon={<Trash2 className="size-4" />}
+				>
+					Delete
+				</Button>
+			)}
+
+			{/* Submit */}
 			<div className="flex gap-2 pt-4">
 				<Button
 					type="submit"

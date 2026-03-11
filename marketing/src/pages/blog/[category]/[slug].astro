@@ -1,0 +1,116 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { getPost } from '../../../lib/supabase';
+
+// SSR: fetch on every request
+const { slug } = Astro.params;
+const post = await getPost(slug as string);
+if (!post) return Astro.redirect('/404');
+
+const siteUrl = (import.meta.env.SITE_URL as string | undefined) ?? 'https://sharkly.co';
+const canonical = post.canonical_url ?? `${siteUrl}/blog/${post.blog_categories?.slug ?? 'uncategorized'}/${post.slug}`;
+const date = post.published_at
+  ? new Date(post.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  : '';
+const dateISO = post.published_at ? new Date(post.published_at).toISOString() : undefined;
+
+const articleSchema = post.schema_markup ?? {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: post.title,
+  description: post.meta_description ?? post.excerpt ?? '',
+  image: post.og_image_url ?? undefined,
+  author: { '@type': 'Person', name: post.author_name },
+  publisher: {
+    '@type': 'Organization',
+    name: 'Sharkly',
+    url: 'https://sharkly.co',
+  },
+  datePublished: dateISO,
+  mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+};
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Blog', item: `${siteUrl}/blog` },
+    post.blog_categories && { '@type': 'ListItem', position: 2, name: post.blog_categories.name, item: `${siteUrl}/blog/${post.blog_categories.slug}` },
+    { '@type': 'ListItem', position: 3, name: post.title, item: canonical },
+  ].filter(Boolean),
+};
+---
+
+<BaseLayout
+  title={post.meta_title ?? `${post.title} | Sharkly Blog`}
+  description={post.meta_description ?? post.excerpt ?? ''}
+  ogImage={post.og_image_url ?? undefined}
+  canonical={canonical}
+  schema={[articleSchema, breadcrumbSchema]}
+>
+  <article class="max-w-[780px] mx-auto py-12 px-6">
+
+    <!-- Breadcrumb -->
+    <nav class="text-sm text-gray-400 mb-8 flex gap-1.5 items-center flex-wrap dark:text-gray-500">
+      <a href="/blog" class="hover:text-gray-600 dark:hover:text-gray-400">Blog</a>
+      <span>›</span>
+      {post.blog_categories && (
+        <>
+          <a href={`/blog/${post.blog_categories.slug}`} class="hover:text-gray-600 dark:hover:text-gray-400">{post.blog_categories.name}</a>
+          <span>›</span>
+        </>
+      )}
+      <span class="text-gray-700 font-medium dark:text-gray-300">{post.title}</span>
+    </nav>
+
+    <!-- Category badge -->
+    {post.blog_categories && (
+      <a href={`/blog/${post.blog_categories.slug}`} class="inline-block mb-4 px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 text-xs font-semibold uppercase tracking-wider dark:bg-indigo-950/50 dark:text-indigo-400 dark:border-indigo-800/50">
+        {post.blog_categories.name}
+      </a>
+    )}
+
+    <h1 class="text-4xl font-bold text-neutral-900 leading-tight mb-4 dark:text-stone-100">
+      {post.title}
+    </h1>
+
+    {post.excerpt && (
+      <p class="text-lg text-gray-500 mb-6 leading-relaxed dark:text-gray-400">{post.excerpt}</p>
+    )}
+
+    <!-- Meta row -->
+    <div class="flex items-center gap-4 py-4 border-y border-gray-200 mb-10 text-sm text-gray-400 flex-wrap dark:border-gray-700 dark:text-gray-500">
+      <span class="font-medium text-gray-700 dark:text-gray-300">{post.author_name}</span>
+      {date && <span>{date}</span>}
+      {post.reading_time_minutes && <span>{post.reading_time_minutes} min read</span>}
+    </div>
+
+    {post.og_image_url && (
+      <img
+        src={post.og_image_url}
+        alt={post.title}
+        class="w-full rounded-xl mb-10 aspect-video object-cover"
+        loading="eager"
+      />
+    )}
+
+    <!-- Rendered HTML content from Tiptap -->
+    {post.content_html
+      ? <div class="prose prose-neutral dark:prose-invert max-w-[72ch]" set:html={post.content_html} />
+      : <div class="prose prose-neutral dark:prose-invert max-w-[72ch] text-center py-8 text-gray-400 dark:text-gray-500"><p>Content coming soon.</p></div>
+    }
+
+    <!-- CTA block -->
+    <div class="mt-16 p-8 rounded-xl bg-gradient-to-br from-indigo-50 to-fuchsia-50 border border-indigo-200 text-center dark:from-indigo-950/30 dark:to-fuchsia-950/30 dark:border-indigo-800/50">
+      <p class="text-lg font-semibold text-neutral-900 mb-2 dark:text-stone-100">
+        Ready to put this into practice?
+      </p>
+      <p class="text-gray-500 text-sm mb-5 dark:text-gray-400">
+        Sharkly handles your keyword research, content strategy, and article generation — automatically.
+      </p>
+      <a href="https://app.sharkly.co" class="inline-block bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-medium text-sm hover:bg-indigo-700 transition-colors">
+        Try Sharkly Free
+      </a>
+    </div>
+  </article>
+</BaseLayout>

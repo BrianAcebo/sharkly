@@ -8,6 +8,7 @@ import {
 	Building2,
 	Bot,
 	BookOpen,
+	Code2,
 	GitFork,
 	Globe,
 	Key,
@@ -21,6 +22,8 @@ import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
 import { useSidebar } from '../../hooks/useSidebar';
 import { Logo } from '../common/Logo';
+import { canAccessPerformance, canAccessTechnical } from '../../utils/featureGating';
+import type { OrganizationRow } from '../../types/billing';
 
 type MenuItem = {
 	icon: React.ComponentType<{ className?: string }>;
@@ -29,13 +32,20 @@ type MenuItem = {
 	children?: MenuItem[];
 };
 
-const Sidebar: React.FC = () => {
+interface AppSidebarProps {
+	organization?: OrganizationRow | null;
+}
+
+const Sidebar: React.FC<AppSidebarProps> = ({ organization }) => {
 	const { user, signOut } = useAuth();
 	const { isExpanded, isMobileOpen } = useSidebar();
 	const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
-	const menuItems: MenuItem[] = useMemo(
-		() => [
+	const canAccessPerformancePage = organization ? canAccessPerformance(organization) : false;
+	const canAccessTechnicalPage = organization ? canAccessTechnical(organization) : false;
+
+	const menuItems: MenuItem[] = useMemo(() => {
+		const items: MenuItem[] = [
 			{ icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
 			{
 				icon: BookOpen,
@@ -46,25 +56,37 @@ const Sidebar: React.FC = () => {
 					{ icon: CalendarDays, label: 'Calendar', path: '/calendar' },
 					{ icon: Key, label: 'Keywords', path: '/keywords' }
 				]
-			},
-			{ icon: BarChart2, label: 'Performance', path: '/performance' },
-			{ icon: TrendingUp, label: 'Rankings', path: '/rankings' },
-			{ icon: Wrench, label: 'Technical SEO', path: '/technical' },
+			}
+		];
+
+		if (canAccessPerformancePage) {
+			items.push({ icon: BarChart2, label: 'Performance', path: '/performance' });
+		}
+		if (canAccessPerformancePage) {
+			items.push({ icon: TrendingUp, label: 'Rankings', path: '/rankings' });
+		}
+
+		// Technical: Schema Generator (Builder+), Site Audit (Scale+)
+		const technicalChildren: MenuItem[] = [{ icon: Code2, label: 'Schema Generator', path: '/schema-generator' }];
+		if (canAccessTechnicalPage) {
+			technicalChildren.unshift({ icon: Wrench, label: 'Site Audit', path: '/technical' });
+		}
+		items.push({
+			icon: Wrench,
+			label: 'Technical',
+			path: '/technical',
+			children: technicalChildren
+		});
+
+		items.push(
 			{ icon: Globe, label: 'Sites', path: '/sites' },
-			{
-				icon: Bot,
-				label: 'AI Assistant',
-				path: '/assistant'
-			},
-			{
-				icon: Building2,
-				label: 'Organization',
-				path: '/organization'
-			},
+			{ icon: Bot, label: 'Fin', path: '/assistant' },
+			{ icon: Building2, label: 'Organization', path: '/organization' },
 			{ icon: Settings, label: 'Settings', path: '/settings' }
-		],
-		[]
-	);
+		);
+
+		return items;
+	}, [canAccessPerformancePage, canAccessTechnicalPage]);
 
 	const isActive = useCallback((it: MenuItem): boolean => {
 		if (it.path) return window.location.pathname.startsWith(it.path);
@@ -84,7 +106,7 @@ const Sidebar: React.FC = () => {
 
 	return (
 		<aside
-			className={`fixed top-0 left-0 z-50 mt-16 flex h-screen flex-col border-r border-gray-200 bg-white text-gray-900 transition-all duration-300 ease-in-out lg:mt-0 dark:border-gray-600 dark:bg-gray-900 ${isExpanded || isMobileOpen ? 'w-50' : 'w-22'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+			className={`fixed top-0 left-0 z-50 mt-16 flex h-screen flex-col border-r border-gray-200 bg-white text-gray-900 transition-all duration-300 ease-in-out lg:mt-0 dark:border-gray-600 dark:bg-gray-900 ${isExpanded || isMobileOpen ? 'w-55' : 'w-22'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
 		>
 			<div className="h-header-height flex items-center justify-center border-b border-gray-200 pt-4 pb-2 dark:border-gray-600">
 				<Link to="/">

@@ -9,11 +9,16 @@ export type Cluster = {
 	status: string;
 	completionPct: number;
 	total: number;
+	articleCount: number;
 	completion: number;
 	funnelCoverage: { tofu: number; mofu: number; bofu: number };
 	croScore: number;
 	estimatedTraffic: number;
 	createdAt: string;
+	/** 'A' = focus is conversion page; 'B' = destination page downstream */
+	architecture?: string;
+	destinationPageUrl?: string | null;
+	destinationPageLabel?: string | null;
 };
 
 export function useClusters(siteId: string | null) {
@@ -32,7 +37,7 @@ export function useClusters(siteId: string | null) {
 			setError(null);
 			const { data: clusterRows, error: clusterErr } = await supabase
 				.from('clusters')
-				.select('id, topic_id, title, target_keyword, status, completion_pct, funnel_coverage, cro_score, created_at')
+				.select('id, topic_id, title, target_keyword, status, completion_pct, funnel_coverage, cro_score, created_at, architecture, destination_page_url, destination_page_label')
 				.eq('site_id', siteId)
 				.order('created_at', { ascending: false });
 
@@ -48,10 +53,10 @@ export function useClusters(siteId: string | null) {
 			}
 
 			const clusterIds = (clusterRows || []).map((c) => c.id);
-			const { data: pageCounts, error: pagesErr } = await supabase
-				.from('pages')
-				.select('cluster_id, status')
-				.in('cluster_id', clusterIds);
+		const { data: pageCounts, error: pagesErr } = await supabase
+			.from('pages')
+			.select('cluster_id, status, type')
+			.in('cluster_id', clusterIds);
 
 			if (pagesErr) {
 				console.error('[useClusters] Supabase error (pages)', {
@@ -65,7 +70,17 @@ export function useClusters(siteId: string | null) {
 				throw pagesErr;
 			}
 
-			const countByCluster = (pageCounts || []).reduce(
+		const countByCluster = (pageCounts || []).reduce(
+			(acc, p) => {
+				acc[p.cluster_id] = (acc[p.cluster_id] || 0) + 1;
+				return acc;
+			},
+			{} as Record<string, number>
+		);
+
+		const articleCountByCluster = (pageCounts || [])
+			.filter((p) => p.type === 'article')
+			.reduce(
 				(acc, p) => {
 					acc[p.cluster_id] = (acc[p.cluster_id] || 0) + 1;
 					return acc;
@@ -85,22 +100,27 @@ export function useClusters(siteId: string | null) {
 
 			const mapped: Cluster[] = (clusterRows || []).map((c) => {
 				const fc = (c.funnel_coverage as { tofu?: number; mofu?: number; bofu?: number }) || {};
-				const total = countByCluster[c.id] || 0;
-				const completion = completedByCluster[c.id] || 0;
-				return {
-					id: c.id,
-					topicId: c.topic_id,
-					title: c.title,
-					targetKeyword: c.target_keyword,
-					status: c.status || 'active',
-					completionPct: c.completion_pct ?? 0,
-					total,
-					completion,
-					funnelCoverage: { tofu: fc.tofu ?? 0, mofu: fc.mofu ?? 0, bofu: fc.bofu ?? 0 },
-					croScore: c.cro_score ?? 0,
-					estimatedTraffic: 0,
-					createdAt: c.created_at
-				};
+			const total = countByCluster[c.id] || 0;
+			const articleCount = articleCountByCluster[c.id] || 0;
+			const completion = completedByCluster[c.id] || 0;
+			return {
+				id: c.id,
+				topicId: c.topic_id,
+				title: c.title,
+				targetKeyword: c.target_keyword,
+				status: c.status || 'active',
+				completionPct: c.completion_pct ?? 0,
+				total,
+				articleCount,
+				completion,
+				funnelCoverage: { tofu: fc.tofu ?? 0, mofu: fc.mofu ?? 0, bofu: fc.bofu ?? 0 },
+				croScore: c.cro_score ?? 0,
+				estimatedTraffic: 0,
+				createdAt: c.created_at,
+				architecture: c.architecture ?? 'A',
+				destinationPageUrl: c.destination_page_url ?? null,
+				destinationPageLabel: c.destination_page_label ?? null
+			};
 			});
 
 			setClusters(mapped);

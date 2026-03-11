@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Globe, Pencil, Trash2, ExternalLink, Check, RefreshCw } from 'lucide-react';
+import { Plus, Globe, Pencil, ExternalLink, Check, RefreshCw } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Button } from '../components/ui/button';
@@ -56,7 +56,8 @@ export default function Sites() {
 		setSheetOpen(true);
 	};
 
-	const handleDeleteClick = (site: Site) => {
+	const handleDeleteClick = (site: Site | null) => {
+		if (!site) return;
 		setSiteToDelete(site);
 	};
 
@@ -91,6 +92,7 @@ export default function Sites() {
 			await deleteSite(siteToDelete.id);
 			setSiteToDelete(null);
 			toast.success('Site deleted');
+			setSheetOpen(false);
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Failed to delete site');
 		} finally {
@@ -109,30 +111,63 @@ export default function Sites() {
 		try {
 			setSubmitting(true);
 			if (editingSite) {
-				await updateSite(editingSite.id, {
-					name: data.name,
-					description: data.description,
-					url: data.url,
-					platform: data.platform,
-					niche: data.niche,
-					customerDescription: data.customerDescription,
-					competitorUrls: data.competitorUrls,
-					logoFile: data.logoFile,
-					removeLogo: data.removeLogo
-				});
+			await updateSite(editingSite.id, {
+				name: data.name,
+				description: data.description,
+				url: data.url,
+				platform: data.platform,
+				niche: data.niche,
+				customerDescription: data.customerDescription,
+				competitorUrls: data.competitorUrls,
+				domainAuthority: data.domainAuthority,
+				tone: data.tone,
+				includeTerms: data.includeTerms,
+				avoidTerms: data.avoidTerms,
+				targetLanguage: data.targetLanguage,
+				targetRegion: data.targetRegion,
+				authorBio: data.authorBio,
+				googleReviewCount: data.googleReviewCount,
+				googleAverageRating: data.googleAverageRating,
+				gbpUrl: data.gbpUrl,
+				facebookUrl: data.facebookUrl,
+				linkedinUrl: data.linkedinUrl,
+				twitterUrl: data.twitterUrl,
+				yelpUrl: data.yelpUrl,
+				wikidataUrl: data.wikidataUrl,
+				logoFile: data.logoFile,
+				removeLogo: data.removeLogo
+			});
 				toast.success('Site updated');
 			} else {
-				await createSite({
-					name: data.name,
-					description: data.description,
-					url: data.url,
-					platform: data.platform,
-					niche: data.niche,
-					customerDescription: data.customerDescription,
-					competitorUrls: data.competitorUrls,
-					logoFile: data.logoFile ?? null
-				});
+			await createSite({
+				name: data.name,
+				description: data.description,
+				url: data.url,
+				platform: data.platform,
+				niche: data.niche,
+				customerDescription: data.customerDescription,
+				competitorUrls: data.competitorUrls,
+				domainAuthority: data.domainAuthority,
+				tone: data.tone,
+				includeTerms: data.includeTerms,
+				avoidTerms: data.avoidTerms,
+				targetLanguage: data.targetLanguage,
+				targetRegion: data.targetRegion,
+				authorBio: data.authorBio,
+				googleReviewCount: data.googleReviewCount,
+				googleAverageRating: data.googleAverageRating,
+				gbpUrl: data.gbpUrl,
+				facebookUrl: data.facebookUrl,
+				linkedinUrl: data.linkedinUrl,
+				twitterUrl: data.twitterUrl,
+				yelpUrl: data.yelpUrl,
+				wikidataUrl: data.wikidataUrl,
+				logoFile: data.logoFile ?? null
+			});
 				toast.success('Site added');
+				setTimeout(() => {
+					window.location.reload();
+				}, 1000);
 			}
 			setSheetOpen(false);
 			setEditingSite(null);
@@ -258,15 +293,6 @@ export default function Sites() {
 									<CreditBadge cost={10} action="Re-audit" sufficient />
 									<span className="ml-1">Re-audit</span>
 								</Button>
-								<Button
-									variant="outline"
-									size="sm"
-									className="border-error-200 text-error-600 hover:bg-error-50 dark:border-error-900 dark:text-error-400 dark:hover:bg-error-900/20"
-									onClick={() => handleDeleteClick(site)}
-									startIcon={<Trash2 className="size-4" />}
-								>
-									Delete
-								</Button>
 							</div>
 						</div>
 					))
@@ -286,10 +312,11 @@ export default function Sites() {
 					<div className="mt-6">
 						<SiteDetailForm
 							initial={editingSite ?? undefined}
-							onSubmit={handleFormSubmit}
-							onCancel={() => handleSheetClose(false)}
-							disabled={submitting}
-						/>
+						onSubmit={handleFormSubmit}
+						onCancel={() => handleSheetClose(false)}
+						onDelete={() => handleDeleteClick(editingSite)}
+						disabled={submitting}
+					/>
 					</div>
 				</SheetContent>
 			</Sheet>

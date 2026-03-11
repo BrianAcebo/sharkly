@@ -1,6 +1,6 @@
 /**
  * Crawler Routes
- * Site auditing and technical issue detection
+ * Site auditing and technical issue detection (Scale+ tier)
  */
 
 import { Router } from 'express';
@@ -11,13 +11,18 @@ import {
 	getIssueDetails,
 	markIssuesResolved
 } from '../controllers/crawlerController';
+import { requireAuth } from '../middleware/auth.js';
+import { requireTier } from '../middleware/requireTier.js';
 
 const router = Router();
+
+router.use(requireAuth);
+router.use(requireTier('scale'));
 
 // POST /api/crawler/check-crawlability - Pre-crawl validation
 router.post('/check-crawlability', checkCrawlability);
 
-// POST /api/crawler/start - Start a site crawl (8 credits)
+// POST /api/crawler/start - Start a site crawl (10 credits)
 router.post('/start', startCrawl);
 
 // GET /api/crawler/results/:siteId - Get latest crawl results

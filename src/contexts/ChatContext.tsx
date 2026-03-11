@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { createContext, useContext, useState, useCallback, useRef, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
 import { useOrganization } from '../hooks/useOrganization';
 import { supabase } from '../utils/supabaseClient';
 import { useNavigate } from 'react-router-dom';
@@ -88,79 +88,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
   
   const abortControllerRef = useRef<AbortController | null>(null);
-  const pollingIntervalsRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const navigate = useNavigate();
-  // Clean up polling intervals on unmount
-  useEffect(() => {
-    return () => {
-      pollingIntervalsRef.current.forEach(interval => clearInterval(interval));
-      pollingIntervalsRef.current.clear();
-    };
-  }, []);
-
-  // Poll for run completion instead of using Realtime
-  const pollRunStatus = useCallback((runId: string, _toolName: string) => {
-    // Don't poll twice for same run
-    if (pollingIntervalsRef.current.has(runId)) return;
-
-    console.log('[Chat] Starting to poll run status:', runId);
-    
-    const checkStatus = async () => {
-      try {
-        // Get run status
-        const { data, error } = await supabase
-          .from('public_presence_runs')
-          .select('status')
-          .eq('id', runId)
-          .single();
-        
-        if (error) {
-          console.error('[Chat] Error polling run status:', error);
-          return;
-        }
-        
-        const status = data?.status;
-        console.log('[Chat] Polled run status:', runId, status);
-        
-        if (status === 'done' || status === 'completed' || status === 'failed' || status === 'error') {
-          const isSuccess = status === 'done' || status === 'completed';
-          
-          // Update tool status
-          setCurrentTools(prev => prev.map(t => 
-            t.runId === runId
-              ? { 
-                  ...t, 
-                  status: isSuccess ? 'completed' : 'error',
-                  result: { 
-                    ...t.result, 
-                    status: isSuccess ? 'completed' : 'error',
-                    message: isSuccess 
-                      ? 'Scan completed! Click to view results.'
-                      : 'Scan failed. Please try again.'
-                  }
-                }
-              : t
-          ));
-          
-          // Stop polling after completion
-          const interval = pollingIntervalsRef.current.get(runId);
-          if (interval) {
-            clearInterval(interval);
-            pollingIntervalsRef.current.delete(runId);
-          }
-        }
-      } catch (e) {
-        console.error('[Chat] Poll error:', e);
-      }
-    };
-
-    // Poll every 3 seconds
-    const interval = setInterval(checkStatus, 3000);
-    pollingIntervalsRef.current.set(runId, interval);
-    
-    // Also check immediately
-    checkStatus();
-  }, []);
 
   const refreshSessions = useCallback(() => {
     setSessionRefreshKey(prev => prev + 1);
@@ -351,29 +279,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   break;
 
                 case 'tool_result':
-                  // Check if this is an async action with a run_id that we should track
-                  const runId = data.result?.run_id;
-                  const isAsyncAction = runId && data.result?.status === 'running';
-                  
                   setCurrentTools(prev => prev.map(t => 
                     t.name === data.tool && t.status === 'running'
                       ? { 
                           ...t, 
-                          // Keep as 'running' if it's an async action we're tracking
-                          status: isAsyncAction ? 'running' : (data.success ? 'completed' : 'error'),
-                          // Include error in result so ToolExecutionPanel can display it
+                          status: data.success ? 'completed' : 'error',
                           result: data.error ? { ...data.result, error: data.error } : data.result, 
                           credits: data.credits,
-                          runId: runId,
                         }
                       : t
                   ));
                   setTotalCreditsUsed(prev => prev + (data.credits || 0));
-                  
-                  // Poll for run completion for async actions
-                  if (isAsyncAction && runId) {
-                    pollRunStatus(runId, data.tool);
-                  }
                   break;
 
                 case 'done':
@@ -436,10 +352,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
       
       console.error('[Chat] Error:', error);
-      // Clear any running tool panels and stop polling
       setCurrentTools([]);
-      pollingIntervalsRef.current.forEach(interval => clearInterval(interval));
-      pollingIntervalsRef.current.clear();
       setMessages(prev => prev.map(m => 
         m.id === assistantId 
           ? { ...m, content: `Error: ${errorMessage}`, isLoading: false }

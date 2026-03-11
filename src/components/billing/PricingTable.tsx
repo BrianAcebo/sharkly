@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { CheckCircle, Users, Coins } from 'lucide-react';
+import { CheckCircle, Users, Coins, MessageCircle } from 'lucide-react';
 import { PlanCatalogRow } from '../../types/billing';
 import {
 	Dialog,
@@ -35,7 +35,13 @@ const PricingTable: React.FC<PricingTableProps> = ({
 			{ icon: Users, text: `${plan.included_seats} seat${plan.included_seats !== 1 ? 's' : ''}` },
 			{ icon: Coins, text: `${plan.included_credits.toLocaleString()} credits` }
 		];
-
+		const chatMessages = plan.included_chat_messages ?? 0;
+		if (chatMessages > 0) {
+			features.push({
+				icon: MessageCircle,
+				text: `Fin AI Assistant (${chatMessages.toLocaleString()} messages/mo)`
+			});
+		}
 		return { features };
 	};
 

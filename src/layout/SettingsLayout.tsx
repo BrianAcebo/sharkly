@@ -1,9 +1,11 @@
 import { Link, Outlet, useLocation } from 'react-router';
 
 const SETTINGS_NAV = [
+	{ path: '/settings/profile', label: 'Profile', icon: '👤' },
 	{ path: '/settings/integrations', label: 'Integrations', icon: '🔌' },
 	{ path: '/settings/credits', label: 'Credits & Billing', icon: '💳' },
 	{ path: '/settings/brand-voice', label: 'Brand Voice', icon: '🎨' },
+	{ path: '/settings/notifications', label: 'Notifications', icon: '🔔' },
 	{ path: '/settings/team', label: 'Team', icon: '👥', badge: 'Coming Soon' },
 ];
 

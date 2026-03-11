@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { emailService } from '../utils/email.js';
+import { getStripeClient } from '../utils/stripe.js';
 import {
     getSeatCapacity,
     loadSeatSummary,
@@ -636,10 +637,10 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 			return res.status(400).json({ error: 'Organization ID is required' });
 		}
 
-		// Get the organization and verify ownership
+		// Get the organization and verify ownership - include Stripe fields
 		const { data: organization, error: orgError } = await supabase
 			.from('organizations')
-			.select('id, name, owner_id')
+			.select('id, name, owner_id, stripe_subscription_id, stripe_customer_id')
 			.eq('id', organizationId)
 			.single();
 
@@ -651,6 +652,20 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 		if (organization.owner_id !== userId) {
 			return res.status(403).json({ error: 'Only the organization owner can delete the organization' });
 		}
+
+	// Cancel Stripe subscription if it exists
+	if (organization.stripe_subscription_id) {
+		try {
+			const stripe = getStripeClient();
+			await stripe.subscriptions.cancel(organization.stripe_subscription_id);
+			console.log('[DELETE] Stripe subscription canceled:', organization.stripe_subscription_id);
+		} catch (stripeError) {
+			console.error('[DELETE] Error canceling Stripe subscription:', stripeError);
+			return res.status(500).json({
+				error: 'Failed to cancel Stripe subscription. Please contact support at hello@sharkly.co for assistance with deleting this organization.'
+			});
+		}
+	}
 
 		// Get all team members to notify them before deletion
 		const { data: teamMembers, error: membersError } = await supabase

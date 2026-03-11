@@ -242,6 +242,60 @@
 		font-style: italic;
 	}
 
+	/* ProseMirror / Tiptap table styling — matches .prose (Astro blog) for WYSIWYG consistency */
+	/* Use separate + border-spacing:0 so alternating row backgrounds align cleanly with row boundaries */
+	.ProseMirror table {
+		border-collapse: separate;
+		border-spacing: 0;
+		width: 100%;
+		margin: 1.5rem 0;
+		font-size: 0.9375rem;
+	}
+
+	.ProseMirror th,
+	.ProseMirror td {
+		border: none;
+		border-bottom: 1px solid #e5e7eb;
+		padding: 0.75rem 1rem;
+		text-align: left;
+		vertical-align: top;
+	}
+
+	.ProseMirror tr:first-child th,
+	.ProseMirror tr:first-child td {
+		border-top: 1px solid #e5e7eb;
+	}
+
+	.ProseMirror th {
+		background: #f9fafb;
+		font-weight: 600;
+		color: #374151;
+	}
+
+	.ProseMirror tr:nth-child(even) td {
+		background: #fafafa;
+	}
+
+	.dark .ProseMirror th,
+	.dark .ProseMirror td {
+		border-top-color: #404040;
+		border-bottom-color: #404040;
+	}
+
+	.dark .ProseMirror tr:first-child th,
+	.dark .ProseMirror tr:first-child td {
+		border-top-color: #404040;
+	}
+
+	.dark .ProseMirror th {
+		background: #262626;
+		color: #e5e7eb;
+	}
+
+	.dark .ProseMirror tr:nth-child(even) td {
+		background: #1a1a1a;
+	}
+
 	.dark .ProseMirror blockquote {
 		border-left-color: #6b7280;
 		color: #9ca3af;
@@ -357,6 +411,19 @@
 	--color-white: #ffffff;
 	--color-black: #101828;
 
+	/* --color-brand-25: #f0fdf4;
+	--color-brand-50: #ecfdf5;
+	--color-brand-100: #d1fae5;
+	--color-brand-200: #a7f3d0;
+	--color-brand-300: #6ee7b7;
+	--color-brand-400: #34d399;
+	--color-brand-500: #10b981;
+	--color-brand-600: #059669;
+	--color-brand-700: #047857;
+	--color-brand-800: #065f46;
+	--color-brand-900: #064e3b;
+	--color-brand-950: #022c22; */
+
 	--color-brand-25: #ecfeff;
 	--color-brand-50: #cffafe;
 	--color-brand-100: #a5f3fc;
@@ -377,9 +444,9 @@
 	--color-brand-primary: #0f1923;
 	--color-brand-secondary: #5a6a7a;
 	--color-brand-dim: #9aaab8;
-	--color-brand-cyan: #00b4d8;
-	--color-brand-cyan-light: #e0f7fc;
-	--color-brand-cyan-dark: #0077a8;
+	--color-brand-emerald: #059669;
+	--color-brand-emerald-light: #ecfdf5;
+	--color-brand-emerald-dark: #047857;
 	--color-brand-blue: #2563eb;
 	--color-brand-blue-light: #eff4ff;
 	--color-brand-green: #059669;
@@ -418,6 +485,7 @@
 	--color-gray-800: #111111;
 	/* --color-gray-850: #111111; */
 	--color-gray-900: #080808;
+	--color-gray-950: #000000;
 	--color-gray-dark: #111111;
 
 	--color-orange-25: #fffaf5;

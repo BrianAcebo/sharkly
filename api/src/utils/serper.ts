@@ -6,6 +6,7 @@ export type SerperResult = {
 	organic?: Array<{ title: string; link: string; snippet?: string }>;
 	relatedSearches?: Array<{ query: string }>;
 	peopleAlsoAsk?: Array<{ question: string; snippet?: string }>;
+	searchInformation?: { totalResults?: string; timeTakenDisplayed?: number };
 };
 
 export async function serperSearch(query: string, num = 10): Promise<SerperResult> {
@@ -24,6 +25,15 @@ export async function serperSearch(query: string, num = 10): Promise<SerperResul
 	return {
 		organic: data.organic || [],
 		relatedSearches: data.relatedSearches || [],
-		peopleAlsoAsk: data.peopleAlsoAsk || []
+		peopleAlsoAsk: data.peopleAlsoAsk || [],
+		searchInformation: data.searchInformation || {}
 	};
+}
+
+/** Parse "About 1,230 results" → 1230 */
+export function parseSearchResultCount(totalResults?: string): number {
+	if (!totalResults) return 0;
+	const match = /[\d,]+/.exec(totalResults);
+	if (!match) return 0;
+	return parseInt(match[0].replace(/,/g, ''), 10) || 0;
 }

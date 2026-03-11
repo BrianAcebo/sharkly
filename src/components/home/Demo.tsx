@@ -8,30 +8,30 @@ const Demo: React.FC = () => {
 	const steps = [
 		{
 			icon: Search,
-			title: 'Input Target',
-			description: 'Name, handle, email, phone, or domain',
+			title: 'Add Your Site',
+			description: 'URL, niche, and competitors',
 			detail:
-				'Start an investigation with any identifier. The assistant resolves entities and prepares a clean subject profile.'
+				'Connect your site to Sharkly. Fin reads your project data and understands your SEO setup.'
 		},
 		{
 			icon: Database,
-			title: 'Data Aggregation',
-			description: 'Collect across web, social, and breaches',
+			title: 'Cluster & Content',
+			description: 'Topics, keywords, and pages',
 			detail:
-				'The system pulls structured evidence from multiple sources with citations and an audit trail.'
+				'Organize content into clusters. Track target keywords, funnel stages, and page health.'
 		},
 		{
 			icon: Users,
-			title: 'Identity Mapping',
-			description: 'Link aliases, accounts, and assets',
-			detail: 'Visualize connections between people, accounts, devices, emails, and organizations.'
+			title: 'Audit & Priority',
+			description: 'Technical health and next actions',
+			detail: 'Run audits, check crawlability, and get prioritized recommendations from Fin.'
 		},
 		{
 			icon: FileText,
-			title: 'AI Report Drafting',
-			description: 'Summaries, timelines, and citations',
+			title: 'Optimize & Iterate',
+			description: 'Briefs, scores, and improvements',
 			detail:
-				'Generate professional drafts you can edit and export. All claims include source links.'
+				'Generate content briefs, improve SEO scores, and fix issues. Fin suggests what to do next.'
 		}
 	];
 
@@ -45,14 +45,13 @@ const Demo: React.FC = () => {
 						SEO Workflow Demo
 					</div>
 					<h2 className="mb-6 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
-						AI SEO Assistant
+						Fin
 						<span className="from-brand-500 to-blue-light-500 block bg-gradient-to-r bg-clip-text text-transparent">
-							Workflow Demo
+							SEO Workflow Demo
 						</span>
 					</h2>
 					<p className="mx-auto max-w-3xl text-xl text-gray-600 dark:text-gray-300">
-						See how Sharkly converts raw data into actionable intelligence through a simple, guided
-						flow.
+						See how Fin and Sharkly turn your site data into actionable SEO intelligence.
 					</p>
 				</div>
 
@@ -170,16 +169,13 @@ const Demo: React.FC = () => {
 									</div>
 									<ul className="space-y-1 text-sm text-gray-600 dark:text-gray-300">
 										<li className="flex items-center">
-											<Dot className="h-4 w-4 text-gray-400" /> Verify newly surfaced LLC address
-											against county filings
+											<Dot className="h-4 w-4 text-gray-400" /> Fix missing meta descriptions on 3 high-traffic pages
 										</li>
 										<li className="flex items-center">
-											<Dot className="h-4 w-4 text-gray-400" /> Schedule outreach to confirmed
-											associate at 9:00 AM
+											<Dot className="h-4 w-4 text-gray-400" /> Add MoFu article to "drain cleaning" cluster
 										</li>
 										<li className="flex items-center">
-											<Dot className="h-4 w-4 text-gray-400" /> Attach breach report excerpt to
-											evidence log
+											<Dot className="h-4 w-4 text-gray-400" /> Refresh pricing page (stale, declining rankings)
 										</li>
 									</ul>
 								</div>

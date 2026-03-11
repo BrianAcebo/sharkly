@@ -5,13 +5,18 @@ import { FunnelTag } from '../components/shared/FunnelTag';
 import { SEOGrowthStagePanel, getDefaultGrowthStage } from '../components/shared/SEOGrowthStagePanel';
 import { Link } from 'react-router';
 import { Button } from '../components/ui/button';
-import { Zap, Link2, FileText, Target, Check, Clock, Lock, Plus } from 'lucide-react';
+import { Zap, Target, Check, Clock, Lock, Plus } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
 import { useSiteContext } from '../contexts/SiteContext';
 import { useClusters } from '../hooks/useClusters';
 import { useTopics } from '../hooks/useTopics';
 import { useOrganization } from '../hooks/useOrganization';
 import { useDashboardStats } from '../hooks/useDashboardStats';
+import { useGSCStatus } from '../hooks/useGSCStatus';
+import { usePerformanceData } from '../hooks/usePerformanceData';
+import { useWeeklyPriorityStack } from '../hooks/useWeeklyPriorityStack';
+import { WeeklyPriorityStack } from '../components/shared/WeeklyPriorityStack';
+import { PublishingCadenceCard } from '../components/shared/PublishingCadenceCard';
 import AuditScoreCard from '../components/audit/AuditScoreCard';
 
 export default function Dashboard() {
@@ -21,6 +26,13 @@ export default function Dashboard() {
 	const { topics } = useTopics(selectedSite?.id ?? null);
 	const { organization } = useOrganization();
 	const { publishedCount, avgSeoScore } = useDashboardStats(selectedSite?.id ?? null);
+	const { isConnected: gscConnected } = useGSCStatus(selectedSite?.id);
+	const { avgPosition, totalClicks } = usePerformanceData({
+		siteId: selectedSite?.id,
+		days: 30,
+		enabled: !!selectedSite && gscConnected
+	});
+	const { items: priorityItems, cadence: publishingCadence, loading: priorityLoading, error: priorityError, refetch: refetchPriorities } = useWeeklyPriorityStack(selectedSite?.id ?? null);
 
 	const keywordsTracked = topics.filter((t) => t.status === 'active').length;
 	const growthStage = getDefaultGrowthStage(undefined);
@@ -105,7 +117,12 @@ export default function Dashboard() {
 			{/* Section 4: Stats Row — Section 7.3 */}
 			<div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 				<StatCard label="Keywords Tracked" value={keywordsTracked > 0 ? String(keywordsTracked) : '0'} delta={keywordsTracked > 0 ? 'in active clusters' : 'Start your first cluster'} deltaDirection="neutral" />
-				<StatCard label="Avg. Position" value="—" delta="Connect Search Console" deltaDirection="neutral" />
+				<StatCard
+					label="Avg. Position"
+					value={gscConnected && avgPosition != null ? avgPosition.toFixed(1) : '—'}
+					delta={gscConnected ? (totalClicks != null ? `${totalClicks.toLocaleString()} clicks · last 30d` : 'last 30 days') : 'Connect Search Console'}
+					deltaDirection="neutral"
+				/>
 				<StatCard label="Content Published" value={publishedCount > 0 ? String(publishedCount) : '0'} delta={publishedCount > 0 ? 'pages live' : 'Publish your first article'} deltaDirection="neutral" />
 				<StatCard label="SEO Score (0–115)" value={avgSeoScore != null ? String(avgSeoScore) : 'N/A'} delta={avgSeoScore != null ? 'avg of published' : 'Publish content first'} deltaDirection="neutral" />
 			</div>
@@ -184,53 +201,15 @@ export default function Dashboard() {
 					)}
 				</div>
 
-				{/* Right: Quick Wins */}
-				<div className="rounded-xl border border-gray-200 bg-white p-6 lg:col-span-2 dark:border-gray-700 dark:bg-gray-900">
-					<h3 className="font-montserrat flex items-center gap-2 text-base font-bold text-gray-900 dark:text-white">
-						<Zap className="text-brand-500 dark:text-brand-400 size-4" />
-						Priorities
-					</h3>
-					<div className="mt-4 flex flex-col gap-3">
-						{activeCluster ? (
-							<Link to={`/clusters/${activeCluster.id}`} className="hover:bg-brand-50 flex cursor-pointer gap-3 rounded-lg bg-gray-50 p-3 transition-colors dark:bg-gray-800 dark:hover:bg-gray-800/80">
-								<FileText className="size-5 shrink-0 text-gray-500 dark:text-gray-400" />
-								<div>
-									<div className="text-[13px] font-semibold text-gray-900 dark:text-white">
-										Continue cluster: {activeCluster.title}
-									</div>
-									<p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
-										{activeCluster.completion} of {activeCluster.total} pieces complete.
-									</p>
-								</div>
-							</Link>
-						) : null}
-						{topics.length > 0 && topics.some((t) => t.authorityFit === 'achievable' && t.status !== 'active') ? (
-							<Link to="/strategy" className="hover:bg-brand-50 flex cursor-pointer gap-3 rounded-lg bg-gray-50 p-3 transition-colors dark:bg-gray-800 dark:hover:bg-gray-800/80">
-								<Target className="size-5 shrink-0 text-gray-500 dark:text-gray-400" />
-								<div>
-									<div className="text-[13px] font-semibold text-gray-900 dark:text-white">
-										Start a topic cluster
-									</div>
-									<p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
-										{topics.filter((t) => t.authorityFit === 'achievable' && t.status !== 'active').length} achievable topics ready on Strategy.
-									</p>
-								</div>
-							</Link>
-						) : null}
-						{!activeCluster && topics.length === 0 ? (
-							<Link to="/strategy" className="hover:bg-brand-50 flex cursor-pointer gap-3 rounded-lg bg-gray-50 p-3 transition-colors dark:bg-gray-800 dark:hover:bg-gray-800/80">
-								<Link2 className="size-5 shrink-0 text-gray-500 dark:text-gray-400" />
-								<div>
-									<div className="text-[13px] font-semibold text-gray-900 dark:text-white">
-										Get your topic strategy
-									</div>
-									<p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
-										Complete onboarding or add topics on the Strategy page.
-									</p>
-								</div>
-							</Link>
-						) : null}
-					</div>
+				{/* Right: Publishing Cadence (S2-16) + Weekly Priority Stack (L5) */}
+				<div className="flex flex-col gap-4 lg:col-span-2">
+					<PublishingCadenceCard cadence={publishingCadence} />
+					<WeeklyPriorityStack
+						items={priorityItems}
+						loading={priorityLoading}
+						error={priorityError}
+						onRefetch={refetchPriorities}
+					/>
 				</div>
 			</div>
 

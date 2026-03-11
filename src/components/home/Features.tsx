@@ -1,129 +1,137 @@
 import React from 'react';
-import { Search, CircuitBoard, Share2, Eye, FileText, Webhook, Shield } from 'lucide-react';
+
+const APP_URL = import.meta.env.VITE_APP_URL ?? 'https://app.sharkly.co';
 
 const Features: React.FC = () => {
-    const features = [
-        {
-            icon: Search,
-            title: 'AI‑Powered Search',
-            description:
-                'Advanced machine learning algorithms automatically correlate data across multiple sources for comprehensive intelligence gathering.',
-            color: 'brand'
-        },
-        {
-            icon: CircuitBoard,
-            title: 'AI Research Assistant',
-            description:
-                'Offload OSINT lookups, cross‑referencing, and data enrichment to an always‑on AI assistant.',
-            color: 'blue-light'
-        },
-        {
-            icon: Share2,
-            title: 'Identity Mapping',
-            description:
-                'Visualize complex relationships and connections between individuals, organizations, and digital assets in interactive graphs.',
-            color: 'success'
-        },
-        {
-            icon: Eye,
-            title: 'Real‑time Monitoring',
-            description:
-                'Continuous surveillance of target entities with instant alerts when new information becomes available across the web.',
-            color: 'warning'
-        },
-        {
-            icon: FileText,
-            title: 'AI Report Drafting',
-            description:
-                'Auto‑draft case summaries, timelines, and client‑ready reports while preserving investigator notes and citations.',
-            color: 'theme-purple'
-        },
-        {
-            icon: Webhook,
-            title: 'Deep Web Crawling',
-            description:
-                'Sophisticated crawlers uncover hidden information from forums and obscure digital footprints.',
-            color: 'error'
-        }
-    ];
-
-	const getColorClasses = (color: string) => {
-		const colorMap = {
-			brand: 'bg-brand-100 dark:bg-brand-500/20 text-brand-500 dark:text-brand-400',
-			'blue-light':
-				'bg-blue-light-100 dark:bg-blue-light-500/20 text-blue-light-500 dark:text-blue-light-400',
-			success: 'bg-success-100 dark:bg-success-500/20 text-success-500 dark:text-success-400',
-			warning: 'bg-warning-100 dark:bg-warning-500/20 text-warning-500 dark:text-warning-400',
-			'theme-purple': 'bg-purple-100 dark:bg-purple-500/20 text-purple-500 dark:text-purple-400',
-			error: 'bg-error-100 dark:bg-error-500/20 text-error-500 dark:text-error-400'
-		};
-		return colorMap[color as keyof typeof colorMap] || colorMap.brand;
-	};
-
-    return (
-        <section id="features" className="bg-white py-20 dark:bg-gray-900">
-			<div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-				{/* Section Header */}
-				<div className="mb-16 text-center">
-                    <div className="bg-brand-100 dark:bg-brand-500/20 text-brand-600 dark:text-brand-400 mb-6 inline-flex items-center rounded-full px-4 py-2 text-sm font-medium">
-                        <Shield className="mr-2 h-4 w-4" />
-                        Built for PIs & Risk Analysts
-                    </div>
-                    <h2 className="mb-6 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
-                        Comprehensive OSINT
-                        <span className="from-brand-500 to-blue-light-500 block bg-gradient-to-r bg-clip-text text-transparent">
-                            Intelligence Platform for PIs
-                        </span>
-                    </h2>
-                    <p className="mx-auto max-w-3xl text-xl text-gray-600 dark:text-gray-300">
-                        Give your agency an AI assistant that tracks the facts, researches sources, keeps details organized, and keeps your focus on judgment—not data hunting.
-                    </p>
+	return (
+		<section id="features" className="bg-[#f5f3ed] dark:bg-gray-950 py-16 md:py-24">
+			{/* Two-column intro */}
+			<div className="mx-auto max-w-[1200px] px-4 sm:px-6">
+				<div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12 items-start">
+					<div>
+						<h4 className="text-2xl font-semibold text-black dark:text-white leading-snug mb-4">
+							Your own, personal SEO expert.<br />Completely automated.
+						</h4>
+						<p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+							Sharkly manages your entire SEO workflow. Discover topics, research keywords, build
+							clusters, and generate content automatically — so you focus on publishing, not learning SEO.
+						</p>
+					</div>
+					<div className="hidden md:block w-px min-h-[120px] bg-black/15 dark:bg-white/20 self-stretch" />
+					<div>
+						<h4 className="text-2xl font-semibold text-black dark:text-white leading-snug mb-4">
+							Win back time.<br />Improve your results.
+						</h4>
+						<p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed">
+							Save weeks on keyword research. Post your site and niche, and let Sharkly do the heavy
+							lifting. You take over only when the strategy is ready — no more sifting through endless
+							spreadsheets.
+						</p>
+					</div>
 				</div>
+			</div>
 
-				{/* Features Grid */}
-				<div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-					{features.map((feature, index) => {
-						const IconComponent = feature.icon;
-						return (
-							<div
-								key={index}
-								className="group hover:shadow-theme-lg rounded-2xl border border-transparent bg-gray-50 p-8 transition-all duration-300 hover:-translate-y-1 hover:border-gray-200 hover:bg-white dark:bg-gray-900 dark:hover:border-gray-600 dark:hover:bg-gray-700"
-							>
-                            <div
-                                className={`mb-6 inline-flex h-12 w-12 items-center justify-center rounded-xl ring-1 ring-gray-200 dark:ring-gray-700 ${getColorClasses(feature.color)}`}
-                            >
-                                <IconComponent className="h-6 w-6" />
-                            </div>
-								<h3 className="mb-4 text-xl font-bold text-gray-900 dark:text-white">
-									{feature.title}
-								</h3>
-								<p className="leading-relaxed text-gray-600 dark:text-gray-300">
-									{feature.description}
-								</p>
-							</div>
-						);
-					})}
+			{/* Strategy section */}
+			<div className="mx-auto max-w-[1200px] px-4 sm:px-6 mt-24">
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
+					<div>
+						<p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Strategy</p>
+						<h2 className="text-3xl font-bold text-black dark:text-white mb-4 leading-tight">
+							Find topics others miss, automatically.
+						</h2>
+						<p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
+							Sharkly runs real keyword research using DataForSEO — not estimates. It finds topics matched
+							to your domain authority and traffic tier, so you target what you can actually rank for.
+						</p>
+						<p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed mb-8">
+							Save weeks on research. Get a prioritised list of topics in minutes.
+						</p>
+						<a
+							href={`${APP_URL}/strategy`}
+							className="inline-flex items-center justify-between gap-4 bg-black dark:bg-white text-white dark:text-black px-6 py-4 rounded-[32px] font-medium max-w-[320px] w-full hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+						>
+							<span>Learn about Strategy</span>
+							<span>→</span>
+						</a>
+					</div>
+					<div className="aspect-[4/3] rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
+						<img
+							src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200"
+							alt="Keyword strategy"
+							className="w-full h-full object-cover"
+							loading="lazy"
+						/>
+					</div>
 				</div>
+			</div>
 
-                {/* Stats Section */}
-                <div className="mt-20 grid grid-cols-2 gap-8 md:grid-cols-4">
-                    <div className="text-center">
-                        <div className="text-brand-500 dark:text-brand-400 mb-2 text-4xl font-bold">500M+</div>
-                        <div className="text-gray-600 dark:text-gray-400">Data Points Analyzed</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-blue-light-500 dark:text-blue-light-400 mb-2 text-4xl font-bold">50k+</div>
-                        <div className="text-gray-600 dark:text-gray-400">Investigations Completed</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-success-500 dark:text-success-400 mb-2 text-4xl font-bold">99.9%</div>
-                        <div className="text-gray-600 dark:text-gray-400">Uptime Guarantee</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-warning-500 dark:text-warning-400 mb-2 text-4xl font-bold">24/7</div>
-                        <div className="text-gray-600 dark:text-gray-400">Live Support</div>
-                    </div>
-                </div>
+			{/* Clusters section (reversed on desktop) */}
+			<div className="mx-auto max-w-[1200px] px-4 sm:px-6 mt-24">
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
+					<div className="md:order-2">
+						<p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Clusters</p>
+						<h2 className="text-3xl font-bold text-black dark:text-white mb-4 leading-tight">
+							Build content that covers topics completely.
+						</h2>
+						<p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
+							Sharkly organises topics into clusters with a focus page and supporting articles. Internal
+							linking is built in — no more orphan pages or guesswork about site structure.
+						</p>
+						<p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed mb-8">
+							Each cluster comes with a brief, competitor analysis, and AI-powered content drafts when you're
+							ready.
+						</p>
+						<a
+							href={`${APP_URL}/clusters`}
+							className="inline-flex items-center justify-between gap-4 bg-black dark:bg-white text-white dark:text-black px-6 py-4 rounded-[32px] font-medium max-w-[320px] w-full hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+						>
+							<span>Learn about Clusters</span>
+							<span>→</span>
+						</a>
+					</div>
+					<div className="md:order-1 aspect-[4/3] rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
+						<img
+							src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200"
+							alt="Content clusters"
+							className="w-full h-full object-cover"
+							loading="lazy"
+						/>
+					</div>
+				</div>
+			</div>
+
+			{/* Rankings section */}
+			<div className="mx-auto max-w-[1200px] px-4 sm:px-6 mt-24">
+				<div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 items-center">
+					<div>
+						<p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Rankings</p>
+						<h2 className="text-3xl font-bold text-black dark:text-white mb-4 leading-tight">
+							Track performance with real data from Google.
+						</h2>
+						<p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed mb-4">
+							Connect Google Search Console and see your rankings, impressions, and clicks. Sharkly
+							correlates performance with your strategy so you know what's working.
+						</p>
+						<p className="text-base text-gray-700 dark:text-gray-300 leading-relaxed mb-8">
+							No more exporting CSV files. Your SEO performance, always up to date.
+						</p>
+						<a
+							href={`${APP_URL}/rankings`}
+							className="inline-flex items-center justify-between gap-4 bg-black dark:bg-white text-white dark:text-black px-6 py-4 rounded-[32px] font-medium max-w-[320px] w-full hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors"
+						>
+							<span>Learn about Rankings</span>
+							<span>→</span>
+						</a>
+					</div>
+					<div className="aspect-[4/3] rounded-2xl overflow-hidden bg-gray-200 dark:bg-gray-800">
+						<img
+							src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200"
+							alt="Rankings dashboard"
+							className="w-full h-full object-cover"
+							loading="lazy"
+						/>
+					</div>
+				</div>
 			</div>
 		</section>
 	);

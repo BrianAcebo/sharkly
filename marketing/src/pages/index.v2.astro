@@ -1,0 +1,532 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { getFeaturedPosts } from '../lib/supabase';
+
+const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
+const featuredPosts = await getFeaturedPosts(3);
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'Sharkly',
+  url: 'https://sharkly.co',
+  description: 'SEO made simple for small business owners. Topic strategy, content clusters, and keyword research — all automated.',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: { '@type': 'EntryPoint', urlTemplate: `${appUrl}/strategy?q={search_term_string}` },
+    'query-input': 'required name=search_term_string',
+  },
+};
+
+const trustedLogos = ['NETFLIX', 'Google', 'ATLASSIAN', 'intercom'];
+---
+
+<BaseLayout
+  title="AI-Powered SEO for Non-SEO People | Sharkly"
+  description="Sharkly is an AI-powered SEO assistant that makes SEO easy for non-SEO people. Build your SEO strategy, generate optimized content, and track your rankings without becoming an SEO expert."
+  schema={schema}
+>
+
+<style is:global>
+  /* ── Scenic gradient card behind UI mockups ── */
+  .scenic-card {
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 28px 80px rgba(0,0,0,.18);
+  }
+  .scenic-bg {
+    height: 80px;
+  }
+  .scenic-panel {
+    background: #fff;
+    border-radius: 10px 10px 0 0;
+    margin: 0 16px;
+    transform: translateY(-28px);
+    box-shadow: 0 4px 20px rgba(0,0,0,.12);
+    overflow: hidden;
+  }
+  .dark .scenic-panel {
+    background: #171717;
+  }
+  .scenic-topbar {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(0,0,0,.08);
+    background: #f5f5f4;
+  }
+  .dark .scenic-topbar {
+    background: #262626;
+    border-color: rgba(255,255,255,.08);
+  }
+  .mac-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .scenic-titlebar {
+    flex: 1; height: 12px;
+    background: #e7e5e4; border-radius: 3px; margin: 0 8px;
+  }
+  .dark .scenic-titlebar { background: #333; }
+
+  /* ── Scroll reveal ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.55s ease, transform 0.55s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: none;
+  }
+</style>
+
+<!-- ──────────────── HERO ──────────────── -->
+<!-- Centred headline/subtext/CTA, then 4 photos in a full-width row below -->
+<section class="bg-stone-100 dark:bg-neutral-950 pt-20 pb-0 px-6 overflow-hidden">
+  <div class="max-w-[1200px] mx-auto">
+
+    <!-- Centred text block -->
+    <div class="text-center max-w-4xl mx-auto mb-14">
+      <h1 class="text-4xl sm:text-5xl lg:text-[3.75rem] font-extrabold text-neutral-900 dark:text-stone-100 leading-[1.05] tracking-tight mb-5">
+        SEO platform that helps you<br class="hidden sm:block" /> rank better, faster.
+      </h1>
+      <p class="text-[1.0625rem] text-gray-600 dark:text-gray-400 leading-relaxed mb-8 max-w-[420px] mx-auto">
+        Build your strategy, find winning keywords, and publish content that ranks — completely automated.
+      </p>
+      <a href={`${appUrl}/signup`} class="inline-flex items-center gap-2.5 bg-neutral-900 dark:bg-stone-100 text-white dark:text-neutral-900 px-6 py-3 rounded-full text-[0.9375rem] font-semibold no-underline transition-opacity hover:opacity-85">
+        Get started free →
+      </a>
+    </div>
+
+    <!-- 4-photo row, full width, flush to bottom of section -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=700" alt="Team collaboration" loading="eager" class="w-full aspect-[4/3] object-cover rounded-xl" />
+      <img src="https://images.unsplash.com/photo-1618477388954-7852f32655ec?w=700" alt="Person working" loading="eager" class="w-full aspect-[4/3] object-cover rounded-xl" />
+      <img src="https://images.unsplash.com/photo-1552664730-d307ca884978?w=700" alt="Meeting" loading="eager" class="w-full aspect-[4/3] object-cover rounded-xl" />
+      <img src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=700" alt="Strategy" loading="eager" class="w-full aspect-[4/3] object-cover rounded-xl" />
+    </div>
+
+  </div>
+</section>
+
+<!-- ──────────────── TWO-UP VALUE PROPS ──────────────── -->
+<section class="bg-stone-100 dark:bg-neutral-950 px-6 pt-16 pb-16">
+  <div class="max-w-[1200px] mx-auto">
+    <hr class="border-0 border-t border-black/10 dark:border-white/10 mb-12" />
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-0">
+      <div class="reveal md:pr-14 md:border-r border-black/10 dark:border-white/10">
+        <p class="text-[1.0625rem] font-bold text-neutral-900 dark:text-stone-100 mb-2.5 leading-snug">Your own, personal SEO expert.<br/>Completely automated.</p>
+        <p class="text-[0.9375rem] text-gray-600 dark:text-gray-400 leading-relaxed">Sharkly manages your entire SEO workflow. Discover topics, research keywords, build clusters, and generate content automatically — so you focus on publishing, not learning SEO.</p>
+      </div>
+      <div class="reveal [transition-delay:100ms] md:pl-14 mt-10 md:mt-0">
+        <p class="text-[1.0625rem] font-bold text-neutral-900 dark:text-stone-100 mb-2.5 leading-snug">Win back time.<br/>Improve your results.</p>
+        <p class="text-[0.9375rem] text-gray-600 dark:text-gray-400 leading-relaxed">Save weeks on keyword research. Post your site and niche, and let Sharkly do the heavy lifting. You only step in when the strategy is ready — no more endless spreadsheets.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── STRATEGY / SOURCE SECTION ──────────────── -->
+<section id="features" class="bg-stone-100 dark:bg-neutral-950 border-t border-black/10 dark:border-white/10 py-24 px-6">
+  <div class="max-w-[1200px] mx-auto">
+    <div class="flex flex-col md:flex-row gap-12 lg:gap-20 items-center">
+
+      <div class="flex-1 min-w-0 reveal">
+        <h2 class="text-3xl sm:text-4xl lg:text-[2.75rem] font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-[1.07] mb-5">
+          Strategy, clusters, and rankings in one place.
+        </h2>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-4">
+          All you need to start is a website URL and your niche. Sharkly pulls your domain authority, analyses competition, and finds topics that match your site — so you don't waste time on keywords you can't rank for.
+        </p>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-8">
+          Topics are prioritised and clustered, with clear focus pages and supporting articles. No guesswork, no spreadsheets.
+        </p>
+        <a href={`${appUrl}/signup`} class="inline-flex items-center gap-2.5 bg-neutral-900 dark:bg-stone-100 text-white dark:text-neutral-900 px-5 py-3 rounded-full text-[0.9375rem] font-semibold no-underline transition-opacity hover:opacity-85 w-fit">
+          Get started →
+        </a>
+      </div>
+
+      <div class="flex-1 min-w-0 reveal [transition-delay:150ms]">
+        <img
+          src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=900"
+          alt="Professional at work"
+          loading="lazy"
+          class="w-full rounded-2xl aspect-[5/4] object-cover shadow-2xl"
+        />
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── FEATURE 1: FIND KEYWORDS ──────────────── -->
+<section class="bg-stone-100 dark:bg-neutral-950 border-t border-black/10 dark:border-white/10 py-24 px-6">
+  <div class="max-w-[1200px] mx-auto">
+    <div class="flex flex-col md:flex-row gap-12 lg:gap-20 items-center">
+
+      <div class="flex-1 min-w-0 reveal">
+        <p class="text-[0.6875rem] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">First</p>
+        <h2 class="text-2xl sm:text-3xl lg:text-[2rem] font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-tight mb-5 max-w-[360px]">
+          Find exceptional keywords others miss, magically.
+        </h2>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-4 max-w-[380px]">
+          Just drop your URL and niche. Sharkly analyses your domain authority, scans the competitive landscape, and surfaces keyword opportunities your competitors haven't spotted yet.
+        </p>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-8 max-w-[380px]">
+          No guesswork. No spreadsheets. A ranked, prioritised strategy in under ten minutes.
+        </p>
+      </div>
+
+      <!-- Scenic UI card -->
+      <div class="flex-[1.1] min-w-0 reveal [transition-delay:150ms]">
+        <div class="scenic-card">
+          <div class="scenic-bg" style="background: linear-gradient(160deg, #7eb8e8 0%, #b0d0ee 40%, #90ba7a 70%, #c8c870 100%);"></div>
+          <div class="scenic-panel">
+            <div class="scenic-topbar">
+              <div class="mac-dot" style="background:#ff5f57;"></div>
+              <div class="mac-dot" style="background:#ffbd2e;"></div>
+              <div class="mac-dot" style="background:#28c840;"></div>
+              <div class="scenic-titlebar"></div>
+            </div>
+            <div class="p-3.5">
+              <p class="text-[0.625rem] font-bold text-gray-400 uppercase tracking-widest mb-2.5">Keyword Opportunities</p>
+              {[
+                { kw: 'best crm for small business',  vol: '22K',  diff: 'Low',  green: true  },
+                { kw: 'seo tools for startups',       vol: '8.4K', diff: 'Low',  green: true  },
+                { kw: 'how to rank on google',        vol: '18K',  diff: 'Med',  green: false },
+                { kw: 'keyword research guide',       vol: '12K',  diff: 'Med',  green: false },
+                { kw: 'content marketing strategy',   vol: '6.2K', diff: 'High', green: false },
+              ].map(row => (
+                <div class="flex items-center gap-2.5 py-2 px-1 border-b border-black/8 dark:border-white/8 last:border-0">
+                  <span class="flex-[3] text-[0.6875rem] font-semibold text-neutral-900 dark:text-stone-100 truncate">{row.kw}</span>
+                  <span class="text-[0.625rem] text-gray-400 whitespace-nowrap">{row.vol}/mo</span>
+                  <span class={`text-[0.625rem] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${row.green ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400' : 'bg-stone-200 text-gray-600 dark:bg-neutral-700 dark:text-gray-400'}`}>{row.diff}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── FEATURE 2: EVALUATE ──────────────── -->
+<section class="bg-stone-100 dark:bg-neutral-950 border-t border-black/10 dark:border-white/10 py-24 px-6">
+  <div class="max-w-[1200px] mx-auto">
+    <div class="flex flex-col md:flex-row-reverse gap-12 lg:gap-20 items-center">
+
+      <div class="flex-1 min-w-0 reveal">
+        <p class="text-[0.6875rem] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Second</p>
+        <h2 class="text-2xl sm:text-3xl lg:text-[2rem] font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-tight mb-5 max-w-[360px]">
+          Evaluate and qualify talent with precision. Instantly.
+        </h2>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-4 max-w-[380px]">
+          Every keyword comes with a full evaluation: search intent, difficulty score, competitor analysis, and a content brief — automatically generated, ready to brief your writer or AI tool.
+        </p>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-8 max-w-[380px]">
+          No more copying data between tools. Sharkly does the legwork so you can approve and publish faster.
+        </p>
+      </div>
+
+      <!-- Scenic card with testimonial inside -->
+      <div class="flex-1 min-w-0 reveal [transition-delay:100ms]">
+        <div class="scenic-card">
+          <div class="scenic-bg" style="background: linear-gradient(160deg, #d4956a 0%, #e8c87a 45%, #78b0d8 100%);"></div>
+          <div class="scenic-panel">
+            <div class="scenic-topbar">
+              <div class="mac-dot" style="background:#ff5f57;"></div>
+              <div class="mac-dot" style="background:#ffbd2e;"></div>
+              <div class="mac-dot" style="background:#28c840;"></div>
+              <div class="scenic-titlebar"></div>
+            </div>
+            <div class="p-3.5">
+              <!-- Testimonial card inside -->
+              <div class="bg-stone-100 dark:bg-neutral-800 rounded-lg p-3 mb-2.5">
+                <div class="flex items-center gap-2 mb-2">
+                  <img src="https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?w=60" alt="User" class="w-7 h-7 rounded-full object-cover shrink-0" loading="lazy" />
+                  <div class="flex-1 min-w-0">
+                    <p class="text-[0.6875rem] font-bold text-neutral-900 dark:text-stone-100">Marcus T.</p>
+                    <p class="text-[0.625rem] text-gray-400">Founder, Launchpad Studios</p>
+                  </div>
+                  <span class="text-[0.625rem] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 shrink-0">Approved</span>
+                </div>
+                <p class="text-[0.6875rem] text-gray-600 dark:text-gray-400 leading-snug italic">"Sharkly gave me a full strategy and content briefs in 10 minutes flat. What used to take a full Friday now takes one coffee."</p>
+              </div>
+              {[
+                { title: 'keyword research guide',      label: 'High Priority' },
+                { title: 'best crm for small business', label: 'Quick Win'     },
+              ].map(r => (
+                <div class="flex items-center gap-2.5 py-2 px-1 border-b border-black/8 dark:border-white/8 last:border-0">
+                  <span class="flex-1 text-[0.6875rem] font-semibold text-neutral-900 dark:text-stone-100 truncate">{r.title}</span>
+                  <span class="text-[0.625rem] font-semibold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 whitespace-nowrap">{r.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── FEATURE 3: TRACK ──────────────── -->
+<section class="bg-stone-100 dark:bg-neutral-950 border-t border-black/10 dark:border-white/10 py-24 px-6">
+  <div class="max-w-[1200px] mx-auto">
+    <div class="flex flex-col md:flex-row gap-12 lg:gap-20 items-center">
+
+      <div class="flex-1 min-w-0 reveal">
+        <p class="text-[0.6875rem] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Third</p>
+        <h2 class="text-2xl sm:text-3xl lg:text-[2rem] font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-tight mb-5 max-w-[360px]">
+          Easily track and manage candidates through the process.
+        </h2>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-4 max-w-[380px]">
+          A pipeline view shows every topic from research to published. Move articles through Draft → Review → Live without ever opening a spreadsheet.
+        </p>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-8 max-w-[380px]">
+          Filter by cluster, tag by writer, or sort by expected traffic impact. Full visibility, zero overhead.
+        </p>
+      </div>
+
+      <!-- Scenic pipeline card -->
+      <div class="flex-[1.1] min-w-0 reveal [transition-delay:150ms]">
+        <div class="scenic-card">
+          <div class="scenic-bg" style="background: linear-gradient(150deg, #78b878 0%, #a8c870 45%, #7ab8d8 100%);"></div>
+          <div class="scenic-panel">
+            <div class="scenic-topbar">
+              <div class="mac-dot" style="background:#ff5f57;"></div>
+              <div class="mac-dot" style="background:#ffbd2e;"></div>
+              <div class="mac-dot" style="background:#28c840;"></div>
+              <div class="scenic-titlebar"></div>
+            </div>
+            <div class="p-3.5">
+              <p class="text-[0.6875rem] font-bold text-neutral-900 dark:text-stone-100 mb-0.5">Chief Technical Officer, Payments</p>
+              <p class="text-[0.625rem] text-gray-400 mb-3">Content Pipeline · 8 topics</p>
+              {[
+                { title: 'keyword research guide',      status: 'Published', green: true  },
+                { title: 'best crm for small business', status: 'In Review',  blue: true   },
+                { title: 'seo tools for startups',      status: 'Drafting',   green: false },
+                { title: 'how to rank on google',       status: 'Planned',    green: false },
+              ].map(r => (
+                <div class="flex items-center gap-2.5 py-2 px-1 border-b border-black/8 dark:border-white/8 last:border-0">
+                  <span class="flex-1 text-[0.6875rem] font-semibold text-neutral-900 dark:text-stone-100 truncate">{r.title}</span>
+                  <span class={`text-[0.625rem] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${r.green ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400' : r.blue ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400' : 'bg-stone-200 text-gray-600 dark:bg-neutral-700 dark:text-gray-400'}`}>{r.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── FEATURE 4: RANKINGS / OUTREACH ──────────────── -->
+<section class="bg-stone-100 dark:bg-neutral-950 border-t border-black/10 dark:border-white/10 py-24 px-6">
+  <div class="max-w-[1200px] mx-auto">
+    <div class="flex flex-col md:flex-row-reverse gap-12 lg:gap-20 items-center">
+
+      <div class="flex-1 min-w-0 reveal">
+        <p class="text-[0.6875rem] font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Fourth</p>
+        <h2 class="text-2xl sm:text-3xl lg:text-[2rem] font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-tight mb-5 max-w-[360px]">
+          Personalised outreach, communication and feedback on results.
+        </h2>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-4 max-w-[380px]">
+          Connect Google Search Console and track every page's rankings, impressions, and clicks. Sharkly surfaces what's working and flags what needs attention — automatically.
+        </p>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-8 max-w-[380px]">
+          Weekly digest emails keep you informed without logging in. Your SEO, on autopilot.
+        </p>
+      </div>
+
+      <!-- Scenic rankings card -->
+      <div class="flex-1 min-w-0 reveal [transition-delay:100ms]">
+        <div class="scenic-card">
+          <div class="scenic-bg" style="background: linear-gradient(150deg, #a07898 0%, #c8a8c8 45%, #8898c8 100%);"></div>
+          <div class="scenic-panel">
+            <div class="scenic-topbar">
+              <div class="mac-dot" style="background:#ff5f57;"></div>
+              <div class="mac-dot" style="background:#ffbd2e;"></div>
+              <div class="mac-dot" style="background:#28c840;"></div>
+              <div class="scenic-titlebar"></div>
+            </div>
+            <div class="p-3.5">
+              <p class="text-[0.625rem] font-bold text-gray-400 uppercase tracking-widest mb-2.5">Rankings Inbox</p>
+              {[
+                { page: 'keyword research guide',      pos: '#3',  delta: '+4', clicks: '284' },
+                { page: 'best crm for small business', pos: '#7',  delta: '+2', clicks: '118' },
+                { page: 'seo tools for startups',      pos: '#11', delta: '−1', clicks: '64'  },
+                { page: 'local seo checklist',         pos: '#18', delta: '+6', clicks: '39'  },
+              ].map(r => (
+                <div class="flex items-center gap-2.5 py-2 px-1 border-b border-black/8 dark:border-white/8 last:border-0">
+                  <span class="flex-1 text-[0.6875rem] font-semibold text-neutral-900 dark:text-stone-100 truncate">{r.page}</span>
+                  <span class="text-[0.6875rem] font-bold text-neutral-900 dark:text-stone-100">{r.pos}</span>
+                  <span class={`text-[0.625rem] font-bold ${r.delta.startsWith('+') ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>{r.delta}</span>
+                  <span class="text-[0.625rem] text-gray-400 whitespace-nowrap">{r.clicks} clicks</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── HUMAN-CENTRED STRIP ──────────────── -->
+<section class="bg-stone-100 dark:bg-neutral-950 border-t border-black/10 dark:border-white/10 py-20 px-6">
+  <div class="max-w-[760px] mx-auto text-center reveal">
+    <p class="text-2xl sm:text-3xl lg:text-[2.25rem] font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-snug mb-4">
+      We are the human-centred<br/>product in the world of AI.
+    </p>
+    <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed max-w-[480px] mx-auto mb-10">
+      Strategy and data matter, but your judgment makes the difference. Sharkly gives you leverage, not dependence — so you stay in control while the machine does the grunt work.
+    </p>
+    <div class="flex items-center justify-center gap-10 flex-wrap opacity-50 grayscale">
+      {trustedLogos.map(logo => (
+        <span class="text-base font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight">{logo}</span>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── FULL-WIDTH PHOTO ──────────────── -->
+<div class="w-full overflow-hidden">
+  <img
+    src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=1800"
+    alt="Team working together"
+    loading="lazy"
+    class="w-full object-cover object-[center_30%]"
+    style="aspect-ratio: 21/8;"
+  />
+</div>
+
+<!-- ──────────────── FOUNDER NOTE ──────────────── -->
+<section class="bg-stone-200 dark:bg-neutral-900 border-b border-black/10 dark:border-white/10 py-20 px-6">
+  <div class="max-w-[680px] mx-auto reveal">
+    <div class="inline-flex items-center gap-1.5 bg-stone-300 dark:bg-neutral-800 text-neutral-700 dark:text-gray-400 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase mb-4">From our founder</div>
+    <h2 class="text-xl font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight mb-6 leading-snug">
+      The future of SEO is human-first.
+    </h2>
+    <p class="text-[0.9375rem] text-gray-600 dark:text-gray-400 leading-loose mb-4">
+      Most SEO tools are built for agencies with analysts and 20 hours a week to spare. Sharkly was built for everyone else — the founder who wants to rank but doesn't want to become an SEO expert first.
+    </p>
+    <p class="text-[0.9375rem] text-gray-600 dark:text-gray-400 leading-loose mb-4">
+      We automated every repeatable step: data pulls, keyword scoring, cluster building, brief generation. What's left is exactly the part that needs a human — making the call about what matters to your audience.
+    </p>
+    <p class="text-[0.9375rem] text-gray-600 dark:text-gray-400 leading-loose mb-4">
+      A note about our approach: we don't push you to publish AI slop at volume. We help you publish the right content, well-positioned, consistently. Quality beats quantity every time.
+    </p>
+    <p class="text-sm font-semibold text-neutral-900 dark:text-stone-100 mt-6">— Alex, Founder of Sharkly</p>
+  </div>
+</section>
+
+<!-- ──────────────── COMPARISON TABLE ──────────────── -->
+<section class="bg-stone-100 dark:bg-neutral-950 py-24 px-6">
+  <div class="max-w-[1200px] mx-auto">
+    <div class="flex flex-col md:flex-row gap-12 lg:gap-20 items-start">
+
+      <div class="flex-1 min-w-0 reveal">
+        <h2 class="text-2xl sm:text-3xl lg:text-[2rem] font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-tight mb-4">
+          Sharkly is light years faster than traditional SEO tools and platforms.
+        </h2>
+        <p class="text-base text-gray-600 dark:text-gray-400 leading-relaxed mb-8">
+          Manual keyword research takes weeks. SEO agencies take months. Sharkly delivers a full, ranked strategy in under 10 minutes — then stays up to date automatically.
+        </p>
+        <a href={`${appUrl}/signup`} class="inline-flex items-center gap-2.5 bg-neutral-900 dark:bg-stone-100 text-white dark:text-neutral-900 px-5 py-3 rounded-full text-[0.9375rem] font-semibold no-underline transition-opacity hover:opacity-85 w-fit">
+          Get started free →
+        </a>
+      </div>
+
+      <div class="flex-1 min-w-0 reveal [transition-delay:100ms]">
+        <div class="bg-white dark:bg-neutral-900 border border-black/10 dark:border-white/10 rounded-2xl overflow-hidden shadow-md">
+          {[
+            { label: 'SEO agencies',     sub: 'Full strategy + briefs',       time: '4–8 weeks',   good: false },
+            { label: 'DIY spreadsheets', sub: 'Per site, per round',           time: '1–3 days',    good: false },
+            { label: 'Other SEO tools',  sub: 'Manual research required',      time: '3–5 hours',   good: false },
+            { label: 'Sharkly',          sub: 'Automated, always fresh',       time: '~10 minutes', good: true  },
+          ].map(row => (
+            <div class="flex items-center gap-3 py-3.5 px-5 border-b border-black/8 dark:border-white/8 last:border-0">
+              <div class="flex-1">
+                <p class={`text-[0.9375rem] ${row.good ? 'font-bold text-neutral-900 dark:text-stone-100' : 'font-medium text-gray-600 dark:text-gray-400'}`}>{row.label}</p>
+                <p class="text-xs text-gray-400 mt-0.5">{row.sub}</p>
+              </div>
+              <p class={`text-[0.9375rem] font-bold ${row.good ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-500 dark:text-gray-500'}`}>{row.time}</p>
+              {row.good && <span class="text-[0.6875rem] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400">✓</span>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ──────────────── BLOG PREVIEW ──────────────── -->
+{featuredPosts.length > 0 && (
+  <section class="bg-stone-200 dark:bg-neutral-900 py-24 px-6">
+    <div class="max-w-[1200px] mx-auto">
+      <div class="flex items-end justify-between mb-10 gap-4 flex-wrap">
+        <div>
+          <div class="inline-flex items-center gap-1.5 bg-stone-300 dark:bg-neutral-800 text-neutral-700 dark:text-gray-400 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase mb-3">From the blog</div>
+          <h2 class="text-2xl font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight">SEO explained the way it should be — clearly.</h2>
+        </div>
+        <a href="/blog" class="text-sm font-semibold text-gray-600 dark:text-gray-400 no-underline whitespace-nowrap hover:text-neutral-900 dark:hover:text-stone-100">View all articles →</a>
+      </div>
+      <div class="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        {featuredPosts.map(post => {
+          const href = `/blog/${post.blog_categories?.slug ?? 'uncategorized'}/${post.slug}`;
+          const date = post.published_at
+            ? new Date(post.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : '';
+          return (
+            <a href={href} class="flex flex-col rounded-xl border border-black/10 dark:border-white/10 overflow-hidden bg-white dark:bg-neutral-900 no-underline transition-shadow hover:shadow-lg">
+              {post.og_image_url && (
+                <div class="aspect-video overflow-hidden">
+                  <img src={post.og_image_url} alt={post.title} loading="lazy" class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" />
+                </div>
+              )}
+              <div class="p-5 flex-1 flex flex-col gap-2">
+                {post.blog_categories && (
+                  <span class="text-[0.6875rem] font-bold text-gray-400 uppercase tracking-widest">{post.blog_categories.name}</span>
+                )}
+                <h3 class="text-[0.9375rem] font-bold text-neutral-900 dark:text-stone-100 leading-snug">{post.title}</h3>
+                {post.excerpt && <p class="text-[0.8125rem] text-gray-600 dark:text-gray-400 flex-1 leading-snug">{post.excerpt}</p>}
+                <p class="text-xs text-gray-400">{date}{post.reading_time_minutes ? ` · ${post.reading_time_minutes} min read` : ''}</p>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+)}
+
+<!-- ──────────────── FINAL CTA ──────────────── -->
+<section class="bg-neutral-900 dark:bg-stone-100 py-28 px-6 text-center">
+  <div class="max-w-[640px] mx-auto">
+    <p class="text-3xl sm:text-4xl lg:text-[3.5rem] font-extrabold text-white dark:text-neutral-900 tracking-tight leading-[1.05] mb-5">
+      Hire better. Faster.<br/>Take your time back.
+    </p>
+    <p class="text-white/65 dark:text-neutral-600 text-[1.0625rem] mb-10 leading-relaxed">
+      Join small business owners building real SEO strategies — without the guesswork or the agency fees.
+    </p>
+    <a href={`${appUrl}/signup`} class="inline-flex items-center gap-2.5 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white px-9 py-4 rounded-full font-bold text-base no-underline transition-opacity hover:opacity-85">
+      Get started free →
+    </a>
+    <p class="text-[0.8125rem] text-white/45 dark:text-neutral-500 mt-4">No credit card required</p>
+  </div>
+</section>
+
+<script>
+  const observer = new IntersectionObserver(
+    entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+    { threshold: 0.12 }
+  );
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</BaseLayout>

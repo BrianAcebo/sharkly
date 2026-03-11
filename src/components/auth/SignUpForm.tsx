@@ -30,6 +30,8 @@ export default function SignUpForm() {
 	const [isRateLimited, setIsRateLimited] = useState(false);
 	const { signInWithGoogle, signUp, message } = useAuth();
 
+	const marketingUrl = import.meta.env.VITE_MARKETING_URL;
+
 	// Handle invitation completion after successful signup
 	useEffect(() => {
 		if (inviteId && message && message.includes('Account created successfully')) {
@@ -48,7 +50,8 @@ export default function SignUpForm() {
 					errorMessage = 'Email verification failed. Please try again or contact support.';
 					break;
 				case 'invalid_invite':
-					errorMessage = 'The invitation link is invalid or has expired. Please request a new invitation.';
+					errorMessage =
+						'The invitation link is invalid or has expired. Please request a new invitation.';
 					break;
 				case 'expired_invite':
 					errorMessage = 'This invitation has expired. Please request a new invitation.';
@@ -68,7 +71,7 @@ export default function SignUpForm() {
 				default:
 					errorMessage = 'An error occurred. Please try again.';
 			}
-			
+
 			// Set the error message in the password field to show it prominently
 			setPasswordError(errorMessage);
 		}
@@ -166,7 +169,7 @@ export default function SignUpForm() {
 		<div className="no-scrollbar flex w-full flex-1 flex-col overflow-y-auto lg:w-1/2">
 			<div className="mx-auto mb-5 w-full max-w-md sm:pt-10">
 				<Link
-					to="/"
+					to={marketingUrl}
 					className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
 				>
 					<ChevronLeft className="size-5" />
@@ -296,32 +299,34 @@ export default function SignUpForm() {
 																				? passwordValidation.errors.length === 4
 																					? 'bg-red-500'
 																					: passwordValidation.errors.length === 3
-																					? 'bg-yellow-500'
-																					: passwordValidation.errors.length === 2
-																					? 'bg-blue-500'
-																					: 'bg-green-500'
+																						? 'bg-yellow-500'
+																						: passwordValidation.errors.length === 2
+																							? 'bg-blue-500'
+																							: 'bg-green-500'
 																				: 'bg-gray-200 dark:bg-gray-700'
 																		}`}
 																	/>
 																);
 															})}
 														</div>
-														<p className={`mt-1 text-xs ${
-															passwordValidation.errors.length === 4
-																? 'text-red-500'
-																: passwordValidation.errors.length === 3
-																? 'text-yellow-500'
-																: passwordValidation.errors.length === 2
-																? 'text-blue-500'
-																: 'text-green-500'
-														}`}>
+														<p
+															className={`mt-1 text-xs ${
+																passwordValidation.errors.length === 4
+																	? 'text-red-500'
+																	: passwordValidation.errors.length === 3
+																		? 'text-yellow-500'
+																		: passwordValidation.errors.length === 2
+																			? 'text-blue-500'
+																			: 'text-green-500'
+															}`}
+														>
 															{passwordValidation.errors.length === 4
 																? 'Weak password'
 																: passwordValidation.errors.length === 3
-																? 'Fair password'
-																: passwordValidation.errors.length === 2
-																? 'Good password'
-																: 'Strong password'}
+																	? 'Fair password'
+																	: passwordValidation.errors.length === 2
+																		? 'Good password'
+																		: 'Strong password'}
 														</p>
 													</>
 												);
@@ -364,19 +369,19 @@ export default function SignUpForm() {
 										onChange={setIsChecked}
 										disabled={isRateLimited}
 									/>
-									<p className="inline-block font-normal text-gray-500 dark:text-gray-400">
+									<p className="inline-block text-sm font-normal text-gray-500 dark:text-gray-400">
 										By creating an account means you agree to the{' '}
-										<a className="text-gray-900 dark:text-white/90 underline" href="/terms">Terms and Conditions,</a>{' '}
-										and our <a className="text-gray-900 dark:text-white underline" href="/privacy">Privacy Policy</a>
+										<a className="text-gray-900 underline dark:text-white/90" href="/terms">
+											Terms and Conditions,
+										</a>{' '}
+										and our{' '}
+										<a className="text-gray-900 underline dark:text-white" href="/privacy">
+											Privacy Policy
+										</a>
 									</p>
 								</div>
 								<div>
-									<Button
-										variant="primary"
-										type="submit"
-										disabled={isRateLimited}
-										fullWidth
-									>
+									<Button variant="primary" type="submit" disabled={isRateLimited} fullWidth>
 										Sign Up
 									</Button>
 								</div>

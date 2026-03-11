@@ -35,7 +35,7 @@ export async function checkCrawlability(req: Request, res: Response): Promise<vo
 
 /**
  * POST /api/crawler/start
- * Start a site crawl (8 credits)
+ * Start a site crawl (10 credits)
  */
 export async function startCrawl(req: Request, res: Response): Promise<void> {
 	try {
@@ -46,27 +46,57 @@ export async function startCrawl(req: Request, res: Response): Promise<void> {
 			return;
 		}
 
-		// Check credits (8 credits for crawl)
-		const CRAWL_CREDITS = 8;
-		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
-			p_org_id: organizationId,
-			p_credits: CRAWL_CREDITS,
-			p_reference_type: 'site_crawl',
-			p_reference_id: siteId,
-			p_description: `Site crawl for ${siteUrl}`
-		});
+		// Fetch site platform (S1-9: Shopify-specific nav dilution recommendation)
+		let platform: string | undefined;
+		try {
+			const { data: site } = await supabase
+				.from('sites')
+				.select('platform')
+				.eq('id', siteId)
+				.single();
+			platform = site?.platform ?? undefined;
+		} catch {
+			// non-fatal
+		}
 
-		if (spendError || !spendResult?.ok) {
+		// Check credits (10 credits for full crawl) — prefer included plan credits first
+		const CRAWL_CREDITS = 10;
+		const { data: org } = await supabase
+			.from('organizations')
+			.select('included_credits_remaining, included_credits')
+			.eq('id', organizationId)
+			.single();
+
+		const creditsRemaining = Number(org?.included_credits_remaining ?? org?.included_credits ?? 0);
+		if (creditsRemaining < CRAWL_CREDITS) {
 			res.status(402).json({
 				error: 'Insufficient credits',
 				required: CRAWL_CREDITS,
+				available: creditsRemaining,
 				needs_topup: true
 			});
 			return;
 		}
 
 		// Start crawl
-		const results = await crawlerService.crawlSite(siteId, siteUrl, userId, organizationId, maxPages);
+		const results = await crawlerService.crawlSite(
+			siteId,
+			siteUrl,
+			userId,
+			organizationId,
+			maxPages,
+			platform
+		);
+
+		// Deduct credits from included plan balance
+		const newCredits = Math.max(0, creditsRemaining - CRAWL_CREDITS);
+		await supabase
+			.from('organizations')
+			.update({
+				included_credits_remaining: newCredits,
+				...(org?.included_credits != null && { included_credits: newCredits })
+			})
+			.eq('id', organizationId);
 
 		// Aggregate issues
 		const allIssues = results.flatMap((r) => r.issues);
@@ -104,7 +134,16 @@ export async function getCrawlResults(req: Request, res: Response): Promise<void
 			return;
 		}
 
-		// Get all issues for this site
+		// Get latest crawl history for metadata (incl. S2-4 igs_health)
+		const { data: latestCrawl } = await supabase
+			.from('crawl_history')
+			.select('id, status, pages_scanned, total_issues, critical_issues, warning_issues, info_issues, avg_response_time_ms, end_time, duration_seconds, igs_health')
+			.eq('site_id', siteId)
+			.order('end_time', { ascending: false })
+			.limit(1)
+			.maybeSingle();
+
+		// Get all issues from the most recent crawl
 		const { data: issues, error } = await supabase
 			.from('technical_issues')
 			.select('*')
@@ -113,24 +152,48 @@ export async function getCrawlResults(req: Request, res: Response): Promise<void
 
 		if (error) throw error;
 
+		const allIssues = issues || [];
+
 		// Aggregate by severity
-		const critical = issues?.filter((i) => i.severity === 'critical') || [];
-		const warnings = issues?.filter((i) => i.severity === 'warning') || [];
-		const info = issues?.filter((i) => i.severity === 'info') || [];
+		const critical = allIssues.filter((i) => i.severity === 'critical');
+		const warnings = allIssues.filter((i) => i.severity === 'warning');
+		const info = allIssues.filter((i) => i.severity === 'info');
+
+		// Health score: 100 - (5 per critical) - (1 per warning) - (0.1 per info), clamped 0-100
+		const rawScore = 100 - critical.length * 5 - warnings.length * 1 - info.length * 0.1;
+		const healthScore = Math.max(0, Math.min(100, Math.round(rawScore)));
+
+		// Check if SPA was detected in this crawl
+		const isSPA = allIssues.some((i) => i.issue_type === 'spa_no_ssr');
+		const spaFramework = isSPA
+			? allIssues.find((i) => i.issue_type === 'spa_no_ssr')?.description.match(/uses (.+?) client-side/)?.[1] || 'JavaScript'
+			: null;
+
+		// Extract CWV data from PSI issues for easy display
+		const cwvTypes = ['cwv_lcp_poor', 'cwv_lcp_needs_improvement', 'cwv_cls_poor', 'cwv_cls_needs_improvement', 'cwv_inp_poor', 'cwv_inp_needs_improvement', 'cwv_all_good'];
+		const cwvIssues = allIssues.filter((i) => cwvTypes.includes(i.issue_type));
+		const hasCWVData = cwvIssues.length > 0;
 
 		res.json({
 			success: true,
 			data: {
-				total: issues?.length || 0,
+				total: allIssues.length,
 				critical: critical.length,
 				warnings: warnings.length,
 				info: info.length,
-				issues: issues || [],
-				byType: aggregateByType(issues || []),
+				healthScore,
+				isSPA,
+				spaFramework,
+				hasCWVData,
+				cwvSummary: hasCWVData ? cwvIssues.map((i) => ({ type: i.issue_type, description: i.description })) : [],
+				igsHealth: (latestCrawl as { igs_health?: { ratio: number; status: string; message: string; lowCount: number; substantialCount: number } } | null)?.igs_health ?? null,
+				crawlMeta: latestCrawl || null,
+				issues: allIssues,
+				byType: aggregateByType(allIssues),
 				bySeverity: {
-					critical: critical,
-					warnings: warnings,
-					info: info
+					critical,
+					warnings,
+					info
 				}
 			}
 		});

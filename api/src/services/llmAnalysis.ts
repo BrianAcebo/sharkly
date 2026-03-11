@@ -35,7 +35,9 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_AP
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 // Default to Anthropic Claude
 const LLM_PROVIDER = (process.env.LLM_PROVIDER || 'anthropic').toLowerCase() as 'openai' | 'anthropic';
-const LLM_MODEL = process.env.LLM_MODEL || (LLM_PROVIDER === 'anthropic' ? 'claude-3-5-sonnet-20241022' : 'gpt-4o-mini');
+const LLM_MODEL = process.env.LLM_MODEL || (LLM_PROVIDER === 'anthropic'
+	? (process.env.CLAUDE_SONNET_MODEL || 'claude-sonnet-4-5-20250929')
+	: (process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini'));
 
 /**
  * Run LLM analysis on documents for a public presence run

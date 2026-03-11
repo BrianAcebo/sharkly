@@ -20,9 +20,13 @@ export default function AuthLayout() {
 						{/* <!-- ===== Common Grid Shape Start ===== --> */}
 						<GridShape />
 						<div className="flex max-w-xs flex-col items-center">
-							<Link to="/" className="mb-4 block">
-								<img width={300} height={48} src="/images/logos/logo-dark.svg" alt="Logo" />
-							</Link>
+							<img
+								className="mb-4 block"
+								width={300}
+								height={48}
+								src="/images/logos/logo-dark.svg"
+								alt="Logo"
+							/>
 							<p className="text-center text-white">
 								Making SEO easy for non-SEO people. Get expert level results with an AI-powered
 								search assistant.

@@ -1,3 +1,12 @@
+# ⛔ DEPRECATED — DO NOT USE FOR BUILDING
+
+**This file is the old spec-format roadmap. It has been superseded.**
+**Use `PRODUCT-ROADMAP.md` instead — that file has the correct build sequence, the confirmed-built list, and the START HERE marker.**
+
+This file is kept for patent notes and technical reference only. Do not treat any checkbox in this file as a build task.
+
+---
+
 # Sharkly Product Roadmap
 
 # AI SEO Strategist — "Shark Engine Optimization"
@@ -5,13 +14,21 @@
 # Last Updated: 2026 — Patent-Grounded Edition
 
 # Algorithm grounding: 9 confirmed Google patents · DOJ antitrust trial evidence
+
 # Core patents driving feature design:
+
 # US8682892B1 + US10055467B1 (Panda — group modification factor + behavioral layer)
+
 # US9135307B1 (alternative query replacement — domain quality pre-classification)
+
 # US8117209B1 (Reasonable Surfer — link equity by click probability)
+
 # US8595225B1 (Navboost — topic-specific behavioral ranking, DOJ confirmed)
+
 # US7346839B2 (Historical Data — Sandbox, inception date, link velocity)
+
 # US9940367B1 + US9959315B1 (Passage Scoring — H2 as context vectors)
+
 # US20190155948A1 (Information Gain — IGS, anti-Skyscraper mechanism)
 
 ---
@@ -19,17 +36,27 @@
 ## HOW TO USE THIS FILE
 
 This is the single source of truth for every feature Sharkly needs to build.
-Every feature is assigned to a phase (Beta, V1, V2, V3, V4) and a category.
+Every feature is assigned to a phase and a category.
 When building in Cursor, reference this file to understand scope, priority,
 and how features relate to each other.
 
 Phase definitions:
 
-- **Beta** — Core loop. Validate demand. Must work perfectly before anything else.
-- **V1** — Full product. Everything needed to charge confidently at all tiers.
-- **V2** — Competitive intelligence. Deeper insights and automation.
-- **V3** — Analytics depth. Revenue attribution and autonomous features.
-- **V4** — Platform maturity. Self-running SEO operations.
+- **Launch** — Everything shipping on day one. Must work completely and correctly. This is the full product — not an MVP. Includes all new spec features from the design sessions.
+- **Post-Launch** — Features added in the weeks/months after launch. Mostly retention depth, automation, and CRO Studio add-on.
+- **V2** — Competitive intelligence, link analysis, new integrations, and agency features.
+- **V3** — Revenue attribution, autonomous features, and platform maturity.
+
+**Spec documents that feed into this roadmap:**
+
+- `system-1-cro-layer.md` — System 1 CRO checklist build spec
+- `system-2-cro-product.md` — CRO Studio (System 2) build spec
+- `cluster-intelligence-layer.md` — 7-warning cluster audit system
+- `funnel-visualizer.md` — Customer journey map UI spec
+- `cro-studio.md` — CRO Studio product space spec
+- `architecture-b-downstream-product-page.md` — Destination page data model
+- `reverse-silo-architecture.md` — Linking architecture + nav/footer dilution
+- `product-gaps-master.md` — 34-item gap register
 
 ---
 
@@ -39,15 +66,18 @@ Phase definitions:
 2. Topic Strategy Engine
 3. Content Engine
 4. Cluster Management
-5. Performance & Analytics
-6. Technical SEO
-7. CRO (Conversion Rate Optimization)
-8. Integrations
-9. Credit & Billing System
-10. Agency & White-Label
-11. AI Intelligence Layer
-12. Settings & Brand Voice
-13. Shopify App Store Compliance
+5. Cluster Intelligence Layer (NEW)
+6. Customer Journey Map / Funnel Visualizer (NEW)
+7. Performance & Analytics
+8. Technical SEO
+9. CRO — System 1 (NEW)
+10. CRO — System 2 / CRO Studio (NEW — Post-Launch)
+11. Integrations
+12. Credit & Billing System
+13. Agency & White-Label
+14. AI Intelligence Layer
+15. Settings & Brand Voice
+16. Shopify App Store Compliance
 
 ---
 
@@ -57,7 +87,7 @@ Phase definitions:
 
 ---
 
-### Beta
+### Launch
 
 - [ ] **Site URL input and validation**
       Accept any URL. Strip trailing slashes. Validate format. Show error if unreachable.
@@ -87,7 +117,7 @@ Phase definitions:
       On onboarding complete: create project record, save competitors, trigger topic
       strategy generation, save topics, mark onboarding_complete = true on profile.
 
-### V1
+### Launch
 
 - [ ] **Multi-project support**
       Users can create multiple projects (sites) under one account.
@@ -150,7 +180,7 @@ Phase definitions:
 
 ---
 
-### Beta
+### Launch
 
 - [ ] **AI topic generation**
       Using Claude Haiku 4.5. Input: project data, competitor URLs, niche.
@@ -167,13 +197,13 @@ Phase definitions:
   - Authority Locked: KD significantly above DA, revisit later
     Classification logic uses DA + KD + competitor domain strength.
 
-      PATENT NOTE [US8682892B1 + US10055467B1]: The threshold gate mechanism
-      is real and patent-confirmed. The GroupModificationFactor multiplier is only
-      applied when a page's InitialScore exceeds a minimum threshold. This is why
-      "Authority Locked" is not just a difficulty label — below-threshold pages on
-      new domains receive NO domain-authority multiplier regardless of content quality.
-      Authority Fit classification must reflect this: a new domain competing for head
-      terms is not just "harder" — the algorithm literally withholds the multiplier.
+    PATENT NOTE [US8682892B1 + US10055467B1]: The threshold gate mechanism
+    is real and patent-confirmed. The GroupModificationFactor multiplier is only
+    applied when a page's InitialScore exceeds a minimum threshold. This is why
+    "Authority Locked" is not just a difficulty label — below-threshold pages on
+    new domains receive NO domain-authority multiplier regardless of content quality.
+    Authority Fit classification must reflect this: a new domain competing for head
+    terms is not just "harder" — the algorithm literally withholds the multiplier.
 
 - [ ] **Topic priority ordering**
       Default order: achievable topics first, sorted by (business value score × traffic
@@ -218,7 +248,7 @@ Phase definitions:
       Re-run topic generation with updated competitor data. Costs 15 credits.
       Preserves user's manual ordering for topics they've already started.
 
-### V1
+### Launch
 
 - [ ] **Add topic manually**
       User can type any keyword to add as a topic. System runs SERP analysis (5 credits),
@@ -299,7 +329,7 @@ Phase definitions:
 
 ---
 
-### Beta
+### Launch
 
 - [ ] **Focus page brief generation**
       Using GPT-4o-mini. Input: target keyword, SERP data, competitor headings, brand voice.
@@ -433,7 +463,7 @@ Phase definitions:
       Download as .txt or .md file.
       Print-friendly view.
 
-### V1
+### Launch
 
 - [ ] **Meta title and description generator**
       Using GPT-4o-mini. Input: keyword, page content summary, SERP titles for reference.
@@ -528,6 +558,45 @@ Phase definitions:
       Flag content that's too complex for the target audience.
       Suggestion: "This reads at a college level — your audience may prefer simpler language."
 
+- [ ] **UPSA scoring fix — H2 contamination penalty (bidirectional)**
+      Gap: `product-gaps-master.md` V1.2b. Current UPSA Module 3 is additive only — rewards
+      good H2s but doesn't penalize weak ones. Research shows weak H2s contaminate the entire
+      page's passage score (US9940367B1 + US9959315B1).
+      Fix: change to bidirectional ratio scoring.
+      ≥80% passage-ready H2s: +10pts. ≥50%: +5pts. ≥30%: 0. <30%: -5pts.
+      Plain-English output (penalty): "{n} of your H2s are vague labels like 'Our Services'.
+      These are weakening your whole page's passage scoring — not just those sections."
+      NOTE: This changes scores on all existing pages. Ship together with keyword density fix.
+
+- [ ] **UPSA scoring fix — keyword density penalty (bidirectional)**
+      Gap: `product-gaps-master.md` V1.2e. Currently no penalty for keyword stuffing.
+      Fix: above 3% density = -5pts + `keyword_stuffing` audit issue type.
+      <0.5%: 0pts (too low). 0.5-2%: +10pts (optimal). 2-3%: +5pts. >3%: -5pts.
+      Plain-English: "Your keyword appears X times in Y words (Z%). Remove N instances."
+
+- [ ] **Author / EEAT field on projects**
+      Gap: `product-gaps-master.md` B1.
+      DB migration: `ALTER TABLE projects ADD COLUMN author_bio text;`
+      UI: Project Settings → Content Voice section. Label: "Who is the expert behind this content?"
+      Helper: "This makes your content sound like it comes from a real expert — which helps with
+      Google's trust signals." Example: "Jane Smith, licensed electrician, 15 years experience."
+      Feeds into every article generation prompt as {author_expertise}.
+      One field, massive quality difference on every article. Ship at launch.
+
+- [ ] **URL slug change warning**
+      Gap: `product-gaps-master.md` B3. Grounded in US7346839B2 (historical trust accumulation).
+      Trigger: user edits published_url on a page where status = 'published' OR rankings data exists.
+      Hard warning modal with explanation. Requires typed confirmation "CHANGE URL" to proceed.
+      "Changing this URL resets all the trust Google has built for this address — including any
+      links pointing to it. Even with a redirect, some of that authority is permanently lost."
+
+- [ ] **AI detection education tooltip**
+      Gap: `product-gaps-master.md` B2.
+      Persistent info card near content output: "Your content may be flagged by AI detection tools.
+      This has no effect on Google rankings. What Google measures is semantic depth and expertise
+      signals — which your content score already tracks."
+      Dismissable, persistent on first view.
+
 ### V3
 
 - [ ] **Auto content refresh**
@@ -547,7 +616,7 @@ Phase definitions:
 
 ---
 
-### Beta
+### Launch
 
 - [ ] **Cluster creation from topic**
       From strategy page: "Start Cluster" → generates cluster structure using Haiku.
@@ -592,7 +661,7 @@ Phase definitions:
       Track: not started / draft / published per page.
       Cluster completion % shown in health bar, dashboard, and strategy table.
 
-### V1
+### Launch
 
 - [ ] **Internal link suggestion engine**
       Analyze cluster content and suggest specific internal link opportunities:
@@ -646,6 +715,69 @@ Phase definitions:
       "Readers of this article have high purchase intent — link to [product] here."
       Show as CRO suggestion in workspace panel.
 
+- [ ] **Destination page field on clusters**
+      Spec: `architecture-b-downstream-product-page.md`
+      DB migration: add `destination_page_url` (text) + `destination_page_label` (text) to clusters table.
+      After cluster creation: single prompt — "Does this cluster have a destination page?
+      A product, signup, or service booking page your content drives visitors toward?"
+      URL field + label field. Skip option. Not an architecture A/B choice — just one question.
+      Universal model: ecommerce, SaaS, and service businesses all use this same pattern.
+
+- [ ] **Destination page node in React Flow map**
+      For clusters with destination_page_url: render as a distinct node outside the cluster boundary.
+      Directional arrows from focus page to destination node.
+      Visual message: SEO anchor earns the audience → destination page closes them.
+
+- [ ] **Cluster health bar — destination connection status**
+      New indicator pill in cluster health bar:
+      Connected (green) / Partial (amber) / Disconnected (red)
+
+- [ ] **Internal link engine — destination link suggestion type**
+      New suggestion type for clusters with destination_page_url.
+      ONE contextual destination link suggestion per MoFu/BoFu article (never ToFu).
+      Only fires if article doesn't already link to destination.
+      Hard limit: never suggest more than one destination link per article.
+
+- [ ] **Brief generation — destination-aware CRO context blocks**
+      ToFu articles: do not mention destination. MoFu/BoFu: one natural mention where reader is
+      most solution-aware. Focus page: above-fold CTA + 1-2 body contextual links + bottom CTA.
+
+- [ ] **Cluster intelligence layer — 7 warnings**
+      Spec: `cluster-intelligence-layer.md`
+      DB migration: `cluster_intelligence` (JSONB) on clusters table.
+      Health scoring: high severity = -40pts, medium = -15pts, low = -5pts.
+      Status tiers: Strong (80-100) / Needs Work (50-79) / Critical Issues (<50).
+      Warning 1: Over-linking to destination page (equity dilution)
+      Warning 2: Missing reverse silo connections (articles not linking to focus page)
+      Warning 3: Funnel stage imbalance (ToFu-heavy, no MoFu bridge)
+      Warning 4: External equity leakage (focus page leaking equity externally)
+      Warning 5: Orphaned destination page (destination set but nothing links to it)
+      Warning 6: Cluster-wide funnel mismatch (informational articles with hard CTAs)
+      Warning 7: BoFu focus page — ALWAYS Critical Issues. Red full-width banner.
+      "Your focus page is targeting a transactional keyword — this fights itself.
+      Use a MoFu focus page and move the transactional keyword to the destination page."
+      Intelligence panel: collapsible, in cluster detail view below React Flow map.
+
+- [ ] **Customer journey map / funnel visualizer**
+      Spec: `funnel-visualizer.md`
+      Full spec ships at launch. This is the frame that makes the whole product coherent.
+      Tab restructure in cluster detail:
+      Customer Journey (default) | Link Architecture (React Flow) | Intelligence
+      Three-column layout: Awareness | Consideration | Decision
+      Page cards: UPSA score, CRO score, GSC impressions + clicks + CTR + position per card.
+      SEO anchor highlighted: "★ — This is where you rank"
+      Traffic flow arrow from anchor to destination showing GSC click volume.
+      Destination card — locked (base): personalised upsell using actual click volume.
+      Destination card — unlocked (CRO add-on): CRO score + "Open in CRO Studio."
+      Top 2 cluster intelligence warnings shown as banners in this view.
+      Warning 7: full-width red banner always shown when BoFu focus page detected.
+
+- [ ] **Weekly priority stack**
+      Data-driven personalised task list on dashboard. Max 6 items. Updates each page load.
+      Sources: UPSA scores, cluster intelligence warnings, GSC data (Growth+), CRO scores.
+      Categories: High Impact / Medium Impact / Keep Going. Direct action buttons per item.
+      Builder tier: UPSA + cluster warnings. Growth+: adds GSC data + position movement.
+
 ### V2
 
 - [ ] **Cluster duplication**
@@ -665,18 +797,206 @@ Phase definitions:
 
 ---
 
-## CATEGORY 5 — PERFORMANCE & ANALYTICS
+## CATEGORY 5 — CLUSTER INTELLIGENCE LAYER (LAUNCH)
+
+Full spec: `cluster-intelligence-layer.md`
+
+Seven warnings that audit the structural health of every cluster. Each fires automatically
+when conditions are met. Intelligence panel lives in cluster detail view.
+Top 2 active warnings also surface in the funnel visualizer as banners.
+
+DB changes:
+
+```sql
+ALTER TABLE clusters ADD COLUMN cluster_intelligence jsonb;
+ALTER TABLE clusters ADD COLUMN architecture text DEFAULT 'A';
+ALTER TABLE clusters ADD COLUMN destination_page_url text;
+ALTER TABLE clusters ADD COLUMN destination_page_label text;
+```
 
 ---
 
-### Beta
+### Launch
 
-- [ ] **Basic SEO score per page**
-      Real-time score calculated client-side as user edits.
-      Factors: keyword in H1, keyword in first 100 words, entity coverage %,
-      word count vs target, meta description present, at least 1 internal link.
+- [ ] **Warning 1: Over-linking to money/product page**
+      Fires when >1 supporting article links directly to destination_page_url.
+      Severity: Medium. Only the focus page should funnel equity to the destination.
+      Plain-English: "3 of your articles are linking directly to your product page.
+      Only your focus page should do this — the others are diluting the equity."
 
-### V1 (Growth tier feature)
+- [ ] **Warning 2: Missing reverse silo connections**
+      Fires when supporting articles exist with no link back to the focus page.
+      Severity: High. Equity is leaking instead of concentrating.
+      Plain-English: "2 articles in this cluster don't link back to your focus page.
+      They're ranking on their own authority instead of building yours."
+
+- [ ] **Warning 3: Funnel stage imbalance**
+      Fires when cluster is >60% ToFu with no MoFu bridge pages.
+      Severity: Medium. Awareness traffic with nowhere to go.
+      Plain-English: "You have 6 awareness articles but nothing to move readers
+      toward a decision. Add a comparison or 'how to choose' article."
+
+- [ ] **Warning 4: External equity leakage**
+      Fires when focus page has >2 external links without nofollow.
+      Severity: Medium. Equity leaving the cluster through external links.
+      Plain-English: "Your focus page is sending ranking power to 4 external sites.
+      Add nofollow to external links that don't need to pass equity."
+
+- [ ] **Warning 5: Orphaned destination page**
+      Fires when architecture = 'B' and destination_page_url exists but
+      no cluster pages link to it.
+      Severity: High.
+      Plain-English: "Your product page isn't connected to any content in this cluster.
+      Nothing is driving visitors toward it."
+
+- [ ] **Warning 6: Cluster-wide funnel mismatch**
+      Fires when 2+ informational articles contain hard CTAs.
+      Severity: Medium. Conversion pressure applied at wrong funnel stage.
+
+- [ ] **Warning 7: Focus page is BoFu/transactional keyword**
+      Always forces "Critical Issues" cluster status.
+      Fires as full-width red banner in funnel visualizer AND in intelligence panel.
+      Plain-English: "Your focus page is targeting a transactional keyword.
+      A page that needs to rank AND convert at the same time does neither well.
+      Move the ranking job to a MoFu focus page and make this the destination page."
+      Detection: page_type = 'money_page', dominant_intent = 'transactional',
+      funnel_stage = 'bofu', plus transactional keyword regex.
+
+- [ ] **Cluster health scoring**
+      High-severity warning: -40 pts. Medium: -15 pts. Low: -5 pts.
+      Status labels: Strong (no warnings) / Needs Work (medium warnings) /
+      Critical Issues (any high warning or Warning 7).
+      Displayed in cluster health bar.
+
+- [ ] **Cluster intelligence UI panel**
+      In cluster detail view — collapsible panel below React Flow map.
+      Lists all active warnings by severity. Each warning has one plain-English action.
+
+- [ ] **Keyword cannibalization detection**
+      Spec: `product-gaps-master.md` — V1.2a.
+      `normalizeKeyword()` comparison across all pages in project.
+      Fires in cluster intelligence panel AND at strategy screen when adding new keyword.
+      "2 pages are competing for the same keyword — consolidate or differentiate."
+
+- [ ] **Topical dilution warning**
+      Spec: `product-gaps-master.md` — V1.2d.
+      Entity overlap check when adding new topic to strategy.
+      <20% overlap with existing content = amber warning. Confirmable.
+
+---
+
+## CATEGORY 6 — CUSTOMER JOURNEY MAP / FUNNEL VISUALIZER (LAUNCH)
+
+Full spec: `funnel-visualizer.md`
+
+This is the frame that makes the whole product make sense on day one.
+Not a nice-to-have. The visual that teaches the two-job model without explanation.
+Ships in full at launch — not a simplified version.
+
+---
+
+### Launch
+
+- [ ] **Three-column journey layout**
+      Columns: Awareness / Consideration / Decision.
+      Pages appear as cards at their funnel stage.
+      This is the default view when opening a cluster — replaces React Flow as primary tab.
+
+- [ ] **Page cards with full data**
+      Each card shows: page title, UPSA score, CRO score, funnel stage badge.
+      GSC data on cards for Growth+ users: impressions, clicks, CTR, avg position.
+      Builder users: scores only, GSC data locked with upgrade prompt.
+
+- [ ] **SEO anchor highlight**
+      Focus page (SEO anchor) marked with "★ This is where you rank."
+      Visual distinction from supporting articles.
+
+- [ ] **Traffic flow arrow**
+      Arrow from SEO anchor down to destination page card.
+      For Growth+ users: annotated with actual GSC click volume.
+      "X people clicked through last month."
+      For Builder users: arrow shows but click volume locked.
+
+- [ ] **Destination page card — locked state (base)**
+      Shown at bottom of funnel below the Decision column.
+      Locked padlock icon. Personalised upsell copy using real data where available:
+      "X visitors reached this page last month. Unlock CRO Studio to see
+      what's stopping them from converting."
+      Upgrade CTA → CRO Studio add-on.
+
+- [ ] **Destination page card — unlocked state (CRO add-on)**
+      Shows CRO score, last audit date, top issue count.
+      "Open in CRO Studio" CTA.
+
+- [ ] **Warning 7 red banner**
+      Full-width red banner at top of funnel visualizer when Warning 7 fires.
+      "Critical: Your focus page is targeting a transactional keyword.
+      This is fighting itself — see Intelligence panel."
+
+- [ ] **Cluster intelligence warning banners**
+      Top 2 active warnings from cluster intelligence layer shown as
+      amber/red banners below the funnel visualizer header.
+      Each banner has a plain-English description and one-click action.
+
+- [ ] **Empty and incomplete states**
+      No destination page attached: prompt to add one in cluster settings.
+      No GSC data yet: "Connect Search Console to see traffic data here."
+      New cluster with no content: skeleton state with "Add your first article" CTA.
+
+- [ ] **Cluster detail tab restructure**
+      Tab order: "Customer Journey" (default) | "Link Architecture" (React Flow) | "Intelligence"
+      Customer Journey is always the first thing a user sees when opening a cluster.
+
+- [ ] **Subscription gating logic**
+      Reads user plan. Shows locked/unlocked states accurately.
+      Upgrade CTAs are personalised — use actual data where possible, not generic copy.
+
+- [ ] **Destination page field on clusters**
+      Spec: `architecture-b-downstream-product-page.md`
+      After cluster creation: "Does this cluster have a destination page?"
+      One URL field + label field. Skip option available.
+      Not a choice between architecture types — just a simple prompt.
+
+- [ ] **Architecture B internal link engine changes**
+      New suggestion type: contextual destination link.
+      MoFu/BoFu articles only. Maximum 1 per article. Never ToFu.
+      Only if article doesn't already link to destination_page_url.
+
+- [ ] **Architecture B brief generation changes**
+      ToFu articles: "Do not mention or link to the destination page."
+      MoFu/BoFu articles: "One contextual mention where reader is most solution-aware.
+      If no natural moment exists, do not force it."
+      Focus page: "2-3 links to destination. Above-fold CTA + body contextual + bottom CTA."
+
+- [ ] **Cluster health bar — destination connection status**
+      Pill in health bar: "Product Page — Connected / Partial / Disconnected"
+      Green: focus page + at least one article link to destination.
+      Amber: focus page links to destination but no articles do.
+      Red: no pages link to destination (also fires Warning 5).
+
+- [ ] **React Flow — destination page node**
+      Destination page shown as a node outside the cluster boundary.
+      Directional arrows from focus page (and linking articles) to destination node.
+      Visual confirmation of the equity flow architecture.
+
+---
+
+## CATEGORY 7 — PERFORMANCE & ANALYTICS
+
+---
+
+### Launch (All tiers — base version; full version Growth+)
+
+- [ ] **Weekly priority stack**
+      Data-driven personalised task list shown every session on dashboard.
+      Base version (all tiers): reads UPSA scores + cluster intelligence warnings.
+      Full version (Growth+): adds GSC data, position movements, CTR signals.
+      Categories: High Impact (red) / Medium Impact (amber) / Keep Going (green).
+      Maximum 6 items. Updates on each page load.
+      Not generic advice — specific: "Open [article] in Workspace — it's at position 9
+      with an UPSA of 74. Fix the H2s and you could break into top 5."
+
+### Launch (Growth tier)
 
 - [ ] **Google Search Console OAuth connection**
       OAuth flow to connect user's GSC account.
@@ -743,6 +1063,28 @@ Phase definitions:
 - [ ] **Page-level attribution**
       Connect GSC page data to Sharkly content records.
       Show "ranking data" section within workspace intelligence panel for published pages.
+      Impressions, clicks, CTR, average position per individual page — data already synced,
+      just needs wiring to the page-level workspace sidebar.
+
+### Post-Launch
+
+- [ ] **Re-optimization queue**
+      Deferred post-launch. Pages ranking positions 4–15 with UPSA score <85.
+      Sorted by impression volume (highest revenue impact first).
+      "Open in Workspace" action per item. Lives in Performance screen + Weekly Priority Stack.
+      "You're 10 spots away from a major traffic jump — here's the fastest path to get there."
+
+- [ ] **Content refresh queue**
+      Deferred post-launch. Gap: `product-gaps-master.md` V1.6.
+      Pages where last_updated_meaningful >6 months AND GSC position trending down.
+      "Generate Refresh Brief" action — surgical additions only, not full rewrite.
+      Re-run competitor SERP analysis, identify what's changed, generate targeted update plan.
+      Lives in Performance screen.
+
+- [ ] **Publishing cadence guidance**
+      Deferred post-launch. Gap: `product-gaps-master.md` O3.
+      Recommended publishing cadence based on growth stage (US7346839B2 crawl frequency).
+      Track whether user is hitting it. Surface in Weekly Priority Stack.
 
 ### V2
 
@@ -783,11 +1125,11 @@ Phase definitions:
 
 ---
 
-## CATEGORY 6 — TECHNICAL SEO
+## CATEGORY 8 — TECHNICAL SEO (renumbered — see categories list)
 
 ---
 
-### V1 (Scale tier feature)
+### Launch (Scale tier)
 
 - [ ] **Site crawler**
       Crawl all indexable pages on the connected site.
@@ -823,7 +1165,7 @@ Phase definitions:
       Flag all pages missing meta title or description.
       Bulk generate missing metas — costs 3 credits per page.
 
-### V1 (Scale tier — ongoing features)
+### Launch (Scale tier — continued)
 
 - [ ] **Image optimization scanner**
       Identify images that are: missing alt text, oversized (>200kb),
@@ -870,15 +1212,109 @@ Phase definitions:
 - [ ] **[NEW] Information Gain Checker** [US20190155948A1]
       During content creation and in the technical audit: flag pages that contain
       zero original elements — entirely synthesised from competitor content.
-      Criteria to detect low-IGS content:
-        - All H2 topics appear in 3+ competing pages
-        - No original data, statistics, quotes, or tools cited
-        - No first-person or first-hand experience language
-        - AI-detectable as synthesis of existing SERP content
+      Criteria to detect low-IGS content: - All H2 topics appear in 3+ competing pages - No original data, statistics, quotes, or tools cited - No first-person or first-hand experience language - AI-detectable as synthesis of existing SERP content
       Output: "⚠ Information Gain Warning — this content adds nothing the user
       hasn't already seen on the first page of Google. Add one original element
       to avoid Helpful Content demotion risk."
       Provide specific IGS suggestions based on the topic.
+
+- [ ] **[NEW] Schema markup generator**
+      JSON-LD schema generation for Article, FAQ, Product, LocalBusiness, BreadcrumbList.
+      Copy-paste ready output in workspace sidebar. Triggered by page_type.
+      All plan tiers — ships at launch.
+
+- [ ] **[NEW] Person schema — author on article pages**
+      Gap: `product-gaps-master.md` V1.4a.
+      JSON-LD Person schema on article pages. Reads from author_bio field.
+      Embedded in Article schema as "author" property.
+
+- [ ] **[NEW] AggregateRating + sameAs schema**
+      Gap: `product-gaps-master.md` V1.4b + V1.4c.
+      DB: google_review_count, google_average_rating, google_place_id, gbp_url,
+      facebook_url, linkedin_url, yelp_url, wikidata_url on projects table.
+      AggregateRating schema (the gold stars in search results) on business pages.
+      sameAs property linking to all configured profiles — entity disambiguation in Knowledge Graph.
+      UI: Project Settings → "Your business profiles."
+
+- [ ] **[NEW] YMYL niche detection**
+      Gap: `product-gaps-master.md` V1.4d.
+      Classify law/medical/financial/health niches at project creation.
+      Stricter EEAT checklist requirements + additional generation prompt constraints.
+
+- [ ] **[NEW] EEAT scored checklist**
+      Gap: `product-gaps-master.md` V1.1.
+      DB: `eeat_score` (integer) + `eeat_checklist` (JSONB) on projects table.
+      10-item checklist across Expertise, Experience, Authoritativeness, Trustworthiness.
+      "Trust & Authority" tab in technical SEO screen. Each failing item: one plain-English fix.
+
+- [ ] **[NEW] Nav + footer dilution warning**
+      Spec: `reverse-silo-architecture.md`
+      Equity multiplier: nav = 0.30×, footer = 0.15×. Site-level and page-level warnings.
+      Shopify mega-menu specific detection. Fires in cluster intelligence + technical audit.
+
+- [ ] **[NEW] Keyword cannibalization detection**
+      Gap: `product-gaps-master.md` V1.2a.
+      Cross-page keyword normalization comparison. Fires in cluster intelligence panel
+      and strategy screen when adding a keyword that already exists in the project.
+
+- [ ] **[NEW] IGS domain-level consequence warning**
+      Gap: `product-gaps-master.md` V1.2c. Grounded in US8682892B1 (Panda).
+      (1) Pre-generation warning when IGS opportunity field is empty.
+      (2) Site-level IGS health: ratio of low-IGS published pages.
+
+- [ ] **[NEW] Topical dilution warning**
+      Gap: `product-gaps-master.md` V1.2d.
+      Entity overlap check when adding new topic. <20% overlap = amber warning, confirmable.
+
+- [ ] **[NEW] Brand search ratio correction**
+      Gap: `product-gaps-master.md` V1.2f. Correction to existing Brand Search Panel framing.
+      Add ratio indicator. Warning when backlinks growing 3× faster than branded searches.
+
+- [ ] **[NEW] Crawl budget waste detection**
+      Gap: `product-gaps-master.md` V1.2g.
+      Issue types: thin_tag_pages, author_archive_pages, pagination_waste, parameter_duplicates.
+      noindex recommendations for all types.
+
+- [ ] **[NEW] Redirect chain depth detection**
+      Gap: `product-gaps-master.md` V1.3a. Extends existing redirect detection. >2 hops = medium. >4 hops = high. "Shorten this to a direct redirect."
+
+- [ ] **[NEW] Mobile-first indexing check**
+      Gap: `product-gaps-master.md` V1.3b.
+      Viewport meta, hidden content, touch targets, horizontal scroll.
+      Issue types: missing_viewport_meta, mobile_content_hidden, small_touch_targets.
+
+- [ ] **[NEW] Duplicate title + meta detection sitewide**
+      Gap: `product-gaps-master.md` V1.3c. Cross-page comparison across all crawled pages.
+      Issue types: duplicate_title_tag, duplicate_meta_description.
+
+- [ ] **[NEW] Pagination canonical tag check**
+      Gap: `product-gaps-master.md` V1.3d. Critical for Shopify collection pages.
+      Paginated pages without canonical tags pointing to root collection page.
+
+- [ ] **[NEW] Image optimization audit (full)**
+      Gap: `product-gaps-master.md` V1.3e. Extends existing image SEO scanner.
+      WebP format check, LCP image preload check, above-fold lazy-load warning.
+
+- [ ] **[NEW] Intrusive interstitial detection**
+      Gap: `product-gaps-master.md` V1.3g. Issue type: intrusive_interstitial.
+      Excludes cookie consent + legally required gates.
+
+- [ ] **[NEW] Link velocity monitoring**
+      Gap: `product-gaps-master.md` V1.3h. Grounded in US7346839B2.
+      Via DataForSEO/Moz. Warning when current month >5× historical average AND >20 new domains.
+
+- [ ] **[NEW] SEO decision tree — "Diagnose This Page"**
+      Gap: `product-gaps-master.md` V1.5.
+      "Diagnose This Page" button in workspace. 7-step root cause diagnostic.
+      Reads GSC + UPSA + audit data. Outputs ONE diagnosis + first action.
+      Steps: indexation → ranking position → intent match → content quality →
+      domain authority → CTR signals → GroupModificationFactor.
+      Not an on-page audit — diagnoses WHY a page with a good UPSA score still isn't ranking.
+
+- [ ] **[NEW] Laws of SEO contextual education**
+      Gap: `product-gaps-master.md` O1.
+      8 Laws as contextual tooltips at relevant product moments. Not a glossary.
+      Each law appears where the feature it explains is being used.
 
 - [ ] **[NEW] Brand Search Signal Tracker** [US8682892B1]
       Track branded search volume (queries containing brand name) via Google Search
@@ -923,54 +1359,181 @@ Phase definitions:
 
 ---
 
-## CATEGORY 7 — CRO (CONVERSION RATE OPTIMIZATION)
+## CATEGORY 9 — CRO: SYSTEM 1 (LAUNCH)
+
+Full spec: `system-1-cro-layer.md`
+
+System 1 is the conversion layer built on top of the SEO tool. It lives in the workspace.
+It is NOT a separate product. It is included in the base subscription at all tiers.
+It is a retention mechanism — users who see immediate CRO value stay subscribed through
+the 3-6 months their rankings are building.
+
+SEO score (UPSA) and CRO score are ALWAYS displayed as two separate numbers. Never combined.
 
 ---
 
-### Beta
+### Launch
 
-- [ ] **CRO checklist per focus page**
-      8-item checklist evaluated per focus page:
-  - Clear H1 with target keyword
-  - Hero CTA above the fold
-  - Trust signals section (reviews, credentials, years in business)
-  - FAQ with schema markup
-  - Testimonials or case studies
-  - Comparison or alternatives section
-  - Social proof (numbers, awards, media mentions)
-  - Contact/conversion CTA at bottom
-    Score: X/8 shown in workspace CRO tab and cluster health bar.
+- [ ] **Page type classification engine**
+      `classifyPageType()` — runs at brief generation, stored as `page_type` on pages table.
+      Six types: tofu_article, mofu_article, mofu_comparison, bofu_article, service_page, money_page.
+      User never sees the type code — they see plain-English labels.
+      Re-runs if keyword or funnel_stage changes.
 
-- [ ] **CRO suggestions in focus page brief**
-      Each section of the focus page brief includes CRO guidance:
-      "Place trust signals here — competitors show review count at this point."
-      Powered by competitor page analysis during SERP analysis.
+      DB migration:
+      ```sql
+      ALTER TABLE pages ADD COLUMN page_type text;
+      ALTER TABLE pages ADD COLUMN cro_checklist jsonb;
+      ALTER TABLE pages ADD COLUMN cro_score integer DEFAULT 0;
+      ```
 
-- [ ] **CTA suggestion generator**
-      For focus pages: suggest CTA copy based on business type and funnel stage.
-      Examples: "Get a Free Quote", "Book a Consultation", "Start Your Free Trial."
-      Generated from competitor CTA analysis.
+- [ ] **8-item CRO checklist — full detection engine**
+      Spec: `system-1-cro-layer.md` — full detection functions.
+      Each item returns pass / partial / fail / N/A based on page type.
+      N/A items excluded from denominator entirely.
+      Score displayed as X/Y where Y = applicable items only.
 
-### V1
+      Item 1: Clear H1 with target keyword
+      Item 2: Hero CTA above the fold (first 20% of content by character count)
+      Item 3: Trust signal before CTA
+      Item 4: Intent-matched CTA type (soft/medium/hard mapped to funnel stage)
+      Item 5: Objection addressed before CTA
+      Item 6: Urgency or scarcity signal
+      Item 7: FAQ or objection removal section
+      Item 8: Keyword in first 100 words
 
-- [ ] **CRO score per cluster**
-      Aggregate CRO score across all focus pages in a cluster.
-      Shown in cluster health bar and dashboard stat card.
+- [ ] **CRO requirements map — per page type**
+      Spec: `system-1-cro-layer.md` — CRO_REQUIREMENTS object.
+      Determines required / optional / N/A per item per page type.
+      money_page and service_page: all 8 items required.
+      tofu_article: items 5, 6, 7 are N/A — no CTAs expected.
+      Optional items that fail: shown as grey suggestions, not red fails.
 
-- [ ] **Internal link CRO placement**
-      In article editor: flag the highest-intent moment in the article.
-      "Readers are most ready to convert here — add a CTA or link to your focus page."
-      Based on keyword intent signals in surrounding content.
+- [ ] **Funnel mismatch detection**
+      `detectFunnelMismatch()` — fires when CTA type conflicts with funnel stage.
+      Example: hard "Book Now" CTA on a ToFu informational article.
+      Shown as red/amber banner ABOVE the checklist in the CRO tab.
+      Dismissable per session only — reappears if content changes and mismatch persists.
 
-- [ ] **Product insertion suggestions** (ecommerce)
-      In articles: identify natural moments to insert product mention or link.
-      "60% of readers of this article are in buying mode — mention [product] here."
+- [ ] **CRO score calculation**
+      `calculateCROScore()` — stored as percentage 0-100 in cro_score field.
+      Feeds cluster health bar. N/A items excluded from denominator.
+      Evaluation trigger: fires on content save event alongside UPSA trigger.
+      Debounced — not on every keystroke.
+
+- [ ] **CRO tab UI — workspace intelligence panel**
+      Replaces current stub. Layout top to bottom:
+      (1) Score block — large number display, page type as plain-English subtext
+      (2) Funnel mismatch warning (conditional, above checklist)
+      (3) Checklist — 8 items with ✅/⚠️/❌/— indicators + evidence strings
+      (4) "Get Specific Fixes" button — active only when required item is failing, shows "3 credits"
+      (5) Brief Guidance — collapsed accordion with existing cro_note fields from brief
+
+- [ ] **Intent-aware AI fixes prompt (Section 8.6)**
+      GPT-4o-mini. 3 credits. Fires from "Get Specific Fixes" button.
+      Intent rules strictly enforced: - tofu_article: soft CTAs only — email capture, download, "learn more" - mofu: medium-commitment — free assessment, no-obligation call - bofu/service/money: hard CTAs with urgency — "Get a Free Quote Today"
+      Generates actual copy — not suggestions. "Add this line: '200 London homeowners trust us'"
+      Max 3 suggestions. Each 1-2 sentences.
+
+- [ ] **CRO context blocks in brief generation**
+      Inject intent-aware CRO instructions into brief generation prompt (Section 8.2).
+      Based on page_type classification at generation time.
+      ToFu: "Do not include hard CTAs. Build authority. Guide with soft prompt only."
+      MoFu: "Medium-commitment CTA. Address objections. Build trust through specifics."
+      BoFu/Service/Money: "Hard CTA above fold. Trust signals before CTA. Urgency at bottom."
+
+- [ ] **Author/EEAT field on projects**
+      Spec: `product-gaps-master.md` — B1.
+      `ALTER TABLE projects ADD COLUMN author_bio text;`
+      UI: "Who is the expert behind this content?" in Project Settings → Content Voice.
+      Feeds into every article generation prompt as {author_expertise}.
+      If empty: placeholder inserted — "[ADD YOUR EXPERIENCE HERE]"
+
+- [ ] **URL slug change warning**
+      Spec: `product-gaps-master.md` — B3.
+      Hard warning when user edits published_url on a page where status = 'published'.
+      Requires typed confirmation: user must type "CHANGE URL" to proceed.
+      Grounded in US7346839B2 — URL change resets all accumulated historical trust.
+
+- [ ] **AI detection education tooltip**
+      Spec: `product-gaps-master.md` — B2.
+      Persistent info card near content output area.
+      Copy: "Your content may be flagged by AI detection tools. This has no effect on
+      Google rankings. What Google actually measures is semantic depth and expertise
+      signals — which your content score already tracks."
+      Dismissable. Reappears on first view per session.
+
+---
+
+## CATEGORY 10 — CRO: SYSTEM 2 / CRO STUDIO (POST-LAUNCH ADD-ON)
+
+Full spec: `cro-studio.md`, `system-2-cro-product.md`
+
+CRO Studio is a completely separate product space. It lives at /cro-studio.
+It audits DESTINATION PAGES only — product pages, signup pages, service booking pages.
+An SEO anchor (article, focus page) NEVER enters CRO Studio.
+A destination page NEVER enters Workspace.
+This is enforced at routing level. The absence of features in each space IS the message.
+
+Pricing: +$29/month add-on on any plan. +50 credits/month included.
+
+The upsell surface is created at launch by the locked destination page card in the
+funnel visualizer — users can see their destination page, see traffic flowing to it,
+but cannot audit it until they unlock CRO Studio. Desire is created before the feature ships.
+
+---
+
+### Post-Launch
+
+- [ ] **CRO Studio navigation item**
+      "CRO Studio 🎯" in main sidebar nav.
+      Locked state (greyed + lock icon) for base subscribers.
+      On click: upgrade modal with personalised upsell copy — show actual GSC click
+      volume flowing to destination pages. "X visitors reached your product page last
+      month — here's what's stopping them from converting."
+
+- [ ] **CRO Studio home screen**
+      Lists all destination pages across all clusters.
+      Each card: destination label, cluster name, CRO score (if audited), last audited date.
+      Empty state: "Connect destination pages in your clusters to start auditing."
+
+- [ ] **Individual destination page view**
+      CRO score header — the only score shown. No UPSA, no brief, no internal link engine.
+      Fetch live page content via URL.
+      Full System 2 audit — 5 dimensions:
+      (1) Page architecture audit — is the page structured in the right sequence?
+      (2) Intent-matched CRO checklist — deeper than System 1
+      (3) Funnel coherence audit — do CTAs match funnel stage?
+      (4) Psychological triggers audit — 15 cognitive bias signals
+      (5) Objection removal audit — are objections addressed before the CTA?
+
+- [ ] **Audit report display**
+      Three sections: Critical Issues (red) / Improvements (amber) / Strong (green).
+      Page architecture issues shown first — element sequence violations.
+      Each issue: plain-English description + severity + revenue impact framing.
+
+- [ ] **Generated fixes panel**
+      For each failing item: inline expansion showing 2-3 copy options.
+      Each option is actual usable copy — not suggestions.
+      Exact placement instructions: "Replace your current H1 with option 2.
+      Place above everything else on the page, before any images."
+      Copy-to-clipboard per option.
+      Credits: 1 credit (audit), 1-2 credits (single fix), 6 credits (generate all fixes).
+
+- [ ] **Re-audit prompt**
+      When audit is older than 30 days: amber banner "This audit is X days old — re-audit?"
+      1 credit to re-run.
+
+- [ ] **Subscription gate**
+      Base subscribers: locked nav, locked destination card in funnel visualizer.
+      Upgrade modal triggered from locked surfaces.
+      Add-on purchased via Stripe — activates immediately.
 
 ### V2
 
 - [ ] **Competitor CTA analysis**
-      For each focus page: analyze what CTAs top 3 competitors use.
-      Where placed, what copy, what offer. Surface as CRO insight.
+      For each destination page: analyze what CTAs top 3 competitors use.
+      Where placed, what copy, what offer. Surface as CRO insight in System 2 audit.
 
 - [ ] **A/B meta testing suggestions**
       For pages with sufficient impression data: suggest meta title variants to test.
@@ -984,14 +1547,14 @@ Phase definitions:
 
 ---
 
-### Beta
+### Launch
 
 - [ ] **Serper.dev integration**
       SERP analysis for keyword research. Used in: topic strategy, cluster generation,
       focus page brief, article brief. 5 credits per keyword.
       API key stored in .env. Error handling for rate limits.
 
-### V1
+### Launch
 
 - [ ] **Google Search Console OAuth**
       OAuth 2.0 flow. Scopes: webmasters.readonly.
@@ -1041,7 +1604,7 @@ Phase definitions:
 
 ---
 
-### Beta
+### Launch
 
 - [ ] **Credit balance tracking**
       credits_remaining and credits_monthly stored on user profile.
@@ -1077,7 +1640,7 @@ Phase definitions:
       On billing anniversary date: reset credits_remaining to plan monthly allowance.
       Log reset event. Notify user via in-app banner: "Your credits have refreshed."
 
-### V1
+### Launch
 
 - [ ] **Stripe subscription integration**
       Stripe Checkout for new subscriptions.
@@ -1126,7 +1689,7 @@ Phase definitions:
 
 ---
 
-### V1 (Pro tier feature)
+### V2 (Pro tier)
 
 - [ ] **White-label PDF exports**
       Export focus page brief, article, or cluster report as branded PDF.
@@ -1168,7 +1731,7 @@ Phase definitions:
 
 ---
 
-### Beta
+### Launch
 
 - [ ] **Dual model architecture**
       GPT-4o-mini: article generation, focus page brief content, meta descriptions,
@@ -1195,7 +1758,7 @@ Phase definitions:
       terms to avoid. Stored in brand_voice record. Applied as system prompt context
       to every GPT-4o-mini call.
 
-### V1
+### Launch
 
 - [ ] **AI next action suggestions**
       Always visible in dashboard: top 3 specific actions ranked by impact.
@@ -1258,7 +1821,7 @@ Phase definitions:
 
 ---
 
-### Beta
+### Launch
 
 - [ ] **Brand voice settings**
       Tone selector: Professional, Friendly, Conversational, Bold, Authoritative.
@@ -1271,7 +1834,7 @@ Phase definitions:
       Update full name, email, password, avatar.
       Delete account option with confirmation.
 
-### V1
+### Launch
 
 - [ ] **Notification preferences**
       Toggle: rank drop alerts, weekly summary, credit low warning,
@@ -1307,37 +1870,45 @@ Phase definitions:
 
 ## FEATURE COUNT BY PHASE
 
-| Phase | Features                                          |
-| ----- | ------------------------------------------------- |
-| Beta  | ~35 features — core loop must work perfectly      |
-| V1    | ~45 features — full product, all tiers chargeable |
-| V2    | ~25 features — competitive intelligence depth     |
-| V3    | ~15 features — analytics and autonomous layer     |
-| V4    | ~5 features — platform maturity                   |
+| Phase       | Features                                                          |
+| ----------- | ----------------------------------------------------------------- |
+| Launch      | ~80 features — full product shipping day one                      |
+| Post-Launch | ~10 features — retention depth + CRO Studio add-on                |
+| V2          | ~30 features — competitive intelligence, new integrations, agency |
+| V3          | ~20 features — analytics, autonomous layer, platform maturity     |
 
 ---
 
-## BETA CRITICAL PATH
+## LAUNCH CRITICAL PATH
 
-These features must work end-to-end before Beta launch.
-Everything else can wait.
+These systems must work end-to-end before launch.
+Everything is interconnected — build in this order.
 
-1. Onboarding → project creation
-2. Topic strategy generation (Haiku)
-3. SERP analysis (Serper.dev)
-4. Cluster creation with React Flow map
-5. Focus page brief generation (GPT-4o-mini)
-6. Article generation (GPT-4o-mini)
-7. Tiptap WYSIWYG editor
-8. Live SEO score
-9. Credit system with deduction and balance tracking
-10. Stripe subscription (Builder and Growth tiers minimum)
-11. Auth (email + Google OAuth)
-12. AI insight blocks on dashboard, strategy, cluster, workspace
+1. Onboarding → project creation (already working)
+2. Topic strategy generation (already working)
+3. Cluster creation with React Flow map (already working)
+4. Focus page brief + article generation (already working)
+5. Tiptap editor + live UPSA score (already working)
+6. **UPSA scoring fixes** — H2 contamination penalty + keyword density penalty (corrects existing scores)
+7. **Page type classification** — `classifyPageType()` stored on pages table
+8. **Destination page field on clusters** — DB migration + cluster creation prompt
+9. **Cluster intelligence layer** — all 7 warnings + health scoring
+10. **Customer journey map / funnel visualizer** — full spec, default cluster view
+11. **System 1 CRO checklist** — full 8-item detection engine + CRO tab UI
+12. **Author/EEAT field** — one DB field, feeds every generation prompt
+13. **Schema markup generator** — Article, FAQ, Product, LocalBusiness, BreadcrumbList
+14. **EEAT scored checklist** — Trust & Authority tab in technical SEO
+15. **Technical audit depth additions** — all new issue types from gaps register
+16. **SEO decision tree** — "Diagnose This Page" button
+17. **Weekly priority stack** — data-driven task list
+18. **Page-level GSC attribution** — wiring existing data to workspace sidebar
+19. **Shopify companion app** — OAuth + embedded UI + one-click publish (non-negotiable for app store)
+20. Credit system + Stripe billing (already working)
 
-**Beta is done when:** A user can sign up, complete onboarding, see their strategy,
-build one cluster, generate a focus page brief and one article, and pay $39/month
-for it. Everything else is V1.
+**Launch is done when:** A store owner can sign up, see their entire content strategy
+as a visual funnel, understand exactly what to write and why, see their scores,
+get a specific weekly action plan, and publish directly to their store.
+The full picture. Not a stripped-down version.
 
 ---
 
@@ -1377,7 +1948,7 @@ This is a critical technical and legal requirement.
 Sharkly is an SEO SaaS with a Shopify integration — NOT a Shopify app that does SEO.
 The Shopify app is a free connector only. All real functionality lives on sharkly.co.
 
-### Beta
+### Launch
 
 - [ ] **Shopify companion app (free connector)**
       The Shopify App Store listing is a free app that connects a merchant's store
@@ -1422,7 +1993,7 @@ The Shopify app is a free connector only. All real functionality lives on sharkl
       Set: title, body_html, tags, author, published status, SEO meta fields.
       Show publish status in workspace (draft / scheduled / published).
 
-### V1
+### Launch
 
 - [ ] **Shopify Billing API (mirror tiers)**
       For merchants who prefer to manage billing inside Shopify:

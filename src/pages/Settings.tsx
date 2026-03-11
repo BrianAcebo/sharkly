@@ -96,7 +96,7 @@ export default function SettingsPage() {
 		caseStatusChange: true,
 		caseFollowUp: true,
 		caseQualification: true,
-		// AI Assistant notifications
+		// Fin notifications
 		aiInsights: true,
 		conversationSummary: true,
 		followUpSuggestions: true,
@@ -930,7 +930,7 @@ export default function SettingsPage() {
 
 											<div className="flex items-center justify-between">
 												<div>
-													<h5 className="text-sm font-medium">AI Assistant</h5>
+													<h5 className="text-sm font-medium">Fin</h5>
 													<p className="text-xs text-gray-500">Insights, summaries, suggestions</p>
 												</div>
 												<label className="relative inline-flex cursor-pointer items-center">

@@ -8,6 +8,7 @@ import { crawlabilityChecker, CrawlabilityResult } from './crawlabilityChecker.j
 import { crawlerService, CrawlResult } from './crawlerService.js';
 import { supabase } from '../utils/supabaseClient.js';
 import axios from 'axios';
+import { getKeywordDensity } from '../../../shared/keywordDensity';
 
 export interface TechnicalAuditResult {
 	siteId: string;
@@ -110,6 +111,9 @@ export class TechnicalAuditService {
 		let crawlResults: CrawlResult[] = [];
 		try {
 			crawlResults = await crawlerService.crawlSite(siteId, siteUrl, 'system', organizationId, 50); // Limit to 50 pages for onboarding
+
+			// S2-2: Keyword density — add keyword_stuffing issues for matched Sharkly pages
+			await this.enrichKeywordStuffingIssues(siteId, siteUrl, crawlResults);
 		} catch (e) {
 			console.error('[TechnicalAudit] Crawl failed:', e);
 			// Continue with other checks even if crawl fails
@@ -203,6 +207,79 @@ export class TechnicalAuditService {
 		await this.storeAuditResults(siteId, result, crawlResults);
 
 		return result;
+	}
+
+	/**
+	 * S2-2: Enrich crawl results with keyword_stuffing issues for matched Sharkly pages.
+	 * Fetches pages with published_url, matches to crawl URLs, checks density > 3%.
+	 */
+	private async enrichKeywordStuffingIssues(
+		siteId: string,
+		siteUrl: string,
+		crawlResults: CrawlResult[]
+	): Promise<void> {
+		const { data: pages } = await supabase
+			.from('pages')
+			.select('id, keyword, published_url')
+			.eq('site_id', siteId)
+			.not('published_url', 'is', null)
+			.not('keyword', 'is', null);
+
+		if (!pages || pages.length === 0) return;
+
+		const baseUrl = siteUrl.replace(/\/$/, '');
+		const normalizeForMatch = (url: string): string => {
+			if (!url) return '';
+			const u = url.trim().toLowerCase();
+			const withoutProtocol = u.replace(/^https?:\/\//, '');
+			const path = withoutProtocol.replace(/^[^/]+/, '') || withoutProtocol;
+			return path.replace(/^\/+|\/+$/g, '').replace(/\/+/g, '/') || path;
+		};
+
+		for (const result of crawlResults) {
+			if (result.statusCode >= 400 || !result.textContent) continue;
+
+			const crawlPath = normalizeForMatch(result.url);
+			const matched = pages.find((p) => {
+				const pub = (p as { published_url?: string }).published_url;
+				if (!pub) return false;
+				const pubNorm = pub.startsWith('/')
+					? normalizeForMatch(`${baseUrl}${pub}`)
+					: normalizeForMatch(pub);
+				return crawlPath === pubNorm;
+			});
+
+			if (!matched?.keyword) continue;
+
+			const kw = String((matched as { keyword?: string }).keyword || '');
+			const { densityPct, keywordCount, wordCount, isKeywordStuffing } = getKeywordDensity(
+				result.textContent,
+				kw
+			);
+
+			if (isKeywordStuffing) {
+				const issue = {
+					type: 'keyword_stuffing',
+					severity: 'critical' as const,
+					description: `Keyword "${kw.slice(0, 40)}${kw.length > 40 ? '…' : ''}" appears ${keywordCount} times in ${wordCount} words (${densityPct.toFixed(1)}%)`,
+					recommendation:
+						'Keyword density above 3% distorts how Google reads this page semantically. Reduce keyword mentions to under 3% — aim for 0.5–2% for natural relevance.',
+					affectedUrl: result.url
+				};
+				result.issues.push(issue);
+
+				// Persist to technical_issues (saveResults ran before enrich, so we insert here)
+				await supabase.from('technical_issues').insert({
+					site_id: siteId,
+					issue_type: issue.type,
+					severity: issue.severity,
+					affected_url: result.url,
+					description: issue.description,
+					recommendation: issue.recommendation,
+					crawl_date: new Date().toISOString()
+				});
+			}
+		}
 	}
 
 	/**
@@ -583,7 +660,7 @@ export class TechnicalAuditService {
 				.from('audit_results')
 				.insert({
 					site_id: siteId,
-					organization_id: auditResult.siteId ? null : auditResult.siteId, // Will be set by trigger or app logic
+					organization_id: organizationId,
 					// Crawlability
 					crawlability_is_crawlable: auditResult.crawlabilityCheck.isCrawlable,
 					crawlability_site_reachable: auditResult.crawlabilityCheck.siteReachable,
@@ -629,7 +706,9 @@ export class TechnicalAuditService {
 				});
 
 			if (auditError) {
-				console.error('[TechnicalAudit] Failed to store detailed results:', auditError);
+				console.error('[TechnicalAudit] Failed to store audit results — check organization_id and RLS:', auditError.message, auditError.details);
+			} else {
+				console.log('[TechnicalAudit] Audit results stored for site:', siteId);
 			}
 		} catch (e) {
 			console.error('[TechnicalAudit] Failed to store audit results:', e);

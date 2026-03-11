@@ -4,9 +4,10 @@
 	"version": "0.0.0",
 	"type": "module",
 	"scripts": {
-		"dev": "concurrently -n api,web,tunnel -c cyan,green,yellow \"npm run dev:server\" \"npm run dev:frontend\" \"npm run dev:ngrok\"",
+		"dev": "concurrently -n api,app,marketing,tunnel -c cyan,green,magenta,yellow \"npm run dev:server\" \"npm run dev:frontend\" \"npm run dev:marketing\" \"npm run dev:ngrok\"",
 		"dev:frontend": "vite",
 		"dev:server": "tsx watch api/src/index.ts",
+		"dev:marketing": "cd marketing && npm run dev",
 		"dev:ngrok": "node scripts/ngrok-serve.mjs",
 		"// note": "---- API build/run (for Fly & local preview) ----",
 		"api:watch": "tsc -p api/tsconfig.json -w",
@@ -32,6 +33,7 @@
 		"db:logs": "docker compose -f supabase/docker/docker-compose.yml logs -f kong db auth rest studio"
 	},
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.78.0",
 		"@dnd-kit/core": "^6.3.1",
 		"@dnd-kit/sortable": "^10.0.0",
 		"@dnd-kit/utilities": "^3.2.2",
@@ -52,6 +54,7 @@
 		"@tiptap/extension-image": "^3.20.0",
 		"@tiptap/extension-link": "^3.20.0",
 		"@tiptap/extension-placeholder": "^3.20.0",
+		"@tiptap/extension-table": "^3.20.1",
 		"@tiptap/extension-text-align": "^3.20.0",
 		"@tiptap/extension-underline": "^3.20.0",
 		"@tiptap/extension-youtube": "^3.20.0",
@@ -76,9 +79,11 @@
 		"input-otp": "^1.4.2",
 		"lowlight": "^3.3.0",
 		"lucide-react": "^0.344.0",
+		"multer": "^2.1.1",
 		"ngrok": "^5.0.0-beta.2",
 		"node-fetch": "^3.3.2",
 		"openai": "^6.25.0",
+		"playwright": "^1.58.2",
 		"radix-ui": "^1.4.2",
 		"react": "^18.3.1",
 		"react-contexify": "^6.0.0",
@@ -100,6 +105,7 @@
 		"stripe": "^18.3.0",
 		"tailwind-merge": "^3.0.1",
 		"tcp-port-used": "^1.0.2",
+		"uuid": "^13.0.0",
 		"vaul": "^1.1.2",
 		"zod": "^4.1.12"
 	},

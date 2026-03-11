@@ -1,14 +1,25 @@
 import { useState, useEffect } from 'react';
+import { supabase } from '../utils/supabaseClient';
+import { api } from '../utils/api';
 
-interface RankingData {
+/**
+ * Momentum status — matches MomentumStatus in useNavboostSignals.ts
+ * and rankingsController linear regression output.
+ * 'weakening' is the correct term per spec §17.2 — never 'declining'.
+ */
+export type MomentumStatus = 'building' | 'flat' | 'weakening';
+
+export interface RankingData {
 	keyword: string;
 	pageUrl: string;
 	clicks: number;
 	impressions: number;
 	ctr: number;
 	position: number;
-	change: number; // position change vs previous period
-	momentum: 'building' | 'flat' | 'declining';
+	/** Position change vs previous period — calculated in rankingsController */
+	change: number;
+	/** 4-week CTR trend from navboost_signals linear regression */
+	momentum: MomentumStatus;
 }
 
 interface UseRankingsProps {
@@ -44,12 +55,23 @@ export function useRankings({
 			setLoading(true);
 			setError(null);
 
-			const response = await fetch(
-				`/api/rankings/${siteId}?days=${days}&sortBy=${sortBy}&order=${order}`
+			const { data: { session } } = await supabase.auth.getSession();
+			if (!session?.access_token) {
+				setError('Not authenticated');
+				return;
+			}
+
+			const response = await api.get(
+				`/api/rankings/${siteId}?days=${days}&sortBy=${sortBy}&order=${order}`,
+				{ headers: { Authorization: `Bearer ${session.access_token}` } }
 			);
 
 			if (!response.ok) {
-				throw new Error('Failed to fetch rankings');
+				const errData = await response.json().catch(() => ({}));
+				if (response.status === 403 && errData.code === 'tier_required') {
+					throw new Error('Growth plan or higher required');
+				}
+				throw new Error(errData.error || 'Failed to fetch rankings');
 			}
 
 			const data = await response.json();
@@ -65,6 +87,7 @@ export function useRankings({
 
 	useEffect(() => {
 		fetchRankings();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [siteId, days, sortBy, order, enabled]);
 
 	return {

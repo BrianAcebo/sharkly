@@ -1,13 +1,13 @@
 import PageMeta from '../components/common/PageMeta';
 import CTA from '../components/home/CTA';
-import Demo from '../components/home/Demo';
+import Comparison from '../components/home/Comparison';
 import Features from '../components/home/Features';
 import Hero from '../components/home/Hero';
 import Pricing from '../components/home/Pricing';
-import Testimonials from '../components/home/Testimonials';
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router';
 import useAuth from '../hooks/useAuth';
+import ThemeTogglerTwo from '../components/common/ThemeTogglerTwo';
 
 const Home = () => {
 	const [isLoading, setIsLoading] = useState(true);
@@ -30,10 +30,12 @@ const Home = () => {
 
 			<Hero isLoading={isLoading} />
 			<Features />
+			<Comparison />
 			<Pricing />
-			<Demo />
-			<Testimonials />
 			<CTA />
+			<div className="fixed right-6 bottom-6 z-50 hidden sm:block">
+				<ThemeTogglerTwo />
+			</div>
 		</>
 	);
 };

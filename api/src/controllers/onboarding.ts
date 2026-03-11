@@ -1,9 +1,8 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { technicalAuditService } from '../services/technicalAuditService.js';
-import fetch from 'node-fetch';
+import { serperSearch, parseSearchResultCount } from '../utils/serper.js';
 
-const SERPER_API_KEY = process.env.SERPER_API_KEY || '';
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || '';
 const CLAUDE_MODEL = process.env.CLAUDE_HAIKU_MODEL || 'claude-haiku-4-5-20251001';
 
@@ -19,38 +18,6 @@ function extractDomain(url: string): string {
 				.split('/')[0] || url
 		);
 	}
-}
-
-async function serperSearch(
-	query: string
-): Promise<{
-	organic?: Array<{ title: string; link: string; snippet?: string }>;
-	relatedSearches?: Array<{ query: string }>;
-}> {
-	if (!SERPER_API_KEY) {
-		return { organic: [], relatedSearches: [] };
-	}
-	const res = await fetch('https://google.serper.dev/search', {
-		method: 'POST',
-		headers: {
-			'X-API-KEY': SERPER_API_KEY,
-			'Content-Type': 'application/json'
-		},
-		body: JSON.stringify({ q: query, num: 10 })
-	});
-	if (!res.ok) {
-		const text = await res.text();
-		console.error('[Onboarding] Serper error:', res.status, text);
-		return { organic: [], relatedSearches: [] };
-	}
-	const data = (await res.json()) as {
-		organic?: Array<{ title: string; link: string; snippet?: string }>;
-		relatedSearches?: Array<{ query: string }>;
-	};
-	return {
-		organic: data.organic || [],
-		relatedSearches: data.relatedSearches || []
-	};
 }
 
 async function callClaudeTopicStrategy(payload: {
@@ -82,11 +49,23 @@ async function callClaudeTopicStrategy(payload: {
 		.map((c) => `${c.url} — top keywords: ${c.keywords.slice(0, 8).join(', ') || 'none'}`)
 		.join('\n');
 
+	const isNewDomain = payload.domainAuthority <= 5;
+	const authorityRules = isNewDomain
+		? `Authority fit rules (NEW DOMAIN — DA ≤ 5):
+- achievable: keyword_difficulty <= 15
+- buildToward: keyword_difficulty 16-30
+- locked: keyword_difficulty > 30
+This site is brand new. Only return keywords that a new site can realistically rank for.`
+		: `Authority fit rules:
+- achievable: keyword_difficulty <= ${payload.domainAuthority + 10}
+- buildToward: keyword_difficulty <= ${payload.domainAuthority + 25}
+- locked: keyword_difficulty > ${payload.domainAuthority + 25}`;
+
 	const userPrompt = `Business: ${payload.businessName}
 What they offer: ${payload.niche}
 Target customers: ${payload.customerDescription}
 Website: ${payload.url}
-Domain Authority (estimated): ${payload.domainAuthority}/100
+Domain Authority (DA): ${payload.domainAuthority}/100${isNewDomain ? ' — NEW DOMAIN' : ''}
 Platform: ${payload.platform}
 
 Competitors analyzed:
@@ -98,10 +77,7 @@ ${payload.serpData}
 Generate 15-25 keyword opportunities. For each, return JSON in this exact format (no markdown, no extra text):
 {"title":"human-readable topic title","keyword":"exact target keyword","monthly_searches":number,"keyword_difficulty":0-100,"cpc":number,"funnel_stage":"tofu|mofu|bofu","authority_fit":"achievable|buildToward|locked","priority_score":number,"ai_reasoning":"2-sentence plain English explanation"}
 
-Authority fit rules:
-- achievable: keyword_difficulty <= domain_authority + 10
-- buildToward: keyword_difficulty <= domain_authority + 25
-- locked: keyword_difficulty > domain_authority + 25
+${authorityRules}
 
 Priority score = (commercial_intent_weight × cpc × monthly_searches) / keyword_difficulty where bofu=3, mofu=2, tofu=1
 Sort by priority_score descending. Put achievable topics first.
@@ -155,6 +131,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 			customerDescription: string;
 			platform: string;
 			competitorUrls: string[];
+			domainAuthority?: number;
 		};
 
 		if (!body.url || !body.businessName) {
@@ -162,8 +139,9 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 		}
 
 		const url = body.url.startsWith('http') ? body.url : `https://${body.url}`;
-		const domain = extractDomain(url);
+		extractDomain(url); // retained for future use (competitor domain comparison)
 		const competitorUrls = (body.competitorUrls || []).filter(Boolean).slice(0, 3);
+		const domainAuthority = Math.max(0, Math.min(100, Number(body.domainAuthority ?? 10)));
 		const platform = body.platform || 'custom';
 		const niche = body.niche || '';
 		const customerDescription = body.customerDescription || '';
@@ -195,7 +173,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 				niche,
 				customer_description: customerDescription,
 				competitor_urls: competitorUrls,
-				domain_authority: 0
+				domain_authority: domainAuthority
 			})
 			.select('id')
 			.single();
@@ -255,13 +233,14 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 		}
 		const serpData = serpResults.join('\n');
 
-		// 5. Claude topic strategy
+		// 5. Claude topic strategy — use real DA with new-domain protocol
+		const effectiveDa = domainAuthority;
 		const topics = await callClaudeTopicStrategy({
 			businessName: body.businessName,
 			niche,
 			customerDescription,
 			url,
-			domainAuthority: 25,
+			domainAuthority: effectiveDa,
 			platform,
 			competitorData: competitorData.map((c) => ({ url: c.url, keywords: c.keywords })),
 			serpData
@@ -283,7 +262,29 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 				status: t.authority_fit === 'locked' ? 'locked' : 'queued',
 				sort_order: i + 1
 			}));
-			await supabase.from('topics').insert(rows);
+			const { data: insertedTopics } = await supabase.from('topics').insert(rows).select('id, keyword, monthly_searches');
+
+			// 6b. KGR scoring — run allintitle: call for each topic (max 15 to avoid rate limits)
+			// KGR = allintitle_count / monthly_searches; < 0.25 = Quick Win
+			if (insertedTopics && insertedTopics.length > 0) {
+				const kgrCandidates = insertedTopics.slice(0, 15);
+				await Promise.allSettled(
+					kgrCandidates.map(async (t) => {
+						try {
+							const monthlySearches = Number(t.monthly_searches) || 1;
+							const { searchInformation } = await serperSearch(`allintitle:${t.keyword}`, 1);
+							const allintitleCount = parseSearchResultCount(searchInformation?.totalResults);
+							const kgrScore = allintitleCount / monthlySearches;
+							await supabase
+								.from('topics')
+								.update({ kgr_score: Math.round(kgrScore * 1000) / 1000 })
+								.eq('id', t.id);
+						} catch {
+							// KGR scoring failure is non-fatal
+						}
+					})
+				);
+			}
 		}
 
 		// 7. Update profile completed_onboarding
