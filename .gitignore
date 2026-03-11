@@ -29,3 +29,9 @@ dist-ssr
 .env.*.local
 .vercel
 .env*.local
+
+# Production data dumps (contain secrets — never commit)
+sql/chunks/prod_data*.sql
+
+# Supabase local DB volumes (contains token data)
+supabase/docker/volumes/
