@@ -8,12 +8,14 @@ This is the public-facing **sharkly.co** marketing and content site, built with 
 |---|---|---|
 | `sharkly.co` | Marketing + blog | Astro (SSR, this project) |
 | `app.sharkly.co` | The actual app | React (Vite, root of monorepo) |
-| `api.sharkly.co` | Backend API | Express (api/) |
+| `sharkly-api.fly.dev` | Backend API | Express (api/) |
+| `api.sharkly.co` | Supabase custom domain | Not the Express backend |
 
 ## URL structure
 
 ```
 sharkly.co/                          → Marketing homepage
+sharkly.co/shopify-seo-app           → Shopify app sign-up landing (install CTAs use PUBLIC_SHOPIFY_APP_URL)
 sharkly.co/blog                      → Blog listing
 sharkly.co/blog/glossary             → Glossary category
 sharkly.co/blog/glossary/[slug]      → Individual glossary article
@@ -44,6 +46,7 @@ Content is managed through the **admin CMS at `app.sharkly.co/admin/blog`**.
 cp .env.example .env
 # Fill in SITE_URL, PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY
 # Optional for local dev: PUBLIC_APP_URL=http://localhost:5173 (so CTAs link to local app from marketing site)
+# For the Shopify app landing page (sharkly.co/shopify-seo-app): set PUBLIC_SHOPIFY_APP_URL to your Shopify app install URL so CTAs send users to install the app
 
 npm install
 npm run dev      # http://localhost:4321 (when run from repo root: npm run dev)

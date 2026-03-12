@@ -9,6 +9,7 @@ import {
     updateOrgMaxSeats,
     syncExtraSeatAddon
 } from '../utils/seats.js';
+import { createNotificationForUser } from '../utils/notifications.js';
 
 interface InviteTeamMemberRequest {
 	email: string;
@@ -496,6 +497,22 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 			console.error('Error updating invitation:', updateError);
 			// Don't fail the whole operation if this fails
 		}
+
+		// In-app notification for the user who joined
+		const { data: orgRow } = await supabase
+			.from('organizations')
+			.select('name')
+			.eq('id', invitation.organization_id)
+			.single();
+		const orgName = (orgRow as { name?: string } | null)?.name ?? 'the team';
+		await createNotificationForUser(userId, invitation.organization_id, {
+			title: 'You joined a team',
+			message: `You joined ${orgName}. You can switch organizations in the sidebar.`,
+			type: 'invite_accepted',
+			priority: 'medium',
+			action_url: '/dashboard',
+			metadata: { organization_id: invitation.organization_id }
+		});
 
 		return res.json({ message: 'Successfully joined the organization' });
 	} catch (error) {

@@ -48,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				.single();
 
 			if (profileError) {
-				console.error('Error fetching profile:', profileError);
+				console.error('Error fetching profile:', { message: profileError.message, code: profileError.code, details: profileError.details });
 				return;
 			}
 
@@ -147,7 +147,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				.single();
 
 			if (profileError) {
-				console.error('Error fetching profile:', profileError);
+				console.error('Error fetching profile:', { message: profileError.message, code: profileError.code, details: profileError.details });
 				throw profileError;
 			}
 
@@ -252,7 +252,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 						.single();
 
 					if (profileError) {
-						console.error('Error fetching profile:', profileError);
+						console.error('Error fetching profile:', { message: profileError.message, code: profileError.code, details: profileError.details });
 						setUser(session.user as UserProfile);
 						return;
 					}
@@ -362,7 +362,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 						.single();
 
 					if (profileError) {
-						console.error('Error fetching profile:', profileError);
+						console.error('Error fetching profile:', {
+							message: profileError.message,
+							code: profileError.code,
+							details: profileError.details
+						});
 
 						// If profile doesn't exist, create it (fallback for new users)
 						if (profileError.code === 'PGRST116') {

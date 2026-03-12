@@ -26,7 +26,10 @@ const Header: React.FC = () => {
 	} = useNotifications(user?.id || undefined);
 	const { paymentStatus } = usePaymentStatus();
 	const { organization } = useOrganization();
-	const creditsRemaining = organization?.included_credits_remaining ?? organization?.included_credits ?? 0;
+
+	const creditsRemaining =
+		organization?.included_credits_remaining ?? organization?.included_credits ?? 0;
+
 	const [showCommandPalette, setShowCommandPalette] = useState(false);
 	const [showNotifications, setShowNotifications] = useState(false);
 	const [showUserMenu, setShowUserMenu] = useState(false);
@@ -190,7 +193,7 @@ const Header: React.FC = () => {
 						</div>
 
 						<div className="flex items-center space-x-4">
-							<Link
+							{/* <Link
 								to="/billing"
 								className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition-colors ${
 									creditsRemaining < 10
@@ -202,6 +205,9 @@ const Header: React.FC = () => {
 								<Coins className="size-4" />
 								<span>{creditsRemaining}</span>
 							</Link>
+
+							*/}
+
 							<button
 								type="button"
 								onClick={() => toggleTheme()}
@@ -281,7 +287,7 @@ const Header: React.FC = () => {
 											<p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
 										</div>
 										<Link
-											to={`/investigators/${user?.id}`}
+											to={`/settings/profile`}
 											className="hover:bg-brand-50 dark:hover:bg-brand-900/20 flex w-full items-center space-x-2 px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300"
 											onClick={() => setShowUserMenu(false)}
 										>

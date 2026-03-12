@@ -282,7 +282,7 @@ export default function Sites() {
 								>
 									Edit
 								</Button>
-								<Button
+								{/* <Button
 									variant="outline"
 									size="sm"
 									className="border-gray-200 dark:border-gray-700"
@@ -292,7 +292,7 @@ export default function Sites() {
 								>
 									<CreditBadge cost={10} action="Re-audit" sufficient />
 									<span className="ml-1">Re-audit</span>
-								</Button>
+								</Button> */}
 							</div>
 						</div>
 					))

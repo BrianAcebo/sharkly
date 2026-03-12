@@ -17,6 +17,7 @@ function NotFoundContent() {
 			<PageMeta
 				title="404 - Page Not Found"
 				description="We can't seem to find the page you are looking for!"
+				noIndex
 			/>
 			<div className="relative z-1 flex min-h-screen flex-col items-center justify-center overflow-hidden p-6">
 				<GridShape />
@@ -28,7 +29,7 @@ function NotFoundContent() {
 					<img src="/images/error/404.svg" alt="404" className="dark:hidden" />
 					<img src="/images/error/404-dark.svg" alt="404" className="hidden dark:block" />
 
-					<p className="mt-10 mb-6 text-base text-gray-700 sm:text-lg dark:text-gray-400">
+					<p className="mt-10 mb-6 block text-base text-gray-700 sm:text-lg dark:text-gray-400">
 						We can't seem to find the page you are looking for!
 					</p>
 

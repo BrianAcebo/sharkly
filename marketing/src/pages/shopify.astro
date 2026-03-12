@@ -1,0 +1,601 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import {
+  ShoppingBag,
+  Zap,
+  CheckCircle,
+  Upload,
+  Search,
+  FileText,
+  BarChart2,
+  Target,
+  Package,
+  AlertCircle,
+  ArrowRight,
+} from '@lucide/astro';
+
+const shopifyAppUrl = import.meta.env.PUBLIC_SHOPIFY_APP_URL ?? import.meta.env.VITE_SHOPIFY_APP_URL ?? 'https://app.sharkly.co/signup?source=shopify';
+const appUrl       = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
+const siteUrl      = import.meta.env.SITE_URL ?? 'https://sharkly.co';
+const canonicalUrl = `${siteUrl}/shopify`;
+
+const pageTitle       = 'Sharkly for Shopify — SEO for Non-SEO Store Owners | From $39/mo';
+const metaDescription = 'Connect your Shopify store to Sharkly. Get a full SEO strategy, AI-written product descriptions, 6 on-page checks, and one-click publish back — without learning SEO.';
+
+const schema = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebPage',
+      '@id': `${canonicalUrl}#webpage`,
+      url: canonicalUrl,
+      name: pageTitle,
+      description: metaDescription,
+      isPartOf: { '@id': `${siteUrl}#website` },
+    },
+    {
+      '@type': 'SoftwareApplication',
+      name: 'Sharkly for Shopify',
+      applicationCategory: 'BusinessApplication',
+      operatingSystem: 'Web',
+      offers: { '@type': 'Offer', price: '39', priceCurrency: 'USD', priceValidUntil: '2027-01-01' },
+      description: metaDescription,
+    },
+    { '@type': 'WebSite', '@id': `${siteUrl}#website`, url: siteUrl, name: 'Sharkly' },
+  ],
+};
+---
+
+<BaseLayout
+  title={pageTitle}
+  description={metaDescription}
+  canonical={canonicalUrl}
+  schema={schema}
+>
+
+<style is:global>
+  /* ── Tokens ── */
+  :root {
+    --g-green: #96bf48;
+    --g-green-dark: #5a8f00;
+    --g-green-pale: #f2f7eb;
+    --border: rgba(0,0,0,.08);
+    --border-d: rgba(255,255,255,.08);
+  }
+  .dark { --g-green-pale: rgba(150,191,72,.07); }
+
+  /* ── Reveal ── */
+  .reveal { opacity:0; transform:translateY(22px); transition:opacity .5s ease,transform .5s ease; }
+  .reveal.visible { opacity:1; transform:none; }
+
+  /* ── Scenic card (same system as homepage) ── */
+  .scenic-card { border-radius:16px; overflow:hidden; box-shadow:0 24px 64px rgba(0,0,0,.15); }
+  .scenic-bg   { height:72px; }
+  .scenic-panel {
+    background:#fff; border-radius:10px 10px 0 0;
+    margin:0 14px; transform:translateY(-26px);
+    box-shadow:0 4px 20px rgba(0,0,0,.10); overflow:hidden;
+  }
+  .dark .scenic-panel { background:#171717; }
+  .scenic-topbar {
+    display:flex; align-items:center; gap:5px;
+    padding:8px 12px; border-bottom:1px solid rgba(0,0,0,.07); background:#f5f5f4;
+  }
+  .dark .scenic-topbar { background:#222; border-color:rgba(255,255,255,.07); }
+  .mac-dot { width:8px; height:8px; border-radius:50%; }
+  .scenic-titlebar { flex:1; height:11px; background:#e7e5e4; border-radius:3px; margin:0 8px; }
+  .dark .scenic-titlebar { background:#333; }
+
+  /* ── Shopify badge ── */
+  .shopify-badge {
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--g-green-pale); border:1px solid rgba(150,191,72,.4);
+    border-radius:999px; padding:7px 16px;
+    font-size:0.9375rem; font-weight:700; color:#3d6b00; letter-spacing:.01em;
+  }
+  .dark .shopify-badge { background:rgba(150,191,72,.1); color:#96bf48; border-color:rgba(150,191,72,.3); }
+
+  /* ── Check row ── */
+  .check-row {
+    display:flex; align-items:center; gap:14px;
+    padding:13px 0; border-bottom:1px solid var(--border);
+    font-size:1.0625rem; font-weight:600; color:#171717;
+  }
+  .dark .check-row { border-color:var(--border-d); color:#f5f5f0; }
+  .check-row:last-child { border:none; }
+
+  /* ── Cards ── */
+  .pain-card {
+    background:#fff; border:1px solid rgba(0,0,0,.08);
+    border-radius:16px; padding:28px; box-shadow:0 2px 12px rgba(0,0,0,.05);
+  }
+  .dark .pain-card { background:#1a1a1a; border-color:rgba(255,255,255,.08); }
+
+  .testimonial-card {
+    background:#fff; border:1px solid rgba(0,0,0,.08);
+    border-radius:18px; padding:32px; box-shadow:0 4px 20px rgba(0,0,0,.05);
+  }
+  .dark .testimonial-card { background:#1a1a1a; border-color:rgba(255,255,255,.08); }
+</style>
+
+<!-- ══════════════════════════════════════════
+     HERO
+     ══════════════════════════════════════════ -->
+<section class="bg-stone-100 dark:bg-neutral-900 pt-20 sm:pt-24 pb-0 px-4 sm:px-6 overflow-hidden">
+  <div class="max-w-[1100px] mx-auto">
+
+    <div class="text-center max-w-[740px] mx-auto mb-12 space-y-6">
+
+      <div class="inline-flex justify-center">
+        <span class="shopify-badge">
+          <ShoppingBag className="size-5 shrink-0" />
+          Built for Shopify stores
+        </span>
+      </div>
+
+      <h1 class="text-4xl sm:text-5xl lg:text-[3.5rem] font-extrabold text-neutral-900 dark:text-stone-100 leading-[1.07] tracking-tight">
+        Your products deserve<br class="hidden sm:block" />
+        to show up on Google.
+      </h1>
+
+      <p class="text-xl sm:text-2xl text-gray-500 dark:text-gray-400 leading-relaxed mx-auto">
+        Connect your Shopify store to Sharkly. Full SEO strategy, AI-written product copy, and one-click publish — no SEO knowledge needed.
+      </p>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+        <a href={shopifyAppUrl} class="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-neutral-900 dark:bg-stone-100 text-white dark:text-neutral-900 px-8 py-4 rounded-full text-base font-bold no-underline transition-opacity hover:opacity-85 shadow-lg">
+          <ShoppingBag className="size-5 shrink-0" />
+          Install on Shopify — 7-day trial
+        </a>
+        <a href={`${appUrl}/signup`} class="inline-flex items-center gap-2 text-base font-semibold text-gray-500 dark:text-gray-400 no-underline hover:text-neutral-900 dark:hover:text-stone-100">
+          Sign up without Shopify <ArrowRight className="size-4" />
+        </a>
+      </div>
+
+      <p class="text-sm text-gray-400">7-day trial · Cancel anytime · From $39/mo</p>
+    </div>
+
+    <!-- Hero SVG — Shopify store before/after -->
+    <div class="max-w-[860px] mx-auto reveal overflow-x-auto">
+      <svg viewBox="0 0 860 300" xmlns="http://www.w3.org/2000/svg" class="w-full min-w-[480px]" aria-hidden="true">
+        <rect x="0" y="16" width="860" height="268" rx="24" fill="white" opacity=".65"/>
+        <rect x="0" y="16" width="860" height="268" rx="24" fill="none" stroke="rgba(0,0,0,.06)" stroke-width="1"/>
+
+        <!-- LEFT: store before -->
+        <g transform="translate(28,40)">
+          <rect width="240" height="216" rx="10" fill="#f9f8f6" stroke="rgba(0,0,0,.08)" stroke-width="1"/>
+          <rect width="240" height="28" rx="10" fill="#efeee9"/>
+          <rect y="18" width="240" height="10" fill="#efeee9"/>
+          <circle cx="16" cy="14" r="4" fill="#ff5f57"/><circle cx="28" cy="14" r="4" fill="#ffbd2e"/><circle cx="40" cy="14" r="4" fill="#28c840"/>
+          <rect x="56" y="9" width="120" height="10" rx="5" fill="rgba(0,0,0,.07)"/>
+          <rect x="12" y="38" width="84" height="8" rx="3" fill="#96bf48" opacity=".9"/>
+          <rect x="176" y="38" width="52" height="8" rx="3" fill="rgba(0,0,0,.08)"/>
+          <g transform="translate(12,58)">
+            <rect width="100" height="114" rx="8" fill="rgba(150,191,72,.08)" stroke="rgba(150,191,72,.2)" stroke-width="1"/>
+            <ellipse cx="50" cy="40" rx="28" ry="30" fill="rgba(150,191,72,.15)" stroke="rgba(150,191,72,.4)" stroke-width="1.5"/>
+            <line x1="50" y1="22" x2="50" y2="58" stroke="rgba(150,191,72,.5)" stroke-width="1.5"/>
+            <line x1="32" y1="40" x2="68" y2="40" stroke="rgba(150,191,72,.5)" stroke-width="1.5"/>
+            <rect x="8" y="78" width="84" height="15" rx="4" fill="#fee2e2"/>
+            <text x="50" y="89" text-anchor="middle" fill="#ef4444" font-size="7.5" font-weight="700" font-family="system-ui">No SEO</text>
+            <rect x="8" y="98" width="62" height="6" rx="2" fill="rgba(0,0,0,.1)"/>
+            <rect x="8" y="107" width="42" height="5" rx="2" fill="rgba(0,0,0,.06)"/>
+          </g>
+          <g transform="translate(124,58)">
+            <rect width="100" height="114" rx="8" fill="rgba(150,191,72,.08)" stroke="rgba(150,191,72,.2)" stroke-width="1"/>
+            <ellipse cx="50" cy="50" rx="32" ry="9" fill="rgba(150,191,72,.15)" stroke="rgba(150,191,72,.4)" stroke-width="1.5"/>
+            <path d="M 18 50 Q 20 22 50 20 Q 80 22 82 50" fill="rgba(150,191,72,.12)" stroke="rgba(150,191,72,.4)" stroke-width="1.5"/>
+            <rect x="8" y="78" width="84" height="15" rx="4" fill="#fee2e2"/>
+            <text x="50" y="89" text-anchor="middle" fill="#ef4444" font-size="7.5" font-weight="700" font-family="system-ui">No SEO</text>
+            <rect x="8" y="98" width="56" height="6" rx="2" fill="rgba(0,0,0,.1)"/>
+            <rect x="8" y="107" width="38" height="5" rx="2" fill="rgba(0,0,0,.06)"/>
+          </g>
+          <text x="120" y="208" text-anchor="middle" fill="#9ca3af" font-size="9" font-weight="600" font-family="system-ui" letter-spacing=".05em">YOUR SHOPIFY STORE</text>
+        </g>
+
+        <!-- CENTER arrow + badge -->
+        <g transform="translate(290,126)">
+          <line x1="0" y1="30" x2="276" y2="30" stroke="rgba(150,191,72,.5)" stroke-width="2" stroke-dasharray="6 4"/>
+          <polygon points="276,22 292,30 276,38" fill="rgba(150,191,72,.7)"/>
+          <rect x="100" y="8" width="76" height="44" rx="10" fill="#96bf48"/>
+          <text x="138" y="29" text-anchor="middle" fill="white" font-size="9.5" font-weight="800" font-family="system-ui" letter-spacing=".04em">SHARKLY</text>
+          <text x="138" y="43" text-anchor="middle" fill="rgba(255,255,255,.8)" font-size="8" font-weight="600" font-family="system-ui">SEO layer</text>
+        </g>
+
+        <!-- RIGHT: store after -->
+        <g transform="translate(592,40)">
+          <rect width="240" height="216" rx="10" fill="#f9f8f6" stroke="rgba(0,0,0,.08)" stroke-width="1"/>
+          <rect width="240" height="28" rx="10" fill="#efeee9"/>
+          <rect y="18" width="240" height="10" fill="#efeee9"/>
+          <circle cx="16" cy="14" r="4" fill="#ff5f57"/><circle cx="28" cy="14" r="4" fill="#ffbd2e"/><circle cx="40" cy="14" r="4" fill="#28c840"/>
+          <rect x="56" y="9" width="120" height="10" rx="5" fill="rgba(0,0,0,.07)"/>
+          <rect x="12" y="38" width="84" height="8" rx="3" fill="#96bf48" opacity=".9"/>
+          <rect x="176" y="38" width="52" height="8" rx="3" fill="rgba(0,0,0,.08)"/>
+          <g transform="translate(12,58)">
+            <rect width="100" height="114" rx="8" fill="rgba(150,191,72,.08)" stroke="rgba(150,191,72,.35)" stroke-width="1.5"/>
+            <ellipse cx="50" cy="40" rx="28" ry="30" fill="rgba(150,191,72,.15)" stroke="rgba(150,191,72,.4)" stroke-width="1.5"/>
+            <line x1="50" y1="22" x2="50" y2="58" stroke="rgba(150,191,72,.5)" stroke-width="1.5"/>
+            <line x1="32" y1="40" x2="68" y2="40" stroke="rgba(150,191,72,.5)" stroke-width="1.5"/>
+            <rect x="8" y="78" width="84" height="15" rx="4" fill="#dcfce7"/>
+            <text x="50" y="89" text-anchor="middle" fill="#16a34a" font-size="7.5" font-weight="700" font-family="system-ui">SEO Ready</text>
+            <rect x="8" y="98" width="62" height="6" rx="2" fill="rgba(0,0,0,.1)"/>
+            <rect x="8" y="107" width="42" height="5" rx="2" fill="rgba(0,0,0,.06)"/>
+          </g>
+          <g transform="translate(124,58)">
+            <rect width="100" height="114" rx="8" fill="rgba(150,191,72,.08)" stroke="rgba(150,191,72,.35)" stroke-width="1.5"/>
+            <ellipse cx="50" cy="50" rx="32" ry="9" fill="rgba(150,191,72,.15)" stroke="rgba(150,191,72,.4)" stroke-width="1.5"/>
+            <path d="M 18 50 Q 20 22 50 20 Q 80 22 82 50" fill="rgba(150,191,72,.12)" stroke="rgba(150,191,72,.4)" stroke-width="1.5"/>
+            <rect x="8" y="78" width="84" height="15" rx="4" fill="#dcfce7"/>
+            <text x="50" y="89" text-anchor="middle" fill="#16a34a" font-size="7.5" font-weight="700" font-family="system-ui">SEO Ready</text>
+            <rect x="8" y="98" width="56" height="6" rx="2" fill="rgba(0,0,0,.1)"/>
+            <rect x="8" y="107" width="38" height="5" rx="2" fill="rgba(0,0,0,.06)"/>
+          </g>
+          <text x="120" y="208" text-anchor="middle" fill="#9ca3af" font-size="9" font-weight="600" font-family="system-ui" letter-spacing=".05em">YOUR STORE — OPTIMISED</text>
+        </g>
+      </svg>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     WHAT YOU GET — 3 icon cards
+     ══════════════════════════════════════════ -->
+<section class="bg-stone-100 dark:bg-neutral-900 px-4 sm:px-6 py-16">
+  <div class="max-w-[1100px] mx-auto">
+    <hr class="border-0 border-t border-black/10 dark:border-white/10 mb-12"/>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-10">
+      {[
+        { Icon: Zap,          title: 'Import in one click',       body: 'Connect Shopify. Sharkly pulls your products and collections automatically — no CSV, no manual entry.' },
+        { Icon: CheckCircle,  title: '6 SEO checks per page',     body: 'Keyword in title, H1, URL, meta, originality, and Product schema. Pass or fail — with a plain-English fix for each.' },
+        { Icon: Upload,       title: 'Publish back to Shopify',   body: 'One click writes your optimised description, meta title, meta description, and JSON-LD schema straight to your store.' },
+      ].map(({ Icon, title, body }, i) => (
+        <div class="reveal" style={`transition-delay:${i*80}ms`}>
+          <div class="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center mb-5">
+            <Icon className="size-7 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <p class="text-xl font-bold text-neutral-900 dark:text-stone-100 mb-2.5">{title}</p>
+          <p class="text-base text-gray-500 dark:text-gray-400 leading-relaxed">{body}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     THE PROBLEM
+     ══════════════════════════════════════════ -->
+<section class="bg-stone-200 dark:bg-neutral-800 border-t border-black/10 dark:border-white/10 py-20 px-4 sm:px-6">
+  <div class="max-w-[1100px] mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20 items-center">
+
+      <div class="reveal">
+        <p class="text-sm font-bold uppercase tracking-widest text-gray-400 mb-5">The problem</p>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-tight mb-8">
+          Your product pages are invisible.<br/>And you probably don't know why.
+        </h2>
+        <div class="space-y-5">
+          {[
+            'Shopify gives you a store. It doesn\'t do SEO.',
+            'Most product descriptions are manufacturer copy — duplicate content Google ignores.',
+            'No keyword, no meta description, no schema. Google can\'t rank what it can\'t understand.',
+            'Apps that promise "SEO" add a star rating or a redirect. That\'s not real SEO.',
+          ].map(item => (
+            <div class="flex items-start gap-4">
+              <AlertCircle className="size-6 text-red-400 shrink-0 mt-0.5" />
+              <p class="text-base sm:text-lg text-gray-600 dark:text-gray-400 leading-relaxed">{item}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- SERP illustration -->
+      <div class="reveal [transition-delay:100ms] flex justify-center">
+        <svg viewBox="0 0 340 296" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-sm" aria-hidden="true">
+          <rect width="340" height="296" rx="16" fill="white" stroke="rgba(0,0,0,.07)" stroke-width="1"/>
+          <rect x="14" y="14" width="312" height="32" rx="16" fill="#f3f4f6"/>
+          <text x="30" y="35" fill="#9ca3af" font-size="11.5" font-family="system-ui">best running shoes for flat feet</text>
+          <g transform="translate(14,62)">
+            <text x="0" y="14" fill="#1a73e8" font-size="10.5" font-weight="600" font-family="system-ui">bigbrand.com</text>
+            <text x="0" y="30" fill="#111" font-size="12.5" font-weight="700" font-family="system-ui">Best Running Shoes — Free Shipping</text>
+            <rect x="292" y="0" width="28" height="28" rx="5" fill="rgba(150,191,72,.15)" stroke="rgba(150,191,72,.3)" stroke-width="1"/>
+            <text x="306" y="18" text-anchor="middle" fill="#5a8f00" font-size="9.5" font-weight="800" font-family="system-ui">#1</text>
+          </g>
+          <g transform="translate(14,110)">
+            <text x="0" y="14" fill="#1a73e8" font-size="10.5" font-weight="600" font-family="system-ui">competitor.co</text>
+            <text x="0" y="30" fill="#111" font-size="12.5" font-weight="700" font-family="system-ui">Flat Feet Running Shoes — Shop Now</text>
+            <rect x="292" y="0" width="28" height="28" rx="5" fill="rgba(150,191,72,.15)" stroke="rgba(150,191,72,.3)" stroke-width="1"/>
+            <text x="306" y="18" text-anchor="middle" fill="#5a8f00" font-size="9.5" font-weight="800" font-family="system-ui">#2</text>
+          </g>
+          <g transform="translate(14,158)">
+            <text x="0" y="14" fill="#1a73e8" font-size="10.5" font-weight="600" font-family="system-ui">anotherbrand.com</text>
+            <text x="0" y="30" fill="#111" font-size="12.5" font-weight="700" font-family="system-ui">Running Shoes for Flat Feet</text>
+            <rect x="292" y="0" width="28" height="28" rx="5" fill="rgba(150,191,72,.15)" stroke="rgba(150,191,72,.3)" stroke-width="1"/>
+            <text x="306" y="18" text-anchor="middle" fill="#5a8f00" font-size="9.5" font-weight="800" font-family="system-ui">#3</text>
+          </g>
+          <g transform="translate(14,214)">
+            <rect width="312" height="66" rx="10" fill="#fef2f2" stroke="#fca5a5" stroke-width="1"/>
+            <text x="12" y="22" fill="#9ca3af" font-size="10.5" font-weight="600" font-family="system-ui">yourstore.myshopify.com</text>
+            <text x="12" y="42" fill="#ef4444" font-size="13" font-weight="700" font-family="system-ui">Your store is not showing up</text>
+            <rect x="280" y="8" width="24" height="24" rx="5" fill="#fee2e2" stroke="#fca5a5" stroke-width="1"/>
+            <text x="292" y="24" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="800" font-family="system-ui">?</text>
+          </g>
+        </svg>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     HOW IT WORKS — 4 steps
+     ══════════════════════════════════════════ -->
+<section class="bg-stone-100 dark:bg-neutral-900 border-t border-black/10 dark:border-white/10 py-20 px-4 sm:px-6">
+  <div class="max-w-[1100px] mx-auto">
+
+    <div class="text-center max-w-[520px] mx-auto mb-14 reveal">
+      <p class="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">How it works</p>
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-tight">
+        Four steps from invisible to ranking.
+      </h2>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-6">
+      {[
+        { Icon: ShoppingBag, n: '01', title: 'Connect your store',      body: 'Install the Shopify app. Sharkly pulls your products and collections — 250 products in seconds.' },
+        { Icon: Search,      n: '02', title: 'Assign keywords',          body: 'Pick a target keyword per product or collection. Sharkly shows you the best opportunities your store can actually win.' },
+        { Icon: FileText,    n: '03', title: 'Run checks & generate',    body: '6 on-page SEO checks. Generate an original, keyword-optimised description in one click — with Product schema included.' },
+        { Icon: Upload,      n: '04', title: 'Publish back to Shopify',  body: 'One click writes optimised copy, meta title, meta description, and JSON-LD schema directly to your Shopify storefront.' },
+      ].map(({ Icon, n, title, body }, i) => (
+        <div class="reveal" style={`transition-delay:${i*80}ms`}>
+          <div class="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center mb-5">
+            <Icon className="size-7 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <p class="text-xs font-bold text-gray-300 dark:text-neutral-600 tracking-widest mb-2">{n}</p>
+          <h3 class="text-xl font-extrabold text-neutral-900 dark:text-stone-100 mb-2 leading-snug">{title}</h3>
+          <p class="text-base text-gray-500 dark:text-gray-400 leading-relaxed">{body}</p>
+        </div>
+      ))}
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     FEATURE: 6 SEO Checks + scenic card
+     ══════════════════════════════════════════ -->
+<section class="bg-stone-100 dark:bg-neutral-900 border-t border-black/10 dark:border-white/10 py-20 px-4 sm:px-6">
+  <div class="max-w-[1100px] mx-auto">
+    <div class="flex flex-col md:flex-row gap-12 lg:gap-20 items-center">
+
+      <div class="flex-1 min-w-0 reveal">
+        <span class="shopify-badge mb-6 inline-flex">
+          <ShoppingBag className="size-5" />
+          Shopify feature
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-tight mb-5 max-w-[420px]">
+          Every product page gets its own SEO report.
+        </h2>
+        <p class="text-lg text-gray-500 dark:text-gray-400 leading-relaxed mb-8 max-w-[420px]">
+          6 checks. Pass or fail. Fix instructions in plain English — no jargon, no guessing what to change.
+        </p>
+        <div class="max-w-[420px]">
+          {[
+            'Keyword in title tag',
+            'Keyword in H1 heading',
+            'Keyword in URL slug',
+            'Meta description 150–160 characters',
+            'Original description (no duplicate content)',
+            'Product schema (JSON-LD)',
+          ].map(item => (
+            <div class="check-row">
+              <span class="w-7 h-7 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center shrink-0">
+                <CheckCircle className="size-4 text-emerald-600 dark:text-emerald-400" />
+              </span>
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <!-- Scenic card -->
+      <div class="flex-[1.1] min-w-0 w-full reveal [transition-delay:120ms]">
+        <div class="scenic-card">
+          <div class="scenic-bg" style="background: linear-gradient(150deg, #78b878 0%, #96bf48 50%, #c8e870 100%);"></div>
+          <div class="scenic-panel">
+            <div class="scenic-topbar">
+              <div class="mac-dot" style="background:#ff5f57;"></div>
+              <div class="mac-dot" style="background:#ffbd2e;"></div>
+              <div class="mac-dot" style="background:#28c840;"></div>
+              <div class="scenic-titlebar"></div>
+            </div>
+            <div class="p-5">
+              <div class="flex items-center gap-3 mb-4 pb-4 border-b border-black/8 dark:border-white/8">
+                <div class="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center shrink-0">
+                  <Package className="size-5 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-bold text-neutral-900 dark:text-stone-100 truncate">Minimalist Running Shoe — Women</p>
+                  <p class="text-xs text-gray-400 truncate">yourstore.myshopify.com/products/...</p>
+                </div>
+                <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 shrink-0">6/6 ✓</span>
+              </div>
+              {[
+                'Keyword in title tag',
+                'Keyword in H1',
+                'Keyword in URL slug',
+                'Meta description (154 chars)',
+                'Original description',
+                'Product schema (JSON-LD)',
+              ].map(label => (
+                <div class="flex items-center gap-3 py-2.5 border-b border-black/5 dark:border-white/5 last:border-0">
+                  <CheckCircle className="size-4 text-emerald-500 shrink-0" />
+                  <span class="text-sm font-semibold text-neutral-900 dark:text-stone-100 flex-1">{label}</span>
+                  <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 shrink-0">Pass</span>
+                </div>
+              ))}
+              <div class="mt-4 pt-4 border-t border-black/8 dark:border-white/8 flex items-center gap-3">
+                <div class="flex-1 h-10 rounded-xl bg-neutral-900 dark:bg-stone-100 flex items-center justify-center gap-2">
+                  <Upload className="size-4 text-white dark:text-neutral-900" />
+                  <span class="text-sm font-bold text-white dark:text-neutral-900">Publish to Shopify</span>
+                </div>
+                <div class="h-10 px-4 rounded-xl border border-black/10 dark:border-white/10 flex items-center">
+                  <span class="text-sm font-semibold text-gray-500">Copy HTML</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     FULL PLATFORM — 4 feature cards
+     ══════════════════════════════════════════ -->
+<section class="bg-stone-200 dark:bg-neutral-800 border-t border-black/10 dark:border-white/10 py-20 px-4 sm:px-6">
+  <div class="max-w-[1100px] mx-auto">
+
+    <div class="text-center max-w-[560px] mx-auto mb-12 reveal">
+      <p class="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">The full platform</p>
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight leading-tight mb-4">
+        Product SEO is just the start.
+      </h2>
+      <p class="text-lg text-gray-500 dark:text-gray-400 leading-relaxed">
+        Sharkly is a complete SEO platform. The Shopify integration plugs your store into it — product and collection SEO plus everything else.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {[
+        { Icon: Target,    title: 'SEO Strategy',             body: 'Full keyword strategy for your store\'s authority. Know exactly which terms you can win.' },
+        { Icon: FileText,  title: 'AI Content',               body: 'Blog clusters that point to your product pages. Built to rank and built to convert.' },
+        { Icon: Package,   title: 'Product & Collection SEO', body: '6-point checks, original descriptions, schema, one-click publish. This is the Shopify piece.' },
+        { Icon: BarChart2, title: 'Rankings Dashboard',       body: 'Connect Google Search Console. See where every product page ranks and what\'s improving.' },
+      ].map(({ Icon, title, body }, i) => (
+        <div class="pain-card reveal" style={`transition-delay:${i*60}ms`}>
+          <div class="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center mb-4">
+            <Icon className="size-6 text-emerald-600 dark:text-emerald-400" />
+          </div>
+          <p class="text-lg font-bold text-neutral-900 dark:text-stone-100 mb-2">{title}</p>
+          <p class="text-base text-gray-500 dark:text-gray-400 leading-relaxed">{body}</p>
+        </div>
+      ))}
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     TESTIMONIALS
+     ══════════════════════════════════════════ -->
+<section class="bg-stone-100 dark:bg-neutral-900 border-t border-black/10 dark:border-white/10 py-20 px-4 sm:px-6">
+  <div class="max-w-[1100px] mx-auto">
+
+    <div class="text-center max-w-[460px] mx-auto mb-12 reveal">
+      <h2 class="text-3xl sm:text-4xl font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight">
+        Store owners ranking on Google.
+      </h2>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {[
+        { name: 'Sarah M.', role: 'Bloom Skincare',  avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80', quote: 'My product pages were just manufacturer copy. Sharkly rewrote them all and published straight to Shopify. Organic sales up 40% in two months.', stat: '+40% organic sales' },
+        { name: 'James K.', role: 'TrailKit Co.',    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80', quote: 'The SEO checks told me exactly what was wrong with each product page. Fixed everything in a weekend. Six products on page one now.', stat: '6 page-1 products' },
+        { name: 'Priya N.', role: 'Spice & Clay',   avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b5bc?w=80', quote: 'I imported all 80 products in one click, generated descriptions for the whole store, published them back. My store went from invisible to 800 new visitors a month.', stat: '800 new visitors/mo' },
+      ].map((t, i) => (
+        <div class="testimonial-card reveal" style={`transition-delay:${i*80}ms`}>
+          <div class="flex items-center gap-3 mb-5">
+            <img src={t.avatar} alt={t.name} class="w-11 h-11 rounded-full object-cover shrink-0" loading="lazy"/>
+            <div>
+              <p class="text-base font-bold text-neutral-900 dark:text-stone-100">{t.name}</p>
+              <p class="text-sm text-gray-400">{t.role}</p>
+            </div>
+            <div class="ml-auto flex gap-0.5 shrink-0">
+              {Array(5).fill(0).map(() => <span class="text-amber-400 text-base">★</span>)}
+            </div>
+          </div>
+          <p class="text-base text-gray-500 dark:text-gray-400 leading-relaxed mb-5 italic">"{t.quote}"</p>
+          <span class="text-sm font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-full inline-block">{t.stat}</span>
+        </div>
+      ))}
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     PRICING
+     ══════════════════════════════════════════ -->
+<section class="bg-stone-200 dark:bg-neutral-800 border-t border-black/10 dark:border-white/10 py-20 px-4 sm:px-6">
+  <div class="max-w-[760px] mx-auto text-center reveal">
+    <p class="text-sm font-bold uppercase tracking-widest text-gray-400 mb-3">Pricing</p>
+    <h2 class="text-3xl sm:text-4xl font-extrabold text-neutral-900 dark:text-stone-100 tracking-tight mb-4">
+      Less than one agency hour.
+    </h2>
+    <p class="text-lg text-gray-500 dark:text-gray-400 mb-10 max-w-[460px] mx-auto leading-relaxed">
+      All plans include the Shopify integration, product and collection SEO, strategy, and AI content. No add-ons, no setup fees.
+    </p>
+
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mx-auto mb-7">
+      {[
+        { name: 'Builder', price: '$39', note: 'Content · 250 credits', best: false },
+        { name: 'Growth',  price: '$79', note: 'Performance · 600 credits',      best: true  },
+        { name: 'Scale',  price: '$119', note: 'Expertise · 1100 credits',      best: false  },
+      ].map(p => (
+        <div class={`rounded-2xl p-7 text-left border ${p.best ? 'bg-neutral-900 dark:bg-stone-100 border-transparent' : 'bg-white dark:bg-neutral-900 border-black/10 dark:border-white/10'}`}>
+          {p.best && <p class="text-xs font-bold uppercase tracking-widest text-emerald-400 mb-2">Most Popular</p>}
+          <p class={`text-sm font-bold mb-1.5 ${p.best ? 'text-white/60 dark:text-neutral-500' : 'text-gray-400'}`}>{p.name}</p>
+          <p class={`text-4xl font-extrabold tracking-tight mb-1.5 ${p.best ? 'text-white dark:text-neutral-900' : 'text-neutral-900 dark:text-stone-100'}`}>
+            {p.price}<span class="text-lg font-normal opacity-60">/mo</span>
+          </p>
+          <p class={`text-sm mb-6 ${p.best ? 'text-white/50 dark:text-neutral-500' : 'text-gray-400'}`}>{p.note}</p>
+          <a href={shopifyAppUrl} class={`block text-center py-3.5 rounded-full text-base font-bold no-underline transition-opacity hover:opacity-80 ${p.best ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white' : 'bg-neutral-900 dark:bg-stone-100 text-white dark:text-neutral-900'}`}>
+            Start 7-day trial →
+          </a>
+        </div>
+      ))}
+    </div>
+
+    <a href="/pricing" class="text-base font-semibold text-gray-400 no-underline hover:text-neutral-900 dark:hover:text-stone-100 inline-flex items-center gap-1.5">
+      See all plans <ArrowRight className="size-4" />
+    </a>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     FINAL CTA
+     ══════════════════════════════════════════ -->
+<section class="bg-neutral-900 dark:bg-stone-100 py-28 px-4 sm:px-6 text-center">
+  <div class="max-w-3xl mx-auto">
+    <p class="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white dark:text-neutral-900 tracking-tight leading-[1.1] mb-6">
+      Your products are ready.<br/>
+      <span class="text-white/40 dark:text-neutral-400">Google just can't find them yet.</span>
+    </p>
+    <p class="text-lg sm:text-xl text-white/60 dark:text-neutral-500 mb-10 max-w-[440px] mx-auto leading-relaxed">
+      Install the Shopify app. Connect your store. Get your strategy, product SEO, and rankings — all from one platform.
+    </p>
+    <a href={shopifyAppUrl} class="inline-flex items-center gap-3 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white px-8 py-4 rounded-full font-bold text-base no-underline transition-opacity hover:opacity-85 shadow-xl">
+      <ShoppingBag className="size-5 shrink-0" />
+      Install on Shopify
+    </a>
+    <div class="flex items-center justify-center gap-4 sm:gap-6 mt-6 flex-wrap">
+      {['7-day trial', 'Cancel anytime', 'From $39/mo'].map(item => (
+        <p class="text-sm text-white/40 dark:text-neutral-500 flex items-center gap-1.5">
+          <span class="text-emerald-500 font-bold">✓</span> {item}
+        </p>
+      ))}
+    </div>
+  </div>
+</section>
+
+<script>
+  const observer = new IntersectionObserver(
+    entries => entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); }),
+    { threshold: 0.08 }
+  );
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+</BaseLayout>

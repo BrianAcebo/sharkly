@@ -8,6 +8,7 @@ import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { validateUrl } from '../../utils/validation';
 import { GSCConnectionManager } from '../gsc/GSCConnectionManager';
+import { ShopifyConnectionStatus } from '../shopify/ShopifyConnectionStatus';
 import type { Site } from '../../types/site';
 
 const MAX_LOGO_SIZE_MB = 5;
@@ -684,6 +685,14 @@ export default function SiteDetailForm({
 				<div className="space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
 					<h3 className="mb-3 font-medium text-gray-900 dark:text-white">Google Search Console</h3>
 					<GSCConnectionManager siteId={initial.id} siteName={initial.name} />
+				</div>
+			)}
+
+			{/* Shopify — edit only */}
+			{initial && (
+				<div className="space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
+					<h3 className="mb-3 font-medium text-gray-900 dark:text-white">Shopify</h3>
+					<ShopifyConnectionStatus siteId={initial.id} siteName={initial.name} />
 				</div>
 			)}
 

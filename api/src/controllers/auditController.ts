@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { CREDIT_COSTS } from '../../../shared/credits.mjs';
+import { createNotificationForUser, maybeNotifyCreditsLow } from '../utils/notifications.js';
 
 export const getLatestAudit = async (req: Request, res: Response) => {
 	try {
@@ -129,7 +130,7 @@ export const runAudit = async (req: Request, res: Response) => {
 		// Get site details
 		const { data: site, error: siteError } = await supabase
 			.from('sites')
-			.select('url, organization_id')
+			.select('id, url, name, organization_id')
 			.eq('id', siteId)
 			.single();
 
@@ -182,20 +183,37 @@ export const runAudit = async (req: Request, res: Response) => {
 			return res.status(500).json({ error: 'Failed to deduct credits' });
 		}
 
-		// Start audit in background — refund on failure
+		await maybeNotifyCreditsLow(site.organization_id, newCredits);
+
+		// Start audit in background — refund on failure, notify on success
 		const { technicalAuditService } = await import('../services/technicalAuditService.js');
-		technicalAuditService.runFullAudit(site.url, siteId, site.organization_id).catch((e) => {
-			console.error('[AuditController] Audit failed:', e);
-			// Refund credits on failure
-			supabase
-				.from('organizations')
-				.update({
-					included_credits_remaining: creditsRemaining,
-					...(org?.included_credits != null && { included_credits: creditsRemaining }),
-				})
-				.eq('id', site.organization_id)
-				.then(() => console.log('[AuditController] Refunded credits after audit failure'));
-		});
+		const siteLabel = site.name || site.url || siteId;
+		technicalAuditService
+			.runFullAudit(site.url, siteId, site.organization_id)
+			.then(async () => {
+				if (userId) {
+					await createNotificationForUser(userId, site.organization_id, {
+						title: 'Site audit complete',
+						message: `Audit for ${siteLabel} is ready. View results for issues and recommendations.`,
+						type: 'audit_complete',
+						priority: 'medium',
+						action_url: `/audit/${siteId}`,
+						metadata: { site_id: siteId }
+					});
+				}
+			})
+			.catch((e) => {
+				console.error('[AuditController] Audit failed:', e);
+				// Refund credits on failure
+				supabase
+					.from('organizations')
+					.update({
+						included_credits_remaining: creditsRemaining,
+						...(org?.included_credits != null && { included_credits: creditsRemaining }),
+					})
+					.eq('id', site.organization_id)
+					.then(() => console.log('[AuditController] Refunded credits after audit failure'));
+			});
 
 		return res.json({ ok: true, message: 'Audit started in background', creditsUsed: cost });
 	} catch (error) {

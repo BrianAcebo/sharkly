@@ -9,6 +9,7 @@ import {
 	getShopifyAuthUrl,
 	exchangeShopifyCode,
 	saveShopifyConnection,
+	savePendingShopifyToken,
 	getShopifyToken,
 	disconnectShopify,
 	listShopifyBlogs,
@@ -16,9 +17,16 @@ import {
 } from '../services/shopifyService.js';
 import { generateRandomString } from '../utils/helpers.js';
 
-const oauthStates = new Map<string, { siteId: string; createdAt: number }>();
+const oauthStates = new Map<string, { siteId: string | null; createdAt: number }>();
 
 const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function getShopifyRedirectUri(): string {
+	const uri = process.env.SHOPIFY_REDIRECT_URI;
+	if (uri) return uri;
+	const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+	return `${backendUrl}/auth/shopify/callback`;
+}
 
 function cleanupExpiredStates() {
 	for (const [key, value] of oauthStates.entries()) {
@@ -48,14 +56,39 @@ export async function startShopifyOAuth(req: Request, res: Response): Promise<vo
 		oauthStates.set(state, { siteId, createdAt: Date.now() });
 		cleanupExpiredStates();
 
-		const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
-		const redirectUri = `${backendUrl}/api/shopify/oauth/callback`;
-
+		const redirectUri = getShopifyRedirectUri();
 		const authUrl = getShopifyAuthUrl(shop, state, redirectUri);
 		res.redirect(authUrl);
 	} catch (error) {
 		console.error('[Shopify] OAuth start error:', error);
 		res.status(500).json({ error: error instanceof Error ? error.message : 'OAuth failed' });
+	}
+}
+
+/**
+ * GET /auth/shopify/install?shop=store.myshopify.com
+ * Companion app: start OAuth without siteId. Callback stores pending token and redirects to app.sharkly.co/auth/shopify.
+ */
+export async function startShopifyOAuthInstall(req: Request, res: Response): Promise<void> {
+	try {
+		const shop = (req.query.shop as string)?.trim();
+		if (!shop) {
+			const appUrl = process.env.FRONTEND_URL || 'https://app.sharkly.co';
+			res.redirect(`${appUrl}/signup`);
+			return;
+		}
+
+		const state = generateRandomString(32);
+		oauthStates.set(state, { siteId: null, createdAt: Date.now() });
+		cleanupExpiredStates();
+
+		const redirectUri = getShopifyRedirectUri();
+		const authUrl = getShopifyAuthUrl(shop, state, redirectUri);
+		res.redirect(authUrl);
+	} catch (error) {
+		console.error('[Shopify] OAuth install error:', error);
+		const appUrl = process.env.FRONTEND_URL || 'https://app.sharkly.co';
+		res.redirect(`${appUrl}/signup?shopify_error=oauth_failed`);
 	}
 }
 
@@ -76,7 +109,8 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 
 		const stateData = oauthStates.get(state);
 		if (!stateData) {
-			res.redirect(`${frontendUrl}/settings/integrations?shopify_error=invalid_state`);
+			const appUrl = process.env.FRONTEND_URL || 'https://app.sharkly.co';
+			res.redirect(`${appUrl}/signup?shopify_error=invalid_state`);
 			return;
 		}
 		oauthStates.delete(state);
@@ -99,6 +133,19 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 		const shopDomain = shop.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 		const finalDomain = shopDomain.endsWith('.myshopify.com') ? shopDomain : `${shopDomain}.myshopify.com`;
 
+		const appUrl = process.env.FRONTEND_URL || 'https://app.sharkly.co';
+
+		// Companion flow: no siteId → store pending token, redirect to auth/shopify for login/signup
+		if (!stateData.siteId) {
+			const { error } = await savePendingShopifyToken(finalDomain, access_token);
+			if (error) {
+				res.redirect(`${appUrl}/signup?shopify_error=save_failed`);
+				return;
+			}
+			res.redirect(`${appUrl}/auth/shopify?shop=${encodeURIComponent(finalDomain)}`);
+			return;
+		}
+
 		const { error } = await saveShopifyConnection(stateData.siteId, finalDomain, access_token);
 		if (error) {
 			res.redirect(`${frontendUrl}/settings/integrations?shopify_error=save_failed`);
@@ -111,6 +158,20 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 		const msg = encodeURIComponent(error instanceof Error ? error.message : 'Unknown error');
 		res.redirect(`${frontendUrl}/settings/integrations?shopify_error=${msg}`);
 	}
+}
+
+/**
+ * GET /api/shopify/app-redirect?shop=store.myshopify.com
+ * For new App Store installs: when merchant opens the app in Shopify Admin (no embedded UI),
+ * redirect them to signup so they can create a Sharkly account and connect.
+ */
+export async function shopifyAppRedirect(req: Request, res: Response): Promise<void> {
+	const shop = (req.query.shop as string)?.trim();
+	const marketingUrl = process.env.MARKETING_URL || process.env.FRONTEND_URL || 'https://sharkly.co';
+	const signupUrl = shop
+		? `${marketingUrl.replace(/\/$/, '')}/signup?shopify_store=${encodeURIComponent(shop)}`
+		: `${marketingUrl.replace(/\/$/, '')}/signup`;
+	res.redirect(302, signupUrl);
 }
 
 /**

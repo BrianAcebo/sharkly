@@ -18,12 +18,12 @@ import Organization from './pages/Organization/Organization';
 import InviteAccept from './pages/Organization/InviteAccept';
 import Confirm from './pages/Auth/Confirm';
 import SettingsLayout from './layout/SettingsLayout';
-import SettingsIntegrations from './pages/SettingsIntegrations';
 import SettingsCredits from './pages/SettingsCredits';
-import SettingsBrandVoice from './pages/SettingsBrandVoice';
+import SettingsBilling from './pages/SettingsBilling';
 import SettingsTeam from './pages/SettingsTeam';
 import SettingsNotifications from './pages/SettingsNotifications';
 import SettingsProfile from './pages/SettingsProfile';
+import SettingsOrganization from './pages/SettingsOrganization';
 import Notifications from './pages/Notifications';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
@@ -52,6 +52,9 @@ import BlogEditor from './pages/Admin/BlogEditor';
 import BlogCategories from './pages/Admin/BlogCategories';
 import AuditResults from './pages/AuditResults';
 import SchemaGenerator from './pages/SchemaGenerator';
+import Ecommerce from './pages/Ecommerce';
+import EcommerceWorkspace from './pages/EcommerceWorkspace';
+import SettingsIntegrations from './pages/SettingsIntegrations';
 
 export default function App() {
 	return (
@@ -74,32 +77,35 @@ export default function App() {
 						</Route>
 						<Route path="/clusters" element={<Clusters />} />
 						<Route path="/clusters/:id" element={<ClusterDetail />} />
+						<Route path="/ecommerce" element={<Ecommerce />} />
+						<Route path="/ecommerce/:id" element={<EcommerceWorkspace />} />
 						<Route path="/workspace/:id" element={<Workspace />} />
 						<Route path="/performance" element={<Performance />} />
 						<Route path="/rankings" element={<Rankings />} />
 					<Route path="/technical" element={<Technical />} />
 					<Route path="/schema-generator" element={<SchemaGenerator />} />
 					<Route path="/audit/:siteId" element={<AuditResults />} />
-					<Route path="/calendar" element={<Calendar />} />
+					{/* <Route path="/calendar" element={<Calendar />} /> */}
 					<Route path="/projects" element={<Navigate to="/sites" replace />} />
 						<Route path="/sites" element={<Sites />} />
 						<Route path="/settings" element={<SettingsLayout />}>
-							<Route index element={<Navigate to="integrations" replace />} />
+							<Route index element={<Navigate to="profile" replace />} />
 							<Route path="integrations" element={<SettingsIntegrations />} />
 							<Route path="credits" element={<SettingsCredits />} />
-							<Route path="brand-voice" element={<SettingsBrandVoice />} />
+							<Route path="billing" element={<SettingsBilling />} />
 							<Route path="team" element={<SettingsTeam />} />
 							<Route path="notifications" element={<SettingsNotifications />} />
 							<Route path="profile" element={<SettingsProfile />} />
+							<Route path="organization" element={<SettingsOrganization />} />
 						</Route>
 						<Route path="/notifications" element={<Notifications />} />
 						<Route path="/assistant" element={<Assistant />} />
 						<Route path="/assistant/:chatId" element={<Assistant />} />
 						<Route path="/onboarding" element={<Onboarding />} />
-						<Route path="/billing" element={<Billing />} />
+						{/* <Route path="/billing" element={<Billing />} /> */}
 						<Route path="/billing-onboarding" element={<BillingOnboarding />} />
 						<Route path="/organization-required" element={<OrganizationRequired />} />
-						<Route path="/organization" element={<Organization />} />
+						{/* <Route path="/organization" element={<Organization />} /> */}
 						<Route path="/admin" element={<AdminDashboard />} />
 						<Route path="/admin/refunds" element={<RefundAdmin />} />
 						<Route path="/admin/stripe" element={<StripeAudit />} />

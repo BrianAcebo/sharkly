@@ -707,7 +707,7 @@ const schema = {
       </p>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
       {[
         {
           name: 'Builder',
@@ -717,7 +717,7 @@ const schema = {
           output: '~1 content cluster/mo',
           desc: 'Perfect to get started and publish your first ranking content.',
           features: ['AI Content Engine', 'Topic Strategy + Clusters', 'Unlimited sites', 'Plain-English guidance'],
-          cta: 'Start free trial',
+          cta: 'Start 7-day trial',
           featured: false,
         },
         {
@@ -728,7 +728,7 @@ const schema = {
           output: '~2–3 content clusters/mo',
           desc: 'For stores starting to get traction and ready to track rankings.',
           features: ['Everything in Builder', 'Google Search Console', 'Performance Dashboard', 'Rankings tracking', 'Fin AI Assistant (200 messages/mo)'],
-          cta: 'Start free trial',
+          cta: 'Start 7-day trial',
           featured: true,
           badge: 'Most Popular',
         },
@@ -740,20 +740,21 @@ const schema = {
           output: '~4–5 content clusters/mo',
           desc: 'For growing stores hitting technical SEO issues.',
           features: ['Everything in Growth', 'Technical SEO Audit', 'Image optimisation', 'Core Web Vitals', 'Fin AI Assistant (500 messages/mo)'],
-          cta: 'Start free trial',
+          cta: 'Start 7-day trial',
           featured: false,
         },
-        {
-          name: 'Pro',
-          price: '$169',
-          period: '/mo',
-          credits: '2,500 credits/mo',
-          output: '10+ content clusters/mo',
-          desc: 'For serious operators who need maximum volume and pro outputs.',
-          features: ['Everything in Scale', 'White-label exports', 'Priority support', '$0.05/credit overage', 'Fin AI Assistant (500 messages/mo)'],
-          cta: 'Start free trial',
-          featured: false,
-        },
+        // Pro — commented out for now, come back later
+        // {
+        //   name: 'Pro',
+        //   price: '$169',
+        //   period: '/mo',
+        //   credits: '2,500 credits/mo',
+        //   output: '10+ content clusters/mo',
+        //   desc: 'For serious operators who need maximum volume and pro outputs.',
+        //   features: ['Everything in Scale', 'White-label exports', 'Priority support', '$0.05/credit overage', 'Fin AI Assistant (500 messages/mo)'],
+        //   cta: 'Start 7-day trial',
+        //   featured: false,
+        // },
       ].map((plan, i) => (
         <div class={`pricing-card ${plan.featured ? 'featured' : 'bg-white dark:bg-neutral-900'} reveal`} style={`transition-delay:${i*60}ms`}>
           {plan.featured && (
@@ -785,7 +786,7 @@ const schema = {
     </div>
 
     <p class="text-center text-sm text-gray-500 dark:text-gray-400 mt-8 reveal">
-      All plans include a <strong class="text-neutral-900 dark:text-stone-100">7-day free trial</strong>.
+      All plans include a <strong class="text-neutral-900 dark:text-stone-100">7-day trial</strong>.
     </p>
 
   </div>
@@ -838,7 +839,7 @@ const schema = {
       </p>
       <div class="flex flex-col items-center justify-center gap-4 mt-5">
         <a href={`${appUrl}/signup`} class="inline-flex items-center gap-2.5 bg-neutral-900 dark:bg-stone-100 text-white dark:text-neutral-900 px-7 py-3.5 rounded-full text-[0.9375rem] font-bold no-underline transition-opacity hover:opacity-85">
-          Start your free 7-day trial →
+          Start your 7-day trial →
         </a>
         <p class="text-sm text-gray-500">Takes 2 minutes to set up. No card needed.</p>
       </div>
@@ -898,13 +899,13 @@ const schema = {
       Join 1,200+ small business owners who stopped guessing about SEO — and started ranking.
     </p>
     <p class="text-white/45 text-sm mb-10">
-      Start your 7-day free trial today.
+      Start your 7-day trial today.
     </p>
     <a href={`${appUrl}/signup`} class="inline-flex items-center gap-2.5 bg-white text-neutral-900 px-9 py-4 rounded-full font-bold text-base no-underline transition-opacity hover:opacity-85 shadow-xl">
-      Start free — takes 2 minutes →
+      Start your trial — takes 2 minutes →
     </a>
     <div class="flex items-center justify-center gap-6 mt-6 flex-wrap">
-      {['7-day free trial', '10 mins to your first strategy', 'From $39/mo'].map(item => (
+      {['7-day trial', '10 mins to your first strategy', 'From $39/mo'].map(item => (
         <p class="text-xs text-white/80 flex items-center gap-1.5">
           <span class="text-emerald-500">✓</span> {item}
         </p>

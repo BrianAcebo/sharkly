@@ -1,16 +1,16 @@
 /**
  * Settings: Notifications
  * Toggle preferences for rank drop alerts, weekly summary,
- * credit low warnings, and cluster completion notifications.
+ * credit low warnings, cluster completion; enable browser push and system settings.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import PageMeta from '../components/common/PageMeta';
 import { Button } from '../components/ui/button';
 import { supabase } from '../utils/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
-import { Bell, Loader2 } from 'lucide-react';
+import { Bell, Loader2, BellRing, ExternalLink } from 'lucide-react';
 
 interface NotificationPrefs {
 	rank_drop_alerts: boolean;
@@ -78,20 +78,98 @@ function PrefRow({ label, description, checked, onChange, disabled }: PrefRowPro
 	);
 }
 
+type NotificationPermissionState = NotificationPermission | 'unsupported';
+
+function getNotificationPermission(): NotificationPermissionState {
+	if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+	return Notification.permission;
+}
+
 export default function SettingsNotifications() {
 	const { user } = useAuth();
 	const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
+	const [pushPermission, setPushPermission] = useState<NotificationPermissionState>(getNotificationPermission());
+	const [requestingPush, setRequestingPush] = useState(false);
+
+	const refreshPushPermission = useCallback(() => {
+		setPushPermission(getNotificationPermission());
+	}, []);
+
+	useEffect(() => {
+		refreshPushPermission();
+		const handleVisibility = () => {
+			if (!document.hidden) refreshPushPermission();
+		};
+		document.addEventListener('visibilitychange', handleVisibility);
+		return () => document.removeEventListener('visibilitychange', handleVisibility);
+	}, [refreshPushPermission]);
+
+	const openSystemSettingsGuide = useCallback(() => {
+		if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
+		const platform = navigator.userAgent.toLowerCase();
+		let guideUrl = 'https://support.google.com/chrome/answer/3220216?hl=en';
+		if (platform.includes('mac')) {
+			guideUrl = 'https://support.apple.com/guide/mac-help/change-notifications-settings-in-mac-mh40577/mac';
+		} else if (platform.includes('win')) {
+			guideUrl = 'https://support.microsoft.com/windows/change-notification-settings-in-windows-10-6448c37f-8733-44bb-b43f-b660fdb58dff';
+		} else if (platform.includes('linux') || platform.includes('ubuntu')) {
+			guideUrl = 'https://help.ubuntu.com/stable/ubuntu-help/shell-notifications.html';
+		}
+		window.open(guideUrl, '_blank', 'noopener');
+	}, []);
+
+	const requestPushPermission = useCallback(async () => {
+		if (!('Notification' in window)) {
+			toast.error('Browser notifications are not supported');
+			return;
+		}
+		setRequestingPush(true);
+		try {
+			const permission = await Notification.requestPermission();
+			setPushPermission(permission);
+			if (permission === 'granted') {
+				toast.success('Browser notifications enabled');
+			} else if (permission === 'denied') {
+				toast.error('Notifications blocked. You can enable them in your browser or system settings.');
+			}
+		} catch (e) {
+			console.error(e);
+			toast.error('Could not request notification permission');
+		} finally {
+			setRequestingPush(false);
+		}
+	}, []);
+
+	const sendTestNotification = useCallback(() => {
+		if (!('Notification' in window) || Notification.permission !== 'granted') return;
+		try {
+			const n = new Notification('Sharkly', {
+				body: 'This is a test notification. You’ll see alerts like this when you get rank drops, credit warnings, and more.',
+				icon: '/images/logos/logo.svg',
+				tag: 'sharkly-test'
+			});
+			setTimeout(() => n.close(), 6000);
+			toast.success('Test notification sent');
+		} catch (e) {
+			console.error(e);
+			toast.error('Could not send test notification');
+		}
+	}, []);
 
 	useEffect(() => {
 		if (!user?.id) return;
 		const load = async () => {
-			const { data } = await supabase
+			const { data, error } = await supabase
 				.from('profiles')
 				.select('notification_prefs')
 				.eq('id', user.id)
 				.maybeSingle();
+			if (error) {
+				console.error('Error loading notification preferences:', error);
+				return;
+			}
 			if (data?.notification_prefs) {
 				setPrefs({ ...DEFAULT_PREFS, ...data.notification_prefs });
 			}
@@ -189,12 +267,85 @@ export default function SettingsNotifications() {
 								checked={prefs.email_enabled}
 								onChange={set('email_enabled')}
 							/>
-							<PrefRow
+							{/* <PrefRow
 								label="In-app notifications"
 								description="Show alerts inside the Sharkly dashboard."
 								checked={prefs.in_app_enabled}
 								onChange={set('in_app_enabled')}
-							/>
+							/> */}
+						</div>
+					</div>
+
+					{/* Browser push notifications */}
+					<div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+						<div className="border-b border-gray-100 px-5 py-3.5 dark:border-gray-800">
+							<p className="text-[11px] font-semibold uppercase tracking-widest text-gray-500 dark:text-gray-400 flex items-center gap-2">
+								<BellRing className="size-3.5" />
+								Browser (push) notifications
+							</p>
+						</div>
+						<div className="px-5 py-4 space-y-4">
+							<p className="text-sm text-gray-600 dark:text-gray-400">
+								{pushPermission === 'granted'
+									? 'Notifications are enabled. You’ll see alerts on your computer when you get rank drops, credit warnings, and more.'
+									: pushPermission === 'denied'
+										? 'Notifications are currently blocked. Enable them in your browser or system settings to get alerts on your computer.'
+										: pushPermission === 'unsupported'
+											? 'Browser notifications are not supported in this environment.'
+											: 'Enable browser notifications to get alerts on your computer (rank drops, credit warnings, cluster completion).'}
+							</p>
+							{(pushPermission === 'default' || pushPermission === 'denied') && (
+								<div className="space-y-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 p-4 text-sm text-gray-600 dark:text-gray-300">
+									<ol className="list-decimal space-y-2 pl-5 pr-1">
+										<li>
+											Click <strong>Enable browser notifications</strong> below and allow the prompt in your browser.
+										</li>
+										<li>
+											Allow notifications for this site in your computer’s system settings:
+											<ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-500 dark:text-gray-400">
+												<li>macOS: System Settings → Notifications → your browser</li>
+												<li>Windows: Settings → System → Notifications & actions</li>
+												<li>Linux: Settings → Notifications → Applications</li>
+											</ul>
+										</li>
+									</ol>
+									<p className="text-xs text-gray-500 dark:text-gray-400">
+										After changing system settings, you may need to relaunch your browser.
+									</p>
+								</div>
+							)}
+							<div className="flex flex-wrap items-center gap-2">
+								{(pushPermission === 'default' || pushPermission === 'denied') && (
+									<Button
+										onClick={requestPushPermission}
+										disabled={requestingPush}
+										className="bg-brand-500 hover:bg-brand-600 text-white"
+									>
+										{requestingPush && <Loader2 className="mr-2 size-4 animate-spin" />}
+										{requestingPush ? 'Requesting…' : 'Enable browser notifications'}
+									</Button>
+								)}
+								{pushPermission === 'granted' && (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={sendTestNotification}
+									>
+										Send test notification
+									</Button>
+								)}
+								{(pushPermission === 'denied' || pushPermission === 'default') && (
+									<Button
+										variant="ghost"
+										size="sm"
+										onClick={openSystemSettingsGuide}
+										className="text-gray-600 dark:text-gray-400"
+									>
+										<ExternalLink className="mr-1.5 size-3.5" />
+										More on system settings
+									</Button>
+								)}
+							</div>
 						</div>
 					</div>
 

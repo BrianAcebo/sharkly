@@ -1,0 +1,63 @@
+---
+/**
+ * Custom 404 page — matches NotFound.tsx from the React/Vite app.
+ * Uses grid background, 404 images (light/dark), and Back to Home CTA.
+ */
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
+---
+
+<BaseLayout
+  title="404 - Page Not Found"
+  description="We can't seem to find the page you are looking for!"
+  noIndex
+>
+
+<main class="relative z-[1] flex min-h-[calc(100vh-200px)] flex-col items-center justify-center overflow-hidden px-6 py-12">
+  <!-- Grid shape background (matches GridShape.tsx) -->
+  <div class="pointer-events-none absolute top-0 right-0 -z-10 w-full max-w-[15rem] xl:max-w-[28rem]">
+    <img src="/images/shape/grid-01.svg" alt="" aria-hidden="true" />
+  </div>
+  <div class="pointer-events-none absolute bottom-0 left-0 -z-10 w-full max-w-[15rem] rotate-180 xl:max-w-[28rem]">
+    <img src="/images/shape/grid-01.svg" alt="" aria-hidden="true" />
+  </div>
+
+  <div class="mx-auto w-full max-w-[242px] text-center sm:max-w-[472px]">
+    <h1 class="mb-8 text-3xl font-bold text-gray-900 dark:text-white/90 xl:text-4xl">
+      ERROR
+    </h1>
+
+    <img
+      src="/images/error/404.svg"
+      alt="404"
+      width={450}
+      height={254}
+      class="dark:hidden mx-auto w-full max-w-[450px]"
+    />
+    <img
+      src="/images/error/404-dark.svg"
+      alt="404"
+      width={450}
+      height={254}
+      class="hidden dark:block mx-auto w-full max-w-[450px]"
+    />
+
+    <p class="mt-10 mb-6 block text-base text-gray-700 dark:text-gray-400 sm:text-lg">
+      We can't seem to find the page you are looking for!
+    </p>
+
+    <a
+      href="/"
+      class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-5 py-3.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.03] dark:hover:text-gray-200 transition-colors"
+    >
+      Back to Home Page
+    </a>
+  </div>
+</main>
+
+<p class="pb-8 text-center text-sm text-gray-500 dark:text-gray-400">
+  &copy; {new Date().getFullYear()} - Sharkly, LLC
+</p>
+
+</BaseLayout>

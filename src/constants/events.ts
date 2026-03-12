@@ -1,2 +1,2 @@
-export const NOTIFICATION_HELP_EVENT = 'paperboat:show-notification-help';
+export const NOTIFICATION_HELP_EVENT = 'sharkly:show-notification-help';
 

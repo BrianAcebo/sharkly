@@ -182,9 +182,15 @@ export default function Notifications() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'lead':
+      case 'lead_assignment':
         return <Target className="h-5 w-5 text-blue-500" />;
       case 'ai':
+      case 'ai_call_completed':
         return <Bot className="h-5 w-5 text-purple-500" />;
+      case 'ai_meeting_booked':
+        return <Bot className="h-5 w-5 text-green-500" />;
+      case 'ai_callback':
+        return <Clock className="h-5 w-5 text-blue-500" />;
       case 'communication':
         return <MessageSquare className="h-5 w-5 text-green-500" />;
       case 'system':
@@ -383,6 +389,9 @@ export default function Notifications() {
                      { value: 'task_reminder', label: 'Task Reminders' },
                      { value: 'lead', label: 'Lead Updates' },
                      { value: 'ai', label: 'AI Insights' },
+                     { value: 'ai_call_completed', label: 'AI Calls' },
+                     { value: 'ai_meeting_booked', label: 'AI Meetings' },
+                     { value: 'ai_callback', label: 'AI Callbacks' },
                      { value: 'communication', label: 'Communications' },
                      { value: 'system', label: 'System' }
                    ]}

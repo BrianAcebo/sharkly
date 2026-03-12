@@ -17,7 +17,7 @@ const iconWidth = Number(width) / 4 || 'auto';
 const iconHeight = Number(height) / 4 || 'auto';
 ---
 
-<img src={`${appUrl}/images/logos/logo.svg`} alt={alt} class={cn('dark:hidden', className)} width={width} height={height} fetchpriority={fetchPriority} title={alt} />
+<img src={`${appUrl}/images/logos/logo.svg`} alt={alt} class={cn('dark:hidden block', className)} width={width} height={height} fetchpriority={fetchPriority} title={alt} />
 <img src={`${appUrl}/images/logos/logo-dark.svg`} alt={alt} class={cn('hidden dark:block', className)} width={width} height={height} fetchpriority={fetchPriority} title={alt} />
 <!-- <img src={`${appUrl}/images/logos/logo-icon.svg`} alt={alt} class={className} width={iconWidth} height={iconHeight} fetchpriority={fetchPriority} title={alt} />
 <img src={`${appUrl}/images/logos/logo-icon-dark.svg`} alt={alt} class={className} width={iconWidth} height={iconHeight} fetchpriority={fetchPriority} title={alt} /> -->

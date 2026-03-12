@@ -27,6 +27,8 @@ export const CREDIT_COSTS = {
 	FAQ_GENERATION: 5,
 	/** Product description rewriter (ecommerce) */
 	PRODUCT_DESCRIPTION: 10,
+	/** Collection intro generation (ecommerce) */
+	COLLECTION_INTRO: 10,
 	/** Tone adjustment after generation */
 	TONE_ADJUSTMENT: 5,
 	/** Refresh monthly search volume for a single keyword — 1 Serper call */
@@ -50,6 +52,7 @@ export const CREDIT_COST_LABELS = {
 	SECTION_REWRITE: 'Section rewrite',
 	FAQ_GENERATION: 'FAQ generation',
 	PRODUCT_DESCRIPTION: 'Product description rewrite',
+	COLLECTION_INTRO: 'Collection intro generation',
 	TONE_ADJUSTMENT: 'Tone adjustment',
 	META_GENERATION: 'Meta title & description',
 	KEYWORD_VOLUME_REFRESH: 'Keyword volume refresh',

@@ -147,13 +147,12 @@ export function PublishToShopifyModal({
 					<DialogDescription>
 						{connected === false ? (
 							<>
-								Connect Shopify in Settings → Integrations first. Select your site, expand Shopify,
-								enter your store URL, and click Connect.
+								Connect Shopify in Sites: open your site details and connect the Shopify app there.
 								<a
-									href="/settings/integrations"
+									href="/sites"
 									className="ml-1 inline-flex items-center gap-0.5 text-brand-600 hover:underline dark:text-brand-400"
 								>
-									Open Integrations <ExternalLink className="size-3" />
+									Open Sites <ExternalLink className="size-3" />
 								</a>
 							</>
 						) : (

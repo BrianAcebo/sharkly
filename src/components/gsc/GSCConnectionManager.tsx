@@ -153,7 +153,7 @@ export function GSCConnectionManager({ siteId, siteName }: Props) {
 							<h3 className="text-sm font-medium text-gray-900 dark:text-white">Not connected</h3>
 						</div>
 
-						<Button onClick={handleConnect} className="shrink-0 bg-blue-600 hover:bg-blue-700">
+						<Button onClick={handleConnect} size="sm" className="shrink-0 bg-blue-600 hover:bg-blue-700">
 							<svg
 								className="mr-2 size-4"
 								width="20"

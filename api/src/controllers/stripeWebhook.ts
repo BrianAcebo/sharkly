@@ -15,6 +15,7 @@ import { creditWallet, clearPendingTopUp, debitWallet } from '../utils/wallet.js
 import { markTopUpStatus } from '../utils/walletTopup.js';
 import type { PlanCatalogRow, OrganizationRow, StripeSubStatus } from '../types/billing.js';
 import { emailService } from '../utils/email.js';
+import { createNotificationForOrgOwner, createNotificationForUser } from '../utils/notifications.js';
 
 const stripe = getStripeClient();
 
@@ -1720,6 +1721,18 @@ const handleInvoicePaymentFailed = async (event: Stripe.Event) => {
 		lastError?.decline_code ?? null,
 		invoice.created
 	);
+
+	// In-app notification for org owner
+	const failureReasonMsg =
+		(invoice.last_payment_error as { message?: string } | null)?.message ?? 'Payment failed';
+	await createNotificationForOrgOwner(org.id, {
+		title: 'Payment failed',
+		message: `Subscription payment failed: ${failureReasonMsg}. Update your payment method to avoid service interruption.`,
+		type: 'payment_failed',
+		priority: 'high',
+		action_url: '/settings/billing',
+		metadata: { invoice_id: invoice.id, retry_count: newRetryCount }
+	});
 };
 
 const handleInvoicePaymentActionRequired = async (event: Stripe.Event) => {
@@ -1759,6 +1772,15 @@ const handleInvoicePaymentActionRequired = async (event: Stripe.Event) => {
 		0,
 		invoice
 	);
+
+	await createNotificationForOrgOwner(org.id, {
+		title: 'Payment action required',
+		message: 'Your subscription requires attention. Please update your payment method.',
+		type: 'payment_action_required',
+		priority: 'high',
+		action_url: '/settings/billing',
+		metadata: { invoice_id: invoice.id }
+	});
 };
 
 const handleSubscriptionTrialWillEnd = async (event: Stripe.Event) => {
@@ -1797,6 +1819,19 @@ const handleSubscriptionTrialWillEnd = async (event: Stripe.Event) => {
 				0,
 				subscription
 			);
+		}
+
+		// In-app notification for org owner
+		if (org.owner_id) {
+			const trialEndStr = trialEnd ? trialEnd.toLocaleDateString('en-US', { dateStyle: 'medium' }) : 'soon';
+			await createNotificationForUser(org.owner_id, org.id, {
+				title: 'Trial ending soon',
+				message: `Your trial for ${org.name} ends in about 3 days (${trialEndStr}). Add a payment method to continue without interruption.`,
+				type: 'trial_ending_soon',
+				priority: 'high',
+				action_url: '/settings/billing',
+				metadata: { trial_end: trialEndIso }
+			});
 		}
 	} catch (e) {
 		console.warn('[WEBHOOK] Failed to send trial_will_end email', { orgId: org.id, e });

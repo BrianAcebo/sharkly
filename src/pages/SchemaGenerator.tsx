@@ -245,7 +245,7 @@ export default function SchemaGenerator() {
 
 	return (
 		<>
-			<PageMeta title="Schema Generator" />
+			<PageMeta title="Schema Generator" description="Generate JSON-LD structured data for Article, FAQ, Product, Local Business, and more. Copy-paste into your site or Shopify theme." noIndex />
 			<PageHeader
 				title="Schema Generator"
 				subtitle="Generate JSON-LD structured data for Article, FAQ, Product, Local Business, and more. Copy-paste into your site or Shopify theme."
@@ -725,8 +725,8 @@ export default function SchemaGenerator() {
 							{copied ? 'Copied' : 'Copy'}
 						</Button>
 					</div>
-					<div className="relative max-h-[600px] overflow-auto rounded-lg border border-gray-200 bg-gray-900 p-4 dark:border-gray-700">
-						<pre className="whitespace-pre-wrap break-words text-xs text-gray-100">
+					<div className="relative max-h-[600px] overflow-auto rounded-lg border border-gray-200 dark:bg-gray-900 bg-gray-600 p-4 dark:border-gray-700">
+						<pre className="whitespace-pre-wrap break-words text-xs text-gray-200 dark:text-gray-100">
 							<code>{output}</code>
 						</pre>
 					</div>

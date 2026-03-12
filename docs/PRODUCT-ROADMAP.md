@@ -180,12 +180,164 @@ Once the destination is set on a Target, two things happen automatically as part
 
 #### L6. Shopify Companion App
 
-**What it is:** OAuth connection, embedded UI, store sync, one-click publish to Shopify blog.
+**Spec:** Shopify App Bridge embedded UI inside Shopify Admin.
+**What it is:** A minimal embedded panel inside Shopify Admin with one job — connect the merchant's Shopify store to their Sharkly account via OAuth and send them to Sharkly to do everything else. Also serves as a Shopify App Store discovery channel for new users.
 **Tier:** Builder (all plans)
-**Status:** OAuth + publish built. Embedded UI (App Bridge) still needed for app store.
 **This is non-negotiable for Shopify app store launch.** Everything else can be imperfect. This cannot.
-**Built:** OAuth flow, Shopify Admin API (blogs, articles), one-click publish from Workspace. Connect via Settings → Integrations (enter store URL). Publish via "Publish to Shopify" in workspace toolbar.
-**Remaining:** Embedded UI in Shopify Admin (App Bridge) for app store listing — connection status, cluster summary, publish queue, "Open Sharkly" link.
+
+**Status:**
+- ✅ OAuth flow built
+- ✅ Shopify Admin API (blogs, articles, products, collections)
+- 🔶 Embedded UI (App Bridge) — still needed for app store submission
+
+---
+
+**What the embedded app does:**
+
+Nothing except OAuth connection and a link to Sharkly. All SEO work, content generation, publishing, and ecommerce SEO happens inside app.sharkly.co — not here.
+
+**Embedded UI — two states only:**
+
+**Not connected:**
+> Connect your Shopify store to Sharkly to start optimizing your content and product pages.
+>
+> `[Connect to Sharkly]` — triggers OAuth, stores access token, redirects to app.sharkly.co
+
+**Connected:**
+> Your store is connected to Sharkly.
+> [store-name].myshopify.com · Connected as [account email]
+>
+> `[Open Sharkly →]` — opens app.sharkly.co in new tab
+>
+> Small text: "All SEO tools, content generation, and publishing are done from the Sharkly dashboard."
+
+That's the entire embedded UI. No queues, no scores, no editor, no dashboard.
+
+---
+
+**App Store discovery flow (new users):**
+
+Merchant finds Sharkly on App Store → installs → embedded app loads → "Connect to Sharkly" → two paths:
+
+- **Has Sharkly account:** OAuth flow → store connects to existing account → redirect to app.sharkly.co/dashboard
+- **No Sharkly account:** OAuth initiates → redirects to sharkly.co/signup?shopify_store={store_domain} → signup form → account created → OAuth completes automatically → redirect to app.sharkly.co/dashboard with store already connected
+
+The `shopify_store` param on signup pre-fills the store URL and auto-completes OAuth after account creation so the merchant never has to manually enter their store or connect again.
+
+---
+
+**App Bridge technical requirements (for app store review):**
+
+- `@shopify/app-bridge-react` — session token authentication, not cookie-based
+- Polaris design system — matches Shopify Admin visually (minimal components needed given the simple UI)
+- No external redirects without App Bridge navigation API
+
+**GDPR webhooks — required by Shopify or the app will be rejected:**
+- `POST /webhooks/shopify/customers-redact` — Sharkly stores no customer data, respond 200
+- `POST /webhooks/shopify/shop-redact` — fires on uninstall, clear `shopify_access_token` and `shopify_store_domain` from sites table
+- `POST /webhooks/shopify/customers-data-request` — respond with what is stored: store domain + access token only, no customer PII
+
+**Uninstall webhook:** On `app/uninstalled` — null out `shopify_access_token`, `shopify_store_domain`, `shopify_connected_at` on the sites record. Do not delete the site or any content.
+
+---
+
+**Remaining build:**
+
+1. App Bridge setup — `@shopify/app-bridge-react`, session token auth
+2. Two-state embedded UI — not connected / connected + Open Sharkly
+3. OAuth completion → store token saved to sites table
+4. Signup flow — `?shopify_store=` param handling + auto-OAuth after account creation
+5. GDPR webhook endpoints — all three, respond correctly
+6. Uninstall webhook — clear tokens, preserve site data
+7. App Store listing — icon, screenshots, description copy
+
+---
+
+UPDATES
+
+#### L6. Shopify Companion App
+
+**What it is:** Minimal embedded panel inside Shopify Admin — OAuth connection 
+and a link to Sharkly. All SEO work happens in app.sharkly.co. Also serves as 
+a Shopify App Store discovery channel.
+**Tier:** Builder (all plans)
+**This is non-negotiable for app store submission.**
+
+**Status:**
+- ✅ OAuth flow built
+- ✅ Uninstall webhook (tokens cleared)
+- ✅ REST → GraphQL migration (all Shopify API calls use GraphQL Admin API)
+- ✅ App Bridge embedded UI (script + session token support, Polaris two-state UI)
+- ✅ GDPR webhooks (customers/redact, shop/redact, customers/data_request)
+- ✅ signup?shopify_store= param (auto-OAuth after account creation)
+- 🔶 App listing assets (icon, screenshots, screencast, privacy policy, help docs)
+
+**Embedded UI — two states only:**
+
+Not connected:
+> Connect your Shopify store to Sharkly.
+> [Connect to Sharkly] — OAuth flow → tokens saved → redirect to app.sharkly.co
+
+Connected:
+> [store].myshopify.com · Connected as [email]
+> [Open Sharkly →]
+
+**Discovery flow (new users from App Store):**
+Install → embedded app → Connect → no account: redirect to 
+sharkly.co/signup?shopify_store={domain} → signup → OAuth completes 
+automatically → lands in Sharkly with store connected.
+
+**Remaining build — in order:**
+1. App listing: 1200×1200 icon, screenshots, English screencast,
+   privacy policy URL, help docs, 5 search terms
+2. Partner Dashboard: emergency contact email + phone; register webhook URLs; set App URL to embed
+3. Test credentials: provide Sharkly account with credits for reviewers
+
+**Not needed:**
+- Theme extension — Sharkly doesn't inject into the storefront
+- Deep linking — no theme blocks to activate
+- Billing API — keep subscriptions on Stripe/Sharkly, app is free to install
+- Protected customer data — Sharkly stores no customer PII
+
+---
+
+#### L6b. Ecommerce SEO
+
+**Spec:** `ecommerce-seo-spec.md`
+**What it is:** Lightweight ecommerce SEO feature area. Product and collection page keyword assignment, basic on-page SEO checks, description generation, schema output, and publish-back to Shopify. Shopify is the CMS — Sharkly handles the SEO layer on top.
+**Tier:** Builder and above — all plans
+**Status:** Spec complete. Not yet started. Build after L6 Shopify OAuth is stable.
+
+**This feature is isolated.** No changes to Workspace.tsx, pages.ts, or any existing controller. New files only.
+
+**New files:**
+- `sql/migrations/ecommerce_pages.sql`
+- `api/src/controllers/ecommerce.ts`
+- `api/src/routes/ecommerce.ts`
+- `src/pages/Ecommerce.tsx`
+- `src/pages/EcommerceWorkspace.tsx`
+
+**DB:** New `ecommerce_pages` table. Target connection uses existing `targets.destination_page_url` field — no schema change.
+
+**Build order (14 steps — see spec):**
+1. DB migration
+2. API controller — 6 endpoints
+3. API routes + register in app.ts
+4. `/ecommerce` hub — list, tabs, table, modals
+5. `/ecommerce/:id` workspace — editor, keyword assignment, schema block
+6. SEO checks right panel (6 checks)
+7. Publish modal + Shopify API calls
+8. Sidebar nav item + React Router routes
+9. Product/Collection badge in Target detail view
+
+**Credit costs:** SERP check = 5, product description = 10, collection intro = 10, import/publish/re-check = free
+
+**Key design decisions:**
+- Nav item always visible — no platform gating. Empty state handles onboarding.
+- Products and collections are destination pages — attaching one to a Target writes the URL to `targets.destination_page_url`
+- Six basic SEO checks only — same level as supporting articles, not UPSA
+- Shopify publish writes `body_html` + `global.title_tag` + `global.description_tag` metafields
+- WooCommerce: V2
 
 ---
 
@@ -808,8 +960,13 @@ Complete map of every feature to its pricing tier.
 | Meta title + description generator                      | Builder        |
 | Schema markup generator                                 | Builder        |
 | FAQ section generator                                   | Builder        |
+| Ecommerce SEO area (/ecommerce)                         | Builder        |
 | Product description optimizer                           | Builder        |
 | Collection page content generator                       | Builder        |
+| Ecommerce SEO checks (6 basic checks per page)          | Builder        |
+| Product/collection schema generation                    | Builder        |
+| Shopify import (products + collections)                 | Builder        |
+| Ecommerce bulk description generation                   | Builder        |
 | Destination page field on targets (via Target creation) | Builder        |
 | Shopify publishing                                      | Builder        |
 | WordPress publishing                                    | Builder        |
@@ -918,6 +1075,7 @@ LAUNCH (~8 weeks)
   L4.  Customer journey map (simplified)
   L5.  Weekly priority stack
   L6.  Shopify companion app ← highest priority
+  L6b. Ecommerce SEO feature area ← after L6 OAuth is stable
   L7.  Author / EEAT field
   L8.  URL slug change warning
   L9.  AI detection tooltip

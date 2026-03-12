@@ -7,8 +7,14 @@ import { ThemeProvider } from './providers/ThemeProvider';
 
 import App from './App';
 import './index.css';
+import { supabase } from './utils/supabaseClient';
+import { setApiAuthGetter } from './utils/api';
 
-
+// Attach Supabase session to all API requests so auth middleware can validate the token
+setApiAuthGetter(async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+});
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -23,15 +23,21 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment variables
+# Environment variables (never commit — contains OAuth, API keys, tokens)
 .env
 .env.local
 .env.*.local
 .vercel
 .env*.local
+**/.env
+api/.env
+marketing/.env
 
 # Production data dumps (contain secrets — never commit)
 sql/chunks/prod_data*.sql
+# Any SQL with INSERTs of auth/gsc token data
+sql/**/prod_*.sql
+sql/**/*_data_*.sql
 
 # Supabase local DB volumes (contains token data)
 supabase/docker/volumes/

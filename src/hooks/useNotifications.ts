@@ -53,7 +53,7 @@ export const useNotifications = (userId?: string) => {
       if (Notification.permission === 'granted') {
         const pushNotification = new Notification(notification.title || 'Task Reminder', {
           body: notification.message,
-          icon: '/images/logos/logo.png',
+          icon: '/images/logos/logo.svg',
           tag: `task-reminder-${notification.id}`,
           requireInteraction: false,
           silent: false // Allow system sounds
@@ -79,49 +79,55 @@ export const useNotifications = (userId?: string) => {
 
   // Function to show notification toast and mark as shown in database
   const showNotificationToast = async (notification: Notification) => {
-    toast(notification.message || notification.title || 'Reminder due', {
-      description: notification.title !== notification.message ? notification.title : undefined,
-      duration: Infinity, // Won't auto-dismiss
+    console.log('[useNotifications] Showing toast for notification:', notification);
+    
+    // Use a more prominent toast that stays visible
+    toast.info(notification.title || 'New Notification', {
+      description: notification.message || undefined,
+      duration: 10000, // 10 seconds - long enough to notice but not forever
       action: {
-        label: 'Mark as shown',
-        onClick: async () => {
-          try {
-            // Update the notification as shown in the database
-            const { error } = await supabase
-              .from('notifications')
-              .update({ shown: true })
-              .eq('id', notification.id);
-
-            if (error) {
-              // Silent error handling
-            } else {
-              // Silent error handling
-            }
-          } catch {
-            // Silent error handling
+        label: 'View',
+        onClick: () => {
+          // Navigate to notifications page or open the lead
+          if (notification.metadata?.lead_id) {
+            window.location.href = `/leads/${notification.metadata.lead_id}`;
+          } else {
+            window.location.href = '/notifications';
           }
         }
       }
     });
+
+    // Mark as shown in database
+    try {
+      await supabase
+        .from('notifications')
+        .update({ shown: true })
+        .eq('id', notification.id);
+    } catch {
+      // Silent error handling
+    }
   };
 
-  // Stable helpers that don't change identity
+  // Stable helpers that don't change identity - use refs to avoid dependency issues
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleInsert = useCallback((payload: any) => {
     const notification = payload.new as Notification;
+    console.log('[useNotifications] INSERT received:', { notification, shown: notification.shown });
     
-    // If we're receiving notifications, we're definitely connected
-    if (connectionStatus !== 'connected') {
-      setConnectionStatus('connected');
-      setServiceAvailable(true);
-    }
+    // If we're receiving notifications, we're definitely connected - always set this
+    setConnectionStatus('connected');
+    setServiceAvailable(true);
     
     if (!notification.shown) {
+      console.log('[useNotifications] Playing alert and showing toast...');
       playNotificationAlert(notification);
       showNotificationToast(notification);
+    } else {
+      console.log('[useNotifications] Notification already shown, skipping toast');
     }
     setUnreadCount((c) => c + 1);
-  }, [connectionStatus]);
+  }, []); // Empty deps - this callback is now stable
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleUpdate = useCallback((payload: any) => {
@@ -488,10 +494,18 @@ export const useNotifications = (userId?: string) => {
 
   // New simplified subscription useEffect with retry/backoff
   useEffect(() => {
-    if (!userId) return;
+    if (!userId) {
+      console.log('[useNotifications] No userId, skipping subscription');
+      return;
+    }
 
     // Guard: if already subscribed for this userId, don't create another
-    if (channelRef.current) return;
+    if (channelRef.current) {
+      console.log('[useNotifications] Already have a channel, skipping');
+      return;
+    }
+
+    console.log('[useNotifications] Creating subscription for userId:', userId);
 
     // ensure we don't react to late events after cleanup
     let isCurrent = true;
@@ -499,11 +513,14 @@ export const useNotifications = (userId?: string) => {
     const maxRetries = 5;
     const baseDelay = 2000; // 2 seconds
 
-    // unique name per user (avoid collisions)
-    const channelName = `notifications:${userId}`;
+    // unique name per user (avoid collisions) - add random suffix to avoid channel name conflicts
+    const channelName = `notifications:${userId}:${Date.now()}`;
+    console.log('[useNotifications] Channel name:', channelName);
+    
     const ch = supabase
       .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (p) => {
+        console.log('[useNotifications] INSERT event received on channel:', channelName);
         if (!isCurrent) return;
         handleInsert(p);
       })
@@ -516,9 +533,11 @@ export const useNotifications = (userId?: string) => {
         handleDelete(p);
       })
       .subscribe((status) => {
+        console.log('[useNotifications] Subscription status:', status, 'for channel:', channelName);
         if (!isCurrent) return;
         
         if (status === 'SUBSCRIBED') {
+          console.log('[useNotifications] ✅ Successfully subscribed to realtime notifications');
           setConnectionStatus('connected');
           setServiceAvailable(true);
           setLastError(null);

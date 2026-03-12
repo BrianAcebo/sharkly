@@ -37,7 +37,7 @@ const navLinks = [
   { href: '/#hero', label: 'Home' },
   { href: '/#research', label: 'Research' },
   { href: '/#features', label: 'Features' },
-  { href: '/#pricing', label: 'Pricing' },
+  { href: '/pricing', label: 'Pricing' },
   { href: '/blog', label: 'Blog' },
 ];
 ---
@@ -92,20 +92,21 @@ const navLinks = [
     <header class="bg-stone-100 sticky top-0 z-50 border-b border-black/10 dark:border-white/15 dark:bg-neutral-900 px-4 md:px-6 py-3 md:py-5 transition-colors duration-300">
       <div class="max-w-[1200px] mx-auto flex items-center justify-between gap-4">
         <a href="/" class="flex items-center gap-2 font-bold text-xl text-neutral-900 dark:text-stone-100 shrink-0">
-          <Logo className="hidden md:block md:w-30 w-25" width={120} height="auto" />
+          <Logo className="md:w-30 w-25" width={120} height="auto" />
         </a>
 
         {/* Desktop nav */}
         <nav class="hidden md:flex gap-2 items-center text-sm font-medium" aria-label="Main navigation">
           {navLinks.map(link => {
-            const isCurrent = (link.href === '/' && Astro.url.pathname === '/') || (link.href.startsWith('/blog') && Astro.url.pathname.startsWith('/blog'));
+            const isCurrent = (link.href === '/' && Astro.url.pathname === '/') || (link.href.startsWith('/blog') && Astro.url.pathname.startsWith('/blog')) || (link.href === '/pricing' && Astro.url.pathname === '/pricing');
+            console.log(isCurrent, link.href, Astro.url.pathname);
             return (
               <a
                 href={link.href}
                 class:list={[
                   'px-4 py-2 rounded-xl transition-colors duration-200 whitespace-nowrap',
                   'bg-stone-100 dark:bg-neutral-900 text-neutral-900 dark:text-stone-100 border border-black/10 dark:border-white/15 hover:bg-black/5 dark:hover:bg-white/10',
-                  isCurrent && 'bg-black/5 dark:bg-white/10',
+                  isCurrent && 'bg-black/10! dark:bg-white/90!',
                 ]}
               >
                 {link.label}
@@ -145,7 +146,7 @@ const navLinks = [
         aria-label="Mobile navigation"
       >
         {navLinks.map(link => {
-          const isCurrent = (link.href === '/' && Astro.url.pathname === '/') || (link.href.startsWith('/blog') && Astro.url.pathname.startsWith('/blog'));
+          const isCurrent = (link.href === '/' && Astro.url.pathname === '/') || (link.href.startsWith('/blog') && Astro.url.pathname.startsWith('/blog')) || (link.href === '/pricing' && Astro.url.pathname === '/pricing');
           return (
             <a
               href={link.href}
@@ -196,19 +197,20 @@ const navLinks = [
       <slot />
     </main>
 
-    <div class="fixed right-10 bottom-10 z-50 hidden sm:block">
+    <div class="fixed sm:right-10 sm:bottom-10 bottom-6 right-6 z-50 block">
       <ThemeToggle />
     </div>
 
     <footer class="bg-neutral-900 border-t border-neutral-800 text-white mt-0 py-16 px-6">
       <div class="max-w-[1200px] mx-auto">
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-12 mb-12 flex-wrap">
+        <div class="flex sm:flex-row flex-col justify-between gap-12 mb-12">
           <div>
             <div class="font-bold text-xl mb-4">Sharkly</div>
             <p class="text-white/70 text-[0.9375rem] leading-relaxed max-w-60">
               SEO made simple for small businesses. Topic strategy, content clusters, and keyword research — all automated.
             </p>
           </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-12">
           <div>
             <div class="text-sm font-semibold mb-4 text-white/90">Product</div>
             <div class="flex flex-col gap-2">
@@ -220,6 +222,12 @@ const navLinks = [
             </div>
           </div>
           <div>
+            <div class="text-sm font-semibold mb-4 text-white/90">Integrations</div>
+            <div class="flex flex-col gap-2">
+              <a href="/shopify" class="text-white/80 text-[0.9375rem] hover:text-white">Shopify</a>
+            </div>
+          </div>
+          <div>
             <div class="text-sm font-semibold mb-4 text-white/90">Company</div>
             <div class="flex flex-col gap-2">
               <a href={`${appUrl}/privacy`} class="text-white/80 text-[0.9375rem] hover:text-white">Privacy</a>
@@ -228,6 +236,7 @@ const navLinks = [
               <a href={`${appUrl}/signup`} class="text-white/80 text-[0.9375rem] hover:text-white">Sign up</a>
             </div>
           </div>
+        </div>
         </div>
         <div class="border-t border-white/20 pt-8 text-center text-white/50 text-sm">
           © {new Date().getFullYear()} Sharkly. SEO made simple for small businesses.

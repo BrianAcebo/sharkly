@@ -32,7 +32,18 @@ import aiChatRoutes from './routes/aiChat.js';
 import chatFilesRoutes from './routes/chatFiles.js';
 import priorityStackRoutes from './routes/priorityStack.js';
 import shopifyRoutes from './routes/shopify.js';
+import ecommerceRoutes from './routes/ecommerce.js';
+import {
+	handleShopifyOAuthCallback,
+	startShopifyOAuthInstall
+} from './controllers/shopifyController.js';
 import { handleStripeWebhook } from './controllers/stripeWebhook.js';
+import {
+	customersRedact,
+	shopRedact,
+	customersDataRequest,
+	appUninstalled
+} from './controllers/shopifyWebhooks.js';
 
 dotenv.config();
 
@@ -72,6 +83,28 @@ app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res) =>
 	handleStripeWebhook(req, res)
 );
 
+// Shopify mandatory webhooks (GDPR + uninstall) — raw body for HMAC verification
+app.post(
+	'/webhooks/shopify/customers-redact',
+	express.raw({ type: '*/*' }),
+	(req, res) => customersRedact(req, res)
+);
+app.post(
+	'/webhooks/shopify/shop-redact',
+	express.raw({ type: '*/*' }),
+	(req, res) => shopRedact(req, res)
+);
+app.post(
+	'/webhooks/shopify/customers-data-request',
+	express.raw({ type: '*/*' }),
+	(req, res) => customersDataRequest(req, res)
+);
+app.post(
+	'/webhooks/shopify/app-uninstalled',
+	express.raw({ type: '*/*' }),
+	(req, res) => appUninstalled(req, res)
+);
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
@@ -105,6 +138,11 @@ app.use('/api/ai', aiChatRoutes);
 app.use('/api/ai/files', chatFilesRoutes);
 app.use('/api/priority-stack', priorityStackRoutes);
 app.use('/api/shopify', shopifyRoutes);
+app.use('/api/ecommerce', ecommerceRoutes);
+
+// Shopify companion app: OAuth callback and install (path matches SHOPIFY_REDIRECT_URI)
+app.get('/auth/shopify/callback', handleShopifyOAuthCallback);
+app.get('/auth/shopify/install', startShopifyOAuthInstall);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

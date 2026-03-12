@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
@@ -21,6 +21,7 @@ import {
 	History,
 	RotateCcw,
 	CheckCircle2,
+	Check,
 	Clock,
 	TrendingUp,
 	Zap,
@@ -145,10 +146,6 @@ const FUNNEL_OPTIONS: { value: Topic['funnel']; label: string }[] = [
 	{ value: 'mofu', label: 'MoFu' },
 	{ value: 'bofu', label: 'BoFu' }
 ];
-
-// Gamified unlock thresholds — complete clusters to advance tiers
-const UNLOCK_BUILD_TOWARD = 2; // clusters built to unlock "Build Toward" topics
-const UNLOCK_LONG_TERM = 5; // clusters built to unlock "Long-Term" topics
 
 function SortableTopicRow({
 	topic,
@@ -452,9 +449,59 @@ export default function StrategyTargetDetail() {
 		updateTarget,
 		refetch: refetchTargets
 	} = useTargets(selectedSite?.id ?? null);
-	const siteTopics = useTopics(selectedSite?.id ?? null).topics;
 	const target = targets.find((t) => t.id === targetId);
 	const [editTargetOpen, setEditTargetOpen] = useState(false);
+	const [ecommercePageMatch, setEcommercePageMatch] = useState<{
+		id: string;
+		type: 'product' | 'collection';
+	} | null>(null);
+
+	const achievableClustersAmount = topics.filter((t) => t.authorityFit === 'achievable').length;
+	const buildTowardClustersAmount = topics.filter((t) => t.authorityFit === 'buildToward').length;
+
+	// Gamified unlock thresholds — complete clusters to advance tiers
+	const UNLOCK_BUILD_TOWARD = Math.min(2, achievableClustersAmount); // clusters built to unlock "Build Toward" topics
+	const UNLOCK_LONG_TERM = Math.min(5, buildTowardClustersAmount); // clusters built to unlock "Long-Term" topics
+
+	// When target has a destination URL, check if it matches an ecommerce page (for Product/Collection badge)
+	useEffect(() => {
+		if (!selectedSite?.id || !target?.destinationPageUrl?.trim()) {
+			setEcommercePageMatch(null);
+			return;
+		}
+		let cancelled = false;
+		(async () => {
+			try {
+				const {
+					data: { session }
+				} = await supabase.auth.getSession();
+				const token = session?.access_token;
+				if (!token) return;
+				const res = await fetch(
+					buildApiUrl(`/api/ecommerce?siteId=${encodeURIComponent(selectedSite.id)}`),
+					{ headers: { Authorization: `Bearer ${token}` } }
+				);
+				if (!res.ok || cancelled) return;
+				const data = (await res.json()) as {
+					pages?: Array<{ id: string; type: string; url: string | null }>;
+				};
+				const pages = data.pages ?? [];
+				const url = target.destinationPageUrl?.trim();
+				const match = pages.find((p) => p.url && p.url.trim() === url);
+				if (!cancelled && match) {
+					setEcommercePageMatch({ id: match.id, type: match.type as 'product' | 'collection' });
+				} else {
+					setEcommercePageMatch(null);
+				}
+			} catch {
+				if (!cancelled) setEcommercePageMatch(null);
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [selectedSite?.id, target?.destinationPageUrl]);
+
 	const {
 		runs: strategyRuns,
 		loading: runsLoading,
@@ -467,7 +514,7 @@ export default function StrategyTargetDetail() {
 	const hasCreditsForCluster = creditsRemaining >= CREDIT_COSTS.CLUSTER_GENERATION;
 
 	// Gamified unlock — site-wide (topics across all targets)
-	const clustersBuilt = siteTopics.filter((t) => !!t.clusterId).length;
+	const clustersBuilt = topics.filter((t) => !!t.clusterId).length;
 	const buildTowardUnlocked = clustersBuilt >= UNLOCK_BUILD_TOWARD;
 	const longTermUnlocked = clustersBuilt >= UNLOCK_LONG_TERM;
 
@@ -691,15 +738,22 @@ export default function StrategyTargetDetail() {
 		// S2-3: Cannibalization check before adding new topic
 		if (!editTopicId && keyword) {
 			try {
-				const { data: { session } } = await supabase.auth.getSession();
+				const {
+					data: { session }
+				} = await supabase.auth.getSession();
 				const token = session?.access_token;
 				if (token) {
 					const res = await fetch(
-						buildApiUrl(`/api/sites/${selectedSite.id}/check-cannibalization?keyword=${encodeURIComponent(keyword)}`),
+						buildApiUrl(
+							`/api/sites/${selectedSite.id}/check-cannibalization?keyword=${encodeURIComponent(keyword)}`
+						),
 						{ headers: { Authorization: `Bearer ${token}` } }
 					);
 					if (res.ok) {
-						const data = (await res.json()) as { hasConflict?: boolean; conflict?: { keyword: string; pages: Array<{ title: string }> } };
+						const data = (await res.json()) as {
+							hasConflict?: boolean;
+							conflict?: { keyword: string; pages: Array<{ title: string }> };
+						};
 						if (data.hasConflict && data.conflict) {
 							const pageList = data.conflict.pages.map((p) => p.title).join(', ');
 							const proceed = window.confirm(
@@ -723,9 +777,7 @@ export default function StrategyTargetDetail() {
 				.filter(Boolean);
 			const dilution = detectTopicalDilution(keyword, existingKeywords);
 			if (dilution) {
-				const proceed = window.confirm(
-					`${dilution.message}\n\n${dilution.action}`
-				);
+				const proceed = window.confirm(`${dilution.message}\n\n${dilution.action}`);
 				if (!proceed) return;
 			}
 		}
@@ -1067,6 +1119,25 @@ export default function StrategyTargetDetail() {
 					return true;
 				});
 
+	// Cap "clusters to unlock" by how many locked topics exist in that tier (max 3 or whatever is left)
+	const buildTowardLockedCount = filteredTopics.filter(
+		(t) => t.authorityFit === 'buildToward'
+	).length;
+	const longTermLockedCount = filteredTopics.filter((t) => t.authorityFit === 'locked').length;
+	const buildTowardClustersDisplay = Math.min(
+		Math.max(0, UNLOCK_BUILD_TOWARD - clustersBuilt),
+		Math.max(1, buildTowardLockedCount)
+	);
+	const longTermClustersDisplay = Math.min(
+		Math.max(0, UNLOCK_LONG_TERM - clustersBuilt),
+		Math.max(1, longTermLockedCount)
+	);
+	const getClustersToUnlockDisplay = (authorityFit: string) => {
+		if (authorityFit === 'buildToward') return buildTowardClustersDisplay;
+		if (authorityFit === 'locked') return longTermClustersDisplay;
+		return 0;
+	};
+
 	if (!targetId) {
 		return (
 			<div className="p-8 text-center text-gray-500">
@@ -1112,14 +1183,25 @@ export default function StrategyTargetDetail() {
 							{target?.name ?? '…'}
 						</h1>
 						{target?.destinationPageLabel && (
-							<a
-								href={target.destinationPageUrl ?? '#'}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="mt-1 inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-							>
-								→ {target.destinationPageLabel}
-							</a>
+							<span className="mt-1 inline-flex items-center gap-1.5">
+								<a
+									href={target.destinationPageUrl ?? '#'}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+								>
+									→ {target.destinationPageLabel}
+								</a>
+								{ecommercePageMatch && (
+									<Link
+										to={`/ecommerce/${ecommercePageMatch.id}`}
+										className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-xs text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/30 dark:text-green-400 dark:hover:bg-green-900/50"
+									>
+										{ecommercePageMatch.type === 'product' ? 'Product' : 'Collection'}
+										<Check className="size-3" />
+									</Link>
+								)}
+							</span>
 						)}
 					</div>
 					<div className="flex flex-wrap items-center gap-2">

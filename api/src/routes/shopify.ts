@@ -7,6 +7,7 @@ import { Router } from 'express';
 import {
 	startShopifyOAuth,
 	handleShopifyOAuthCallback,
+	shopifyAppRedirect,
 	getShopifyStatus,
 	postShopifyDisconnect,
 	getShopifyBlogs,
@@ -20,6 +21,9 @@ const router = Router();
 // OAuth (no auth required — callback comes from Shopify)
 router.get('/oauth/start', startShopifyOAuth);
 router.get('/oauth/callback', handleShopifyOAuthCallback);
+
+// App redirect: when merchant opens app in Shopify Admin (no embedded UI), redirect to signup
+router.get('/app-redirect', shopifyAppRedirect);
 
 // Protected routes
 router.get('/status/:siteId', requireAuth, requireSiteAccess, getShopifyStatus);

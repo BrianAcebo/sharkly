@@ -1033,72 +1033,72 @@ export default function SettingsPage() {
 					</div>
 				);
 
-			case 'preferences':
-				return (
-					<Card>
-						<CardHeader>
-							<CardTitle className="flex items-center gap-2">
-								<Globe className="h-5 w-5" />
-								Data Management
-							</CardTitle>
-							<CardDescription>Export your data or manage your account</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-4">
-								<div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
-									<h4 className="mb-2 font-medium text-blue-800 dark:text-blue-200">
-										Export Your Data
-									</h4>
-									<p className="mb-4 text-sm text-blue-600 dark:text-blue-400">
-										Download a copy of your data in JSON format. This includes your profile
-										information and organization details.
-									</p>
-									<Button
-										onClick={handleExportData}
-										disabled={isExporting}
-										loading={isExporting}
-										variant="outline"
-										startIcon={<Globe className="h-4 w-4" />}
-									>
-										{isExporting ? 'Exporting...' : 'Export Data'}
-									</Button>
-								</div>
-							</div>
-						</CardContent>
-					</Card>
-				);
+			// case 'preferences':
+			// 	return (
+			// 		<Card>
+			// 			<CardHeader>
+			// 				<CardTitle className="flex items-center gap-2">
+			// 					<Globe className="h-5 w-5" />
+			// 					Data Management
+			// 				</CardTitle>
+			// 				<CardDescription>Export your data or manage your account</CardDescription>
+			// 			</CardHeader>
+			// 			<CardContent>
+			// 				<div className="space-y-4">
+			// 					<div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+			// 						<h4 className="mb-2 font-medium text-blue-800 dark:text-blue-200">
+			// 							Export Your Data
+			// 						</h4>
+			// 						<p className="mb-4 text-sm text-blue-600 dark:text-blue-400">
+			// 							Download a copy of your data in JSON format. This includes your profile
+			// 							information and organization details.
+			// 						</p>
+			// 						<Button
+			// 							onClick={handleExportData}
+			// 							disabled={isExporting}
+			// 							loading={isExporting}
+			// 							variant="outline"
+			// 							startIcon={<Globe className="h-4 w-4" />}
+			// 						>
+			// 							{isExporting ? 'Exporting...' : 'Export Data'}
+			// 						</Button>
+			// 					</div>
+			// 				</div>
+			// 			</CardContent>
+			// 		</Card>
+			// 	);
 
-			case 'danger':
-				return (
-					<Card className="border-red-200 dark:border-red-800">
-						<CardHeader>
-							<CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
-								<AlertTriangle className="h-5 w-5" />
-								Danger Zone
-							</CardTitle>
-							<CardDescription>Irreversible and destructive actions</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-4">
-								<div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
-									<h4 className="mb-2 font-medium text-red-800 dark:text-red-200">
-										Delete Account
-									</h4>
-									<p className="mb-4 text-sm text-red-600 dark:text-red-400">
-										Once you delete your account, there is no going back. Please be certain.
-									</p>
-									<Button
-										variant="destructive"
-										onClick={() => setShowDeleteConfirm(true)}
-										startIcon={<Trash2 className="h-4 w-4" />}
-									>
-										Delete Account
-									</Button>
-								</div>
-							</div>
-						</CardContent>
-					</Card>
-				);
+			// case 'danger':
+			// 	return (
+			// 		<Card className="border-red-200 dark:border-red-800">
+			// 			<CardHeader>
+			// 				<CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
+			// 					<AlertTriangle className="h-5 w-5" />
+			// 					Danger Zone
+			// 				</CardTitle>
+			// 				<CardDescription>Irreversible and destructive actions</CardDescription>
+			// 			</CardHeader>
+			// 			<CardContent>
+			// 				<div className="space-y-4">
+			// 					<div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
+			// 						<h4 className="mb-2 font-medium text-red-800 dark:text-red-200">
+			// 							Delete Account
+			// 						</h4>
+			// 						<p className="mb-4 text-sm text-red-600 dark:text-red-400">
+			// 							Once you delete your account, there is no going back. Please be certain.
+			// 						</p>
+			// 						<Button
+			// 							variant="destructive"
+			// 							onClick={() => setShowDeleteConfirm(true)}
+			// 							startIcon={<Trash2 className="h-4 w-4" />}
+			// 						>
+			// 							Delete Account
+			// 						</Button>
+			// 					</div>
+			// 				</div>
+			// 			</CardContent>
+			// 		</Card>
+			// 	);
 			default:
 				return null;
 		}

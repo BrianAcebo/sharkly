@@ -1,19 +1,35 @@
 /**
- * Settings: Credits & Billing
- * Shows real org credit balance, plan info, monthly usage, and cost reference.
- * Links to /billing for full invoice history, wallet top-ups, and plan changes.
+ * Settings: Credits & Usage
+ * Usage highlights, included features, usage wallet (credits + auto-recharge), plan, monthly usage, seats.
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import PageMeta from '../components/common/PageMeta';
 import { Button } from '../components/ui/button';
-import { CREDIT_COSTS, PLANS } from '../lib/credits';
-import { CREDIT_COST_LABELS } from '../../shared/credits';
+import { PLANS } from '../lib/credits';
 import { STRIPE_CUSTOMER_PORTAL_URL } from '../utils/billing';
 import { useOrganization } from '../hooks/useOrganization';
 import { useCredits } from '../hooks/useCredits';
+import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { getOrgCreditUsageMonth, type MonthlyUsage } from '../api/billingCredits';
-import { ExternalLink, Coins, Zap, RefreshCw, Loader2 } from 'lucide-react';
+import { api } from '../utils/api';
+import { supabase } from '../utils/supabaseClient';
+import type { SeatSummary } from '../types/organization';
+import { formatCurrency } from '../utils/format';
+import { WalletDepositModal } from '../components/billing/WalletDepositModal';
+import {
+	ExternalLink,
+	Coins,
+	Zap,
+	RefreshCw,
+	Loader2,
+	Users,
+	DollarSign,
+	MessageSquare,
+	Wallet,
+	TicketSlash,
+	Mail,
+} from 'lucide-react';
 
 export default function SettingsCredits() {
 	const { organization, loading: orgLoading } = useOrganization();
@@ -22,8 +38,15 @@ export default function SettingsCredits() {
 		loading: creditsLoading,
 		refresh: refreshCredits
 	} = useCredits(organization?.id ?? null);
+	const { walletStatus, autoRecharge: walletAutoRecharge, refetch: refetchPayment } = usePaymentStatus();
 	const [usage, setUsage] = useState<MonthlyUsage | null>(null);
 	const [usageLoading, setUsageLoading] = useState(false);
+	const [chatUsage, setChatUsage] = useState<{ used: number; limit: number } | null>(null);
+	const [seatSummary, setSeatSummary] = useState<SeatSummary | null>(null);
+	const [seatLoading, setSeatLoading] = useState(false);
+	const [seatError, setSeatError] = useState<string | null>(null);
+	const [depositOpen, setDepositOpen] = useState(false);
+	const [autoRechargeOpen, setAutoRechargeOpen] = useState(false);
 
 	useEffect(() => {
 		if (!organization?.id) return;
@@ -33,6 +56,67 @@ export default function SettingsCredits() {
 			.catch(() => setUsage(null))
 			.finally(() => setUsageLoading(false));
 	}, [organization?.id]);
+
+	useEffect(() => {
+		const loadChatUsage = async () => {
+			if (!organization?.id) return;
+			try {
+				const { data: { session } } = await supabase.auth.getSession();
+				if (!session?.access_token) return;
+				const response = await api.get('/api/ai/status', {
+					headers: {
+						Authorization: `Bearer ${session.access_token}`,
+						'x-organization-id': organization.id,
+					},
+				});
+				if (response.ok) {
+					const data = await response.json();
+					const u = data.usage;
+					if (u) setChatUsage({ used: u.messages_used ?? 0, limit: u.monthly_limit ?? 500 });
+				}
+			} catch {
+				// ignore
+			}
+		};
+		loadChatUsage();
+	}, [organization?.id]);
+
+	const fetchSeatSummary = useCallback(async () => {
+		if (!organization?.id) return;
+		setSeatLoading(true);
+		setSeatError(null);
+		try {
+			const { data: { session } } = await supabase.auth.getSession();
+			if (!session?.access_token) {
+				setSeatError('Not authenticated');
+				return;
+			}
+			const response = await api.get(`/api/organizations/${organization.id}/seats`, {
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+					'Content-Type': 'application/json',
+				},
+			});
+			if (!response.ok) {
+				const err = await response.json().catch(() => ({}));
+				setSeatError((err as { error?: string })?.error ?? 'Failed to load seats');
+				setSeatSummary(null);
+				return;
+			}
+			const data = (await response.json()) as { summary: SeatSummary };
+			setSeatSummary(data.summary);
+		} catch (e) {
+			console.error('Seat summary error:', e);
+			setSeatError(e instanceof Error ? e.message : 'Failed to load seats');
+			setSeatSummary(null);
+		} finally {
+			setSeatLoading(false);
+		}
+	}, [organization?.id]);
+
+	useEffect(() => {
+		fetchSeatSummary();
+	}, [fetchSeatSummary]);
 
 	const planCode = organization?.plan_code ?? 'builder';
 	const plan = PLANS[planCode as keyof typeof PLANS] ?? PLANS.builder;
@@ -64,8 +148,17 @@ export default function SettingsCredits() {
 				<h1 className="font-montserrat text-xl font-bold text-gray-900 dark:text-white">
 					Credits & Usage
 				</h1>
-				<Button variant="ghost" size="sm" onClick={refreshCredits} disabled={creditsLoading}>
-					{creditsLoading ? (
+				<Button
+					variant="ghost"
+					size="sm"
+					onClick={() => {
+						refreshCredits();
+						fetchSeatSummary();
+						refetchPayment();
+					}}
+					disabled={creditsLoading || seatLoading}
+				>
+					{creditsLoading || seatLoading ? (
 						<Loader2 className="size-4 animate-spin" />
 					) : (
 						<RefreshCw className="size-4" />
@@ -110,7 +203,7 @@ export default function SettingsCredits() {
 			</div>
 
 			{/* Credit balance cards */}
-			<div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+			<div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
 				{/* Included credits */}
 				<div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
 					<div className="flex items-center gap-2 text-sm font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
@@ -148,76 +241,179 @@ export default function SettingsCredits() {
 					<p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
 						credits available · never expire
 					</p>
-					<Link to="/billing" className="mt-3 block">
-						<Button variant="outline" size="sm" className="w-full">
-							Buy Overage Credits · $0.05 each
-						</Button>
-					</Link>
 				</div>
 			</div>
 
-			{/* Monthly usage summary */}
-			{(usageLoading || usage) && (
-				<div className="mt-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
-					<h3 className="mb-3 font-semibold text-gray-900 dark:text-white">This Month's Usage</h3>
-					{usageLoading ? (
-						<div className="flex items-center gap-2 text-sm text-gray-400">
-							<Loader2 className="size-4 animate-spin" /> Loading usage…
-						</div>
-					) : usage ? (
-						<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-							<div>
-								<div className="text-2xl font-bold text-gray-900 dark:text-white">
-									{usage.total_credits_spent.toLocaleString()}
-								</div>
-								<div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Credits used</div>
+			{/* Usage Highlights */}
+			<div className="mt-6">
+				<h2 className="mb-3 font-semibold text-gray-900 dark:text-white">Usage Highlights</h2>
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+						<div className="flex items-center gap-3">
+							<div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/40">
+								<DollarSign className="size-5 text-blue-600 dark:text-blue-400" />
 							</div>
 							<div>
-								<div className="text-2xl font-bold text-gray-900 dark:text-white">
-									{usage.from_included_credits.toLocaleString()}
-								</div>
-								<div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">From plan</div>
-							</div>
-							<div>
-								<div className="text-2xl font-bold text-gray-900 dark:text-white">
-									{usage.from_wallet_credits.toLocaleString()}
-								</div>
-								<div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">From wallet</div>
-							</div>
-							<div>
-								<div className="text-2xl font-bold text-gray-900 dark:text-white">
-									{usage.event_count}
-								</div>
-								<div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">AI actions</div>
+								<p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Cost</p>
+								<p className="text-xl font-bold text-gray-900 dark:text-white">
+									{formatCurrency(0)}
+								</p>
 							</div>
 						</div>
-					) : null}
+					</div>
+					<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+						<div className="flex items-center gap-3">
+							<div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/40">
+								<TicketSlash className="size-5 text-blue-600 dark:text-blue-400" />
+							</div>
+							<div>
+								<p className="text-sm font-medium text-gray-500 dark:text-gray-400">Credits Used</p>
+								<p className="text-xl font-bold text-gray-900 dark:text-white">
+									{usageLoading ? '…' : (usage?.total_credits_spent ?? 0).toLocaleString()}
+								</p>
+							</div>
+						</div>
+					</div>
+					<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+						<div className="flex items-center gap-3">
+							<div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/40">
+								<Coins className="size-5 text-blue-600 dark:text-blue-400" />
+							</div>
+							<div>
+								<p className="text-sm font-medium text-gray-500 dark:text-gray-400">Credits Remaining</p>
+								<p className="text-xl font-bold text-gray-900 dark:text-white">
+									{creditsLoading ? '…' : (credits?.remaining_total ?? 0).toLocaleString()}
+								</p>
+							</div>
+						</div>
+					</div>
+					<div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+						<div className="flex items-center gap-3">
+							<div className="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/40">
+								<Mail className="size-5 text-blue-600 dark:text-blue-400" />
+							</div>
+							<div>
+								<p className="text-sm font-medium text-gray-500 dark:text-gray-400">Messages Sent</p>
+								<p className="text-xl font-bold text-gray-900 dark:text-white">
+									{chatUsage ? `${chatUsage.used} / ${chatUsage.limit}` : '…'}
+								</p>
+							</div>
+						</div>
+					</div>
 				</div>
-			)}
+			</div>
 
-			{/* Credit cost reference */}
+			{/* Usage Wallet */}
 			<div className="mt-4 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900">
-				<h3 className="mb-3 font-semibold text-gray-900 dark:text-white">Credit Costs</h3>
-				<div className="divide-y divide-gray-100 dark:divide-gray-800">
-					{Object.entries(CREDIT_COSTS).map(([key, cost]) => (
-						<div key={key} className="flex items-center justify-between py-2.5 text-sm">
-							<span className="text-gray-600 dark:text-gray-400">
-								{CREDIT_COST_LABELS[key] ?? key.replace(/_/g, ' ').toLowerCase()}
-							</span>
-							<span className="text-brand-600 dark:text-brand-400 font-semibold tabular-nums">
-								{cost} credits
-							</span>
+				<h3 className="mb-4 flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
+					<Wallet className="size-5" />
+					Usage Wallet
+				</h3>
+				{organization?.id ? (
+					<div className="space-y-4">
+						<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm dark:border-gray-700 dark:bg-gray-800/50">
+							<div className="space-y-2">
+								<div className="flex items-center justify-between gap-2">
+									<span className="text-gray-500 dark:text-gray-400">Included remaining</span>
+									<strong className="text-gray-900 dark:text-white">
+										{creditsLoading ? '…' : (credits?.included_remaining ?? 0).toLocaleString()}
+									</strong>
+								</div>
+								<div className="flex items-center justify-between gap-2">
+									<span className="text-gray-500 dark:text-gray-400">Wallet credits</span>
+									<strong className="text-gray-900 dark:text-white">
+										{creditsLoading ? '…' : (credits?.wallet_remaining ?? 0).toLocaleString()}
+									</strong>
+								</div>
+								<div className="flex items-center justify-between gap-2">
+									<span className="text-gray-500 dark:text-gray-400">Total remaining</span>
+									<strong className="text-gray-900 dark:text-white">
+										{creditsLoading ? '…' : (credits?.remaining_total ?? 0).toLocaleString()}
+									</strong>
+								</div>
+								<div className="flex items-center justify-between gap-2 border-t border-gray-200 pt-2 dark:border-gray-600">
+									<span className="text-gray-500 dark:text-gray-400">Fin messages used</span>
+									<strong className="text-gray-900 dark:text-white">
+										{chatUsage ? `${chatUsage.used} / ${chatUsage.limit}` : '…'}
+									</strong>
+								</div>
+							</div>
 						</div>
-					))}
-				</div>
+						{walletStatus?.wallet && (
+							<div className="flex flex-wrap items-center gap-2 text-sm">
+								<span
+									className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+										walletStatus.wallet.status === 'active'
+											? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+											: walletStatus.wallet.status === 'suspended'
+												? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+												: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
+									}`}
+								>
+									Wallet: {walletStatus.wallet.status}
+								</span>
+								<span className="text-gray-700 dark:text-gray-300">
+									Balance: {formatCurrency(credits?.wallet_balance_cents ?? walletStatus.wallet.balance_cents ?? 0)}
+								</span>
+								{walletStatus.depositRequired && (
+									<Button size="sm" onClick={() => setDepositOpen(true)}>
+										Deposit
+									</Button>
+								)}
+							</div>
+						)}
+						<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+							<div>
+								<p className="font-medium text-gray-900 dark:text-white">Auto-recharge status</p>
+								{walletStatus ? (
+									walletAutoRecharge?.enabled ? (
+										<p className="text-xs text-gray-500 dark:text-gray-400">
+											Enabled · {formatCurrency((walletAutoRecharge.amount_cents ?? 0) / 100)} added when balance
+											dips below {formatCurrency((walletAutoRecharge.threshold_cents ?? 0) / 100)}
+										</p>
+									) : (
+										<p className="text-xs text-gray-500 dark:text-gray-400">Currently disabled</p>
+									)
+								) : (
+									<p className="text-xs text-gray-500 dark:text-gray-400">Loading…</p>
+								)}
+							</div>
+							<Button size="sm" variant="outline" onClick={() => setAutoRechargeOpen(true)}>
+								Manage
+							</Button>
+						</div>
+						<div className="rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800/30 dark:text-gray-400">
+							<p className="font-medium text-gray-900 dark:text-white">How auto-recharge works</p>
+							<ul className="mt-2 list-inside list-disc space-y-1">
+								<li>Choose the amount we add to your wallet when the balance drops too low.</li>
+								<li>Pick a threshold that triggers the top-up so you stay live.</li>
+								<li>All charges use your default payment method (update it under Billing settings).</li>
+							</ul>
+						</div>
+						<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+							<Button variant="secondary" className="w-full" onClick={() => setDepositOpen(true)}>
+								Deposit Funds
+							</Button>
+							<Button variant="outline" className="w-full" onClick={() => setAutoRechargeOpen(true)}>
+								Manage Auto-Recharge
+							</Button>
+						</div>
+					</div>
+				) : (
+					<p className="text-sm text-gray-500 dark:text-gray-400">No organization selected.</p>
+				)}
 			</div>
 
-			<p className="mt-4 text-center text-xs text-gray-400 dark:text-gray-600">
-				Full invoice history and payment methods in{' '}
-				<Link to="/billing" className="text-brand-500 hover:underline">
-					Billing
-				</Link>
-			</p>
+			<WalletDepositModal
+				open={depositOpen || autoRechargeOpen}
+				onClose={() => {
+					setDepositOpen(false);
+					setAutoRechargeOpen(false);
+					refreshCredits();
+					refetchPayment();
+				}}
+				forceAutoStep={autoRechargeOpen}
+			/>
 		</>
 	);
 }

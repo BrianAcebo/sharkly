@@ -1419,9 +1419,9 @@ export class CrawlerService {
 		});
 
 		// S2-7: Crawl budget waste detection (V1.2g)
-		const pages = session.results.filter((p) => p.statusCode === 200);
+		const crawlBudgetWastePages = session.results.filter((p) => p.statusCode === 200);
 
-		const tagPages = pages.filter(
+		const tagPages = crawlBudgetWastePages.filter(
 			(p) => /\/tag\/|\/tags\//.test(p.url) && p.wordCount < 300
 		);
 		if (tagPages.length > 5) {
@@ -1435,7 +1435,7 @@ export class CrawlerService {
 			});
 		}
 
-		const authorPages = pages.filter((p) => /\/author\//.test(p.url));
+		const authorPages = crawlBudgetWastePages.filter((p) => /\/author\//.test(p.url));
 		if (authorPages.length > 3) {
 			issues.push({
 				type: 'author_archive_pages',
@@ -1447,7 +1447,7 @@ export class CrawlerService {
 			});
 		}
 
-		const paginatedPages = pages.filter((p) => /[?&]page=\d+|\/page\/\d+/.test(p.url));
+		const paginatedPages = crawlBudgetWastePages.filter((p) => /[?&]page=\d+|\/page\/\d+/.test(p.url));
 		if (paginatedPages.length > 10) {
 			issues.push({
 				type: 'pagination_waste',
@@ -1472,7 +1472,7 @@ export class CrawlerService {
 			});
 		}
 
-		const paramPages = pages.filter((p) => p.url.includes('?') && !p.canonical?.trim());
+		const paramPages = crawlBudgetWastePages.filter((p) => p.url.includes('?') && !p.canonical?.trim());
 		if (paramPages.length > 5) {
 			issues.push({
 				type: 'parameter_duplicates',
@@ -1757,14 +1757,14 @@ export class CrawlerService {
 		}
 
 		// S1-9: Nav + Footer Dilution Warning (reverse-silo-architecture.md)
-		const pages = session.results.filter((p) => p.statusCode < 400);
-		if (pages.length >= 5) {
-			const pagesWithHighNavCount = pages.filter((p) => {
+		const navFooterDilutionPages = session.results.filter((p) => p.statusCode < 400);
+		if (navFooterDilutionPages.length >= 5) {
+			const pagesWithHighNavCount = navFooterDilutionPages.filter((p) => {
 				const nav = p.navLinksCount ?? 0;
 				const footer = p.footerLinksCount ?? 0;
 				return nav + footer > 20;
 			});
-			const ratio = pagesWithHighNavCount.length / pages.length;
+			const ratio = pagesWithHighNavCount.length / navFooterDilutionPages.length;
 			if (ratio > 0.7) {
 				const totalNavFooter = pagesWithHighNavCount.reduce(
 					(sum, p) => sum + (p.navLinksCount ?? 0) + (p.footerLinksCount ?? 0),
@@ -1781,7 +1781,7 @@ export class CrawlerService {
 				issues.push({
 					type: 'nav_footer_dilution',
 					severity: 'warning',
-					description: `${pagesWithHighNavCount.length} of ${pages.length} crawled pages have more than 20 nav/footer links. This dilutes the ranking power your content passes to key pages.`,
+					description: `${pagesWithHighNavCount.length} of ${navFooterDilutionPages.length} crawled pages have more than 20 nav/footer links. This dilutes the ranking power your content passes to key pages.`,
 					recommendation
 				});
 			}

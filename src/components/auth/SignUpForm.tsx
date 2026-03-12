@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 export default function SignUpForm() {
 	const [searchParams] = useSearchParams();
 	const inviteId = searchParams.get('invite');
+	const shopifyStore = searchParams.get('shopify_store') ?? '';
 	const [showPassword, setShowPassword] = useState<boolean>(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 	const [isChecked, setIsChecked] = useState<boolean>(false);
@@ -31,6 +32,17 @@ export default function SignUpForm() {
 	const { signInWithGoogle, signUp, message } = useAuth();
 
 	const marketingUrl = import.meta.env.VITE_MARKETING_URL;
+
+	// Persist shopify_store for post-signup redirect (e.g. connect store from integrations)
+	useEffect(() => {
+		if (shopifyStore) {
+			try {
+				sessionStorage.setItem('sharkly_shopify_store', shopifyStore);
+			} catch {
+				// ignore
+			}
+		}
+	}, [shopifyStore]);
 
 	// Handle invitation completion after successful signup
 	useEffect(() => {
@@ -185,6 +197,11 @@ export default function SignUpForm() {
 						<p className="text-sm text-gray-500 dark:text-gray-400">
 							Enter your email and password to sign up!
 						</p>
+						{shopifyStore && (
+							<p className="mt-1 text-xs text-cyan-600 dark:text-cyan-400">
+								After signup you can connect your Shopify store ({shopifyStore}) from Settings → Integrations.
+							</p>
+						)}
 					</div>
 					<div>
 						{message && (

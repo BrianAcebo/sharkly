@@ -305,6 +305,86 @@ MODALS:
 
 ---
 
+### ECOMMERCE SEO
+
+/ecommerce — Ecommerce hub
+├── Header: "Ecommerce" + Add Product + Add Collection + Import from Shopify (if connected)
+├── Tabs: Products (default) | Collections
+├── Products table
+│   ├── Columns: Name | Keyword | Target | SEO Health | Status | Action
+│   ├── Bulk select checkboxes + sticky "Generate selected" bottom bar with credit cost
+│   └── Each row links to /ecommerce/:id
+├── Collections table (same structure)
+├── Empty state — no Shopify, no items: Add Product / Add Collection / Connect Shopify CTAs
+└── Empty state — Shopify connected, no items: Import from Shopify CTA
+
+MODALS:
+├── Add Product modal
+│   ├── Product name (required)
+│   ├── Product URL (optional — needed for SEO crawl checks)
+│   ├── Existing description (optional paste)
+│   └── Target selector (optional)
+├── Add Collection modal
+│   ├── Collection name (required)
+│   ├── Collection URL (optional)
+│   ├── Existing intro text (optional paste)
+│   └── Target selector (optional)
+└── Import from Shopify modal
+    ├── Tab: Products — pulls top 250 via Shopify Admin API, checkbox list
+    ├── Tab: Collections — pulls all collections, checkbox list
+    ├── Amber dot on collections with no existing intro text
+    └── "Import selected" button — free (0 credits)
+
+---
+
+/ecommerce/:id — Product or Collection Workspace
+├── Two-column layout (65% editor / 35% SEO checks)
+│
+├── LEFT PANEL — editor (65%)
+│   ├── Header row
+│   │   ├── Product/collection name (editable inline)
+│   │   ├── Keyword field (editable inline — placeholder "Set target keyword")
+│   │   ├── Target selector (sets destination_page_url on that Target record)
+│   │   ├── "Publish to Shopify" button (cyan — Shopify connected + content exists)
+│   │   ├── "Copy HTML" button (no Shopify connected + content exists)
+│   │   └── "Generate" button (10 credits)
+│   │
+│   ├── Keyword assignment block (shown until keyword is set)
+│   │   ├── Keyword input field
+│   │   ├── "Check SERP" — 5 credits (top 3 keyword suggestions, volume + difficulty)
+│   │   └── "Set manually" — free
+│   │
+│   ├── Description editor (Tiptap — same component as main workspace)
+│   │   ├── Before generation: existing_content shown read-only as "Current — will be rewritten"
+│   │   ├── After generation: Tiptap editor, same toolbar as workspace
+│   │   ├── Word count indicator: target 350–400 (products) / 150–200 (collections)
+│   │   └── Autosave
+│   │
+│   └── Schema block (collapsible, below editor)
+│       ├── Product: Product + Offer schema
+│       ├── Collection: CollectionPage + BreadcrumbList schema
+│       └── Copy-to-clipboard button
+│
+├── RIGHT PANEL — SEO checks (35%)
+│   ├── "Re-check" button (free — re-crawls URL)
+│   ├── Pass/fail summary: "X / 6 checks passing"
+│   ├── Check 1: Keyword in page title (weight 1.00)
+│   ├── Check 2: Keyword in H1 (weight 0.95)
+│   ├── Check 3: Keyword in URL slug (weight 0.85) — warning if GSC impressions exist
+│   ├── Check 4: Meta description present + 150–160 chars
+│   ├── Check 5: Description originality (manufacturer copy detection)
+│   ├── Check 6: Product/CollectionPage schema present
+│   ├── Duplicate variants warning (products only — variant_count > 3)
+│   └── Pagination canonical warning (collections only — products_count > 50)
+│
+└── Publish modal (on "Publish to Shopify")
+    ├── Destination: {product name} at {store}.myshopify.com/products/{handle}
+    ├── Checkbox: Overwrite existing description
+    ├── Checkbox: Update meta title + meta description
+    └── Confirm / Cancel
+
+---
+
 ### CRO STUDIO (Post-Launch — CRO Add-On subscribers only)
 
 /cro-studio — CRO Studio Home
@@ -580,6 +660,7 @@ SIDEBAR (all authenticated screens):
 │ ├── Dashboard
 │ ├── Strategy ← lands on /strategy (Targets overview)
 │ ├── Clusters
+│ ├── Ecommerce ← /ecommerce (all users — empty state handles onboarding)
 │ ├── Performance
 │ ├── Technical
 │ └── CRO Studio 🎯 (locked/greyed for base subscribers — post-launch add-on)
@@ -627,6 +708,8 @@ EMPTY STATES (all major screens have designed empty states):
 | /clusters                         |      Yes      |           Any            |
 | /clusters/:id                     |      Yes      |           Any            |
 | /workspace/:id                    |      Yes      |           Any            |
+| /ecommerce                        |      Yes      |           Any            |
+| /ecommerce/:id                    |      Yes      |           Any            |
 | /performance                      |      Yes      |         Growth+          |
 | /technical                        |      Yes      |          Scale+          |
 | /cro-studio                       |      Yes      | CRO Add-On (post-launch) |
@@ -648,13 +731,14 @@ EMPTY STATES (all major screens have designed empty states):
 | Strategy                  |       2        |
 | Clusters (index + detail) |       2        |
 | Workspace                 |       1        |
+| Ecommerce SEO             |       2        |
 | Performance               |       1        |
 | Technical SEO             |       1        |
 | CRO Studio (post-launch)  |       2        |
 | Settings                  |       6        |
 | Project settings          |       2        |
 | Shopify embedded app      |       1        |
-| **Total**                 |     **35**     |
+| **Total**                 |     **37**     |
 
 ---
 

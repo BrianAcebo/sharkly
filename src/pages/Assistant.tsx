@@ -13,7 +13,11 @@ export default function AssistantPage() {
 
 	return (
 		<TierGate requiredTier="growth" pageTitle="Fin" requireFinAddon>
-			<PageMeta title="Fin" description="Your SEO assistant — read project data, explain findings, suggest next actions" />
+			<PageMeta
+				title="Fin"
+				description="Your SEO assistant — read sites and clusters, explain audit findings, suggest next actions"
+				noIndex
+			/>
 			<AIAssistant />
 		</TierGate>
 	);
