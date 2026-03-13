@@ -1,12 +1,11 @@
-# fly.toml app configuration file generated for paperboat-crm-api on 2025-10-19T02:07:37Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# fly.toml app configuration
+# Deploy from repo root: fly deploy --config api/fly.toml
 
 app = 'paperboat-crm-api'
 primary_region = 'iad'
 
 [build]
+  dockerfile = "api/Dockerfile"
 
 [http_service]
   internal_port = 3000

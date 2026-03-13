@@ -1,11 +1,7 @@
-/.git
-/node_modules
-.dockerignore
-.env
-Dockerfile
-fly.toml
-node_modules
+# Used when building API (fly deploy --config api/fly.toml, context=root)
 .git
-.gitignore
-.vscode
-.DS_Store
+node_modules
+api/node_modules
+ui
+.env
+*.md

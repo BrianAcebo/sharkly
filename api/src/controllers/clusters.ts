@@ -3,9 +3,9 @@ import { supabase } from '../utils/supabaseClient.js';
 import { serperSearch } from '../utils/serper.js';
 import { getKeywordSuggestions } from '../utils/dataforseo.js';
 import type { DfsKeyword } from '../utils/dataforseo.js';
-import { CREDIT_COSTS } from '../../../shared/credits.mjs';
+import { CREDIT_COSTS } from '../utils/credits.js';
 import { classifyPageType } from '../utils/croChecklist.js';
-import { detectKeywordCannibalization } from '../../../shared/keywordCannibalization';
+import { detectKeywordCannibalization } from '../utils/keywordCannibalization.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';

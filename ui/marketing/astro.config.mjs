@@ -8,7 +8,7 @@ export default defineConfig({
     plugins: [tailwindcss()],
   },
   site: process.env.SITE_URL ?? 'https://sharkly.co',
-  publicDir: '../public',
+  publicDir: '../../public',
   output: 'server',
   adapter: node({ mode: 'standalone' }),
   server: { port: 4321 },

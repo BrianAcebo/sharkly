@@ -14,7 +14,7 @@ export function PageHeader({ title, subtitle, breadcrumb, rightContent }: PageHe
 				{breadcrumb && (
 					<div className="mb-2 text-xs text-gray-500 dark:text-gray-400">{breadcrumb}</div>
 				)}
-				<h1 className="font-montserrat text-[22px] font-bold text-gray-900 dark:text-white">
+				<h1 className="font-montserrat max-w-2xl text-[22px] font-bold text-gray-900 dark:text-white">
 					{title}
 				</h1>
 				{subtitle && (

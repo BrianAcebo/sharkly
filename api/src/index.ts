@@ -1,6 +1,6 @@
+import './loadEnv.js';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 
 import paymentRoutes from './routes/payment.js';
 import organizationRoutes from './routes/organization.js';
@@ -44,8 +44,6 @@ import {
 	customersDataRequest,
 	appUninstalled
 } from './controllers/shopifyWebhooks.js';
-
-dotenv.config();
 
 const app = express();
 const isFly = Boolean(process.env.FLY_APP_NAME);

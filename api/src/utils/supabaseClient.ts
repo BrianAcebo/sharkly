@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import 'dotenv/config';
 import { HttpError } from '../error/httpError.js';
 
 // Prefer server credentials when running in API (service role bypasses RLS/priv issues)

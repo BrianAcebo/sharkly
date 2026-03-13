@@ -10,7 +10,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { getReferringDomains } from '../utils/dataforseoBacklinks.js';
-import { CREDIT_COSTS } from '../../../shared/credits.mjs';
+import { CREDIT_COSTS } from '../utils/credits.js';
 
 const CREDIT_COST = CREDIT_COSTS.LINK_VELOCITY_CHECK;
 

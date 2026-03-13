@@ -9,7 +9,7 @@
 import { Request, Response } from 'express';
 import { OpenAI } from 'openai';
 import { supabase } from '../utils/supabaseClient';
-import { CREDIT_COSTS } from '../../../shared/credits.mjs';
+import { CREDIT_COSTS } from '../utils/credits.js';
 
 const GPT_CONTENT_MODEL = process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini';
 const openai = new OpenAI({

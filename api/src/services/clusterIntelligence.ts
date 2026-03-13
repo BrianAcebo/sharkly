@@ -1,4 +1,4 @@
-import type { CannibalizationConflict } from '../../../shared/keywordCannibalization';
+import type { CannibalizationConflict } from '../utils/keywordCannibalization.js';
 
 /**
  * L12 + S1-11. Cluster Intelligence Layer — Warnings 1-8

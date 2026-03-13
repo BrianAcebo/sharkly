@@ -1,6 +1,6 @@
 /**
  * S2-2: Keyword Density — bidirectional scoring (product-gaps-master.md V1.2e)
- * Shared between frontend (seoScore) and API (crawler).
+ * Used by technical audit service.
  */
 
 function countKeywordOccurrences(text: string, keyword: string): number {

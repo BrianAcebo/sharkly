@@ -1,6 +1,5 @@
 /**
  * S2-3: Keyword Cannibalization Detection (product-gaps-master.md V1.2a)
- * Shared between API and frontend.
  */
 
 const STOP_WORDS = new Set([
@@ -24,9 +23,6 @@ const STOP_WORDS = new Set([
 	'vs'
 ]);
 
-/**
- * Normalize keyword for comparison: lowercase, strip stop words, plural normalization, sort words.
- */
 export function normalizeKeyword(keyword: string): string {
 	if (!keyword || typeof keyword !== 'string') return '';
 	return keyword
@@ -62,10 +58,6 @@ export type PageForCannibalization = {
 	clusterTitle?: string;
 };
 
-/**
- * Detect keyword cannibalization across pages.
- * Returns conflicts where 2+ pages target the same normalized keyword.
- */
 export function detectKeywordCannibalization(
 	pages: PageForCannibalization[]
 ): CannibalizationConflict[] {
@@ -84,7 +76,6 @@ export function detectKeywordCannibalization(
 	const conflicts: CannibalizationConflict[] = [];
 	for (const [normalized, pageList] of keywordMap) {
 		if (pageList.length < 2) continue;
-		// Use the first page's original keyword as display
 		const displayKw = pageList[0].keyword ?? normalized;
 		conflicts.push({
 			keyword: displayKw,
@@ -101,9 +92,6 @@ export function detectKeywordCannibalization(
 	return conflicts;
 }
 
-/**
- * Check if adding a new keyword would create a cannibalization conflict.
- */
 export function wouldConflictWithKeyword(
 	existingPages: PageForCannibalization[],
 	proposedKeyword: string

@@ -1157,7 +1157,7 @@ export async function executeTool(
 				if (!siteId) return { success: false, result: null, error: 'site_id is required' };
 				const { site, error } = await verifySiteAccess(siteId, organizationId);
 				if (error) return { success: false, result: null, error };
-				const { CREDIT_COSTS } = await import('../../../shared/credits.mjs');
+				const { CREDIT_COSTS } = await import('../utils/credits.js');
 				const cost = CREDIT_COSTS.SITE_CRAWL;
 				const { data: org } = await supabase
 					.from('organizations')

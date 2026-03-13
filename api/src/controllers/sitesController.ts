@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { fetchDomainAuthority } from '../utils/moz.js';
-import { CREDIT_COSTS } from '../../../shared/credits.mjs';
-import { wouldConflictWithKeyword } from '../../../shared/keywordCannibalization';
+import { CREDIT_COSTS } from '../utils/credits.js';
+import { wouldConflictWithKeyword } from '../utils/keywordCannibalization.js';
 
 /**
  * POST /api/sites/:id/refresh-authority

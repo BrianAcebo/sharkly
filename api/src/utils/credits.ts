@@ -1,172 +1,39 @@
-import { supabase } from './supabaseClient.js';
-
-// =====================================================
-// Simple Action Credit Spending (no run_id required)
-// =====================================================
-
-export type ActionSpendParams = {
-  orgId: string;
-  creditCost: number;
-  category: string;        // e.g. 'site_crawl', 'fin_tool'
-  description: string;     // Human-readable description
-};
-
-export type ActionSpendResult = {
-  success: boolean;
-  error?: string;
-  errorType?: 'insufficient' | 'server';
-};
-
 /**
- * Spend credits for a one-off action (not tied to a public presence run).
- * Uses the flexible spend_credits RPC with reference_type/reference_id.
+ * Credit costs for the API.
+ * Keep in sync with ui/app/src/lib/credits.ts when adding new cost types.
+ * (Each app has its own copy; no shared folder.)
  */
-export async function spendCreditsForAction(params: ActionSpendParams): Promise<ActionSpendResult> {
-  const { orgId, creditCost, category, description } = params;
 
-  console.log('[Credits] Spending for action:', { orgId, creditCost, category });
+export const CREDIT_COSTS = {
+	SERP_ANALYSIS: 5,
+	STRATEGY_GENERATION: 15,
+	CLUSTER_GENERATION: 15,
+	MONEY_PAGE_BRIEF: 40,
+	ARTICLE_BRIEF: 40,
+	ARTICLE_GENERATION: 20,
+	META_GENERATION: 3,
+	CTR_OPTIMIZE: 3,
+	CRO_FIXES: 3,
+	PAGE_OPTIMIZATION: 25,
+	SITE_CRAWL: 10,
+	PERFORMANCE_INSIGHT: 2,
+	KEYWORD_LOOKUP: 5,
+	SECTION_REWRITE: 5,
+	FAQ_GENERATION: 5,
+	PRODUCT_DESCRIPTION: 10,
+	COLLECTION_INTRO: 10,
+	TONE_ADJUSTMENT: 5,
+	KEYWORD_VOLUME_REFRESH: 2,
+	TOXIC_LINK_AUDIT: 15,
+	REFRESH_AUTHORITY: 2,
+	LINK_VELOCITY_CHECK: 5
+} as const;
 
-  const { data, error } = await supabase.rpc('spend_credits', {
-    p_org_id: orgId,
-    p_credits: creditCost,
-    p_reference_type: category,
-    p_reference_id: null,
-    p_description: description,
-  });
+export const PLANS = {
+	builder: { name: 'Builder', credits: 250, price: 39 },
+	growth: { name: 'Growth', credits: 600, price: 79 },
+	scale: { name: 'Scale', credits: 1100, price: 119 },
+	pro: { name: 'Pro', credits: 2500, price: 169 }
+} as const;
 
-  if (error) {
-    console.error('[Credits] Failed to spend - DB error:', error);
-    return { success: false, error: 'An error occurred', errorType: 'server' };
-  }
-
-  // This version returns 'ok' instead of 'success'
-  if (!data?.ok) {
-    console.log('[Credits] Spend rejected:', data);
-    return { success: false, error: 'Insufficient credits', errorType: 'insufficient' };
-  }
-
-  console.log('[Credits] Spent successfully:', data);
-  return { success: true };
-}
-
-// =====================================================
-// Full Usage Event Credit Spending (with run_id)
-// =====================================================
-
-export type SpendParams = {
-  orgId: string;
-  seatId: string | null;
-  runId: string | null;
-  category: string;
-  provider: string;
-  unit: string;
-  qty: number;
-  creditCost: number;
-  meta?: Record<string, unknown>;
-};
-
-export type SpendResult = {
-  ok: boolean;
-  from_included_credits: number;
-  from_wallet_credits: number;
-  wallet_debit_cents: number;
-  included_remaining_credits?: number | null;
-  reason?: string;
-  proceededWithoutRpc?: boolean;
-};
-
-/**
- * Spend credits for a usage event, preferring included credits first.
- * Falls back to wallet RPC if included credits are insufficient.
- * If the RPC is unavailable (function missing), returns ok=true and proceededWithoutRpc=true,
- * allowing callers to proceed (soft fail for environments without RPC).
- */
-export async function spendCreditsPreferIncludedOrWallet(params: SpendParams): Promise<SpendResult> {
-  const { orgId, seatId, runId, category, provider, unit, qty, creditCost, meta } = params;
-
-  // Try included credits first
-  try {
-    const { data: orgInfo } = await supabase
-      .from('organizations')
-      .select('id, included_credits')
-      .eq('id', orgId)
-      .single();
-    const available = Number((orgInfo as { included_credits: number | null } | null)?.included_credits ?? 0);
-    if (available >= creditCost) {
-      const newRemaining = available - creditCost;
-      const [{ error: updErr }] = await Promise.all([
-        supabase.from('organizations').update({ included_credits: newRemaining }).eq('id', orgId),
-        supabase.from('usage_events').insert({
-          org_id: orgId,
-          run_id: runId,
-          category,
-          provider,
-          unit,
-          qty,
-          credit_cost: creditCost,
-          meta: meta ?? {}
-        })
-      ]);
-      if (!updErr) {
-        return {
-          ok: true,
-          from_included_credits: creditCost,
-          from_wallet_credits: 0,
-          wallet_debit_cents: 0,
-          included_remaining_credits: newRemaining
-        };
-      }
-    }
-  } catch {
-    // ignore; try wallet next
-  }
-
-  // Wallet RPC path
-  const { data: billData, error: billErr } = await supabase.rpc('spend_credits_for_usage_event', {
-    p_org_id: orgId,
-    p_seat_id: seatId,
-    p_run_id: runId,
-    p_category: category,
-    p_provider: provider,
-    p_unit: unit,
-    p_qty: qty,
-    p_credit_cost: creditCost,
-    p_raw_cost_cents: 0,
-    p_meta: meta ?? {}
-  });
-
-  if (billErr || !billData?.ok) {
-    const reason = billData?.reason ?? billErr?.message ?? 'billing_failed';
-    // If RPC function is missing/unavailable in this environment, allow proceeding
-    const rpcMissing = /could not find the function|not exist/i.test(reason);
-    if (rpcMissing) {
-      return {
-        ok: true,
-        proceededWithoutRpc: true,
-        from_included_credits: 0,
-        from_wallet_credits: 0,
-        wallet_debit_cents: 0,
-        included_remaining_credits: billData?.included_remaining_credits ?? null,
-        reason
-      };
-    }
-    return {
-      ok: false,
-      from_included_credits: 0,
-      from_wallet_credits: 0,
-      wallet_debit_cents: 0,
-      included_remaining_credits: billData?.included_remaining_credits ?? null,
-      reason
-    };
-  }
-
-  return {
-    ok: true,
-    from_included_credits: billData.from_included_credits ?? 0,
-    from_wallet_credits: billData.from_wallet_credits ?? 0,
-    wallet_debit_cents: billData.wallet_debit_cents ?? 0,
-    included_remaining_credits: billData?.included_remaining_credits ?? null
-  };
-}
-
-
+export const OVERAGE_RATE = 0.05;

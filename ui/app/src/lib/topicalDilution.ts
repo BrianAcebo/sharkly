@@ -7,13 +7,9 @@
 const STOP_WORDS = new Set([
 	'the', 'a', 'an', 'and', 'or', 'for', 'to', 'in', 'of', 'on', 'with',
 	'how', 'what', 'why', 'when', 'which', 'best', 'vs', 'guide', 'tips',
-	'2024', '2025', '2026' // common non-entity suffixes
+	'2024', '2025', '2026'
 ]);
 
-/**
- * Extract significant terms from a keyword for entity overlap.
- * Lowercase, 2+ chars, excludes stop words.
- */
 export function extractKeywordTerms(keyword: string): string[] {
 	if (!keyword || typeof keyword !== 'string') return [];
 	const terms = keyword
@@ -25,13 +21,9 @@ export function extractKeywordTerms(keyword: string): string[] {
 	return [...new Set(terms)];
 }
 
-/**
- * Compute entity overlap: proportion of new keyword's terms that appear in existing content.
- * overlap = |newTerms ∩ existingTerms| / max(1, |newTerms|)
- */
 export function calculateEntityOverlap(existingKeywords: string[], newKeyword: string): number {
 	const newTerms = extractKeywordTerms(newKeyword);
-	if (newTerms.length === 0) return 1; // nothing to compare — treat as safe
+	if (newTerms.length === 0) return 1;
 	const existingTerms = new Set<string>();
 	for (const kw of existingKeywords) {
 		for (const t of extractKeywordTerms(kw)) existingTerms.add(t);
@@ -51,10 +43,6 @@ export type TopicalDilutionResult = {
 
 const MIN_EXISTING_TOPICS = 5;
 
-/**
- * Detect topical dilution risk when adding a new topic.
- * Fires when <20% entity overlap with existing content and project has >= 5 topics.
- */
 export function detectTopicalDilution(
 	newKeyword: string,
 	existingKeywords: string[],

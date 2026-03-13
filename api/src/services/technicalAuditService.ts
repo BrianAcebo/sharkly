@@ -8,7 +8,7 @@ import { crawlabilityChecker, CrawlabilityResult } from './crawlabilityChecker.j
 import { crawlerService, CrawlResult } from './crawlerService.js';
 import { supabase } from '../utils/supabaseClient.js';
 import axios from 'axios';
-import { getKeywordDensity } from '../../../shared/keywordDensity';
+import { getKeywordDensity } from '../utils/keywordDensity.js';
 
 export interface TechnicalAuditResult {
 	siteId: string;

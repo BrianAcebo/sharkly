@@ -516,7 +516,7 @@ On success: update `status` to `'published'`, save `published_at`, show success 
 | Publish to Shopify | 0 |
 | Bulk generate (N products) | 10 × N |
 
-Add to `shared/credits.ts` and `shared/credits.mjs`:
+Add to `api/src/utils/credits.ts` and `ui/app/src/lib/credits.ts`:
 ```
 PRODUCT_DESCRIPTION_GENERATION = 10
 COLLECTION_INTRO_GENERATION = 10

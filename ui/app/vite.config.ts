@@ -11,6 +11,7 @@ const __dirname = dirname(__filename);
 // https://vitejs.dev/config/
 export default defineConfig({
   base: "/",
+  envDir: "../..",  // load .env from repo root
   plugins: [react(), tailwindcss()],
   optimizeDeps: {
     exclude: ['lucide-react'],

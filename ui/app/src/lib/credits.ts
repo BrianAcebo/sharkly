@@ -1,17 +1,13 @@
 /**
  * Single source of truth for all credit costs across the app.
- * Used by: frontend (Workspace, Strategy, ClusterDetail, SettingsCredits), API (pages, clusters).
- * When changing values here, update shared/credits.mjs so the Node API uses the same costs.
+ * Use: import { CREDIT_COSTS } from '../lib/credits'
  */
 
 export const CREDIT_COSTS = {
 	SERP_ANALYSIS: 5,
-	/** AI strategy suggestion generation — Serper competitor research + Claude Sonnet */
 	STRATEGY_GENERATION: 15,
 	CLUSTER_GENERATION: 15,
-	/** Focus page / money page brief generation */
 	MONEY_PAGE_BRIEF: 40,
-	/** Supporting article content generation (~1,000 words) */
 	ARTICLE_GENERATION: 20,
 	META_GENERATION: 3,
 	CTR_OPTIMIZE: 3,
@@ -19,27 +15,17 @@ export const CREDIT_COSTS = {
 	PAGE_OPTIMIZATION: 25,
 	SITE_CRAWL: 10,
 	PERFORMANCE_INSIGHT: 2,
-	/** Keyword lookup modal: 1 Serper + 1 Haiku classification */
 	KEYWORD_LOOKUP: 5,
-	/** Section-level rewrite in workspace */
 	SECTION_REWRITE: 5,
-	/** Standalone FAQ generation */
 	FAQ_GENERATION: 5,
-	/** Product description rewriter (ecommerce) */
 	PRODUCT_DESCRIPTION: 10,
-	/** Collection intro generation (ecommerce) */
 	COLLECTION_INTRO: 10,
-	/** Tone adjustment after generation */
 	TONE_ADJUSTMENT: 5,
-	/** Refresh monthly search volume for a single keyword — 1 Serper call */
 	KEYWORD_VOLUME_REFRESH: 2,
-	/** S1-7: Toxic link audit — DataForSEO backlinks + toxic scoring */
 	TOXIC_LINK_AUDIT: 15,
-	/** Refresh Domain Authority from Moz (1 API call) */
 	REFRESH_AUTHORITY: 2,
-	/** S2-14: Link velocity check — DataForSEO referring domains + monthly growth evaluation */
 	LINK_VELOCITY_CHECK: 5
-};
+} as const;
 
 export const CREDIT_COST_LABELS = {
 	CRAWL: 'Site crawl / technical audit',
@@ -64,8 +50,9 @@ export const CREDIT_COST_LABELS = {
 	LINK_VELOCITY_CHECK: 'Link velocity check'
 };
 
-/** Cost to generate all content in a cluster: focus pages × MONEY_PAGE_BRIEF + articles × ARTICLE_GENERATION */
-export function getGenerateAllCreditsCost(focusPageCount, articleCount) {
+export type CreditCostKey = keyof typeof CREDIT_COSTS;
+
+export function getGenerateAllCreditsCost(focusPageCount: number, articleCount: number): number {
 	return (
 		focusPageCount * CREDIT_COSTS.MONEY_PAGE_BRIEF + articleCount * CREDIT_COSTS.ARTICLE_GENERATION
 	);
@@ -76,6 +63,6 @@ export const PLANS = {
 	growth: { name: 'Growth', credits: 600, price: 79 },
 	scale: { name: 'Scale', credits: 1100, price: 119 },
 	pro: { name: 'Pro', credits: 2500, price: 169 }
-};
+} as const;
 
 export const OVERAGE_RATE = 0.05;

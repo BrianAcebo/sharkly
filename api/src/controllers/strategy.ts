@@ -70,7 +70,7 @@ import {
 	getKeywordMetrics,
 	type DfsKeyword
 } from '../utils/dataforseo.js';
-import { CREDIT_COSTS } from '../../../shared/credits.mjs';
+import { CREDIT_COSTS } from '../utils/credits.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';

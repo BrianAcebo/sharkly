@@ -19,7 +19,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient';
 import { OpenAI } from 'openai';
-import { CREDIT_COSTS } from '../../../shared/credits.mjs';
+import { CREDIT_COSTS } from '../utils/credits.js';
 
 const GPT_CONTENT_MODEL = process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });

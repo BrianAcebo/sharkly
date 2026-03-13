@@ -7,7 +7,7 @@
 import { Request, Response } from 'express';
 import { OpenAI } from 'openai';
 import { supabase } from '../utils/supabaseClient.js';
-import { CREDIT_COSTS } from '../../../shared/credits.mjs';
+import { CREDIT_COSTS } from '../utils/credits.js';
 import { serperSearch } from '../utils/serper.js';
 import { fetchCompetitorPages } from '../utils/competitorFetch.js';
 import {

@@ -4,7 +4,7 @@ import { supabase } from '../utils/supabaseClient.js';
 import fetch from 'node-fetch';
 import { serperSearch } from '../utils/serper.js';
 import { fetchCompetitorPages } from '../utils/competitorFetch.js';
-import { CREDIT_COSTS } from '../../../shared/credits.mjs';
+import { CREDIT_COSTS } from '../utils/credits.js';
 import {
 	classifyPageType,
 	inferDominantIntentFromKeyword,

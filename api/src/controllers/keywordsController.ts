@@ -9,7 +9,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { serperSearch } from '../utils/serper.js';
 import Anthropic from '@anthropic-ai/sdk';
-import { CREDIT_COSTS } from '../../../shared/credits.mjs';
+import { CREDIT_COSTS } from '../utils/credits.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const CLAUDE_HAIKU_MODEL = process.env.CLAUDE_HAIKU_MODEL || 'claude-3-haiku-20240307';

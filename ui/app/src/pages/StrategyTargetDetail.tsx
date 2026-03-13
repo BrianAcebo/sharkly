@@ -770,7 +770,7 @@ export default function StrategyTargetDetail() {
 
 		// S2-5: Topical dilution check — <20% entity overlap with existing = amber warning (product-gaps V1.2d)
 		if (!editTopicId && keyword) {
-			const { detectTopicalDilution } = await import('../../shared/topicalDilution');
+			const { detectTopicalDilution } = await import('../lib/topicalDilution');
 			const existingKeywords = topics
 				.filter((t) => t.id !== editTopicId)
 				.map((t) => (t.keyword || t.title || '').trim())
@@ -1024,7 +1024,7 @@ export default function StrategyTargetDetail() {
 		const chosen = suggestions.filter((_, i) => selectedSuggestions.has(i));
 		const existingKeywords = topics.map((t) => (t.keyword || t.title || '').trim()).filter(Boolean);
 		if (existingKeywords.length >= 5 && chosen.length > 0) {
-			const { detectTopicalDilution } = await import('../../shared/topicalDilution');
+			const { detectTopicalDilution } = await import('../lib/topicalDilution');
 			const atRisk = chosen.filter((s) => {
 				const kw = (s.keyword || s.title || '').trim();
 				return kw && detectTopicalDilution(kw, existingKeywords);
