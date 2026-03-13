@@ -2,8 +2,8 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { Zap, Check, Sparkles, ArrowRight } from '@lucide/astro';
 
-const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
-const siteUrl = import.meta.env.SITE_URL ?? 'https://sharkly.co';
+const appUrl = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
+const siteUrl = import.meta.env.MARKETING_URL ?? 'https://sharkly.co';
 const canonicalUrl = `${siteUrl}/pricing`;
 
 const pageTitle = 'Pricing';

@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getFeaturedPosts } from '../lib/supabase';
 
-const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
+const appUrl = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
 const featuredPosts = await getFeaturedPosts(3);
 
 const schema = {

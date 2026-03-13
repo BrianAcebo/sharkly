@@ -14,7 +14,7 @@ const [categories, posts] = await Promise.all([
 const category = categories.find((c) => c.slug === slug);
 if (!category) return Astro.redirect('/404');
 
-const siteUrl = (import.meta.env.SITE_URL as string | undefined) ?? 'https://sharkly.co';
+const siteUrl = (import.meta.env.MARKETING_URL as string | undefined) ?? 'https://sharkly.co';
 const schema = {
   '@context': 'https://schema.org',
   '@type': 'CollectionPage',

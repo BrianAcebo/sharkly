@@ -4,12 +4,12 @@ This is the public-facing **sharkly.co** marketing and content site, built with 
 
 ## Domain Architecture
 
-| Domain | What it is | Tech |
-|---|---|---|
-| `sharkly.co` | Marketing + blog | Astro (SSR, this project) |
-| `app.sharkly.co` | The actual app | React (Vite, root of monorepo) |
-| `sharkly-api.fly.dev` | Backend API | Express (api/) |
-| `api.sharkly.co` | Supabase custom domain | Not the Express backend |
+| Domain                | What it is             | Tech                           |
+| --------------------- | ---------------------- | ------------------------------ |
+| `sharkly.co`          | Marketing + blog       | Astro (SSR, this project)      |
+| `app.sharkly.co`      | The actual app         | React (Vite, root of monorepo) |
+| `sharkly-api.fly.dev` | Backend API            | Express (api/)                 |
+| `api.sharkly.co`      | Supabase custom domain | Not the Express backend        |
 
 ## URL structure
 
@@ -44,8 +44,8 @@ Content is managed through the **admin CMS at `app.sharkly.co/admin/blog`**.
 
 ```bash
 cp .env.example .env
-# Fill in SITE_URL, PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY
-# Optional for local dev: PUBLIC_APP_URL=http://localhost:5173 (so CTAs link to local app from marketing site)
+# Fill in MARKETING_URL, PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY
+# Optional for local dev: FRONTEND_URL=http://localhost:5173 (so CTAs link to local app from marketing site)
 # For the Shopify app landing page (sharkly.co/shopify-seo-app): set PUBLIC_SHOPIFY_APP_URL to your Shopify app install URL so CTAs send users to install the app
 
 npm install
@@ -54,6 +54,7 @@ npm run build
 ```
 
 **Ports when running `npm run dev` from repo root:**
+
 - **4321** — Marketing site (Astro, this project) — homepage, blog
 - **5173** — App (Vite/React) — dashboard, strategy, etc.
 

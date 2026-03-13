@@ -15,8 +15,8 @@ import {
 } from '@lucide/astro';
 
 const shopifyAppUrl = import.meta.env.PUBLIC_SHOPIFY_APP_URL ?? import.meta.env.VITE_SHOPIFY_APP_URL ?? 'https://app.sharkly.co/signup?source=shopify';
-const appUrl       = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
-const siteUrl      = import.meta.env.SITE_URL ?? 'https://sharkly.co';
+const appUrl       = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
+const siteUrl      = import.meta.env.MARKETING_URL ?? 'https://sharkly.co';
 const canonicalUrl = `${siteUrl}/shopify`;
 
 const pageTitle       = 'Easy SEO for Shopify Stores';

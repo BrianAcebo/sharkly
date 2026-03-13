@@ -11,7 +11,7 @@ const [categories, featured, recent] = await Promise.all([
 
 const recentNonFeatured = recent.filter(p => !p.featured).slice(0, 9);
 
-const siteUrl = (import.meta.env.SITE_URL as string | undefined) ?? 'https://sharkly.co';
+const siteUrl = (import.meta.env.MARKETING_URL as string | undefined) ?? 'https://sharkly.co';
 
 const schema = {
   '@context': 'https://schema.org',

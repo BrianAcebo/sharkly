@@ -7,7 +7,7 @@ const { slug } = Astro.params;
 const post = await getPost(slug as string);
 if (!post) return Astro.redirect('/404');
 
-const siteUrl = (import.meta.env.SITE_URL as string | undefined) ?? 'https://sharkly.co';
+const siteUrl = (import.meta.env.MARKETING_URL as string | undefined) ?? 'https://sharkly.co';
 const canonical = post.canonical_url ?? `${siteUrl}/blog/${post.blog_categories?.slug ?? 'uncategorized'}/${post.slug}`;
 const date = post.published_at
   ? new Date(post.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })

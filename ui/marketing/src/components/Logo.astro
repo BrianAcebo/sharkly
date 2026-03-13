@@ -10,7 +10,7 @@ interface Props {
   fetchPriority?: 'high' | 'low' | 'auto';
 }
 
-const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
+const appUrl = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
 
 const { width = 200, height = 65, isIcon = false, className, alt = 'Sharkly logo', fetchPriority = 'high' } = Astro.props;
 const iconWidth = Number(width) / 4 || 'auto';
