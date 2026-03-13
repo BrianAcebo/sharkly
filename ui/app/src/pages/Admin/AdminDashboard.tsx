@@ -10,7 +10,17 @@ import {
 import { Button } from '../../components/ui/button';
 import InputField from '../../components/form/input/InputField';
 
-import { DollarSign, FileText, Shield, Lock, Eye, EyeOff, Loader2, LogOut, BookOpen } from 'lucide-react';
+import {
+	DollarSign,
+	FileText,
+	Shield,
+	Lock,
+	Eye,
+	EyeOff,
+	Loader2,
+	LogOut,
+	BookOpen
+} from 'lucide-react';
 import { toast } from 'sonner';
 import PageMeta from '../../components/common/PageMeta';
 import { api } from '../../utils/api';
@@ -142,7 +152,7 @@ export default function AdminDashboard() {
 	if (!isAuthenticated) {
 		return (
 			<>
-				<PageMeta title="Admin | True Sight" description="Admin access required" />
+				<PageMeta title="Admin | Sharkly" description="Admin access required" />
 				<div className="flex min-h-[60vh] items-center justify-center">
 					<Card className="w-full max-w-sm">
 						<CardHeader className="text-center">
@@ -185,7 +195,7 @@ export default function AdminDashboard() {
 
 	return (
 		<>
-			<PageMeta title="Admin | True Sight" description="Admin dashboard for support operations" />
+			<PageMeta title="Admin | Sharkly" description="Admin dashboard for support operations" />
 			<div className="mx-auto max-w-4xl p-6">
 				<div className="mb-4 flex justify-end">
 					<Button variant="destructive" size="sm" onClick={handleLogout}>

@@ -58,7 +58,7 @@ export const ReadOnlyMode: React.FC<ReadOnlyModeProps> = ({
 					icon: <AlertTriangle className="h-5 w-5" />,
 					title: 'Subscription Ended',
 					message: canManage
-						? 'Start a new subscription to regain access to Paperboat CRM.'
+						? 'Start a new subscription to regain access to Sharkly.'
 						: 'Your subscription has ended. An owner or admin can restart it.',
 					showResume: false,
 					showManagePortal: false,
@@ -193,7 +193,7 @@ export const ReadOnlyMode: React.FC<ReadOnlyModeProps> = ({
 									</p>
 								)}
 								<p className="mt-5 block text-xs text-gray-500 dark:text-gray-400">
-									Need help? Contact our support team at hello@paperboatcrm.com
+									Need help? Contact our support team at hello@sharkly.co
 								</p>
 
 								{/* Logout option - always visible */}

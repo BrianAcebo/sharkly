@@ -198,7 +198,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 				// The subscription and PI were created in the previous step.
 				// Do NOT call /onboard again here or you'll create a second subscription that auto-pays.
 				toast.success('Payment succeeded. Finalizing organization setup...');
-				
+
 				// In test/development, manually trigger webhook confirmation since webhooks may not fire
 				if (process.env.NODE_ENV !== 'production') {
 					try {
@@ -221,7 +221,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 						// Continue anyway; webhook may still fire
 					}
 				}
-				
+
 				await onSuccess();
 				return;
 			}
@@ -1047,7 +1047,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 							</h2>
 							<p className="text-gray-600 dark:text-gray-400">
 								{mode === 'renewal'
-									? 'Access has been restored. You can continue using True Sight.'
+									? 'Access has been restored. You can continue using Sharkly.'
 									: 'Your organization has been created successfully.'}
 								{mode === 'new' && trialSelected && ' Enjoy your 7‑day pay‑as‑you‑go trial!'}
 							</p>

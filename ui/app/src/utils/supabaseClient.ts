@@ -17,14 +17,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 		// Detect session in URL (for OAuth flows)
 		detectSessionInUrl: true,
 		// Storage key for session
-		storageKey: 'paperboat-auth-token',
+		storageKey: 'sharkly-auth-token',
 		// Flow type for auth
 		flowType: 'pkce'
 	},
 	// Global headers
 	global: {
 		headers: {
-			'X-Client-Info': 'paperboat-crm'
+			'X-Client-Info': 'sharkly'
 		}
 	},
 	// Enable realtime subscriptions

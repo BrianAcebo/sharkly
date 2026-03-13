@@ -430,7 +430,7 @@ export default function RefundAdmin() {
 	if (!isAuthenticated) {
 		return (
 			<>
-				<PageMeta title="Admin Access | True Sight" description="Admin access required" />
+				<PageMeta title="Admin Access | Sharkly" description="Admin access required" />
 				<div className="flex min-h-[60vh] items-center justify-center">
 					<Card className="w-full max-w-sm">
 						<CardHeader className="text-center">
@@ -474,7 +474,7 @@ export default function RefundAdmin() {
 	return (
 		<>
 			<PageMeta
-				title="Refund Admin | True Sight"
+				title="Refund Admin | Sharkly"
 				description="Manage refunds and billing for organizations"
 			/>
 			<div className="mx-auto max-w-6xl space-y-6 p-6">

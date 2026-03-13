@@ -1,7 +1,7 @@
 # fly.toml app configuration
 # Deploy from repo root: fly deploy --config api/fly.toml
 
-app = 'paperboat-crm-api'
+app = 'sharkly-api'
 primary_region = 'iad'
 
 [build]

@@ -445,7 +445,7 @@ export default function StripeAudit() {
 	if (!isAuthenticated) {
 		return (
 			<>
-				<PageMeta title="Stripe Audit | True Sight" description="Stripe audit trail for support" />
+				<PageMeta title="Stripe Audit | Sharkly" description="Stripe audit trail for support" />
 				<div className="flex min-h-[60vh] items-center justify-center">
 					<Card className="w-full max-w-sm">
 						<CardHeader className="text-center">
@@ -488,7 +488,7 @@ export default function StripeAudit() {
 
 	return (
 		<>
-			<PageMeta title="Stripe Audit | True Sight" description="Stripe audit trail for support" />
+			<PageMeta title="Stripe Audit | Sharkly" description="Stripe audit trail for support" />
 			<div className="mx-auto max-w-7xl space-y-6 p-6">
 				<div className="flex items-center justify-between">
 					<h1 className="text-2xl font-bold">Stripe Audit Trail</h1>

@@ -362,8 +362,8 @@ export default function OrganizationRequired() {
 		return <SeamlessBillingFlow onClose={() => setShowSeamlessBilling(false)} />;
 	}
 
-	const isIncompleteSubscription = 
-		currentOrg?.stripe_status === 'incomplete' || 
+	const isIncompleteSubscription =
+		currentOrg?.stripe_status === 'incomplete' ||
 		currentOrg?.stripe_status === 'incomplete_expired';
 	const isPaymentPending = currentOrg?.status === 'payment_pending';
 	const isPaymentRequired = currentOrg?.status === 'payment_required';
@@ -376,13 +376,14 @@ export default function OrganizationRequired() {
 					{hasIncompletePayment && (
 						<div className="mb-8 rounded-lg bg-red-50 p-4 dark:bg-red-900/20">
 							<div className="flex items-start gap-3">
-								<AlertCircle className="h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+								<AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600 dark:text-red-400" />
 								<div className="text-left">
 									<h3 className="font-semibold text-red-900 dark:text-red-100">
 										Payment Confirmation Required
 									</h3>
 									<p className="mt-1 text-sm text-red-800 dark:text-red-200">
-										Your subscription payment is incomplete. Please complete the payment process to continue using the app.
+										Your subscription payment is incomplete. Please complete the payment process to
+										continue using the app.
 									</p>
 								</div>
 							</div>
@@ -392,7 +393,7 @@ export default function OrganizationRequired() {
 						{hasIncompletePayment ? 'Complete Your Payment' : 'Organization Required'}
 					</h1>
 					<p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-						{hasIncompletePayment 
+						{hasIncompletePayment
 							? 'Finalize your subscription to access all features'
 							: 'You need to be part of an organization to use this feature.'}
 					</p>
@@ -426,7 +427,7 @@ export default function OrganizationRequired() {
 							Let's get started
 						</h4>
 						<p className="mb-6 text-sm text-gray-500 lg:mb-7 dark:text-gray-400">
-							Create an organization to get started with True Sight.
+							Create an organization to get started with Sharkly.
 						</p>
 					</div>
 

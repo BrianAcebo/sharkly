@@ -133,7 +133,7 @@ const templates = {
 				<div class="email-container">
 					<div class="email-header">
                         <h1>🎯 Team Invitation</h1>
-                        <p>You've been invited to join a team on True Sight Intelligence</p>
+                        <p>You've been invited to join a team on Sharkly</p>
 					</div>
 					
 					<div class="email-content">
@@ -172,7 +172,7 @@ const templates = {
 					
 					<div class="email-footer">
                         <p>If you did not expect this invitation, please ignore this email.</p>
-                        <p style="margin-top: 8px;">© ${new Date().getFullYear()} True Sight Intelligence. All rights reserved.</p>
+                        <p style="margin-top: 8px;">© ${new Date().getFullYear()} Sharkly. All rights reserved.</p>
 					</div>
 				</div>
 			</body>
@@ -180,7 +180,7 @@ const templates = {
 		`
 	},
 	organizationDeleted: {
-        subject: (orgName: string) => `Organization ${orgName} has been deleted`,
+		subject: (orgName: string) => `Organization ${orgName} has been deleted`,
 		text: (data: TemplateData['organizationDeleted']) => `
 			Hello ${data.firstName},
 			
@@ -189,12 +189,12 @@ const templates = {
 			This means:
 			- You no longer have access to any data or resources from this organization
 			- All your organization specific data have been permanently removed
-			- You will need to be invited to a new organization to continue using True Sight
+			- You will need to be invited to a new organization to continue using Sharkly
 			
 			If you have any questions or concerns, please contact our support team.
 			
 			Best regards,
-			The True Sight Team
+			The Sharkly Team
 		`,
 		html: (data: TemplateData['organizationDeleted']) => `
 			<!DOCTYPE html>
@@ -262,13 +262,13 @@ const templates = {
 							<ul>
 								<li>You no longer have access to any data or resources from this organization</li>
 								<li>All your organization specific data have been permanently removed</li>
-								<li>You will need to be invited to a new organization to continue using True Sight</li>
+								<li>You will need to be invited to a new organization to continue using Sharkly</li>
 							</ul>
 						</div>
 						
 						<div class="info-box">
 							<h3>Next Steps</h3>
-                            <p>If you need to continue using True Sight Intelligence, you'll need to:</p>
+                            <p>If you need to continue using Sharkly, you'll need to:</p>
 							<p>1. Be invited to a new organization by an organization owner</p>
 							<p>2. Or create your own organization if you have the appropriate permissions</p>
 						</div>
@@ -280,8 +280,8 @@ const templates = {
 					
 					<div class="email-footer">
                         <p>Best regards,</p>
-                        <p style="margin-top: 8px;">The True Sight Intelligence Team</p>
-                        <p style="margin-top: 8px;">© ${new Date().getFullYear()} True Sight Intelligence. All rights reserved.</p>
+                        <p style="margin-top: 8px;">The Sharkly Team</p>
+                        <p style="margin-top: 8px;">© ${new Date().getFullYear()} Sharkly. All rights reserved.</p>
 					</div>
 				</div>
 			</body>
@@ -289,8 +289,9 @@ const templates = {
 		`
 	},
 	trialStarted: {
-        subject: (orgName: string) => `Your True Sight Intelligence trial has started for ${orgName}`,
-		text: (data: TemplateData['trialStarted']) => `Your trial for ${data.orgName} has started. It ends on ${new Date(data.trialEnd).toLocaleString()}.`,
+		subject: (orgName: string) => `Your Sharkly trial has started for ${orgName}`,
+		text: (data: TemplateData['trialStarted']) =>
+			`Your trial for ${data.orgName} has started. It ends on ${new Date(data.trialEnd).toLocaleString()}.`,
 		html: (data: TemplateData['trialStarted']) => `
 			<!DOCTYPE html>
 			<html lang="en">
@@ -327,7 +328,7 @@ const templates = {
 						</p>
 					</div>
 					<div class="email-footer">
-                        <p>True Sight Intelligence • Uncover digital footprints instantly 🔎</p>
+                        <p>Sharkly • Your AI SEO strategist 🔎</p>
 					</div>
 				</div>
 			</body>
@@ -335,8 +336,9 @@ const templates = {
 		`
 	},
 	trialEndingSoon: {
-        subject: (orgName: string) => `Your ${orgName} trial is ending soon`,
-		text: (data: TemplateData['trialEndingSoon']) => `Your trial for ${data.orgName} ends in ${data.daysRemaining} days, on ${new Date(data.trialEnd).toLocaleString()}.`,
+		subject: (orgName: string) => `Your ${orgName} trial is ending soon`,
+		text: (data: TemplateData['trialEndingSoon']) =>
+			`Your trial for ${data.orgName} ends in ${data.daysRemaining} days, on ${new Date(data.trialEnd).toLocaleString()}.`,
 		html: (data: TemplateData['trialEndingSoon']) => `
 			<!DOCTYPE html>
 			<html lang="en">
@@ -371,7 +373,7 @@ const templates = {
 						</p>
 					</div>
 					<div class="email-footer">
-                        <p>True Sight Intelligence • Uncover digital footprints instantly 🔎</p>
+                        <p>Sharkly • Your AI SEO strategist 🔎</p>
 					</div>
 				</div>
 			</body>
@@ -379,8 +381,9 @@ const templates = {
 		`
 	},
 	trialEndsTomorrow: {
-        subject: (orgName: string) => `Your ${orgName} trial ends tomorrow`,
-		text: (data: TemplateData['trialEndsTomorrow']) => `Your trial for ${data.orgName} ends tomorrow (${new Date(data.trialEnd).toLocaleString()}).`,
+		subject: (orgName: string) => `Your ${orgName} trial ends tomorrow`,
+		text: (data: TemplateData['trialEndsTomorrow']) =>
+			`Your trial for ${data.orgName} ends tomorrow (${new Date(data.trialEnd).toLocaleString()}).`,
 		html: (data: TemplateData['trialEndsTomorrow']) => `
 			<!DOCTYPE html>
 			<html lang="en">
@@ -415,7 +418,7 @@ const templates = {
 						</p>
 					</div>
 					<div class="email-footer">
-                        <p>True Sight Intelligence • Uncover digital footprints instantly 🔎</p>
+                        <p>Sharkly • Your AI SEO strategist 🔎</p>
 					</div>
 				</div>
 			</body>
@@ -423,8 +426,9 @@ const templates = {
 		`
 	},
 	trialEnded: {
-        subject: (orgName: string) => `${orgName} trial has ended`,
-		text: (data: TemplateData['trialEnded']) => `Your trial for ${data.orgName} has ended. End date: ${new Date(data.trialEnd).toLocaleString()}.`,
+		subject: (orgName: string) => `${orgName} trial has ended`,
+		text: (data: TemplateData['trialEnded']) =>
+			`Your trial for ${data.orgName} has ended. End date: ${new Date(data.trialEnd).toLocaleString()}.`,
 		html: (data: TemplateData['trialEnded']) => `
 			<!DOCTYPE html>
 			<html lang="en">
@@ -459,7 +463,7 @@ const templates = {
 						</p>
 					</div>
 					<div class="email-footer">
-                        <p>True Sight Intelligence • Uncover digital footprints instantly 🔎</p>
+                        <p>Sharkly • Your AI SEO strategist 🔎</p>
 					</div>
 				</div>
 			</body>
@@ -470,54 +474,57 @@ const templates = {
 } as const;
 
 class EmailService {
-    private resend: Resend | null = null;
-    private isDevMode: boolean;
+	private resend: Resend | null = null;
+	private isDevMode: boolean;
 
-    constructor() {
-        // Send real emails whenever a Resend API key is configured
-        this.isDevMode = !config.resend.apiKey;
-        if (!this.isDevMode) {
-            this.resend = new Resend(config.resend.apiKey);
-        }
-    }
+	constructor() {
+		// Send real emails whenever a Resend API key is configured
+		this.isDevMode = !config.resend.apiKey;
+		if (!this.isDevMode) {
+			this.resend = new Resend(config.resend.apiKey);
+		}
+	}
 
 	async sendEmail(options: EmailOptions): Promise<void> {
 		try {
 			if (this.isDevMode) {
 				// In development mode, just log the email details
 				console.log('📧 DEV MODE - Email would be sent:');
-                console.log('  From:', options.from || config.resend.from);
-                console.log('  Reply-To:', options.replyTo || config.resend.replyTo || config.resend.from);
+				console.log('  From:', options.from || config.resend.from);
+				console.log('  Reply-To:', options.replyTo || config.resend.replyTo || config.resend.from);
 				console.log('  To:', options.to);
 				console.log('  Subject:', options.subject);
 				if (options.attachments && options.attachments.length > 0) {
-					console.log('  Attachments:', options.attachments.map(a => a.filename));
+					console.log(
+						'  Attachments:',
+						options.attachments.map((a) => a.filename)
+					);
 				}
 				console.log('  --- End of email log ---');
 				return;
 			}
 
-            if (!this.resend) {
-                throw new Error('Resend client not configured');
-            }
+			if (!this.resend) {
+				throw new Error('Resend client not configured');
+			}
 
-            const from = options.from || config.resend.from;
-            const replyTo = options.replyTo || config.resend.replyTo || config.resend.from;
+			const from = options.from || config.resend.from;
+			const replyTo = options.replyTo || config.resend.replyTo || config.resend.from;
 
-            const attachments = (options.attachments || []).map(a => ({
-                filename: a.filename,
-                content: Buffer.from(a.content, 'utf-8')
-            }));
+			const attachments = (options.attachments || []).map((a) => ({
+				filename: a.filename,
+				content: Buffer.from(a.content, 'utf-8')
+			}));
 
-            await this.resend.emails.send({
-                from,
-                to: options.to,
-                subject: options.subject,
-                text: options.text,
-                html: options.html,
-                replyTo: replyTo,
-                attachments: attachments.length > 0 ? attachments : undefined
-            });
+			await this.resend.emails.send({
+				from,
+				to: options.to,
+				subject: options.subject,
+				text: options.text,
+				html: options.html,
+				replyTo: replyTo,
+				attachments: attachments.length > 0 ? attachments : undefined
+			});
 		} catch (error) {
 			console.error('Error sending email:', error);
 			throw new Error('Failed to send email');
@@ -530,7 +537,7 @@ class EmailService {
 		data: TemplateData[T]
 	): Promise<void> {
 		const templateData = templates[template];
-		
+
 		// Type-safe subject generation
 		let subject: string;
 		if (template === 'teamMemberInvite') {
@@ -548,7 +555,7 @@ class EmailService {
 		} else {
 			subject = templateData.subject('');
 		}
-		
+
 		await this.sendEmail({
 			to,
 			subject,
@@ -588,7 +595,12 @@ class EmailService {
 		await this.sendTemplateEmail('trialStarted', to, { orgName, trialEnd });
 	}
 
-	async sendTrialEndingSoon(to: string, orgName: string, daysRemaining: number, trialEnd: string): Promise<void> {
+	async sendTrialEndingSoon(
+		to: string,
+		orgName: string,
+		daysRemaining: number,
+		trialEnd: string
+	): Promise<void> {
 		await this.sendTemplateEmail('trialEndingSoon', to, { orgName, daysRemaining, trialEnd });
 	}
 
