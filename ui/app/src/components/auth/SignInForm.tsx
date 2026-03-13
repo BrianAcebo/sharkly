@@ -135,7 +135,7 @@ export default function SignInForm() {
 							<button
 								onClick={() => signInWithGoogle()}
 								disabled={isLoading || isRateLimited}
-								className="inline-flex items-center justify-center gap-3 rounded-lg bg-gray-100 px-7 py-3 text-sm font-normal text-gray-700 transition-colors hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
+								className="inline-flex items-center justify-center gap-3 rounded-lg border border-gray-200 bg-gray-100 px-7 py-3 text-sm font-normal text-gray-700 transition-colors hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
 							>
 								<svg
 									width="20"
@@ -161,7 +161,7 @@ export default function SignInForm() {
 										fill="#EB4335"
 									/>
 								</svg>
-								Sign in with Google
+								<span>Sign in with Google</span>
 							</button>
 						</div>
 						<div className="relative py-3 sm:py-5">

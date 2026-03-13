@@ -14,6 +14,7 @@ import {
 	resetRateLimit
 } from '../../utils/validation';
 import { toast } from 'sonner';
+import { AuthLoadingState } from '../../contexts/AuthContext';
 
 export default function SignUpForm() {
 	const [searchParams] = useSearchParams();
@@ -29,7 +30,7 @@ export default function SignUpForm() {
 	const [passwordError, setPasswordError] = useState<string>('');
 	const [confirmPasswordError, setConfirmPasswordError] = useState<string>('');
 	const [isRateLimited, setIsRateLimited] = useState(false);
-	const { signInWithGoogle, signUp, message } = useAuth();
+	const { signInWithGoogle, signUp, message, loadingState } = useAuth();
 
 	const marketingUrl = import.meta.env.VITE_MARKETING_URL;
 
@@ -177,6 +178,8 @@ export default function SignUpForm() {
 		}
 	};
 
+	const isLoading = loadingState === AuthLoadingState.LOADING;
+
 	return (
 		<div className="no-scrollbar flex w-full flex-1 flex-col overflow-y-auto lg:w-1/2">
 			<div className="mx-auto mb-5 w-full max-w-md sm:pt-10">
@@ -199,7 +202,8 @@ export default function SignUpForm() {
 						</p>
 						{shopifyStore && (
 							<p className="mt-1 text-xs text-cyan-600 dark:text-cyan-400">
-								After signup you can connect your Shopify store ({shopifyStore}) from Settings → Integrations.
+								After signup you can connect your Shopify store ({shopifyStore}) from Settings →
+								Integrations.
 							</p>
 						)}
 					</div>
@@ -215,11 +219,10 @@ export default function SignUpForm() {
 							</p>
 						)}
 						<div className="grid grid-cols-1">
-							<Button
-								variant="outline"
-								onClick={signInWithGoogle}
-								disabled={isRateLimited}
-								fullWidth
+							<button
+								onClick={() => signInWithGoogle()}
+								disabled={isLoading || isRateLimited}
+								className="inline-flex items-center justify-center gap-3 rounded-lg border border-gray-200 bg-gray-100 px-7 py-3 text-sm font-normal text-gray-700 transition-colors hover:bg-gray-200 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-white/5 dark:text-white/90 dark:hover:bg-white/10"
 							>
 								<svg
 									width="20"
@@ -245,8 +248,8 @@ export default function SignUpForm() {
 										fill="#EB4335"
 									/>
 								</svg>
-								<span className="ml-2">Sign up with Google</span>
-							</Button>
+								<span>Sign up with Google</span>
+							</button>
 						</div>
 						<div className="relative py-3 sm:py-5">
 							<div className="absolute inset-0 flex items-center">
