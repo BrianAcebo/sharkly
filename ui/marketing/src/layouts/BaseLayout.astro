@@ -12,17 +12,18 @@ interface Props {
   noIndex?: boolean;
 }
 
+const siteUrl = import.meta.env.SITE_URL ?? 'https://sharkly.co';
+const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
+
 const {
-  title = 'Expert Level SEO, Without Being an SEO Expert',
+  title = 'The SEO Platform for Non-SEO People',
   description = 'Sharkly is an AI-powered SEO assistant that makes SEO easy for non-SEO people. Build your SEO strategy, generate optimized content, and track your rankings without becoming an SEO expert.',
-  ogImage = 'https://sharkly.co/og-default.png',
+  ogImage = `${appUrl}/images/sharkly-og-image.jpg`,
   canonical,
   schema,
   noIndex = false,
 } = Astro.props;
 
-const siteUrl = import.meta.env.SITE_URL ?? 'https://sharkly.co';
-const appUrl = import.meta.env.PUBLIC_APP_URL ?? 'https://app.sharkly.co';
 const canonicalUrl = canonical ?? `${siteUrl}${Astro.url.pathname}`;
 
 const defaultSchema = {
