@@ -20,6 +20,7 @@ export default function SignUpForm() {
 	const [searchParams] = useSearchParams();
 	const inviteId = searchParams.get('invite');
 	const shopifyStore = searchParams.get('shopify_store') ?? '';
+	const returnTo = searchParams.get('return_to') ?? '';
 	const [showPassword, setShowPassword] = useState<boolean>(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
 	const [isChecked, setIsChecked] = useState<boolean>(false);
@@ -34,16 +35,15 @@ export default function SignUpForm() {
 
 	const marketingUrl = import.meta.env.VITE_MARKETING_URL;
 
-	// Persist shopify_store for post-signup redirect (e.g. connect store from integrations)
+	// Persist shopify_store and return_to for post-signup redirect (e.g. Shopify attach flow)
 	useEffect(() => {
-		if (shopifyStore) {
-			try {
-				sessionStorage.setItem('sharkly_shopify_store', shopifyStore);
-			} catch {
-				// ignore
-			}
+		try {
+			if (shopifyStore) sessionStorage.setItem('sharkly_shopify_store', shopifyStore);
+			if (returnTo && returnTo.startsWith('/')) sessionStorage.setItem('sharkly_return_to', returnTo);
+		} catch {
+			// ignore
 		}
-	}, [shopifyStore]);
+	}, [shopifyStore, returnTo]);
 
 	// Handle invitation completion after successful signup
 	useEffect(() => {

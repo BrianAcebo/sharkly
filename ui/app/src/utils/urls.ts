@@ -36,3 +36,24 @@ export const buildApiUrl = (endpoint: string): string => {
 	const apiUrl = getApiUrl();
 	return `${apiUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 };
+
+/**
+ * Get the backend URL for server-side routes (e.g. /auth/shopify/install).
+ * Used when the frontend needs to redirect to the API server directly.
+ */
+export const getBackendUrl = (): string => {
+	if (typeof window !== 'undefined') {
+		const base = import.meta.env.VITE_API_BASE as string | undefined;
+		if (base) return base.replace(/\/$/, '');
+		// Production app.sharkly.co → backend at sharkly-api.fly.dev
+		if (window.location.hostname === 'app.sharkly.co') return 'https://sharkly-api.fly.dev';
+		// Dev: Vite proxies /api to backend; use explicit backend port
+		return 'http://localhost:3000';
+	}
+	return process.env.VITE_API_BASE || process.env.BACKEND_URL || 'http://localhost:3000';
+};
+
+export const buildBackendUrl = (path: string): string => {
+	const base = getBackendUrl();
+	return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+};

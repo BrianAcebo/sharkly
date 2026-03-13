@@ -227,9 +227,14 @@ export default function AuthConfirm() {
 						}
 					}
 
-					// No invitations found, redirect to onboarding
-					// Redirect immediately to avoid race conditions
-					navigate('/onboarding?verified=true');
+					// No invitations — check for Shopify return_to (user came from auth/shopify flow)
+					const storedReturnTo = sessionStorage.getItem('sharkly_return_to');
+					if (storedReturnTo && storedReturnTo.startsWith('/')) {
+						sessionStorage.removeItem('sharkly_return_to');
+						navigate(storedReturnTo, { replace: true });
+					} else {
+						navigate('/onboarding?verified=true');
+					}
 				}
 			} catch (error) {
 				console.error('Confirmation error:', error);

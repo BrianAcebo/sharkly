@@ -4,12 +4,14 @@
  */
 
 import { Request, Response } from 'express';
+import { supabase } from '../utils/supabaseClient.js';
 import {
 	verifyShopifyHmac,
 	getShopifyAuthUrl,
 	exchangeShopifyCode,
 	saveShopifyConnection,
 	savePendingShopifyToken,
+	getAndConsumePendingShopifyToken,
 	getShopifyToken,
 	disconnectShopify,
 	listShopifyBlogs,
@@ -172,6 +174,118 @@ export async function shopifyAppRedirect(req: Request, res: Response): Promise<v
 		? `${marketingUrl.replace(/\/$/, '')}/signup?shopify_store=${encodeURIComponent(shop)}`
 		: `${marketingUrl.replace(/\/$/, '')}/signup`;
 	res.redirect(302, signupUrl);
+}
+
+/**
+ * POST /api/shopify/attach-pending
+ * Consume a pending Shopify token (from companion app install) and attach to a site.
+ * Body: { shop: string, siteId?: string }
+ * - If siteId provided: must belong to user's org
+ * - If no siteId: use first site, or create one for the Shopify store if user has org but no sites
+ * - If no org: returns needs_onboarding
+ */
+export async function attachPendingShopifyToken(req: Request, res: Response): Promise<void> {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			res.status(401).json({ error: 'Unauthorized' });
+			return;
+		}
+
+		const { shop, siteId: providedSiteId } = req.body as { shop?: string; siteId?: string };
+		const shopDomain = (shop || '')
+			.replace(/^https?:\/\//, '')
+			.replace(/\/.*$/, '')
+			.toLowerCase();
+		const finalDomain = shopDomain.endsWith('.myshopify.com')
+			? shopDomain
+			: `${shopDomain}.myshopify.com`;
+
+		if (!finalDomain) {
+			res.status(400).json({ error: 'Missing shop' });
+			return;
+		}
+
+		const accessToken = await getAndConsumePendingShopifyToken(finalDomain);
+		if (!accessToken) {
+			res.status(400).json({
+				error: 'Token expired or not found. Please reconnect from Settings → Integrations.',
+				code: 'token_expired'
+			});
+			return;
+		}
+
+		const { data: userOrg } = await supabase
+			.from('user_organizations')
+			.select('organization_id')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (!userOrg?.organization_id) {
+			res.status(403).json({
+				error: 'Complete billing setup first to connect your store.',
+				needs_onboarding: true
+			});
+			return;
+		}
+
+		const orgId = userOrg.organization_id;
+		let targetSiteId: string | null = null;
+
+		if (providedSiteId) {
+			const { data: site } = await supabase
+				.from('sites')
+				.select('id')
+				.eq('id', providedSiteId)
+				.eq('organization_id', orgId)
+				.single();
+			if (site) targetSiteId = site.id;
+		}
+
+		if (!targetSiteId) {
+			const { data: sites } = await supabase
+				.from('sites')
+				.select('id')
+				.eq('organization_id', orgId)
+				.limit(1);
+			if (sites && sites.length > 0) {
+				targetSiteId = (sites[0] as { id: string }).id;
+			}
+		}
+
+		if (!targetSiteId) {
+			const { data: newSite, error: createErr } = await supabase
+				.from('sites')
+				.insert({
+					organization_id: orgId,
+					name: finalDomain.replace('.myshopify.com', ''),
+					url: `https://${finalDomain}`,
+					platform: 'shopify'
+				})
+				.select('id')
+				.single();
+
+			if (createErr || !newSite) {
+				console.error('[Shopify] Failed to create site for attach:', createErr);
+				res.status(500).json({ error: 'Failed to create site' });
+				return;
+			}
+			targetSiteId = (newSite as { id: string }).id;
+		}
+
+		const { error } = await saveShopifyConnection(targetSiteId!, finalDomain, accessToken);
+		if (error) {
+			res.status(500).json({ error });
+			return;
+		}
+
+		res.json({ success: true, siteId: targetSiteId });
+	} catch (error) {
+		console.error('[Shopify] Attach pending error:', error);
+		res.status(500).json({
+			error: error instanceof Error ? error.message : 'Failed to attach token'
+		});
+	}
 }
 
 /**

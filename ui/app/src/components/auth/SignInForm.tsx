@@ -23,6 +23,7 @@ export default function SignInForm() {
 	const { signInWithGoogle, signIn, message, loadingState, session } = useAuth();
 	const [searchParams] = useSearchParams();
 	const inviteId = searchParams.get('invite');
+	const returnTo = searchParams.get('return_to');
 	const navigate = useNavigate();
 
 	const marketingUrl = import.meta.env.VITE_MARKETING_URL;
@@ -34,17 +35,19 @@ export default function SignInForm() {
 		};
 	}, []);
 
-	// Handle invitation redirect after successful sign in
+	// Handle redirect after successful sign in (invite → org, return_to → that path)
 	useEffect(() => {
-		if (inviteId && !loadingState && session?.user) {
-			// User is authenticated and has an invite, the invitation should already be completed
-			// by the AuthProvider signIn function, so we can redirect to organization page
+		if (!loadingState && session?.user) {
 			const timer = setTimeout(() => {
-				navigate('/organization');
+				if (inviteId) {
+					navigate('/organization');
+				} else if (returnTo && returnTo.startsWith('/')) {
+					navigate(returnTo, { replace: true });
+				}
 			}, 1000);
 			return () => clearTimeout(timer);
 		}
-	}, [inviteId, loadingState, session, navigate]);
+	}, [inviteId, returnTo, loadingState, session, navigate]);
 
 	const validateForm = (): boolean => {
 		let isValid = true;
@@ -241,7 +244,11 @@ export default function SignInForm() {
 							<p className="text-center text-sm font-normal text-gray-700 sm:text-start dark:text-gray-400">
 								Don&apos;t have an account? {''}
 								<Link
-									to="/signup"
+									to={
+										returnTo && returnTo.startsWith('/')
+											? `/signup?return_to=${encodeURIComponent(returnTo)}`
+											: '/signup'
+									}
 									className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
 								>
 									Sign Up

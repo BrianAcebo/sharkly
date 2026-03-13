@@ -17,6 +17,7 @@ import OrganizationRequired from './pages/Organization/OrganizationRequired';
 import Organization from './pages/Organization/Organization';
 import InviteAccept from './pages/Organization/InviteAccept';
 import Confirm from './pages/Auth/Confirm';
+import AuthShopify from './pages/Auth/AuthShopify';
 import SettingsLayout from './layout/SettingsLayout';
 import SettingsCredits from './pages/SettingsCredits';
 import SettingsBilling from './pages/SettingsBilling';
@@ -123,6 +124,9 @@ export default function App() {
 
 					{/* Auth Confirm Route - accessible without full auth */}
 					<Route path="/auth/confirm" element={<Confirm />} />
+
+					{/* Shopify auth: handles both initial install redirect + post-OAuth signup */}
+					<Route path="/auth/shopify" element={<AuthShopify />} />
 
 					{/* OAuth Callbacks */}
 					<Route path="/oauth/callback" element={<OAuthCallback />} />
