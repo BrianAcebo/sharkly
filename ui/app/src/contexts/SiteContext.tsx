@@ -42,7 +42,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 			let siteId = data?.selected_site_id ?? null;
 			if (!siteId && sites.length > 0) {
 				siteId = sites[0].id;
-				supabase
+				void supabase
 					.from('user_selected_sites')
 					.upsert(
 						{
@@ -54,7 +54,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 						{ onConflict: 'user_id,organization_id' }
 					)
 					.then(() => {})
-					.catch((err) => console.warn('Failed to persist default site:', err));
+					.then(undefined, (err: unknown) => console.warn('Failed to persist default site:', err));
 			}
 
 			const site = siteId ? sites.find((s) => s.id === siteId) ?? null : null;

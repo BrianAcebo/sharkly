@@ -1635,7 +1635,7 @@ const handleInvoicePaymentFailed = async (event: Stripe.Event) => {
 	await saveInvoice(org.id, invoice);
 
 	// Also save to payment_failure_events
-	await supabase
+	const { error: failureEventError } = await supabase
 		.from('payment_failure_events')
 		.insert({
 			org_id: org.id,
@@ -1644,8 +1644,10 @@ const handleInvoicePaymentFailed = async (event: Stripe.Event) => {
 				(invoice.last_payment_error as { message?: string } | null)?.message ?? 'Payment failed',
 			retry_count: (org.payment_retry_count ?? 0) + 1,
 			raw_payload: invoice as unknown as Record<string, unknown>
-		})
-		.catch((err) => console.warn('[WEBHOOK] Failed to save payment failure event', err));
+		});
+	if (failureEventError) {
+		console.warn('[WEBHOOK] Failed to save payment failure event', failureEventError);
+	}
 
 	const currentRetryCount = org.payment_retry_count ?? 0;
 	const newRetryCount = currentRetryCount + 1;
@@ -1793,8 +1795,8 @@ const handleSubscriptionTrialWillEnd = async (event: Stripe.Event) => {
 		return;
 	}
 
-	// Stripe guarantees ~3-day lead time; compute from org.stripe_trial_end if present
-	const trialEndIso = org.stripe_trial_end ?? null;
+	// Stripe guarantees ~3-day lead time; compute from org.trial_end if present
+	const trialEndIso = org.trial_end ?? null;
 	const trialEnd = trialEndIso ? new Date(trialEndIso) : null;
 
 	try {

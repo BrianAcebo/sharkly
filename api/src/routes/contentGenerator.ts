@@ -10,7 +10,7 @@ import {
 	generateFAQ,
 	rewriteSection,
 	adjustTone
-} from '../controllers/contentGeneratorController';
+} from '../controllers/contentGeneratorController.js';
 
 const router = Router();
 

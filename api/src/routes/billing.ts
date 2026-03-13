@@ -1,5 +1,6 @@
 import express from 'express';
 
+import type Stripe from 'stripe';
 import { requireAuth } from '../middleware/auth.js';
 import { getWalletStatus, getUsageCatalog } from '../controllers/billingUsage.js';
 import { getStripeClient } from '../utils/stripe.js';

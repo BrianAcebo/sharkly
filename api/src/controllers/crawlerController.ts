@@ -4,9 +4,9 @@
  */
 
 import { Request, Response } from 'express';
-import { crawlerService } from '../services/crawlerService';
-import { crawlabilityChecker } from '../services/crawlabilityChecker';
-import { supabase } from '../utils/supabaseClient';
+import { crawlerService } from '../services/crawlerService.js';
+import { crawlabilityChecker } from '../services/crawlabilityChecker.js';
+import { supabase } from '../utils/supabaseClient.js';
 
 /**
  * POST /api/crawler/check-crawlability

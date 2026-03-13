@@ -37,3 +37,24 @@ export const PLANS = {
 } as const;
 
 export const OVERAGE_RATE = 0.05;
+
+import { supabase } from './supabaseClient.js';
+
+/** Spend credits via RPC (handles included + wallet). Used by domain intel and other features. */
+export async function spendCreditsForAction(params: {
+	orgId: string;
+	creditCost: number;
+	category: string;
+	description: string;
+}): Promise<{ success: boolean; reason?: string }> {
+	const { data, error } = await supabase.rpc('spend_credits', {
+		p_org_id: params.orgId,
+		p_credits: params.creditCost,
+		p_reference_type: params.category,
+		p_reference_id: null,
+		p_description: params.description
+	});
+	if (error) return { success: false, reason: error.message };
+	if (!data?.ok) return { success: false, reason: (data as { reason?: string })?.reason };
+	return { success: true };
+}

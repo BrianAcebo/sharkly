@@ -17,7 +17,7 @@
  */
 
 import { Request, Response } from 'express';
-import { supabase } from '../utils/supabaseClient';
+import { supabase } from '../utils/supabaseClient.js';
 import { OpenAI } from 'openai';
 import { CREDIT_COSTS } from '../utils/credits.js';
 

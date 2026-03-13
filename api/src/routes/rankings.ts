@@ -8,7 +8,7 @@ import {
 	getRankings,
 	optimizeCTR,
 	generateMetaSuggestions
-} from '../controllers/rankingsController';
+} from '../controllers/rankingsController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireTier } from '../middleware/requireTier.js';
 

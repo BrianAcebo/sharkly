@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { lookupKeyword } from '../controllers/keywordsController';
+import { lookupKeyword } from '../controllers/keywordsController.js';
 
 const router = Router();
 

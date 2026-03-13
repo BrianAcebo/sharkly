@@ -32,7 +32,7 @@ export async function fetchCompetitorPage(url: string): Promise<CompetitorPage |
 		if (res.status >= 400 || !res.data) return null;
 
 		const html = typeof res.data === 'string' ? res.data : String(res.data ?? '');
-		const $ = cheerio.load(html, { decodeEntities: true });
+		const $ = cheerio.load(html);
 
 		const title = $('title').first().text().trim() || null;
 		const h2s: string[] = [];

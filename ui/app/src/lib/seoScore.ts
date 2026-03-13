@@ -192,13 +192,16 @@ export type SeoScoreBreakdown = {
 // DOM / content extraction helpers
 // ---------------------------------------------------------------------------
 
-type TiptapNode = {
+export type TiptapNode = {
 	type?: string;
 	text?: string;
 	attrs?: Record<string, unknown>;
 	marks?: unknown[];
 	content?: TiptapNode[];
 };
+
+/** Doc-like input (TiptapNode or TiptapDoc with content?: unknown[]) */
+type TiptapDocLike = TiptapNode | { type?: string; content?: unknown[] } | null;
 
 function walkNodes(nodes: TiptapNode[], visitor: (n: TiptapNode) => void) {
 	for (const n of nodes) {
@@ -208,20 +211,20 @@ function walkNodes(nodes: TiptapNode[], visitor: (n: TiptapNode) => void) {
 }
 
 /** Exported for CRO checklist (system-1-cro-layer). Strips to plain text from Tiptap doc. */
-export function extractPlainText(doc: TiptapNode | null): string {
+export function extractPlainText(doc: TiptapDocLike): string {
 	if (!doc) return '';
 	const parts: string[] = [];
-	walkNodes(doc.content ?? [], (n) => {
+	walkNodes((doc.content ?? []) as TiptapNode[], (n) => {
 		if (n.text) parts.push(n.text);
 	});
 	return parts.join(' ');
 }
 
 /** Exported for CRO checklist Item 1. Returns H1 heading texts from Tiptap doc. */
-export function extractH1s(doc: TiptapNode | null): string[] {
+export function extractH1s(doc: TiptapDocLike): string[] {
 	if (!doc) return [];
 	const result: string[] = [];
-	walkNodes(doc.content ?? [], (n) => {
+	walkNodes((doc.content ?? []) as TiptapNode[], (n) => {
 		if (n.type === 'heading' && (n.attrs?.level as number) === 1) {
 			result.push(extractPlainText(n));
 		}

@@ -54,6 +54,8 @@ export interface OrganizationRow {
 	included_chat_messages_monthly: number | null;
 	chat_messages_remaining: number | null;
 	trial_end: string | null;
+	/** Stripe subscription trial end (ISO string) - DB column may be stripe_trial_end */
+	stripe_trial_end?: string | null;
 	cancel_at_period_end?: boolean | null;
 	payment_action_required?: boolean | null;
 	dunning_enabled?: boolean | null;

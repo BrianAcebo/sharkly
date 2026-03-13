@@ -88,6 +88,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0);
   
   const abortControllerRef = useRef<AbortController | null>(null);
+  const pollingIntervalsRef = useRef<Set<ReturnType<typeof setInterval>>>(new Set());
   const navigate = useNavigate();
 
   const refreshSessions = useCallback(() => {
@@ -346,7 +347,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ));
         // Clear any running tool panels and stop polling
         setCurrentTools([]);
-        pollingIntervalsRef.current.forEach(interval => clearInterval(interval));
+        pollingIntervalsRef.current.forEach((interval: ReturnType<typeof setInterval>) => clearInterval(interval));
         pollingIntervalsRef.current.clear();
         return;
       }

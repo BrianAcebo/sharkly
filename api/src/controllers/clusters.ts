@@ -385,7 +385,7 @@ Return exactly ${needed} items. Each must be editorially distinct — a differen
 	try {
 		if (!OPENAI_API_KEY) {
 			console.warn('[Clusters] No OPENAI_API_KEY for AI curation fallback');
-			return { selected: [], generated: [] };
+			return { selected: [], generated: [], plans: [] };
 		}
 		const res = await fetch('https://api.openai.com/v1/chat/completions', {
 			method: 'POST',
@@ -401,7 +401,7 @@ Return exactly ${needed} items. Each must be editorially distinct — a differen
 		});
 		if (!res.ok) {
 			console.warn(`[Clusters] OpenAI curation error: ${res.status}`);
-			return { selected: [], generated: [] };
+			return { selected: [], generated: [], plans: [] };
 		}
 		const d = (await res.json()) as { choices?: Array<{ message: { content: string } }> };
 		const text = d.choices?.[0]?.message?.content ?? '';
@@ -415,7 +415,7 @@ Return exactly ${needed} items. Each must be editorially distinct — a differen
 		);
 	}
 
-	return { selected: [], generated: [] };
+	return { selected: [], generated: [], plans: [] };
 }
 
 type ArticleCandidate = {
@@ -1506,7 +1506,8 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 			return res.status(404).json({ error: 'Cluster not found' });
 		}
 
-		const orgId = (cluster.sites as { organization_id: string } | null)?.organization_id;
+		const sitesData = cluster.sites as { organization_id: string } | { organization_id: string }[] | null;
+		const orgId = Array.isArray(sitesData) ? sitesData[0]?.organization_id : sitesData?.organization_id;
 		if (!orgId) return res.status(500).json({ error: 'Could not resolve organization' });
 
 		// Auth guard: user must belong to the cluster's org
@@ -1813,7 +1814,8 @@ export const generateArticleBrief = async (req: Request, res: Response) => {
 			return res.status(404).json({ error: 'Cluster not found' });
 		}
 
-		const orgId = (cluster.sites as { organization_id: string } | null)?.organization_id;
+		const sitesData = cluster.sites as { organization_id: string } | { organization_id: string }[] | null;
+		const orgId = Array.isArray(sitesData) ? sitesData[0]?.organization_id : sitesData?.organization_id;
 		if (!orgId) return res.status(500).json({ error: 'Could not resolve organization' });
 
 		// Auth guard

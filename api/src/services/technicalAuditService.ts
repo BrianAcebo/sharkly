@@ -204,7 +204,7 @@ export class TechnicalAuditService {
 		};
 
 		// 7. Store audit results in database
-		await this.storeAuditResults(siteId, result, crawlResults);
+		await this.storeAuditResults(siteId, organizationId, result, crawlResults);
 
 		return result;
 	}
@@ -636,7 +636,7 @@ export class TechnicalAuditService {
 	/**
 	 * Store audit results in database
 	 */
-	private async storeAuditResults(siteId: string, auditResult: TechnicalAuditResult, crawlResults: CrawlResult[]): Promise<void> {
+	private async storeAuditResults(siteId: string, organizationId: string, auditResult: TechnicalAuditResult, crawlResults: CrawlResult[]): Promise<void> {
 		try {
 			// Store site audit summary
 			const { error: siteError } = await supabase

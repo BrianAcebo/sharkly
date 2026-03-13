@@ -10,7 +10,7 @@ import {
 	getGSCProperties,
 	saveGSCToken,
 	disconnectGSC
-} from '../controllers/gscController';
+} from '../controllers/gscController.js';
 
 const router = Router();
 

@@ -222,7 +222,7 @@ export class CrawlabilityChecker {
 				const robotsContent = typeof response.data === 'string'
 					? response.data
 					: response.data?.toString?.() ?? '';
-				const parser = robotsParser(robotsUrl, robotsContent);
+				const parser = (robotsParser as unknown as (url: string, txt: string) => { isAllowed: (url: string, ua?: string) => boolean | undefined })(robotsUrl, robotsContent);
 
 				// Check Googlebot first, then fall back to wildcard (*).
 				// isAllowed() returns true, false, or null (null = no rule matched = allowed).

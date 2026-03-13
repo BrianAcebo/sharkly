@@ -26,6 +26,7 @@ export interface Site {
 	yelpUrl?: string | null;
 	wikidataUrl?: string | null;
 	isYMYL?: boolean;
+	gsc_connected?: boolean;
 	createdAt: string;
 	updatedAt: string;
 }

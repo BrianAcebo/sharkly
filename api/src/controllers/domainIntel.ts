@@ -21,8 +21,8 @@ export async function dnsLookupHandler(req: Request, res: Response) {
   
   try {
     const { domain, domainId } = req.body;
-    const organizationId = req.organizationId;
-    const userId = req.userId;
+    const organizationId = (req as { organizationId?: string }).organizationId;
+    const userId = (req as { userId?: string }).userId;
 
     console.log('[Domain Intel] Parsed params:', { domain, domainId, organizationId, userId });
 
@@ -135,8 +135,8 @@ export async function whoisLookupHandler(req: Request, res: Response) {
   
   try {
     const { domain, domainId } = req.body;
-    const organizationId = req.organizationId;
-    const userId = req.userId;
+    const organizationId = (req as { organizationId?: string }).organizationId;
+    const userId = (req as { userId?: string }).userId;
 
     console.log('[Domain Intel] Parsed params:', { domain, domainId, organizationId, userId });
 
@@ -189,15 +189,15 @@ export async function whoisLookupHandler(req: Request, res: Response) {
         entity_value: domain,
         results: result.data,
         summary: {
-          available: result.data?.available || false,
+          available: result.data?.available ?? false,
           registrar: result.data?.registrar,
           created_date: result.data?.createdDate,
           expires_date: result.data?.expiresDate,
-          age: result.data?.summary.age,
-          expires_in: result.data?.summary.expiresIn,
-          is_expiring_soon: result.data?.summary.isExpiringSoon,
-          is_new_domain: result.data?.summary.isNewDomain,
-          privacy_protected: result.data?.summary.privacyProtected,
+          age: result.data?.summary?.age,
+          expires_in: result.data?.summary?.expiresIn,
+          is_expiring_soon: result.data?.summary?.isExpiringSoon,
+          is_new_domain: result.data?.summary?.isNewDomain,
+          privacy_protected: result.data?.summary?.privacyProtected,
         },
         credits_spent: WHOIS_CREDIT_COST,
         created_by: userId,
@@ -211,10 +211,12 @@ export async function whoisLookupHandler(req: Request, res: Response) {
     if (domainId && result.data && !result.data.available) {
       try {
         const updateData: Record<string, unknown> = {};
-        if (result.data.registrar) updateData.registrar = result.data.registrar;
-        if (result.data.createdDate) updateData.created_date = result.data.createdDate;
-        if (result.data.expiresDate) updateData.expires_date = result.data.expiresDate;
-        if (result.data.nameservers.length > 0) updateData.nameservers = result.data.nameservers;
+        const d = result.data;
+        if (d.registrar) updateData.registrar = d.registrar;
+        if (d.createdDate) updateData.created_date = d.createdDate;
+        if (d.expiresDate) updateData.expires_date = d.expiresDate;
+        const ns = d.nameservers;
+        if (ns && ns.length > 0) updateData.nameservers = ns;
 
         if (Object.keys(updateData).length > 0) {
           await supabase.from('domains').update(updateData).eq('id', domainId);

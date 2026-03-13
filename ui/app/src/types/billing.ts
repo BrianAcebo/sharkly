@@ -17,6 +17,7 @@ export type OrgStatus =
 	| 'disabled'
 	| 'deleted'
 	| 'payment_required'
+	| 'payment_pending'
 	| 'past_due';
 
 export type StripeSubStatus =
@@ -41,14 +42,14 @@ export interface OrganizationRow {
 	id: string;
 	name: string;
 	owner_id: string | null;
-	website: string | null;
-	industry: string | null;
-	ein: string | null;
-	address_street: string | null;
-	address_city: string | null;
-	address_state: string | null;
-	address_zip: string | null;
-	address_country: string | null;
+	website?: string | null;
+	industry?: string | null;
+	ein?: string | null;
+	address_street?: string | null;
+	address_city?: string | null;
+	address_state?: string | null;
+	address_zip?: string | null;
+	address_country?: string | null;
 	tz: string;
 	stripe_customer_id: string | null;
 	stripe_subscription_id: string | null;
@@ -70,6 +71,8 @@ export interface OrganizationRow {
 	included_chat_messages_monthly?: number | null;
 	chat_messages_remaining?: number | null;
 	stripe_trial_end: string | null;
+	/** API may return trial_end - alias for stripe_trial_end */
+	trial_end?: string | null;
 	stripe_cancel_at_period_end?: boolean | null;
 	payment_action_required?: boolean | null;
 	dunning_enabled?: boolean | null;

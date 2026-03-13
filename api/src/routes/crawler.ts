@@ -10,7 +10,7 @@ import {
 	getCrawlResults,
 	getIssueDetails,
 	markIssuesResolved
-} from '../controllers/crawlerController';
+} from '../controllers/crawlerController.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireTier } from '../middleware/requireTier.js';
 

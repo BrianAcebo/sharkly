@@ -13,7 +13,7 @@ import { setApiAuthGetter } from './utils/api';
 // Attach Supabase session to all API requests so auth middleware can validate the token
 setApiAuthGetter(async () => {
   const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  return (session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) as Record<string, string>;
 });
 
 createRoot(document.getElementById('root')!).render(

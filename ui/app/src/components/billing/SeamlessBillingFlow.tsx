@@ -200,7 +200,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 				toast.success('Payment succeeded. Finalizing organization setup...');
 
 				// In test/development, manually trigger webhook confirmation since webhooks may not fire
-				if (process.env.NODE_ENV !== 'production') {
+				if (import.meta.env.DEV) {
 					try {
 						const {
 							data: { session }
@@ -242,14 +242,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 				<PaymentElement
 					options={{
 						layout: { type: 'tabs', defaultCollapsed: false },
-						appearance: {
-							theme: 'night',
-							variables: {
-								colorText: '#f3f4f6',
-								colorDanger: '#ef4444'
-							}
-						}
-					}}
+						...(import.meta.env.DEV ? { appearance: { theme: 'night' as const } } : {})
+					} as React.ComponentProps<typeof PaymentElement>['options']}
 				/>
 				{isLoading && <div className="text-sm text-blue-500">Processing payment...</div>}
 			</div>
@@ -992,7 +986,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 								options={{
 									clientSecret: (setupSecret ?? clientSecret)!,
 									appearance: {
-										theme: document.documentElement.classList.contains('dark') ? 'night' : 'light',
+										theme: document.documentElement.classList.contains('dark') ? 'night' : 'flat',
 										variables: {
 											colorPrimary: '#f6339a',
 											colorText: document.documentElement.classList.contains('dark')

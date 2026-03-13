@@ -113,11 +113,13 @@ export default function Calendar() {
 		}
 		setPagesLoading(true);
 		const clusterIds = clusters.map((c) => c.id);
-		supabase
-			.from('pages')
-			.select('id, cluster_id, title, keyword, type, funnel_stage, status, seo_score, word_count')
-			.in('cluster_id', clusterIds)
-			.order('sort_order', { ascending: true })
+		void Promise.resolve(
+			supabase
+				.from('pages')
+				.select('id, cluster_id, title, keyword, type, funnel_stage, status, seo_score, word_count')
+				.in('cluster_id', clusterIds)
+				.order('sort_order', { ascending: true })
+		)
 			.then(({ data }) => {
 				const clusterMap = new Map(clusters.map((c) => [c.id, c.title]));
 				setAllPages(

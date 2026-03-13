@@ -37,7 +37,6 @@ async function withConcurrency<T, R>(items: T[], limit: number, worker: (item: T
 async function extractFromHtml(html: string): Promise<{ text: string; meta: Record<string, unknown> }> {
   // Prefer DOM-based extraction so we can insert explicit delimiters and capture anchors.
   try {
-    // @ts-expect-error dynamic optional dependency
     const cheerio = await import('cheerio').catch(() => null as any);
     if (cheerio && typeof cheerio.load === 'function') {
       const $ = cheerio.load(html, { decodeEntities: true });

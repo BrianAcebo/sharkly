@@ -80,7 +80,8 @@ export const getRefreshQueue = async (req: Request, res: Response): Promise<void
 			.eq('status', 'published');
 
 		if (!pages || pages.length === 0) {
-			return res.json({ items: [] });
+			res.json({ items: [] });
+			return;
 		}
 
 		// 2. Fetch performance_data for last 90 days (with date for trend)
@@ -96,7 +97,8 @@ export const getRefreshQueue = async (req: Request, res: Response): Promise<void
 			.gte('date', startStr);
 
 		if (!perfRows || perfRows.length === 0) {
-			return res.json({ items: [] });
+			res.json({ items: [] });
+			return;
 		}
 
 		// 3. Build GSC page -> Sharkly page mapping
