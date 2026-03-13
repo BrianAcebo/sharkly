@@ -3,7 +3,7 @@ import BaseLayout from '../../../layouts/BaseLayout.astro';
 import PostCard from '../../../components/PostCard.astro';
 import { getCategories, getPosts } from '../../../lib/supabase';
 
-// SSR mode — fetch on every request so new posts appear instantly
+// SSR — fetch on every request so new posts appear instantly
 const { category: slug } = Astro.params;
 
 const [categories, posts] = await Promise.all([
@@ -11,7 +11,7 @@ const [categories, posts] = await Promise.all([
   getPosts(slug),
 ]);
 
-const category = categories.find(c => c.slug === slug);
+const category = categories.find((c) => c.slug === slug);
 if (!category) return Astro.redirect('/404');
 
 const siteUrl = (import.meta.env.SITE_URL as string | undefined) ?? 'https://sharkly.co';

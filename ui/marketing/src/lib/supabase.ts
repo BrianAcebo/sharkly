@@ -1,9 +1,27 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl  = import.meta.env.PUBLIC_SUPABASE_URL  as string;
-const supabaseAnon = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string;
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL as string | undefined;
+const supabaseAnon = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string | undefined;
 
-export const supabase = createClient(supabaseUrl, supabaseAnon);
+let _supabase: SupabaseClient | null = null;
+
+function getClient(): SupabaseClient | null {
+  if (_supabase) return _supabase;
+  if (!supabaseUrl || !supabaseAnon) {
+    console.warn('[supabase] Missing PUBLIC_SUPABASE_URL or PUBLIC_SUPABASE_ANON_KEY — blog will be empty');
+    return null;
+  }
+  _supabase = createClient(supabaseUrl, supabaseAnon);
+  return _supabase;
+}
+
+export const supabase = {
+  get from() {
+    const c = getClient();
+    if (!c) throw new Error('Supabase not configured');
+    return c.from.bind(c);
+  },
+} as unknown as SupabaseClient;
 
 export type Category = {
   id: string;
@@ -38,7 +56,9 @@ export type Post = PostSummary & {
 };
 
 export async function getCategories(): Promise<Category[]> {
-  const { data } = await supabase
+  const client = getClient();
+  if (!client) return [];
+  const { data } = await client
     .from('blog_categories')
     .select('*')
     .order('sort_order');
@@ -46,14 +66,16 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getPosts(categorySlug?: string): Promise<PostSummary[]> {
-  let query = supabase
+  const client = getClient();
+  if (!client) return [];
+  let query = client
     .from('blog_posts')
     .select('id,title,slug,excerpt,og_image_url,published_at,featured,reading_time_minutes,author_name,blog_categories(id,name,slug)')
     .eq('status', 'published')
     .order('published_at', { ascending: false });
 
   if (categorySlug) {
-    const { data: cat } = await supabase
+    const { data: cat } = await client
       .from('blog_categories')
       .select('id')
       .eq('slug', categorySlug)
@@ -66,7 +88,9 @@ export async function getPosts(categorySlug?: string): Promise<PostSummary[]> {
 }
 
 export async function getPost(slug: string): Promise<Post | null> {
-  const { data } = await supabase
+  const client = getClient();
+  if (!client) return null;
+  const { data } = await client
     .from('blog_posts')
     .select('*,blog_categories(*)')
     .eq('slug', slug)
@@ -76,7 +100,9 @@ export async function getPost(slug: string): Promise<Post | null> {
 }
 
 export async function getFeaturedPosts(limit = 3): Promise<PostSummary[]> {
-  const { data } = await supabase
+  const client = getClient();
+  if (!client) return [];
+  const { data } = await client
     .from('blog_posts')
     .select('id,title,slug,excerpt,og_image_url,published_at,featured,reading_time_minutes,author_name,blog_categories(id,name,slug)')
     .eq('status', 'published')

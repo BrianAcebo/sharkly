@@ -1,5 +1,5 @@
 import { defineConfig } from 'astro/config';
-import node from '@astrojs/node';
+import vercel from '@astrojs/vercel';
 import sitemap from '@astrojs/sitemap';
 import tailwindcss from '@tailwindcss/vite';
 
@@ -10,7 +10,7 @@ export default defineConfig({
   site: process.env.SITE_URL ?? 'https://sharkly.co',
   publicDir: '../../public',
   output: 'server',
-  adapter: node({ mode: 'standalone' }),
+  adapter: vercel(),
   server: { port: 4321 },
   integrations: [
     sitemap(),

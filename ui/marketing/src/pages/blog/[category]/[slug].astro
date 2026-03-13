@@ -2,7 +2,7 @@
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { getPost } from '../../../lib/supabase';
 
-// SSR: fetch on every request
+// SSR — fetch on every request so new posts appear instantly
 const { slug } = Astro.params;
 const post = await getPost(slug as string);
 if (!post) return Astro.redirect('/404');
