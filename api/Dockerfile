@@ -1,5 +1,5 @@
 # syntax = docker/dockerfile:1
-# Build context must be repo root (run: fly deploy --config api/fly.toml from root)
+# Build context: api/ (set Root Directory to "api" in Fly dashboard for GitHub deploys)
 ARG NODE_VERSION=20.18.0
 FROM node:${NODE_VERSION}-slim AS base
 
@@ -14,11 +14,10 @@ FROM base AS build
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential node-gyp pkg-config python-is-python3
 
-# Copy api
-COPY api/package.json api/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm ci --include=dev
 
-COPY api/ ./
+COPY . .
 
 RUN npm run build
 RUN npm prune --omit=dev

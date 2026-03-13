@@ -36,11 +36,7 @@ install:
 	cd ui/marketing && npm install
 
 install-all: install
-
-# Deploy API to Fly (run from repo root)
-fly-deploy:
-	fly deploy --config api/fly.toml
-
+	
 # Supabase / DB
 db-start:
 	docker compose -f supabase/docker/docker-compose.yml up -d
