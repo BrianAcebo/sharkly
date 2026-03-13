@@ -21,7 +21,7 @@ import { generateRandomString } from '../utils/helpers.js';
 
 const oauthStates = new Map<string, { siteId: string | null; createdAt: number }>();
 
-const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const STATE_TTL_MS = 20 * 60 * 1000; // 20 minutes (covers slow install, cold starts)
 
 function getShopifyRedirectUri(): string {
 	const uri = process.env.SHOPIFY_REDIRECT_URI;
@@ -112,7 +112,11 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 		const stateData = oauthStates.get(state);
 		if (!stateData) {
 			const appUrl = process.env.FRONTEND_URL || 'https://app.sharkly.co';
-			res.redirect(`${appUrl}/signup?shopify_error=invalid_state`);
+			const shopDomain = (shop || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+			const finalDomain = shopDomain.endsWith('.myshopify.com') ? shopDomain : `${shopDomain}.myshopify.com`;
+			const query = new URLSearchParams({ shopify_error: 'invalid_state' });
+			if (finalDomain) query.set('shopify_store', finalDomain);
+			res.redirect(`${appUrl}/signup?${query.toString()}`);
 			return;
 		}
 		oauthStates.delete(state);
@@ -179,9 +183,10 @@ export async function shopifyAppRedirect(req: Request, res: Response): Promise<v
 /**
  * POST /api/shopify/attach-pending
  * Consume a pending Shopify token (from companion app install) and attach to a site.
- * Body: { shop: string, siteId?: string }
+ * Body: { shop: string, siteId?: string, createNew?: boolean }
  * - If siteId provided: must belong to user's org
- * - If no siteId: use first site, or create one for the Shopify store if user has org but no sites
+ * - If createNew: create a new site for the Shopify store (user chose "Create new site")
+ * - If no siteId and no createNew: use first site, or create one if user has org but no sites
  * - If no org: returns needs_onboarding
  */
 export async function attachPendingShopifyToken(req: Request, res: Response): Promise<void> {
@@ -192,7 +197,11 @@ export async function attachPendingShopifyToken(req: Request, res: Response): Pr
 			return;
 		}
 
-		const { shop, siteId: providedSiteId } = req.body as { shop?: string; siteId?: string };
+		const { shop, siteId: providedSiteId, createNew } = req.body as {
+			shop?: string;
+			siteId?: string;
+			createNew?: boolean;
+		};
 		const shopDomain = (shop || '')
 			.replace(/^https?:\/\//, '')
 			.replace(/\/.*$/, '')
@@ -242,7 +251,7 @@ export async function attachPendingShopifyToken(req: Request, res: Response): Pr
 			if (site) targetSiteId = site.id;
 		}
 
-		if (!targetSiteId) {
+		if (!targetSiteId && !createNew) {
 			const { data: sites } = await supabase
 				.from('sites')
 				.select('id')

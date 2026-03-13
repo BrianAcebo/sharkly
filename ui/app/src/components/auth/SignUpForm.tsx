@@ -53,6 +53,23 @@ export default function SignUpForm() {
 		}
 	}, [inviteId, message]);
 
+	// Handle Shopify OAuth errors (invalid_state = timed out; user can retry after signup)
+	useEffect(() => {
+		const shopifyError = searchParams.get('shopify_error');
+		if (shopifyError === 'invalid_state') {
+			toast.error(
+				'The Shopify connection timed out. Sign up or sign in, then connect your store from Settings → Integrations.',
+				{ duration: 8000 }
+			);
+		} else if (shopifyError === 'oauth_failed') {
+			toast.error('Shopify connection failed. Please try again.');
+		} else if (shopifyError === 'save_failed') {
+			toast.error('Could not save Shopify connection. Please try again.');
+		} else if (shopifyError) {
+			toast.error(`Shopify: ${shopifyError.replace(/_/g, ' ')}`);
+		}
+	}, [searchParams]);
+
 	// Handle error messages from URL parameters
 	useEffect(() => {
 		const errorParam = searchParams.get('error');
