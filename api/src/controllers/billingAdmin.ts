@@ -522,23 +522,35 @@ export const getRefundAudit = async (req: Request, res: Response) => {
 			p_org_id: orgId
 		});
 
-		// Get recent usage events (last 30)
-		const { data: usageEvents } = await supabase
+		// Get recent usage events (last 30) - usage_events uses org_id, category, credit_cost
+		const { data: usageEventsRaw } = await supabase
 			.from('usage_events')
-			.select('*')
-			.eq('organization_id', orgId)
+			.select('id, category, credit_cost, occurred_at, meta')
+			.eq('org_id', orgId)
 			.order('occurred_at', { ascending: false })
 			.limit(30);
+		const usageEvents = (usageEventsRaw || []).map((e) => ({
+			id: e.id,
+			action_key: e.category,
+			credits_spent: e.credit_cost ?? 0,
+			occurred_at: e.occurred_at,
+			metadata: e.meta ?? {}
+		}));
 
-		// Get recent action results (last 20)
-		const { data: actionResults } = await supabase
+		// Get recent action results (last 20) - action_results uses action_type, credits_spent
+		const { data: actionResultsRaw } = await supabase
 			.from('action_results')
 			.select(
-				'id, action_key, entity_type, entity_id, success, error_message, credits_charged, created_at'
+				'id, action_type, entity_type, entity_id, success, error_message, credits_spent, created_at'
 			)
 			.eq('organization_id', orgId)
 			.order('created_at', { ascending: false })
 			.limit(20);
+		const actionResults = (actionResultsRaw || []).map((r) => ({
+			...r,
+			action_key: r.action_type,
+			credits_charged: r.credits_spent ?? 0
+		}));
 
 		// Get refund history
 		const { data: refundHistory } = await supabase

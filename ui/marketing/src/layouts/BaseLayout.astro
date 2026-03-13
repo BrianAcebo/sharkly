@@ -4,7 +4,7 @@ import Logo from '../components/Logo.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
 
 interface Props {
-  title: string;
+  title?: string;
   description?: string;
   ogImage?: string;
   canonical?: string;
@@ -13,7 +13,7 @@ interface Props {
 }
 
 const {
-  title,
+  title = 'Expert Level SEO, Without Being an SEO Expert',
   description = 'Sharkly is an AI-powered SEO assistant that makes SEO easy for non-SEO people. Build your SEO strategy, generate optimized content, and track your rankings without becoming an SEO expert.',
   ogImage = 'https://sharkly.co/og-default.png',
   canonical,
@@ -56,7 +56,7 @@ const navLinks = [
     <link rel="apple-touch-icon" href=`${appUrl}/images/webclip.jpg` />
 
     <!-- Primary SEO -->
-    <title>{title}</title>
+    <title>{title} | Sharkly</title>
     <meta name="description" content={description} />
     <meta content={description} />
     <link rel="canonical" href={canonicalUrl} />

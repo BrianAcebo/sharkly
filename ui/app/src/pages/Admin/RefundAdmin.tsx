@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import PageMeta from '../../components/common/PageMeta';
 import { useBreadcrumbs } from '../../hooks/useBreadcrumbs';
+import { CREDIT_COSTS, CREDIT_COST_LABELS } from '../../lib/credits';
 import {
 	lookupOrgForRefund,
 	getRefundAudit,
@@ -70,45 +71,39 @@ const ADMIN_SESSION_KEY = 'sharkly_admin_auth';
 const ADMIN_SESSION_TIME_KEY = 'sharkly_admin_last_activity';
 const SESSION_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
 
-// Action costs reference table for support
-const ACTION_COSTS_REFERENCE = [
-	{ key: 'discover_properties', name: 'Discover Properties', cost: 8, category: 'Discovery' },
-	{ key: 'discover_emails', name: 'Discover Emails', cost: 5, category: 'Discovery' },
-	{ key: 'discover_phones', name: 'Discover Phones', cost: 8, category: 'Discovery' },
-	{ key: 'discover_profiles', name: 'Discover Profiles', cost: 10, category: 'Discovery' },
-	{ key: 'search_web_mentions', name: 'Search Web Mentions', cost: 5, category: 'Discovery' },
-	{ key: 'find_public_presence', name: 'Find Public Presence', cost: 15, category: 'Discovery' },
-	{ key: 'link_entity', name: 'Link Entity', cost: 0, category: 'Management' },
-	{ key: 'unlink_entity', name: 'Unlink Entity', cost: 0, category: 'Management' },
-	{ key: 'create_entity', name: 'Create Entity', cost: 0, category: 'Management' },
-	{ key: 'hunter_domain_search', name: 'Hunter Domain Search', cost: 5, category: 'Hunter.io' },
-	{ key: 'hunter_email_finder', name: 'Hunter Email Finder', cost: 3, category: 'Hunter.io' },
-	{ key: 'hunter_email_verify', name: 'Hunter Email Verify', cost: 1, category: 'Hunter.io' },
-	{ key: 'hunter_enrich_person', name: 'Hunter Enrich Person', cost: 5, category: 'Hunter.io' },
-	{ key: 'hunter_enrich_company', name: 'Hunter Enrich Company', cost: 3, category: 'Hunter.io' },
-	{ key: 'hunter_full_enrichment', name: 'Hunter Full Enrichment', cost: 8, category: 'Hunter.io' },
-	{ key: 'hunter_email_count', name: 'Hunter Email Count', cost: 1, category: 'Hunter.io' },
-	{ key: 'holehe_check', name: 'Holehe Check', cost: 3, category: 'OSINT' },
-	{ key: 'username_search', name: 'Username Search', cost: 5, category: 'OSINT' },
-	{ key: 'breach_check', name: 'Breach Check (HIBP)', cost: 2, category: 'OSINT' },
-	{ key: 'dehashed_search', name: 'Dehashed Search', cost: 5, category: 'OSINT' },
-	{ key: 'court_record_search', name: 'Court Record Search', cost: 3, category: 'Court Records' },
-	{ key: 'parties_search', name: 'Parties Search', cost: 2, category: 'Court Records' },
-	{ key: 'attorneys_search', name: 'Attorneys Search', cost: 2, category: 'Court Records' },
-	{ key: 'bankruptcy_search', name: 'Bankruptcy Search', cost: 3, category: 'Court Records' },
-	{ key: 'judges_search', name: 'Judges Search', cost: 3, category: 'Court Records' },
-	{
-		key: 'financial_disclosures',
-		name: 'Financial Disclosures',
-		cost: 5,
-		category: 'Court Records'
-	},
-	{ key: 'phone_lookup', name: 'Phone Lookup', cost: 3, category: 'Phone' },
-	{ key: 'dns_lookup', name: 'DNS Lookup', cost: 1, category: 'Domain/IP' },
-	{ key: 'whois_lookup', name: 'WHOIS Lookup', cost: 1, category: 'Domain/IP' },
-	{ key: 'ip_geolocation', name: 'IP Geolocation', cost: 1, category: 'Domain/IP' },
-	{ key: 'reverse_dns', name: 'Reverse DNS', cost: 1, category: 'Domain/IP' }
-];
+/** Snake-case for action keys (e.g. META_GENERATION -> meta_generation) */
+function toActionKey(s: string): string {
+	return s.replace(/([A-Z])/g, (m) => '_' + m.toLowerCase()).replace(/^_/, '');
+}
+
+/** Build action costs reference from lib/credits.ts (single source of truth) */
+const ACTION_COSTS_REFERENCE = (() => {
+	const entries: Array<{ key: string; name: string; cost: number; category: string }> = [];
+	const categories: Record<string, string> = {
+		Strategy: 'strategy_generation,cluster_generation,money_page_brief,article_generation',
+		Content: 'meta_generation,section_rewrite,faq_generation,product_description,collection_intro,tone_adjustment',
+		SEO: 'serp_analysis,ctr_optimize,cro_fixes,page_optimization,site_crawl,keyword_lookup,keyword_volume_refresh',
+		Links: 'toxic_link_audit,refresh_authority,link_velocity_check',
+		Insights: 'performance_insight',
+		Domain: 'dns_lookup,whois_lookup'
+	};
+	for (const [key, cost] of Object.entries(CREDIT_COSTS)) {
+		const actionKey = toActionKey(key);
+		const label = (CREDIT_COST_LABELS as Record<string, string>)[key] ?? key.replace(/_/g, ' ');
+		let category = 'SEO';
+		for (const [cat, keys] of Object.entries(categories)) {
+			if (keys.includes(actionKey)) {
+				category = cat;
+				break;
+			}
+		}
+		entries.push({ key: actionKey, name: label, cost, category });
+	}
+	// Domain intel actions (not in CREDIT_COSTS)
+	entries.push({ key: 'dns_lookup', name: 'DNS Lookup', cost: 1, category: 'Domain' });
+	entries.push({ key: 'whois_lookup', name: 'WHOIS Lookup', cost: 1, category: 'Domain' });
+	return entries.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+})();
 
 // Refund policy limits
 const REFUND_POLICY = {
@@ -160,6 +155,7 @@ export default function RefundAdmin() {
 	const [refundReason, setRefundReason] = useState('');
 	const [creditBackAmount, setCreditBackAmount] = useState('');
 	const [creditBackActionKey, setCreditBackActionKey] = useState('');
+	const [creditBackCustomKey, setCreditBackCustomKey] = useState('');
 	const [creditBackReason, setCreditBackReason] = useState('');
 	const [cancelImmediately, setCancelImmediately] = useState(false);
 	const [processing, setProcessing] = useState(false);
@@ -331,7 +327,8 @@ export default function RefundAdmin() {
 	};
 
 	const handleCreditBack = async () => {
-		if (!selectedOrgId || !creditBackAmount || !creditBackActionKey || !creditBackReason) {
+		const actionKey = creditBackActionKey === '__custom__' ? creditBackCustomKey.trim() : creditBackActionKey;
+		if (!selectedOrgId || !creditBackAmount || !actionKey || !creditBackReason) {
 			toast.error('Fill in all fields');
 			return;
 		}
@@ -339,7 +336,7 @@ export default function RefundAdmin() {
 		try {
 			const result = await creditBackAction(
 				selectedOrgId,
-				creditBackActionKey,
+				actionKey,
 				parseInt(creditBackAmount, 10),
 				creditBackReason
 			);
@@ -347,6 +344,7 @@ export default function RefundAdmin() {
 			setCreditBackOpen(false);
 			setCreditBackAmount('');
 			setCreditBackActionKey('');
+			setCreditBackCustomKey('');
 			setCreditBackReason('');
 			loadAudit(selectedOrgId);
 		} catch (error: any) {
@@ -1290,10 +1288,11 @@ export default function RefundAdmin() {
 									value={creditBackActionKey}
 									onValueChange={(value) => {
 										setCreditBackActionKey(value);
-										// Auto-fill the cost
 										const action = ACTION_COSTS_REFERENCE.find((a) => a.key === value);
 										if (action) {
 											setCreditBackAmount(action.cost.toString());
+										} else if (value !== '__custom__') {
+											setCreditBackAmount('');
 										}
 									}}
 								>
@@ -1309,11 +1308,20 @@ export default function RefundAdmin() {
 												</span>
 											</SelectItem>
 										))}
+										<SelectItem value="__custom__">Custom / Other (enter action key)</SelectItem>
 									</SelectContent>
 								</Select>
 								<p className="mt-1 text-xs text-gray-500">
-									Only paid actions are shown. Select an action to auto-fill the credit cost.
+									Select an action to auto-fill the credit cost, or choose Custom for unlisted actions.
 								</p>
+								{creditBackActionKey === '__custom__' && (
+									<Input
+										className="mt-2"
+										placeholder="e.g. content_generation, cluster_generation"
+										value={creditBackCustomKey}
+										onChange={(e) => setCreditBackCustomKey(e.target.value)}
+									/>
+								)}
 							</div>
 							<div>
 								<label className="mb-2 block text-sm font-medium">Credits to Add</label>
@@ -1330,7 +1338,7 @@ export default function RefundAdmin() {
 							<div>
 								<label className="mb-2 block text-sm font-medium">Reason (required)</label>
 								<Textarea
-									placeholder="e.g., 'Holehe check failed with timeout error - user reported via support ticket #123'"
+									placeholder="e.g. 'Cluster generation failed with timeout - user reported via support'"
 									value={creditBackReason}
 									onChange={(e) => setCreditBackReason(e.target.value)}
 									rows={3}
@@ -1344,7 +1352,10 @@ export default function RefundAdmin() {
 							<Button
 								onClick={handleCreditBack}
 								disabled={
-									processing || !creditBackAmount || !creditBackActionKey || !creditBackReason
+									processing ||
+									!creditBackAmount ||
+									!creditBackReason ||
+									(creditBackActionKey === '__custom__' ? !creditBackCustomKey.trim() : !creditBackActionKey)
 								}
 							>
 								{processing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
