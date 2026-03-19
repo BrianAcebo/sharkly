@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import { supabase } from '../../utils/supabaseClient';
+import { getMarketingUrl } from '../../utils/urls';
 
 interface ProtectedRouteProps {
 	children: React.ReactNode;
@@ -37,7 +37,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 	}
 
 	if (!isAuthenticated) {
-		return <Navigate to="/" replace />;
+		window.location.href = getMarketingUrl();
+		return null;
 	}
 
 	return <>{children}</>;

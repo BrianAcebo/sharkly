@@ -108,12 +108,12 @@ function TierUpgradePrompt({
 						? 'Fin is included in Growth, Scale, and Pro plans. Upgrade your plan to access the AI Assistant.'
 						: `You're currently on the ${currentPlan} plan. Upgrade to ${tierLabel} to access this feature.`}
 				</p>
-				<Link to="/billing">
+				<Link to="/settings/billing">
 					<button
 						type="button"
 						className="rounded-lg bg-brand-500 px-6 py-3 font-medium text-white transition-colors hover:bg-brand-600 dark:bg-brand-600 dark:hover:bg-brand-500"
 					>
-						View plans
+						View plans & upgrade
 					</button>
 				</Link>
 			</div>
@@ -123,7 +123,8 @@ function TierUpgradePrompt({
 
 /**
  * Check access for the given required tier.
- * When requireFinAddon is true, also requires included_chat_messages_monthly > 0 (Fin AI Assistant).
+ * When requireFinAddon is true, requires BOTH Growth+ tier AND included_chat_messages_monthly > 0.
+ * Tier must be checked first — Builder should never pass even if included_chat_messages_monthly is wrong.
  */
 function checkAccess(
 	organization: OrganizationRow | null,
@@ -131,7 +132,7 @@ function checkAccess(
 	requireFinAddon?: boolean
 ): boolean {
 	if (!organization) return false;
-	if (requireFinAddon) return hasFinAccess(organization);
+	if (requireFinAddon) return hasPlanAtLeast(organization, requiredTier) && hasFinAccess(organization);
 	return hasPlanAtLeast(organization, requiredTier);
 }
 

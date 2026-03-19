@@ -235,7 +235,7 @@ export const useNotifications = (userId?: string) => {
             setConnectionStatus('error');
             // Only show error toast if we haven't shown one recently (debounce)
             if (now - lastErrorToastRef.current > 10000) { // 10 second debounce
-              toast.error('🔴 Notifications disconnected. Please refresh the page to reconnect.');
+              toast.error('Notifications disconnected. Please refresh the page to reconnect.');
               lastErrorToastRef.current = now;
             }
             break;
@@ -248,7 +248,7 @@ export const useNotifications = (userId?: string) => {
               isSubscribingRef.current = false; // Reset subscribing flag
               stopRetries(); // Stop retry attempts
               if (now - lastErrorToastRef.current > 10000) { // 10 second debounce
-                toast.error('🔴 Notifications disconnected. Service unavailable. Use retry button to reconnect.');
+                toast.error('Notifications disconnected. Service unavailable. Use retry button to reconnect.');
                 lastErrorToastRef.current = now;
             }
             } else {
@@ -277,7 +277,7 @@ export const useNotifications = (userId?: string) => {
             isSubscribingRef.current = false; // Reset subscribing flag
             stopRetries(); // Stop retry attempts
             if (now - lastErrorToastRef.current > 10000) { // 10 second debounce
-              toast.error('🔴 Notification error. Service unavailable. Use retry button to reconnect.');
+              toast.error('Notification error. Service unavailable. Use retry button to reconnect.');
               lastErrorToastRef.current = now;
             }
             break;
@@ -537,7 +537,7 @@ export const useNotifications = (userId?: string) => {
         if (!isCurrent) return;
         
         if (status === 'SUBSCRIBED') {
-          console.log('[useNotifications] ✅ Successfully subscribed to realtime notifications');
+          console.log('[useNotifications] Successfully subscribed to realtime notifications');
           setConnectionStatus('connected');
           setServiceAvailable(true);
           setLastError(null);

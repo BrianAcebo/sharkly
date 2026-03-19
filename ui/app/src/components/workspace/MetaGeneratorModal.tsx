@@ -17,6 +17,7 @@ import {
 import { Button } from '../ui/button';
 import { Loader2, Copy, Check, Tag, Info } from 'lucide-react';
 import { toast } from 'sonner';
+import { CreditCost } from '../shared/CreditBadge';
 import { CREDIT_COSTS } from '../../lib/credits';
 
 interface Props {
@@ -223,7 +224,7 @@ export function MetaGeneratorModal({ open, onClose, siteId, keyword, pageTitle, 
 								className="w-full text-sm"
 							>
 								{loading && <Loader2 className="size-4 animate-spin mr-2" />}
-								Regenerate · {CREDIT_COSTS.META_GENERATION} credits
+								Regenerate — <CreditCost amount={CREDIT_COSTS.META_GENERATION} />
 							</Button>
 						</div>
 					)}
@@ -234,7 +235,7 @@ export function MetaGeneratorModal({ open, onClose, siteId, keyword, pageTitle, 
 							disabled={!keyword}
 							className="w-full bg-brand-500 hover:bg-brand-600 text-white"
 						>
-							Generate meta · {CREDIT_COSTS.META_GENERATION} credits
+							Generate meta — <CreditCost amount={CREDIT_COSTS.META_GENERATION} />
 						</Button>
 					)}
 				</div>

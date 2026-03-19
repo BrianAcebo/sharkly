@@ -16,6 +16,7 @@ import { markTopUpStatus } from '../utils/walletTopup.js';
 import type { PlanCatalogRow, OrganizationRow, StripeSubStatus } from '../types/billing.js';
 import { emailService } from '../utils/email.js';
 import { createNotificationForOrgOwner, createNotificationForUser } from '../utils/notifications.js';
+import { isCROAddonPriceId } from '../utils/croAddon.js';
 
 const stripe = getStripeClient();
 
@@ -1079,6 +1080,39 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
 		).toISOString();
 	}
 
+	// Sync CRO Studio add-on from Stripe subscription items
+	const CRO_ADDON_CREDITS = 150;
+	try {
+		const items = subscription.items?.data ?? [];
+		let hasCROAddon = false;
+		for (const item of items) {
+			if (item.deleted || (item.quantity ?? 0) <= 0 || !item.price?.id) continue;
+			const isCRO = await isCROAddonPriceId(item.price.id);
+			if (isCRO) {
+				hasCROAddon = true;
+				break;
+			}
+		}
+		updateData.has_cro_addon = hasCROAddon;
+		updateData.cro_addon_started_at = hasCROAddon
+			? org.cro_addon_started_at ?? new Date().toISOString()
+			: null;
+
+		// CRO addon grants +150 credits/month on top of plan. Only bump monthly here —
+		// the one-time immediate grant happens in croAddon.subscribeToCROAddon to avoid double-add.
+		if (hasCROAddon) {
+			const baseMonthly = Number(updateData.included_credits_monthly ?? updateData.included_credits ?? plan?.included_credits ?? 0);
+			updateData.included_credits_monthly = baseMonthly + CRO_ADDON_CREDITS;
+			updateData.included_credits = baseMonthly + CRO_ADDON_CREDITS;
+			// Add to remaining only for new subscriptions; otherwise modal already granted it
+			if (isNewSubscription && typeof updateData.included_credits_remaining === 'number') {
+				updateData.included_credits_remaining = updateData.included_credits_remaining + CRO_ADDON_CREDITS;
+			}
+		}
+	} catch (croErr) {
+		console.warn('[WEBHOOK] Failed to sync CRO addon from subscription items', { orgId: org.id, croErr });
+	}
+
 	const { error } = await supabase.from('organizations').update(updateData).eq('id', org.id);
 
 	if (error) {
@@ -1504,10 +1538,8 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 			const extraSeats = Math.max(0, (org.included_seats || 1) - (plan.included_seats || 1));
 			const extraAiCredits = extraSeats * 50; // 50 credits per extra seat
 
-			// Add Vela Pro bonus credits if addon is active (+100 credits/month)
-			const hasAiAddon = false; // TODO: Implement this if we add an AI addon -> org.has_ai_addon
-			const AI_ADDON_BONUS_CREDITS = 100;
-			const addonBonusCredits = hasAiAddon ? AI_ADDON_BONUS_CREDITS : 0;
+			// CRO Studio addon does not add credits — it only unlocks CRO Studio features
+			const addonBonusCredits = 0;
 
 			const totalAiCredits = (plan.included_ai_credits || 0) + extraAiCredits + addonBonusCredits;
 
@@ -1529,7 +1561,6 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 				practiceMinutes: plan.included_practice_minutes || 10,
 				extraSeats,
 				extraAiCredits,
-				hasAiAddon,
 				addonBonusCredits
 			});
 		}

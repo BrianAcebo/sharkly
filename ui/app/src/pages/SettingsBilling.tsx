@@ -280,6 +280,9 @@ export default function SettingsBilling() {
 														? organization.included_credits_monthly
 														: organization.included_credits ?? 0}{' '}
 													credits
+													{organization.has_cro_addon && (
+														<span className="text-gray-500 dark:text-gray-400"> (includes +150 from CRO Studio)</span>
+													)}
 												</span>
 											</div>
 										</div>

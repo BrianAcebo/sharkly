@@ -506,7 +506,11 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 			});
 
 			const data = await response.json();
-			const { plans } = data;
+			const rawPlans = data.plans ?? [];
+			// Pro plan not offered yet — hide from onboarding
+			const plans = rawPlans.filter(
+				(p: PlanCatalogRow) => !['pro', 'pro_test'].includes(p.plan_code)
+			);
 
 			setPlans(plans);
 

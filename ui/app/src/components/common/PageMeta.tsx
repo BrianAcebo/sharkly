@@ -3,12 +3,12 @@ import { HelmetProvider, Helmet } from 'react-helmet-async';
 const PageMeta = ({
 	isSmallTitle,
 	title,
-	description,
+	description = '',
 	noIndex
 }: {
 	isSmallTitle?: boolean;
 	title: string;
-	description: string;
+	description?: string;
 	noIndex?: boolean;
 }) => (
 	<Helmet>

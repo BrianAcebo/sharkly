@@ -6,6 +6,8 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { AlertTriangle, TrendingDown } from 'lucide-react';
+import { CreditCost } from './CreditBadge';
+import { CREDIT_COSTS } from '../../lib/credits';
 
 type Props = {
 	/** Optional workspace page id for "Optimize CTR" link */
@@ -32,7 +34,7 @@ export function NavboostWarning({ pageId, keyword }: Props) {
 					className="mt-1 inline-flex items-center gap-1.5 text-[12px] font-medium text-amber-700 hover:underline dark:text-amber-300"
 				>
 					<TrendingDown className="size-3.5" />
-					Optimize title (3 credits)
+					Optimize title — <CreditCost amount={CREDIT_COSTS.CTR_OPTIMIZE} />
 				</Link>
 			</div>
 		</div>

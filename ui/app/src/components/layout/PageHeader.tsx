@@ -2,7 +2,7 @@ import React from 'react';
 
 interface PageHeaderProps {
 	title: string;
-	subtitle?: string;
+	subtitle?: React.ReactNode;
 	breadcrumb?: React.ReactNode;
 	rightContent?: React.ReactNode;
 }
@@ -17,8 +17,8 @@ export function PageHeader({ title, subtitle, breadcrumb, rightContent }: PageHe
 				<h1 className="font-montserrat max-w-2xl text-[22px] font-bold text-gray-900 dark:text-white">
 					{title}
 				</h1>
-				{subtitle && (
-					<p className="mt-1 text-[13px] text-gray-600 dark:text-gray-400">{subtitle}</p>
+				{subtitle != null && (
+					<div className="mt-1 text-[13px] text-gray-600 dark:text-gray-400">{subtitle}</div>
 				)}
 			</div>
 			{rightContent && (

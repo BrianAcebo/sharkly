@@ -8,20 +8,47 @@ export const CREDIT_COSTS = {
 	SERP_ANALYSIS: 5,
 	STRATEGY_GENERATION: 15,
 	CLUSTER_GENERATION: 15,
+
+	// Focus page — first time: research + brief + article generation bundled
+	FOCUS_PAGE_FULL: 40,
+
+	// Focus page — regen brief only (brief already exists, article already exists)
+	FOCUS_PAGE_BRIEF_REGEN: 25,
+
+	// Backward-compatible alias — same value as FOCUS_PAGE_FULL
 	MONEY_PAGE_BRIEF: 40,
+
+	/** @deprecated Use MONEY_PAGE_BRIEF or FOCUS_PAGE_FULL */
 	ARTICLE_BRIEF: 40,
-	ARTICLE_GENERATION: 20,
+
+	// Article generation — supporting articles (15 flat) and focus page article regen (15).
+	// First article from a paid brief (brief_paid === true, word_count === 0) is FREE.
+	ARTICLE_GENERATION: 15,
+
 	META_GENERATION: 3,
 	CTR_OPTIMIZE: 3,
 	CRO_FIXES: 3,
+	CRO_STUDIO_AUDIT: 1,
+	/** CRO Studio: single fix (1 credit) */
+	CRO_STUDIO_SINGLE_FIX: 1,
+	/** CRO Studio: all fixes for SEO page (3 credits) */
+	CRO_STUDIO_ALL_FIXES_SEO: 3,
+	/** CRO Studio: all fixes for destination page (6 credits) */
+	CRO_STUDIO_ALL_FIXES_DEST: 6,
+	/** CRO Studio: FAQ (5 Q&A) for destination page — 2 credits */
+	CRO_STUDIO_FAQ: 2,
+	/** CRO Studio: testimonial request email — 1 credit */
+	CRO_STUDIO_TESTIMONIAL_EMAIL: 1,
+	/** CRO Studio: emotional arc analysis — 3 credits */
+	CRO_STUDIO_EMOTIONAL_ARC: 3,
 	PAGE_OPTIMIZATION: 25,
 	SITE_CRAWL: 10,
 	PERFORMANCE_INSIGHT: 2,
 	KEYWORD_LOOKUP: 5,
 	SECTION_REWRITE: 5,
 	FAQ_GENERATION: 5,
-	PRODUCT_DESCRIPTION: 10,
-	COLLECTION_INTRO: 10,
+	PRODUCT_DESCRIPTION: 3,
+	COLLECTION_INTRO: 3,
 	TONE_ADJUSTMENT: 5,
 	KEYWORD_VOLUME_REFRESH: 2,
 	TOXIC_LINK_AUDIT: 15,

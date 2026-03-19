@@ -16,9 +16,10 @@ import { createLowlight, all } from 'lowlight';
 import 'highlight.js/styles/github.css';
 import { toast } from 'sonner';
 import PageMeta from '../components/common/PageMeta';
-import { CreditBadge } from '../components/shared/CreditBadge';
+import { CreditBadge, CreditCost } from '../components/shared/CreditBadge';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
-import { LoadingStepsModal, type Step } from '../components/shared/LoadingStepsModal';
+import { TaskProgressWidget } from '../components/shared/TaskProgressWidget';
+import type { TaskStep, TaskStatus } from '../components/shared/TaskProgressWidget';
 import { ScoreUnavailableNotice } from '../components/shared/ScoreUnavailableNotice';
 import { usePage } from '../hooks/usePage';
 import { useCluster } from '../hooks/useCluster';
@@ -27,18 +28,8 @@ import { usePageGscData } from '../hooks/usePageGscData';
 import { useGSCStatus } from '../hooks/useGSCStatus';
 import { buildApiUrl } from '../utils/urls';
 import { supabase } from '../utils/supabaseClient';
-import { CREDIT_COSTS } from '../lib/credits';
+import { CREDIT_COSTS } from '../lib/credits'; // FOCUS_PAGE_FULL=40, FOCUS_PAGE_BRIEF_REGEN=25, ARTICLE_GENERATION=15
 import { computeSeoScore, isPassageReadyH2, type SeoScoreBreakdown } from '../lib/seoScore';
-import {
-	evaluateCROChecklist,
-	calculateCROScore,
-	hasRequiredFailingItems,
-	FUNNEL_MISMATCH_WARNINGS,
-	CRO_ITEM_LABELS,
-	getCroItemRequirement,
-	getFocusPageLinkWarnings,
-	type CroChecklistResult
-} from '../lib/croChecklist';
 import {
 	PAGE_TYPES,
 	PAGE_TYPE_CONFIGS,
@@ -71,6 +62,13 @@ import {
 	AlertDialogTitle
 } from '../components/ui/alert-dialog';
 import { Tooltip } from '../components/ui/tooltip';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger
+} from '../components/ui/dropdown-menu';
+import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/ui/collapsible';
 import {
 	Bold,
@@ -117,9 +115,63 @@ import {
 	ChevronUp,
 	BarChart3,
 	Stethoscope,
-	ShoppingBag
+	ShoppingBag,
+	Target,
+	MoreVertical
 } from 'lucide-react';
 import { useSiteContext } from '../contexts/SiteContext';
+import { useAuth } from '../hooks/useAuth';
+import { useCROStudioUpgrade } from '../contexts/CROStudioUpgradeContext';
+import { canAccessCROStudio } from '../utils/featureGating';
+import { CROAddPageModal } from '../components/cro/CROAddPageModal';
+
+/** Task steps for brief generation — summarized, no internal detail */
+// Focus page: unified Research & Write flow (Step 1 = brief, Step 2 = article)
+// Explanatory subtitles tell the user what their 40 credits are buying as it happens.
+const RESEARCH_AND_WRITE_STEPS: TaskStep[] = [
+	{
+		id: '1',
+		label: 'Step 1 — Research & Plan',
+		subtitle:
+			'Focus pages target competitive keywords and need to outrank established sites. Crawling top competitors to map H2 structure, entity coverage, word count targets, and information gaps — then building your structured brief.',
+		status: 'pending'
+	},
+	{
+		id: '2',
+		label: 'Step 2 — Write Article',
+		subtitle:
+			'Writing your article from the plan — competitor word count × 1.1, passage-ready H2s, internal link architecture, and your IGS angle baked in.',
+		status: 'pending'
+	}
+];
+
+// Standalone brief regeneration (brief already exists, user wants fresh research)
+const BRIEF_TASK_STEPS: TaskStep[] = [
+	{ id: '1', label: 'Analyzing context', status: 'pending' },
+	{ id: '2', label: 'Crawling competitors', status: 'pending' },
+	{ id: '3', label: 'Rebuilding brief', status: 'pending' }
+];
+
+// Standalone article regeneration (brief exists, user wants a rewrite)
+const ARTICLE_TASK_STEPS: TaskStep[] = [
+	{ id: '1', label: 'Loading your brief plan', status: 'pending' },
+	{ id: '2', label: 'Writing content', status: 'pending' },
+	{ id: '3', label: 'Optimizing for SEO', status: 'pending' },
+	{ id: '4', label: 'Finalizing', status: 'pending' }
+];
+
+// Supporting article — single step with context
+const SUPPORTING_ARTICLE_STEPS: TaskStep[] = [
+	{
+		id: '1',
+		label: 'Researching competitors',
+		subtitle:
+			'Supporting articles target long-tail keywords. Crawling competitors for word count and H2 structure, then writing directly — same patent-grounded signals as a focus page, calibrated to the actual competition.',
+		status: 'pending'
+	},
+	{ id: '2', label: 'Writing article', status: 'pending' },
+	{ id: '3', label: 'Extracting SEO metadata', status: 'pending' }
+];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -203,25 +255,186 @@ function WordCountVisualizer({ current, target }: { current: number; target: num
 	);
 }
 
-/** PassageReadyIndicator — Section 7.7 / 12.2 */
+/** PassageReadyIndicator — Section 7.7 / 12.2
+ * Question H2s have a passage scoring advantage but are not required.
+ * Non-question H2s rank well — this is an opportunity signal, not a pass/fail.
+ */
 function PassageReadyIndicator({ heading }: { heading: string }) {
 	const ready = isPassageReadyH2(heading);
+
+	if (ready) {
+		return (
+			<Tooltip
+				content="Question-format H2s make it easier for Google to extract this section as a featured snippet or passage result. This heading is already optimised."
+				tooltipPosition="top"
+				usePortal
+			>
+				<span className="bg-success-50 text-success-600 dark:bg-success-900/30 dark:text-success-400 inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold">
+					<Check className="size-3" />
+					Passage-optimized
+				</span>
+			</Tooltip>
+		);
+	}
+
+	// Non-question — soft opportunity hint only, not an error
+	const asQuestion = heading.endsWith('?') ? heading : `${heading}?`;
 	return (
 		<Tooltip
-			content="Question-format headings help Google find the answer to show in search results."
+			content={`Rephrasing as a question (e.g. "${asQuestion}") makes it easier for Google to extract this section as a direct answer — improving passage scoring. Not required, but a meaningful advantage.`}
 			tooltipPosition="top"
+			usePortal
 		>
-			<span
-				className={`inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold ${
-					ready
-						? 'bg-success-50 text-success-600 dark:bg-success-900/30 dark:text-success-400'
-						: 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500'
-				}`}
-			>
-				{ready ? <Check className="size-3" /> : <X className="size-3" />}
-				{ready ? 'Passage ready' : 'Not a question'}
+			<span className="inline-flex items-center gap-0.5 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:bg-gray-800 dark:text-gray-500">
+				<Info className="size-3" />
+				Consider as question
 			</span>
 		</Tooltip>
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Brief quality scoring — shared by Badge (header) and Panel (right sidebar)
+// Scores the brief on 7 quality signals, each worth points toward 100
+// ---------------------------------------------------------------------------
+
+function computeBriefQualityScore(
+	page: { briefData?: Record<string, unknown> | null },
+	briefSections: Array<{ heading?: string; type?: string; guidance?: string }>
+): { score: number; signals: { label: string; pass: boolean; pts: number }[] } {
+	const bd = page.briefData as Record<string, unknown> | null;
+	const signals: { label: string; pass: boolean; pts: number }[] = [
+		{ label: 'Sections planned', pass: briefSections.length >= 4, pts: 20 },
+		{
+			label: 'Question-format H2s',
+			pass:
+				briefSections.filter(
+					(s) =>
+						(s.type === 'H2' || s.type === 'h2') &&
+						s.heading &&
+						/^(what|how|why|when|where|which|who|can|does|is|are|should|will)/i.test(s.heading)
+				).length >= 2,
+			pts: 15
+		},
+		{
+			label: 'IGS opportunity identified',
+			pass: !!(bd?.igs_opportunity as string | undefined)?.trim(),
+			pts: 20
+		},
+		{
+			label: 'Entities mapped',
+			pass: Array.isArray(bd?.entities) && (bd?.entities as unknown[]).length >= 3,
+			pts: 15
+		},
+		{
+			label: 'PAA questions',
+			pass: Array.isArray(bd?.paa_questions) && (bd?.paa_questions as unknown[]).length >= 2,
+			pts: 15
+		},
+		{
+			label: 'Competitor data',
+			pass: Array.isArray(bd?.competitors_raw) && (bd?.competitors_raw as unknown[]).length >= 2,
+			pts: 10
+		},
+		{
+			label: 'Internal link plan',
+			pass:
+				Array.isArray(bd?.internal_link_instructions) &&
+				(bd?.internal_link_instructions as unknown[]).length >= 1,
+			pts: 5
+		}
+	];
+	const score = signals.filter((s) => s.pass).reduce((sum, s) => sum + s.pts, 0);
+	return { score, signals };
+}
+
+function BriefQualityBadge({
+	page,
+	briefSections
+}: {
+	page: { briefData?: Record<string, unknown> | null };
+	briefSections: Array<{ heading?: string; type?: string; guidance?: string }>;
+}) {
+	const { score } = computeBriefQualityScore(page, briefSections);
+	const color =
+		score >= 80
+			? 'text-teal-500 dark:text-teal-400'
+			: score >= 60
+				? 'text-success-600 dark:text-success-400'
+				: score >= 40
+					? 'text-warning-600 dark:text-warning-400'
+					: 'text-error-600 dark:text-error-400';
+
+	return (
+		<div className="shrink-0 text-right">
+			<span className={`font-montserrat text-2xl font-extrabold ${color}`}>{score}</span>
+			<span className="ml-1 text-sm text-gray-500 dark:text-gray-400">/100</span>
+			<div className="text-[10px] tracking-wide text-gray-400 uppercase dark:text-gray-500">
+				Brief quality
+			</div>
+		</div>
+	);
+}
+
+/** Full brief quality panel for right sidebar — matches SEO score layout */
+function BriefQualityPanel({
+	page,
+	briefSections
+}: {
+	page: { briefData?: Record<string, unknown> | null };
+	briefSections: Array<{ heading?: string; type?: string; guidance?: string }>;
+}) {
+	const { score, signals } = computeBriefQualityScore(page, briefSections);
+	const color =
+		score >= 80
+			? 'text-teal-500 dark:text-teal-400'
+			: score >= 60
+				? 'text-success-600 dark:text-success-400'
+				: score >= 40
+					? 'text-warning-600 dark:text-warning-400'
+					: 'text-error-600 dark:text-error-400';
+
+	return (
+		<>
+			<div className="mb-4 text-center">
+				<span className={`font-montserrat text-5xl font-extrabold ${color}`}>{score}</span>
+				<span className="ml-1 text-base text-gray-500 dark:text-gray-400">/100</span>
+				<div className="text-xs tracking-wide text-gray-500 uppercase dark:text-gray-400">
+					Brief Quality
+				</div>
+			</div>
+			<Tooltip
+				content="Aim for 75+ before generating your article. The IGS opportunity and entity fields carry the most weight — missing either produces a weaker article regardless of structure."
+				tooltipPosition="top"
+				usePortal
+			>
+				<div className="mb-4 flex items-center justify-center gap-1 text-center text-gray-500 dark:text-gray-400">
+					<Info className="size-3" />
+					<div className="text-[10px] tracking-wide uppercase">Aim for a score of 75+</div>
+				</div>
+			</Tooltip>
+			<div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+				<div className="mb-2 text-[12px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+					Quality signals
+				</div>
+				<div className="space-y-1.5 text-[12px]">
+					{signals.map(({ label, pass, pts }) => (
+						<div key={label} className="flex items-center justify-between">
+							<span className="text-gray-600 dark:text-gray-400">{label}</span>
+							<span
+								className={
+									pass
+										? 'text-success-600 dark:text-success-400 font-semibold'
+										: 'text-gray-400 dark:text-gray-500'
+								}
+							>
+								{pass ? `+${pts}` : `0/${pts}`}
+							</span>
+						</div>
+					))}
+				</div>
+			</div>
+		</>
 	);
 }
 
@@ -235,6 +448,8 @@ export default function Workspace() {
 	const { page, loading, error, refetch } = usePage(id ?? null);
 	const { cluster } = useCluster(page?.clusterId ?? null);
 	const { organization, refetch: refetchOrg } = useOrganization();
+	const { session } = useAuth();
+	const { openCROStudioUpgradeModal } = useCROStudioUpgrade();
 	const isFocusPage = page?.type === 'focus_page';
 
 	const { sites, selectedSite } = useSiteContext();
@@ -243,37 +458,50 @@ export default function Workspace() {
 	const [activeTab, setActiveTab] = useState<'brief' | 'article'>(
 		isFocusPage ? 'brief' : 'article'
 	);
-	// CRO tab disabled for now — add 'cro' to tabs array below to re-enable (system-1-cro-layer)
-	const [activeIntelTab, setActiveIntelTab] = useState<'seo' | 'competitors' | 'cro' | 'entities'>(
-		'seo'
-	);
+	const [activeIntelTab, setActiveIntelTab] = useState<'seo' | 'competitors' | 'entities'>('seo');
 	const [showEditorFromScratch, setShowEditorFromScratch] = useState(false);
 	const [generating, setGenerating] = useState(false);
-	const [generationSteps, setGenerationSteps] = useState<Step[] | null>(null);
-	const [generationTitle, setGenerationTitle] = useState<string>('Working on it...');
+	const [taskWidgetOpen, setTaskWidgetOpen] = useState(false);
+	const [taskWidgetStatus, setTaskWidgetStatus] = useState<TaskStatus>('running');
+	const [taskWidgetTitle, setTaskWidgetTitle] = useState('');
+	const [taskWidgetSteps, setTaskWidgetSteps] = useState<TaskStep[]>([]);
+	const [taskWidgetError, setTaskWidgetError] = useState<string | undefined>();
+	const [taskWidgetDisableAutoAdvance, setTaskWidgetDisableAutoAdvance] = useState(false);
 	const [liveSeoBreakdown, setLiveSeoBreakdown] = useState<SeoScoreBreakdown | null>(null);
-	const [liveCroChecklist, setLiveCroChecklist] = useState<CroChecklistResult | null>(null);
-	const [croMismatchDismissed, setCroMismatchDismissed] = useState(false);
 	// L9: AI detection education — persisted dismiss (localStorage)
 	const [aiDetectionDismissed, setAiDetectionDismissed] = useState(
-		() => (typeof window !== 'undefined' && localStorage.getItem('sharkly_ai_detection_dismissed') === '1')
+		() =>
+			typeof window !== 'undefined' &&
+			localStorage.getItem('sharkly_ai_detection_dismissed') === '1'
 	);
-	const [croFixesLoading, setCroFixesLoading] = useState(false);
-	const [croSuggestions, setCroSuggestions] = useState<string | null>(null);
 	const [contentVersion, setContentVersion] = useState(0);
 	const [, forceUpdate] = useState(0);
 	const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 	const [diagnoseOpen, setDiagnoseOpen] = useState(false);
 	const [shopifyPublishOpen, setShopifyPublishOpen] = useState(false);
+	const [addToCROModalOpen, setAddToCROModalOpen] = useState(false);
+	const [openCROStudioLoading, setOpenCROStudioLoading] = useState(false);
 	const [confirmRegenOpen, setConfirmRegenOpen] = useState(false);
+	const [confirmArticleRegenOpen, setConfirmArticleRegenOpen] = useState(false);
 	const [metaSidebarOpen, setMetaSidebarOpen] = useState(false);
 	const [rewritingSectionIdx, setRewritingSectionIdx] = useState<number | null>(null);
+	const [briefSectionEdits, setBriefSectionEdits] = useState<Record<number, string>>({});
+	const [savingBriefSectionIdx, setSavingBriefSectionIdx] = useState<number | null>(null);
 	const [faqGenerating, setFaqGenerating] = useState(false);
 	const [faqData, setFaqData] = useState<{
 		faqs: Array<{ question: string; answer: string }>;
 		schema: string;
 	} | null>(null);
 	const [faqOpen, setFaqOpen] = useState(false);
+	// Pricing state derived from brief_data
+	const briefPaid = !!(page?.briefData as { brief_paid?: boolean } | null)?.brief_paid;
+	const articleGenerated = !!(page?.briefData as { article_generated?: boolean } | null)
+		?.article_generated;
+	const hasContent = (page?.wordCount ?? 0) > 0;
+	// Free only when brief was paid AND article has never been generated from it.
+	// Using article_generated (backend flag) not hasContent — content can be deleted,
+	// article_generated cannot be reset by the user.
+	const firstArticleIsFree = briefPaid && !articleGenerated;
 
 	// L7: Author / EEAT — pre-fills from page override or site default; editable before brief generation
 	const siteForAuthor = cluster?.siteId ? sites.find((s) => s.id === cluster.siteId) : null;
@@ -300,6 +528,24 @@ export default function Workspace() {
 	const articleCost = CREDIT_COSTS.ARTICLE_GENERATION;
 	const hasCreditsForBrief = creditsRemaining >= briefCost;
 	const hasCreditsForArticle = creditsRemaining >= articleCost;
+
+	// Brief sections — defined early so handleSaveBriefSection can reference it
+	const briefSections = useMemo(
+		() =>
+			(page?.briefData?.sections as Array<{
+				type?: string;
+				heading?: string;
+				guidance?: string;
+				entities?: string[];
+				entitiesCovered?: string[];
+				entitiesMissing?: string[];
+				cro_note?: string | null;
+				content?: string;
+				croFlag?: string;
+			}>) ?? [],
+		[page?.briefData]
+	);
+	const hasBrief = briefSections.length > 0;
 
 	// Page type — editable in workspace, persists to DB
 	const [localPageType, setLocalPageType] = useState<string>('');
@@ -352,9 +598,48 @@ export default function Workspace() {
 		setShowEditorFromScratch(false);
 	}, [id, isFocusPage]);
 
-	useEffect(() => {
-		setCroSuggestions(null);
-	}, [id]);
+	const handleOpenInCROStudio = useCallback(async () => {
+		const token = session?.access_token;
+		if (!token) {
+			toast.error('Please sign in to continue');
+			return;
+		}
+		const pubUrl = page?.publishedUrl?.trim();
+		const siteUrl = siteForAuthor?.url?.replace(/\/$/, '');
+		const fullPageUrl = !pubUrl
+			? ''
+			: pubUrl.startsWith('http://') || pubUrl.startsWith('https://')
+				? pubUrl
+				: siteUrl
+					? `${siteUrl}${pubUrl.startsWith('/') ? pubUrl : `/${pubUrl}`}`
+					: '';
+		if (!fullPageUrl) {
+			toast.error('Add a page URL in Meta to audit this page in CRO Studio');
+			return;
+		}
+		const normalizeUrl = (u: string) => u.trim().toLowerCase().replace(/\/+$/, '') || '';
+		setOpenCROStudioLoading(true);
+		try {
+			const res = await fetch(buildApiUrl('/api/cro-studio/audits?page_type=seo_page'), {
+				headers: { Authorization: `Bearer ${token}` }
+			});
+			const data = await res.json().catch(() => ({}));
+			const audits = Array.isArray(data?.audits) ? data.audits : [];
+			const targetNorm = normalizeUrl(fullPageUrl);
+			const match = audits.find(
+				(a: { page_url?: string }) => normalizeUrl(a.page_url ?? '') === targetNorm
+			);
+			if (match?.id) {
+				navigate(`/cro-studio/audit/${match.id}`);
+				return;
+			}
+			setAddToCROModalOpen(true);
+		} catch {
+			toast.error('Failed to check CRO Studio audits');
+		} finally {
+			setOpenCROStudioLoading(false);
+		}
+	}, [session?.access_token, page?.publishedUrl, siteForAuthor?.url, navigate]);
 
 	const handleGenerateBrief = useCallback(async () => {
 		if (!id) return;
@@ -365,21 +650,17 @@ export default function Workspace() {
 			return;
 		}
 		setGenerating(true);
-		setGenerationTitle('Generating brief');
-		setGenerationSteps([
-			{ id: '1', label: 'Analyzing page and context', status: 'active' },
-			{ id: '2', label: 'Generating brief', status: 'pending' }
-		]);
-		const advanceToStep2 = setTimeout(() => {
-			setGenerationSteps((s) =>
-				s
-					? [
-							{ ...s[0], status: 'complete' },
-							{ ...s[1], status: 'active' }
-						]
-					: s
-			);
-		}, 600);
+		setTaskWidgetTitle('Generating brief');
+		setTaskWidgetSteps(
+			BRIEF_TASK_STEPS.map((s, i) => ({
+				...s,
+				status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
+			}))
+		);
+		setTaskWidgetStatus('running');
+		setTaskWidgetError(undefined);
+		setTaskWidgetDisableAutoAdvance(true); // Real progress from NDJSON stream
+		setTaskWidgetOpen(true);
 		try {
 			const {
 				data: { session }
@@ -387,8 +668,8 @@ export default function Workspace() {
 			const token = session?.access_token;
 			if (!token) {
 				toast.error('Please sign in to continue');
-				setGenerating(false);
-				setGenerationSteps(null);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError('Please sign in to continue');
 				return;
 			}
 			const res = await fetch(buildApiUrl(`/api/pages/${id}/brief`), {
@@ -398,26 +679,78 @@ export default function Workspace() {
 					authorOverride: authorForBrief.trim() || null
 				})
 			});
-			const data = await res.json().catch(() => ({}));
+
+			// Non-2xx: read JSON error (auth, credits, etc.)
 			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
 				if (res.status === 402) {
-					toast.error(
-						`Insufficient credits. Need ${data.required ?? briefCost}, have ${data.available ?? creditsRemaining ?? 0}.`
-					);
+					const msg = `Insufficient credits. Need ${data.required ?? briefCost}, have ${data.available ?? creditsRemaining ?? 0}.`;
+					toast.error(msg);
+					setTaskWidgetStatus('error');
+					setTaskWidgetError(msg);
 					return;
 				}
 				throw new Error(data?.error || 'Failed to generate brief');
 			}
-			setGenerationSteps((s) => (s ? [s[0], { ...s[1], status: 'complete' }] : s));
+
+			// Consume NDJSON stream
+			const reader = res.body?.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+			let briefData: Record<string, unknown> | null = null;
+
+			if (reader) {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split('\n');
+					buffer = lines.pop() ?? '';
+					for (const line of lines) {
+						if (!line.trim()) continue;
+						try {
+							const ev = JSON.parse(line) as { type: string; id?: string; message?: string; briefData?: Record<string, unknown> };
+							if (ev.type === 'step' && ev.id) {
+								const stepIdx = BRIEF_TASK_STEPS.findIndex((st) => st.id === ev.id);
+								if (stepIdx >= 0) {
+									setTaskWidgetSteps((prev) =>
+										prev.map((s, i) => {
+											if (i <= stepIdx) return { ...s, status: 'complete' as const };
+											if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+											return s;
+										})
+									);
+								}
+							} else if (ev.type === 'done') {
+								briefData = ev.briefData ?? null;
+							} else if (ev.type === 'error') {
+								throw new Error(ev.message ?? 'Failed to generate brief');
+							}
+						} catch (parseErr) {
+							if (parseErr instanceof SyntaxError) {
+								continue; // skip malformed JSON line
+							}
+							throw parseErr;
+						}
+					}
+				}
+			}
+
+			if (!briefData) {
+				throw new Error('No brief data received');
+			}
+			setTaskWidgetStatus('done');
 			toast.success('Brief generated');
 			refetch();
 			refetchOrg();
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to generate brief');
+			const msg = err instanceof Error ? err.message : 'Failed to generate brief';
+			toast.error(msg);
+			setTaskWidgetStatus('error');
+			setTaskWidgetError(msg);
 		} finally {
-			clearTimeout(advanceToStep2);
 			setGenerating(false);
-			setGenerationSteps(null);
+			setTaskWidgetDisableAutoAdvance(false);
 		}
 	}, [id, isFocusPage, authorForBrief, refetch, refetchOrg, briefCost, creditsRemaining]);
 
@@ -425,7 +758,9 @@ export default function Workspace() {
 		if (!id) return;
 
 		// S2-4: Pre-generation IGS warning when igs_opportunity is empty (product-gaps V1.2c)
-		const igsOpportunity = (page?.briefData as { igs_opportunity?: string } | null)?.igs_opportunity?.trim();
+		const igsOpportunity = (
+			page?.briefData as { igs_opportunity?: string } | null
+		)?.igs_opportunity?.trim();
 		if (!igsOpportunity) {
 			const proceed = window.confirm(
 				`To protect your site's overall quality score, this article needs at least one original element that competitors don't have. Without it, this article may gradually lower Google's quality rating for your entire site — not just this page.\n\nWhat original insight, data, or experience can you add? (You can add this in a brief section or proceed anyway.)`
@@ -434,22 +769,17 @@ export default function Workspace() {
 		}
 
 		setGenerating(true);
-		setGenerationTitle('Generating article');
-		setGenerationSteps([
-			{ id: '1', label: 'Analyzing page and context', status: 'active' },
-			{ id: '2', label: 'Generating article', status: 'pending' },
-			{ id: '3', label: 'Extracting SEO metadata & entities', status: 'pending' }
-		]);
-		const advanceToStep2 = setTimeout(() => {
-			setGenerationSteps((s) =>
-				s ? [{ ...s[0], status: 'complete' }, { ...s[1], status: 'active' }, s[2]] : s
-			);
-		}, 600);
-		const advanceToStep3 = setTimeout(() => {
-			setGenerationSteps((s) =>
-				s ? [s[0], { ...s[1], status: 'complete' }, { ...s[2], status: 'active' }] : s
-			);
-		}, 8000);
+		setTaskWidgetTitle(isFocusPage ? 'Writing article from brief' : 'Generating article');
+		setTaskWidgetSteps(
+			(isFocusPage ? ARTICLE_TASK_STEPS : SUPPORTING_ARTICLE_STEPS).map((s, i) => ({
+				...s,
+				status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
+			}))
+		);
+		setTaskWidgetStatus('running');
+		setTaskWidgetError(undefined);
+		setTaskWidgetOpen(true);
+		setTaskWidgetDisableAutoAdvance(true);
 		try {
 			const {
 				data: { session }
@@ -458,36 +788,241 @@ export default function Workspace() {
 			if (!token) {
 				toast.error('Please sign in to continue');
 				setGenerating(false);
-				setGenerationSteps(null);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError('Please sign in to continue');
 				return;
 			}
 			const res = await fetch(buildApiUrl(`/api/pages/${id}/article`), {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
 			});
-			const data = await res.json().catch(() => ({}));
+
 			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
 				if (res.status === 402) {
 					toast.error(
 						`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`
 					);
+					setTaskWidgetStatus('error');
+					setTaskWidgetError(`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`);
 					return;
 				}
 				throw new Error(data?.error || 'Failed to generate article');
 			}
-			setGenerationSteps((s) => (s ? [s[0], s[1], { ...s[2], status: 'complete' }] : s));
+
+			// Consume NDJSON stream
+			const steps = isFocusPage ? ARTICLE_TASK_STEPS : SUPPORTING_ARTICLE_STEPS;
+			const reader = res.body?.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+
+			if (reader) {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split('\n');
+					buffer = lines.pop() ?? '';
+					for (const line of lines) {
+						if (!line.trim()) continue;
+						try {
+							const ev = JSON.parse(line) as { type: string; id?: string; message?: string };
+							if (ev.type === 'step' && ev.id) {
+								setTaskWidgetSteps((prev) => {
+									const stepIdx = steps.findIndex((st) => st.id === ev.id);
+									if (stepIdx === -1) return prev;
+									return prev.map((s, i) => {
+										if (i <= stepIdx) return { ...s, status: 'complete' as const };
+										if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+										return s;
+									});
+								});
+							} else if (ev.type === 'done') {
+								break;
+							} else if (ev.type === 'error') {
+								throw new Error(ev.message ?? 'Failed to generate article');
+							}
+						} catch (parseErr) {
+							if (!(parseErr instanceof SyntaxError)) throw parseErr;
+						}
+					}
+				}
+			}
+
+			setTaskWidgetStatus('done');
 			toast.success('Article generated — SEO score ready');
 			refetch();
 			refetchOrg();
 		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to generate article');
+			const msg = err instanceof Error ? err.message : 'Failed to generate article';
+			toast.error(msg);
+			setTaskWidgetStatus('error');
+			setTaskWidgetError(msg);
 		} finally {
-			clearTimeout(advanceToStep2);
-			clearTimeout(advanceToStep3);
 			setGenerating(false);
-			setGenerationSteps(null);
+			setTaskWidgetDisableAutoAdvance(false);
 		}
-	}, [id, page?.briefData, refetch, refetchOrg, articleCost, creditsRemaining]);
+	}, [id, isFocusPage, page?.briefData, refetch, refetchOrg, articleCost, creditsRemaining]);
+
+	// ── Research & Write — chains brief → article for focus pages (first time) ──
+	// Step 1 charges FOCUS_PAGE_FULL (40 credits), Step 2 is free (brief_paid flag).
+	// Shows a unified progress modal with explanatory subtitles for each step.
+	const handleResearchAndWrite = useCallback(async () => {
+		if (!id || !isFocusPage) return;
+
+		// Get auth token once for both calls
+		const {
+			data: { session }
+		} = await supabase.auth.getSession();
+		const token = session?.access_token;
+		if (!token) {
+			toast.error('Please sign in to continue');
+			return;
+		}
+
+		setGenerating(true);
+		setTaskWidgetTitle('Research & Write');
+		setTaskWidgetSteps(
+			RESEARCH_AND_WRITE_STEPS.map((s, i) => ({
+				...s,
+				status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
+			}))
+		);
+		setTaskWidgetStatus('running');
+		setTaskWidgetError(undefined);
+		setTaskWidgetOpen(true);
+
+		try {
+			// ── Step 1: Generate brief (NDJSON stream) ─────────────────────────────
+			setTaskWidgetDisableAutoAdvance(true);
+			const briefRes = await fetch(buildApiUrl(`/api/pages/${id}/brief`), {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+				body: JSON.stringify({ authorOverride: authorForBrief.trim() || null })
+			});
+
+			if (!briefRes.ok) {
+				const data = await briefRes.json().catch(() => ({}));
+				const msg =
+					briefRes.status === 402
+						? `Not enough credits — need ${data.required ?? 40}, have ${data.available ?? creditsRemaining}.`
+						: data?.error || 'Failed to generate brief';
+				toast.error(msg);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError(msg);
+				return;
+			}
+
+			// Consume NDJSON stream
+			const reader = briefRes.body?.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+			let briefData: Record<string, unknown> | null = null;
+
+			if (reader) {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split('\n');
+					buffer = lines.pop() ?? '';
+					for (const line of lines) {
+						if (!line.trim()) continue;
+						try {
+							const ev = JSON.parse(line) as { type: string; briefData?: Record<string, unknown>; message?: string };
+							if (ev.type === 'done') briefData = ev.briefData ?? null;
+							else if (ev.type === 'error') throw new Error(ev.message ?? 'Failed to generate brief');
+						} catch (parseErr) {
+							if (!(parseErr instanceof SyntaxError)) throw parseErr;
+						}
+					}
+				}
+			}
+
+			// Validate the brief actually has sections before advancing
+			const briefSectionCount = briefData && Array.isArray(briefData.sections) ? briefData.sections.length : 0;
+			if (briefSectionCount === 0) {
+				const msg = 'Brief generated no sections — please try again.';
+				toast.error(msg);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError(msg);
+				return;
+			}
+
+			// Step 1 complete — advance to Step 2
+			setTaskWidgetSteps((s) =>
+				s
+					? [
+							{ ...s[0], status: 'complete' },
+							{ ...s[1], status: 'active' }
+						]
+					: s
+			);
+			await refetch(); // brief now in page data
+			await refetchOrg();
+
+			// ── Step 2: Generate article (NDJSON stream, free — bundled) ─────────────
+			const articleRes = await fetch(buildApiUrl(`/api/pages/${id}/article`), {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+			});
+
+			if (!articleRes.ok) {
+				const articleData = await articleRes.json().catch(() => ({}));
+				const msg =
+					articleRes.status === 402
+						? `Not enough credits for article — need ${articleData.required ?? 0}, have ${articleData.available ?? creditsRemaining}.`
+						: articleData?.error || 'Failed to generate article';
+				toast.error(msg);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError(msg);
+				return;
+			}
+
+			// Consume article NDJSON stream until done
+			const articleReader = articleRes.body?.getReader();
+			const articleDecoder = new TextDecoder();
+			let articleBuffer = '';
+			let articleDone = false;
+			if (articleReader) {
+				while (true) {
+					const { done, value } = await articleReader.read();
+					if (done) break;
+					articleBuffer += articleDecoder.decode(value, { stream: true });
+					const lines = articleBuffer.split('\n');
+					articleBuffer = lines.pop() ?? '';
+					for (const line of lines) {
+						if (!line.trim()) continue;
+						try {
+							const ev = JSON.parse(line) as { type: string; message?: string };
+							if (ev.type === 'done') articleDone = true;
+							else if (ev.type === 'error') throw new Error(ev.message ?? 'Failed to generate article');
+						} catch (parseErr) {
+							if (!(parseErr instanceof SyntaxError)) throw parseErr;
+						}
+					}
+				}
+			}
+
+			setTaskWidgetSteps((s) => (s ? [s[0], { ...s[1], status: 'complete' }] : s));
+			setTaskWidgetStatus('done');
+			toast.success('Focus page complete — research, brief, and article ready');
+			// Clear generating BEFORE refetch so button unlocks immediately.
+			// Refetch runs in background — editor content loads asynchronously.
+			setGenerating(false);
+			setActiveTab('article');
+			await refetch();
+			await refetchOrg();
+		} catch (err) {
+			const msg = err instanceof Error ? err.message : 'Failed to generate';
+			toast.error(msg);
+			setTaskWidgetStatus('error');
+			setTaskWidgetError(msg);
+		} finally {
+			setGenerating(false);
+			setTaskWidgetDisableAutoAdvance(false);
+		}
+	}, [id, isFocusPage, authorForBrief, refetch, refetchOrg, creditsRemaining]);
 
 	const handleRewriteSection = useCallback(
 		async (sectionIdx: number, section: Record<string, unknown>) => {
@@ -532,6 +1067,49 @@ export default function Workspace() {
 		[id, page?.keyword, refetch, refetchOrg]
 	);
 
+	const handleSaveBriefSection = useCallback(
+		async (sectionIndex: number, guidance: string) => {
+			if (!id || !page?.briefData) return;
+			const sections =
+				(page.briefData?.sections as Array<{ guidance?: string; content?: string }>) ?? [];
+			const section = sections[sectionIndex];
+			const original = section?.guidance ?? section?.content ?? '';
+			if (guidance.trim() === original.trim()) return;
+			setSavingBriefSectionIdx(sectionIndex);
+			try {
+				const {
+					data: { session }
+				} = await supabase.auth.getSession();
+				const token = session?.access_token;
+				if (!token) {
+					toast.error('Please sign in');
+					return;
+				}
+				const res = await fetch(buildApiUrl(`/api/pages/${id}/brief-section`), {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+					body: JSON.stringify({ sectionIndex, guidance })
+				});
+				const data = await res.json().catch(() => ({}));
+				if (!res.ok) {
+					throw new Error(data.error || 'Failed to save');
+				}
+				setBriefSectionEdits((prev) => {
+					const next = { ...prev };
+					delete next[sectionIndex];
+					return next;
+				});
+				await refetch();
+				toast.success('Section saved');
+			} catch {
+				toast.error('Failed to save section');
+			} finally {
+				setSavingBriefSectionIdx(null);
+			}
+		},
+		[id, page?.briefData, refetch]
+	);
+
 	const handleGenerateFAQ = useCallback(async () => {
 		if (!id) return;
 		setFaqGenerating(true);
@@ -565,40 +1143,6 @@ export default function Workspace() {
 		}
 	}, [id, refetchOrg]);
 
-	const handleGetCroFixes = useCallback(async () => {
-		if (!id) return;
-		setCroFixesLoading(true);
-		setCroSuggestions(null);
-		try {
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
-			const token = session?.access_token;
-			if (!token) {
-				toast.error('Please sign in');
-				return;
-			}
-			const res = await fetch(buildApiUrl(`/api/pages/${id}/cro-fixes`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-			});
-			const data = await res.json().catch(() => ({}));
-			if (!res.ok) {
-				if (res.status === 402)
-					toast.error(`Need ${data.required} credits, have ${data.available}`);
-				else if (res.status === 400) toast.info(data.error || 'No failing items');
-				else toast.error(data.error || 'Failed to get CRO fixes');
-				return;
-			}
-			setCroSuggestions(data.data?.suggestions ?? null);
-			await refetchOrg();
-		} catch {
-			toast.error('Failed to get CRO fixes');
-		} finally {
-			setCroFixesLoading(false);
-		}
-	}, [id, refetchOrg]);
-
 	const lowlight = useMemo(() => createLowlight(all), []);
 
 	const initialContent = useMemo(() => {
@@ -618,6 +1162,8 @@ export default function Workspace() {
 			CharacterCount,
 			CodeBlockLowlight.configure({ lowlight }),
 			LinkExtension.configure({
+				// openOnClick: false prevents navigation but blocks cursor placement in some setups.
+				// To edit link text: click before the link, then arrow-key into it, or drag-select the text.
 				validate: (href) => /^https?:\/\//.test(href),
 				HTMLAttributes: { rel: null, target: null }
 			}),
@@ -694,62 +1240,10 @@ export default function Workspace() {
 		return () => clearTimeout(timer);
 	}, [editor, page, activeTab, contentVersion]);
 
-	useEffect(() => {
-		setCroMismatchDismissed(false);
-	}, [contentVersion]);
-
-	// Live CRO checklist — runs in background (CRO tab hidden for now)
-	useEffect(() => {
-		if (!editor || !page || activeTab !== 'article') {
-			setLiveCroChecklist(null);
-			return;
-		}
-		const timer = setTimeout(() => {
-			const json = editor.getJSON();
-			const text = editor.getText();
-			const wc = text.split(/\s+/).filter(Boolean).length;
-			if (wc === 0) {
-				setLiveCroChecklist(null);
-				return;
-			}
-			const checklist = evaluateCROChecklist(
-				{
-					keyword: page.keyword ?? '',
-					pageType: page.pageType,
-					briefData: page.briefData
-				},
-				json
-			);
-			setLiveCroChecklist(checklist);
-		}, 500);
-		return () => clearTimeout(timer);
-	}, [editor, page, activeTab, contentVersion]);
-
 	const displaySeoScore = liveSeoBreakdown?.total ?? page?.seoScore ?? 0;
 
-	const croData = liveCroChecklist ?? (page?.croChecklist as CroChecklistResult | null);
-
-	// Focus page CRO tags (destination link + link limit) — separate from SEO score
-	const focusPageWarnings = useMemo(() => {
-		if (!isFocusPage || !page) return null;
-		let content: unknown = null;
-		if (editor?.getJSON) {
-			content = editor.getJSON();
-		} else if (page?.content) {
-			try {
-				content = typeof page.content === 'string' ? JSON.parse(page.content) : page.content;
-			} catch {
-				content = null;
-			}
-		}
-		if (!content) return null;
-		const w = getFocusPageLinkWarnings(content, cluster?.destinationPageUrl ?? null, 3);
-		if (!w.missingDestination && !w.overLinkLimit) return null;
-		return w;
-	}, [isFocusPage, page, cluster?.destinationPageUrl, editor, contentVersion]);
-
 	// Auto-save: 2s debounce after every editor change, only when content exists
-	// Per system-1-cro-layer: run CRO checklist evaluation on content save (same trigger as UPSA)
+	// CRO evaluation is done in CRO Studio
 	useEffect(() => {
 		if (!editor || !id || contentVersion === 0) return;
 		setSaveStatus('idle');
@@ -761,29 +1255,11 @@ export default function Workspace() {
 				const text = editor.getText();
 				const wc = text.split(/\s+/).filter(Boolean).length;
 
-				let croChecklist: Record<string, unknown> | null = null;
-				let croScore = 0;
-				if (page && wc > 0) {
-					const checklist = evaluateCROChecklist(
-						{
-							keyword: page.keyword ?? '',
-							pageType: page.pageType,
-							briefData: page.briefData
-						},
-						json
-					);
-					const { percentage } = calculateCROScore(checklist, checklist.page_type);
-					croChecklist = checklist;
-					croScore = percentage;
-				}
-
 				await supabase
 					.from('pages')
 					.update({
 						content: JSON.stringify(json),
 						word_count: wc,
-						cro_checklist: croChecklist,
-						cro_score: croScore,
 						updated_at: new Date().toISOString()
 					})
 					.eq('id', id);
@@ -793,7 +1269,7 @@ export default function Workspace() {
 			}
 		}, 2000);
 		return () => clearTimeout(timer);
-	}, [editor, id, contentVersion, page]);
+	}, [editor, id, contentVersion]);
 
 	const setLinkHandler = useCallback(() => {
 		if (!editor) return;
@@ -839,24 +1315,6 @@ export default function Workspace() {
 	const hasEditorContent = editor && editor.getText().trim().length > 0;
 	const showRegenerate = isArticleEditorVisible && hasEditorContent;
 
-	// Brief data
-	const briefSections = useMemo(
-		() =>
-			(page?.briefData?.sections as Array<{
-				type?: string;
-				heading?: string;
-				guidance?: string;
-				entities?: string[];
-				entitiesCovered?: string[];
-				entitiesMissing?: string[];
-				cro_note?: string | null;
-				content?: string;
-				croFlag?: string;
-			}>) ?? [],
-		[page?.briefData]
-	);
-	const hasBrief = briefSections.length > 0;
-
 	// Top-level brief data — used by Entities tab three-section panel
 	type BriefEntityData = { term: string; competitor_count?: number; must_cover?: boolean };
 	type BriefLsiData = { term: string; competitor_count?: number };
@@ -880,7 +1338,6 @@ export default function Workspace() {
 	// even without brief data — so we always show it when content exists.
 	const hasSemanticDataFromBrief =
 		briefEntities.length > 0 || briefLsiTerms.length > 0 || briefPaaQuestions.length > 0;
-	const hasContent = (page?.wordCount ?? 0) > 0;
 	const canShowAccurateScore = hasSemanticDataFromBrief || (!isFocusPage && hasContent);
 
 	// Determine which LSI / entity terms are "covered" by checking editor content
@@ -945,11 +1402,132 @@ export default function Workspace() {
 		[page?.briefData]
 	);
 
+	// Internal link instructions (Reasonable Surfer US8117209B1) — baked into brief
+	const briefInternalLinks = useMemo(
+		() =>
+			(
+				page?.briefData as {
+					internal_link_instructions?: Array<{
+						target: string;
+						anchor_text: string;
+						placement: string;
+						priority: string;
+						note?: string;
+					}>;
+				} | null
+			)?.internal_link_instructions ?? [],
+		[page?.briefData]
+	);
+
 	// Article word count (live from editor)
 	const liveWordCount = useMemo(
 		() => (editor ? editor.storage.characterCount.words() : (page?.wordCount ?? 0)),
 		[editor, page?.wordCount, contentVersion] // eslint-disable-line react-hooks/exhaustive-deps
 	);
+
+	const renderMainGenerateButton = useCallback(() => {
+		if (isFocusPage) {
+			if (!hasBrief) {
+				// First time — one button, one charge, both steps
+				return (
+					<Button
+						size="sm"
+						className="bg-brand-500 hover:bg-brand-600 text-white"
+						disabled={generating || creditsRemaining < CREDIT_COSTS.FOCUS_PAGE_FULL}
+						onClick={handleResearchAndWrite}
+					>
+						<CreditBadge
+							cost={CREDIT_COSTS.FOCUS_PAGE_FULL}
+							action="Research & Write"
+							sufficient={creditsRemaining >= CREDIT_COSTS.FOCUS_PAGE_FULL}
+						/>
+						<Sparkles className="ml-2 size-4" />
+						<span className="ml-2">{generating ? 'Working...' : 'Research & Write'}</span>
+					</Button>
+				);
+			} else {
+				// Brief exists — show separate regen buttons
+				return (
+					<div className="flex items-center gap-2">
+						{/* Redo research & plan — 25 credits */}
+						<Button
+							size="sm"
+							variant="outline"
+							className="border-gray-200 dark:border-gray-700"
+							disabled={generating || creditsRemaining < CREDIT_COSTS.FOCUS_PAGE_BRIEF_REGEN}
+							onClick={() => setConfirmRegenOpen(true)}
+						>
+							<CreditBadge
+								cost={CREDIT_COSTS.FOCUS_PAGE_BRIEF_REGEN}
+								action="Redo Research"
+								sufficient={creditsRemaining >= CREDIT_COSTS.FOCUS_PAGE_BRIEF_REGEN}
+							/>
+							<span className="ml-1.5 text-sm">
+								{generating ? 'Working...' : 'Redo Research & Plan'}
+							</span>
+						</Button>
+						{/* Rewrite article — 15 credits (or free if first time) */}
+						<Button
+							size="sm"
+							className="bg-brand-500 hover:bg-brand-600 text-white"
+							disabled={
+								generating ||
+								(!firstArticleIsFree && creditsRemaining < CREDIT_COSTS.ARTICLE_GENERATION)
+							}
+							onClick={() =>
+								hasContent ? setConfirmArticleRegenOpen(true) : handleGenerateArticle()
+							}
+						>
+							{firstArticleIsFree ? (
+								<span className="bg-success-500 mr-1.5 rounded px-1.5 py-0.5 text-[11px] font-bold text-white">
+									FREE
+								</span>
+							) : (
+								<CreditBadge
+									cost={CREDIT_COSTS.ARTICLE_GENERATION}
+									action="Rewrite Article"
+									sufficient={creditsRemaining >= CREDIT_COSTS.ARTICLE_GENERATION}
+								/>
+							)}
+							<Sparkles className="ml-2 size-4" />
+							<span className="ml-1.5 text-sm">
+								{generating ? 'Working...' : hasContent ? 'Rewrite Article' : 'Write Article'}
+							</span>
+						</Button>
+					</div>
+				);
+			}
+		} else {
+			// Supporting article — single generate button
+			return (
+				<Button
+					size="sm"
+					className="bg-brand-500 hover:bg-brand-600 text-white"
+					disabled={generating || creditsRemaining < CREDIT_COSTS.ARTICLE_GENERATION}
+					onClick={() => (hasContent ? setConfirmArticleRegenOpen(true) : handleGenerateArticle())}
+				>
+					<CreditBadge
+						cost={CREDIT_COSTS.ARTICLE_GENERATION}
+						action={hasContent ? 'Regenerate' : 'Article'}
+						sufficient={creditsRemaining >= CREDIT_COSTS.ARTICLE_GENERATION}
+					/>
+					<Sparkles className="ml-2 size-4" />
+					<span className="ml-2">
+						{generating ? 'Generating...' : hasContent ? 'Regenerate' : 'Generate Article'}
+					</span>
+				</Button>
+			);
+		}
+	}, [
+		isFocusPage,
+		hasBrief,
+		generating,
+		creditsRemaining,
+		handleResearchAndWrite,
+		handleGenerateArticle,
+		hasContent,
+		firstArticleIsFree
+	]);
 
 	if (loading) {
 		return (
@@ -960,7 +1538,7 @@ export default function Workspace() {
 	}
 	if (error || !page) {
 		return (
-			<div className="flex h-[calc(100vh-80px)] flex-col items-center justify-center gap-4">
+			<div className="flex flex-col items-center justify-center gap-4">
 				<div className="text-gray-500 dark:text-gray-400">{error || 'Page not found'}</div>
 				<Button variant="outline" onClick={() => navigate(-1)}>
 					Go back
@@ -972,233 +1550,226 @@ export default function Workspace() {
 	return (
 		<>
 			<PageMeta title={page.title} description="Content workspace" />
-			{generationSteps && <LoadingStepsModal steps={generationSteps} title={generationTitle} />}
+			<TaskProgressWidget
+				open={taskWidgetOpen}
+				title={taskWidgetTitle}
+				status={taskWidgetStatus}
+				steps={taskWidgetSteps}
+				errorMessage={taskWidgetError}
+				disableAutoAdvance={taskWidgetDisableAutoAdvance}
+				onClose={() => {
+					setTaskWidgetOpen(false);
+					setTaskWidgetError(undefined);
+				}}
+			/>
 
 			<div className="flex h-[calc(100vh-80px)] flex-col gap-6">
 				{/* ------------------------------------------------------------------ */}
 				{/* Page Header */}
 				{/* ------------------------------------------------------------------ */}
-				<div className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
-					<div className="flex flex-col gap-2">
-						<div className="flex items-center gap-2">
-							<div>
-								<div className="mb-1 text-xs text-gray-500 dark:text-gray-400">
-									<Link
-										to={`/clusters/${page.clusterId}`}
-										className="text-brand-600 dark:text-brand-400 hover:underline"
-									>
-										{cluster?.title ?? 'Cluster'}
-									</Link>
-									<span className="mx-1">›</span>
-									<span>{page.title}</span>
-								</div>
-								<h1 className="font-montser text-xl font-bold text-gray-900 dark:text-white">
-									{page.title}
-								</h1>
-								{/* Focus page CRO tags — destination link + link limit (not SEO score) */}
-								{focusPageWarnings && (
-									<div className="mt-2 flex flex-wrap gap-1.5">
-										{focusPageWarnings.missingDestination && (
-											<span className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-												Missing destination link
-											</span>
-										)}
-										{focusPageWarnings.overLinkLimit && (
-											<span className="inline-flex items-center rounded-md bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-												Too many links (max 3)
-											</span>
-										)}
-									</div>
-								)}
-							</div>
+				<div className="flex flex-col gap-4 rounded-lg border border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
+					{/* Row 1: Breadcrumb + Title + Warnings */}
+					<div className="flex min-w-0 flex-col gap-1">
+						<Link
+							to={`/clusters/${page.clusterId}`}
+							className="text-brand-600 dark:text-brand-400 text-xs hover:underline"
+						>
+							← {cluster?.title ?? 'Cluster'}
+						</Link>
+						<div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1">
+							<h1 className="font-montserrat min-w-0 truncate text-xl font-bold text-gray-900 dark:text-white">
+								{page.title}
+							</h1>
 						</div>
-
-						{/* Mode tabs — Focus Page Brief | Article Editor */}
-						{/* <div className="flex gap-0 border-b border-gray-200 dark:border-gray-700">
-							<button
-								onClick={() => setActiveTab('brief')}
-								className={`px-4 py-2 text-sm font-medium transition-colors ${
-									activeTab === 'brief'
-										? 'border-brand-500 border-b-2 font-semibold text-gray-900 dark:text-white'
-										: 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-								}`}
-							>
-								Focus Page Brief
-							</button>
-							<button
-								onClick={() => setActiveTab('article')}
-								className={`px-4 py-2 text-sm font-medium transition-colors ${
-									activeTab === 'article'
-										? 'border-brand-500 border-b-2 font-semibold text-gray-900 dark:text-white'
-										: 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-								}`}
-							>
-								Article Editor
-							</button>
-						</div> */}
 					</div>
 
-					<div className="flex items-center gap-4">
-						{/* Live UPSA score — hide when we can't score accurately (no brief/semantic data) */}
-						{!canShowAccurateScore ? (
-							<div className="min-w-[200px]">
-								<ScoreUnavailableNotice
-									variant="compact"
-									canGenerateBrief={isFocusPage}
-									hasCreditsForBrief={hasCreditsForBrief}
-									briefCost={briefCost}
-									onGenerateBrief={isFocusPage ? handleGenerateBrief : undefined}
-									generating={generating}
-								/>
-							</div>
-						) : (
-							<div className="text-right">
-								<span
-									className={`font-montserrat text-2xl font-extrabold ${scoreColor(displaySeoScore)}`}
-								>
-									{displaySeoScore}
-								</span>
-								<span className="ml-1 text-sm text-gray-500 dark:text-gray-400">/115</span>
-							</div>
-						)}
-						<Button
-							variant="outline"
-							size="sm"
-							className="border-gray-200 dark:border-gray-700"
-							onClick={() => setMetaSidebarOpen(true)}
-							disabled={!cluster?.siteId || !page?.keyword}
-						>
-							<Tag className="mr-1.5 size-3.5" />
-							{page?.metaTitle ? 'Meta ✓' : 'Meta'}
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							className="border-gray-200 dark:border-gray-700"
-							onClick={() => setDiagnoseOpen(true)}
-						>
-							<Stethoscope className="mr-1.5 size-3.5" />
-							Diagnose
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							className="border-gray-200 dark:border-gray-700"
-							onClick={() => setShopifyPublishOpen(true)}
-						>
-							<ShoppingBag className="mr-1.5 size-3.5" />
-							Publish to Shopify
-						</Button>
-
-						{/* Page type selector */}
-						<div className="relative flex items-center gap-1">
-							<Tooltip
-								content={
-									localPageType && PAGE_TYPE_CONFIGS[canonicalPageType(localPageType)]
-										? PAGE_TYPE_CONFIGS[canonicalPageType(localPageType)].description
-										: 'Select the type of page you are building — this changes the on-page SEO rules, heading format, schema type, and generation strategy.'
-								}
-								tooltipPosition="bottom"
-							>
-								<div className="relative">
-									<select
-										value={localPageType}
-										onChange={(e) => handlePageTypeChange(e.target.value)}
-										disabled={pageTypeSaving}
-										className={`focus:ring-brand-500 cursor-pointer appearance-none rounded-md border py-1.5 pr-6 pl-7 text-xs font-medium focus:ring-2 focus:outline-none dark:bg-gray-900 dark:text-gray-200 ${
-											localPageType
-												? pageTypeColor(localPageType)
-												: 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700'
-										}`}
-									>
-										<option value="">Page Type</option>
-										{PAGE_TYPES.map((pt) => (
-											<option key={pt} value={pt}>
-												{pt}
-											</option>
-										))}
-									</select>
-									<FileText className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-gray-400" />
-									<ChevronDown className="pointer-events-none absolute top-1/2 right-1.5 size-3 -translate-y-1/2 text-gray-400" />
-									{pageTypeSaving && (
-										<Loader2 className="text-brand-500 pointer-events-none absolute top-1/2 right-1.5 size-3 -translate-y-1/2 animate-spin" />
-									)}
+					{/* Row 2: Score | Tools | Page Type | Generate */}
+					<div className="flex items-center justify-between gap-3">
+						<div className="flex flex-wrap items-center gap-3">
+							{/* Score or Score unavailable — no duplicate Generate when brief tab */}
+							{activeTab === 'brief' && isFocusPage ? (
+								// Brief tab: show brief quality score instead of article UPSA score
+								hasBrief ? (
+									<BriefQualityBadge page={page} briefSections={briefSections} />
+								) : null
+							) : !canShowAccurateScore ? (
+								<div className="min-w-[180px] shrink-0">
+									<ScoreUnavailableNotice
+										variant="compact"
+										canGenerateBrief={isFocusPage}
+										hasCreditsForBrief={hasCreditsForBrief}
+										briefCost={briefCost}
+										onGenerateBrief={isFocusPage ? handleGenerateBrief : undefined}
+										generating={generating}
+										hideGenerateButton={activeTab === 'brief' && isFocusPage}
+									/>
 								</div>
-							</Tooltip>
-							<LawTooltip lawId="intent_before_keywords" />
-						</div>
+							) : (
+								<div className="shrink-0 text-right">
+									<span
+										className={`font-montserrat text-2xl font-extrabold ${scoreColor(displaySeoScore)}`}
+									>
+										{displaySeoScore}
+									</span>
+									<span className="ml-1 text-sm text-gray-500 dark:text-gray-400">/115</span>
+								</div>
+							)}
+							<div className="h-6 w-px shrink-0 bg-gray-200 dark:bg-gray-600" />
+							{/* Tools: Meta, Diagnose, Publish — grouped in dropdown to reduce clutter */}
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										variant="outline"
+										size="sm"
+										className="border-gray-200 dark:border-gray-700"
+									>
+										<BarChart3 className="mr-1 size-3.5" />
+										Tools
+										<ChevronDown className="ml-1 size-3" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="start">
+									<DropdownMenuItem
+										onClick={() => setMetaSidebarOpen(true)}
+										disabled={!cluster?.siteId || !page?.keyword}
+									>
+										<Tag className="mr-2 size-3.5" />
+										{page?.metaTitle ? 'Meta ✓' : 'Meta'}
+									</DropdownMenuItem>
+									<DropdownMenuItem onClick={() => setDiagnoseOpen(true)}>
+										<Stethoscope className="mr-2 size-3.5" />
+										Diagnose
+									</DropdownMenuItem>
+									<DropdownMenuItem onClick={() => setShopifyPublishOpen(true)}>
+										<ShoppingBag className="mr-2 size-3.5" />
+										Publish to Shopify
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+							<div className="h-6 w-px shrink-0 bg-gray-200 dark:bg-gray-600" />
 
-						{siteLanguage &&
-							(siteLanguage.language !== 'English' || siteLanguage.region !== 'United States') && (
+							{/* Page type selector */}
+							<div className="relative flex shrink-0 items-center gap-1">
 								<Tooltip
-									content={`Generating in ${siteLanguage.language} for ${siteLanguage.region}. Change in Site Settings.`}
+									content={
+										localPageType && PAGE_TYPE_CONFIGS[canonicalPageType(localPageType)]
+											? PAGE_TYPE_CONFIGS[canonicalPageType(localPageType)].description
+											: 'Select the type of page you are building — this changes the on-page SEO rules, heading format, schema type, and generation strategy.'
+									}
 									tooltipPosition="bottom"
 								>
-									<span className="border-blue-light-200 bg-blue-light-50 text-blue-light-700 dark:border-blue-light-700/40 dark:bg-blue-light-900/20 dark:text-blue-light-400 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium">
-										{siteLanguage.language} · {siteLanguage.region}
-									</span>
+									<div className="relative">
+										<select
+											value={localPageType}
+											onChange={(e) => handlePageTypeChange(e.target.value)}
+											disabled={pageTypeSaving}
+											className={`focus:ring-brand-500 cursor-pointer appearance-none rounded-md border py-1.5 pr-6 pl-7 text-xs font-medium focus:ring-2 focus:outline-none dark:bg-gray-900 dark:text-gray-200 ${
+												localPageType
+													? pageTypeColor(localPageType)
+													: 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700'
+											}`}
+										>
+											<option value="">Page Type</option>
+											{PAGE_TYPES.map((pt) => (
+												<option key={pt} value={pt}>
+													{pt}
+												</option>
+											))}
+										</select>
+										<FileText className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-gray-400" />
+										<ChevronDown className="pointer-events-none absolute top-1/2 right-1.5 size-3 -translate-y-1/2 text-gray-400" />
+										{pageTypeSaving && (
+											<Loader2 className="text-brand-500 pointer-events-none absolute top-1/2 right-1.5 size-3 -translate-y-1/2 animate-spin" />
+										)}
+									</div>
 								</Tooltip>
-							)}
-						{/* Auto-save status */}
-						{saveStatus !== 'idle' && activeTab === 'article' && (
-							<span className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
-								{saveStatus === 'saving' ? (
-									<>
-										<Loader2 className="size-3 animate-spin" /> Saving…
-									</>
-								) : (
-									<>
-										<Check className="text-success-500 size-3" /> Saved
-									</>
-								)}
-							</span>
-						)}
-						<Button
-							size="sm"
-							className="bg-brand-500 hover:bg-brand-600 text-white"
-							disabled={
-								generating || (activeTab === 'brief' ? !hasCreditsForBrief : !hasCreditsForArticle)
-							}
-							onClick={() => {
-								if (showRegenerate) {
-									setConfirmRegenOpen(true);
-								} else if (activeTab === 'brief') {
-									handleGenerateBrief();
-								} else {
-									handleGenerateArticle();
-								}
-							}}
-						>
-							<CreditBadge
-								cost={activeTab === 'brief' ? briefCost : articleCost}
-								action={showRegenerate ? 'Regenerate' : activeTab === 'brief' ? 'Brief' : 'Article'}
-								sufficient={activeTab === 'brief' ? hasCreditsForBrief : hasCreditsForArticle}
-							/>
-							<Sparkles className="ml-2 size-4" />
-							<span className="ml-2">
-								{generating ? 'Generating...' : showRegenerate ? 'Regenerate' : 'Generate'}
-							</span>
-						</Button>
+								<LawTooltip lawId="intent_before_keywords" />
+							</div>
 
-						{/* Regenerate confirmation dialog */}
+							{siteLanguage &&
+								(siteLanguage.language !== 'English' ||
+									siteLanguage.region !== 'United States') && (
+									<Tooltip
+										content={`Generating in ${siteLanguage.language} for ${siteLanguage.region}. Change in Site Settings.`}
+										tooltipPosition="bottom"
+									>
+										<span className="border-blue-light-200 bg-blue-light-50 text-blue-light-700 dark:border-blue-light-700/40 dark:bg-blue-light-900/20 dark:text-blue-light-400 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium">
+											{siteLanguage.language} · {siteLanguage.region}
+										</span>
+									</Tooltip>
+								)}
+						</div>
+						<div className="flex flex-wrap items-center gap-3">
+							{/* Auto-save status */}
+							{saveStatus !== 'idle' && activeTab === 'article' && (
+								<span className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+									{saveStatus === 'saving' ? (
+										<>
+											<Loader2 className="size-3 animate-spin" /> Saving…
+										</>
+									) : (
+										<>
+											<Check className="text-success-500 size-3" /> Saved
+										</>
+									)}
+								</span>
+							)}
+							{renderMainGenerateButton()}
+						</div>
+
+						{/* Redo Research & Plan confirmation */}
 						<AlertDialog open={confirmRegenOpen} onOpenChange={setConfirmRegenOpen}>
 							<AlertDialogContent>
 								<AlertDialogHeader>
-									<AlertDialogTitle>Regenerate this content?</AlertDialogTitle>
+									<AlertDialogTitle>Redo research &amp; plan?</AlertDialogTitle>
 									<AlertDialogDescription>
-										This will overwrite your current{' '}
-										<strong>{activeTab === 'brief' ? 'brief' : 'article'}</strong> with a freshly
-										generated version. <strong>Any edits you've made will be lost</strong> and{' '}
+										This crawls competitors again and rebuilds the content brief from scratch. Your
+										current brief will be overwritten.{' '}
 										<strong>
-											<CreditBadge
-												cost={activeTab === 'brief' ? briefCost : articleCost}
-												action="Regenerate"
-												sufficient={
-													activeTab === 'brief' ? hasCreditsForBrief : hasCreditsForArticle
-												}
-											/>
-										</strong>{' '}
-										credits will be charged.
+											Your article is not affected, but it will need to be updated to reflect the
+											new brief.
+										</strong>
+										<br />
+										<br />
+										<CreditBadge
+											cost={CREDIT_COSTS.FOCUS_PAGE_BRIEF_REGEN}
+											action="Redo Research & Plan"
+											sufficient={creditsRemaining >= CREDIT_COSTS.FOCUS_PAGE_BRIEF_REGEN}
+										/>{' '}
+										will be charged.
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogAction
+										className="bg-brand-500 hover:bg-brand-600 text-white"
+										onClick={() => {
+											setConfirmRegenOpen(false);
+											handleGenerateBrief();
+										}}
+									>
+										Yes, redo research
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
+
+						{/* Rewrite Article confirmation */}
+						<AlertDialog open={confirmArticleRegenOpen} onOpenChange={setConfirmArticleRegenOpen}>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>Rewrite this article?</AlertDialogTitle>
+									<AlertDialogDescription>
+										This will overwrite your current article with a freshly generated version from
+										the existing brief. <strong>Any manual edits will be lost.</strong>
+										<br />
+										<br />
+										<CreditBadge
+											cost={CREDIT_COSTS.ARTICLE_GENERATION}
+											action="Rewrite Article"
+											sufficient={creditsRemaining >= CREDIT_COSTS.ARTICLE_GENERATION}
+										/>{' '}
+										will be charged.
 									</AlertDialogDescription>
 								</AlertDialogHeader>
 								<AlertDialogFooter>
@@ -1206,15 +1777,11 @@ export default function Workspace() {
 									<AlertDialogAction
 										className="bg-red-500 text-white hover:bg-red-600"
 										onClick={() => {
-											setConfirmRegenOpen(false);
-											if (activeTab === 'brief') {
-												handleGenerateBrief();
-											} else {
-												handleGenerateArticle();
-											}
+											setConfirmArticleRegenOpen(false);
+											handleGenerateArticle();
 										}}
 									>
-										Yes, regenerate
+										Yes, rewrite article
 									</AlertDialogAction>
 								</AlertDialogFooter>
 							</AlertDialogContent>
@@ -1246,10 +1813,16 @@ export default function Workspace() {
 									? "We can't show an SEO score for manually written focus page content without a brief — it would be incomplete and misleading. Generate a brief first to get key concepts and question coverage from search, then write or edit your article. You can change everything after it's generated."
 									: (page?.wordCount ?? 0) > 0
 										? displaySeoScore >= 80
-											? `SEO score looks good at ${displaySeoScore}/115. Add 1–2 internal links to your focus page to pass the UX signals check.`
+											? isFocusPage
+												? `SEO score looks good at ${displaySeoScore}/115. Add 1–2 internal links to your topic cluster articles to pass the UX signals check.`
+												: `SEO score looks good at ${displaySeoScore}/115. Add 1–2 internal links to your focus page to pass the UX signals check.`
 											: displaySeoScore >= 60
-												? `You're at ${displaySeoScore}/115. Check the panel: add the keyword to H1, hit word count, or add internal links to improve.`
-												: `Improve your score: add target keyword to the H1, aim for ${(page?.targetWordCount ?? 0).toLocaleString()} words, and add at least one internal link.`
+												? isFocusPage
+													? `You're at ${displaySeoScore}/115. Check the panel: add the keyword to H1, hit word count, or link to topic cluster articles to improve.`
+													: `You're at ${displaySeoScore}/115. Check the panel: add the keyword to H1, hit word count, or add internal links to improve.`
+												: isFocusPage
+													? `Improve your score: add target keyword to the H1, aim for ${(page?.targetWordCount ?? 0).toLocaleString()} words, and add at least one link to a topic cluster article.`
+													: `Improve your score: add target keyword to the H1, aim for ${(page?.targetWordCount ?? 0).toLocaleString()} words, and add at least one internal link.`
 										: `Generate an article from your brief, or start from scratch. We'll optimize for "${page?.keyword || page?.title}".`
 						}
 					/>
@@ -1296,15 +1869,29 @@ export default function Workspace() {
 				{/* ------------------------------------------------------------------ */}
 				{/* Content area */}
 				{/* ------------------------------------------------------------------ */}
-				<div className="flex min-h-0 min-w-0 flex-1 gap-6 overflow-hidden">
+				<div className="min-h-screen-height-visible flex min-w-0 flex-1 gap-6 overflow-hidden pb-10">
 					{/* Editor / Brief area */}
-					<div
-						className={`scrollbar-branded w-4/5 min-w-0 flex-1 ${
-							activeTab === 'article' && (page.wordCount > 0 || showEditorFromScratch)
-								? 'flex min-h-0 flex-col overflow-hidden'
-								: 'min-h-0 overflow-y-auto'
-						}`}
-					>
+					<div className="scrollbar-branded min-h-0 w-4/5 min-w-0 flex-1 overflow-y-auto">
+						{/* Focus page: tab switcher between brief and article */}
+						{isFocusPage && (
+							<Tabs
+								value={activeTab}
+								onValueChange={(v) => setActiveTab(v as 'brief' | 'article')}
+								className="mb-4 shrink-0"
+							>
+								<TabsList className="h-9 border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-800/50">
+									<TabsTrigger value="brief" className="gap-1.5 px-3">
+										<ScrollText className="size-3.5" />
+										Content Brief
+									</TabsTrigger>
+									<TabsTrigger value="article" className="gap-1.5 px-3">
+										<FileText className="size-3.5" />
+										Article
+									</TabsTrigger>
+								</TabsList>
+							</Tabs>
+						)}
+
 						{/* ========================================================== */}
 						{/* BRIEF MODE */}
 						{/* ========================================================== */}
@@ -1335,7 +1922,7 @@ export default function Workspace() {
 									<div className="mt-16 flex flex-col items-center text-center">
 										<Sparkles className="text-brand-500 dark:text-brand-400 size-14" />
 										<h2 className="font-montserrat mt-4 text-xl font-bold text-gray-900 dark:text-white">
-											Ready to generate your content brief?
+											Ready to generate your focus page content?
 										</h2>
 										<p className="mt-2 max-w-sm text-sm text-gray-600 dark:text-gray-400">
 											We&apos;ll analyze Google search results, competitors, and related questions
@@ -1353,14 +1940,14 @@ export default function Workspace() {
 											/>
 											<Sparkles className="ml-2 size-4" />
 											<span className="ml-2">
-												{generating ? 'Generating...' : 'Generate Brief'}
+												{generating ? 'Generating...' : 'Research & Write'}
 											</span>
 										</Button>
 									</div>
 								) : (
 									<>
 										{/* Word Count Range Visualizer — Section 7.7 */}
-										<div className="mx-auto mb-2 max-w-3xl">
+										<div className="mx-auto mb-2">
 											<WordCountVisualizer
 												current={page?.wordCount ?? 0}
 												target={page?.targetWordCount ?? 0}
@@ -1368,14 +1955,14 @@ export default function Workspace() {
 										</div>
 
 										{/* Brief sections */}
-										<div className="mx-auto flex max-w-3xl flex-col gap-4">
+										<div className="mx-auto flex flex-col gap-4">
 											{briefSections.map((section, i) => (
 												<div
 													key={i}
 													className="group rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900"
 												>
 													<div className="mb-3 flex items-start justify-between">
-														<div className="flex flex-wrap items-center gap-2">
+														<div className="flex w-2/3 flex-wrap items-center gap-2">
 															<span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-[11px] text-gray-600 dark:bg-gray-700 dark:text-gray-400">
 																{section.type ?? 'Section'}
 															</span>
@@ -1394,35 +1981,79 @@ export default function Workspace() {
 																</span>
 															)}
 														</div>
-														<button
-															disabled={rewritingSectionIdx === i}
-															onClick={() =>
-																handleRewriteSection(i, section as Record<string, unknown>)
-															}
-															className="opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-60"
-														>
-															{rewritingSectionIdx === i ? (
-																<span className="flex items-center gap-1 text-xs text-gray-400">
-																	<Loader2 className="size-3 animate-spin" />
-																	Rewriting…
-																</span>
-															) : (
-																<>
-																	<span className="text-brand-600 dark:text-brand-400 flex items-center gap-1 text-xs">
-																		<Sparkles className="size-3" />
-																		Rewrite section
+														<div className="w-1/4">
+															<button
+																disabled={rewritingSectionIdx === i}
+																onClick={() =>
+																	handleRewriteSection(i, section as Record<string, unknown>)
+																}
+																className="flex min-w-30 items-center justify-center gap-2 rounded-md border border-gray-200 p-2 opacity-0 transition-opacity group-hover:opacity-100 disabled:opacity-60 dark:border-gray-700"
+															>
+																{rewritingSectionIdx === i ? (
+																	<span className="flex items-center gap-1 text-xs text-gray-400">
+																		<Loader2 className="size-3 animate-spin" />
+																		Rewriting…
 																	</span>
-																	<CreditBadge
-																		cost={CREDIT_COSTS.SECTION_REWRITE}
-																		action="Section"
-																		sufficient={creditsRemaining >= CREDIT_COSTS.SECTION_REWRITE}
-																	/>
-																</>
-															)}
-														</button>
+																) : (
+																	<>
+																		<span className="text-brand-600 dark:text-brand-400 flex items-center gap-1 text-xs">
+																			<Sparkles className="size-3" />
+																			Rewrite section
+																		</span>
+																		<CreditBadge
+																			cost={CREDIT_COSTS.SECTION_REWRITE}
+																			action="Section"
+																			sufficient={creditsRemaining >= CREDIT_COSTS.SECTION_REWRITE}
+																		/>
+																	</>
+																)}
+															</button>
+														</div>
 													</div>
-													<div className="rounded-lg bg-gray-100 p-4 text-sm leading-relaxed text-gray-900 dark:bg-gray-800 dark:text-white">
-														{section.guidance ?? (section as { content?: string }).content ?? ''}
+													<div className="relative">
+														<TextArea
+															rows={6}
+															className="min-h-[120px] resize-y rounded-lg bg-gray-100 px-4 py-3 text-sm leading-relaxed text-gray-900 dark:bg-gray-800 dark:text-white"
+															value={
+																briefSectionEdits[i] ??
+																section.guidance ??
+																(section as { content?: string }).content ??
+																''
+															}
+															onChange={(e) =>
+																setBriefSectionEdits((prev) => ({ ...prev, [i]: e.target.value }))
+															}
+															onBlur={async () => {
+																const current =
+																	briefSectionEdits[i] ??
+																	section.guidance ??
+																	(section as { content?: string }).content ??
+																	'';
+																const original =
+																	section.guidance ??
+																	(section as { content?: string }).content ??
+																	'';
+																if (current !== original) {
+																	try {
+																		await handleSaveBriefSection(i, current);
+																		setBriefSectionEdits((prev) => {
+																			const next = { ...prev };
+																			delete next[i];
+																			return next;
+																		});
+																	} catch {
+																		// Error already toasts; keep edit state so user can retry
+																	}
+																}
+															}}
+															placeholder="Section guidance — edit and blur to save"
+														/>
+														{savingBriefSectionIdx === i && (
+															<span className="absolute top-2 right-2 flex items-center gap-1 text-[11px] text-gray-500">
+																<Loader2 className="size-3 animate-spin" />
+																Saving…
+															</span>
+														)}
 													</div>
 													{((section.entitiesCovered as string[] | undefined)?.length ??
 													section.entities?.length ??
@@ -1449,6 +2080,38 @@ export default function Workspace() {
 												</div>
 											))}
 
+											{/* Internal link instructions (Reasonable Surfer — first 400 words) */}
+											{briefInternalLinks.length > 0 && (
+												<div className="border-brand-200 bg-brand-50/50 dark:border-brand-800 dark:bg-brand-950/30 rounded-xl border p-5">
+													<div className="mb-2 flex items-center gap-2">
+														<LinkIcon className="text-brand-600 dark:text-brand-400 size-4" />
+														<span className="text-sm font-semibold text-gray-900 dark:text-white">
+															Internal Links (Reasonable Surfer)
+														</span>
+													</div>
+													<p className="mb-3 text-xs text-gray-600 dark:text-gray-400">
+														Body text links in the first 400 words pass the most equity. Place these
+														when writing the article. Max 3–4 links total.
+													</p>
+													<ul className="space-y-2">
+														{briefInternalLinks.map((link, i) => (
+															<li key={i} className="flex flex-col gap-0.5 text-sm">
+																<span className="font-medium text-gray-900 dark:text-white">
+																	{i + 1}. {link.target}
+																</span>
+																<span className="text-xs text-gray-600 dark:text-gray-400">
+																	Anchor: &quot;{link.anchor_text}&quot; ·{' '}
+																	{link.placement === 'first_400_words'
+																		? 'First 400 words'
+																		: 'Body text'}
+																	{link.note ? ` · ${link.note}` : ''}
+																</span>
+															</li>
+														))}
+													</ul>
+												</div>
+											)}
+
 											{/* FAQ generation CTA — below all sections */}
 											<button
 												onClick={handleGenerateFAQ}
@@ -1462,7 +2125,7 @@ export default function Workspace() {
 												) : (
 													<>
 														<Sparkles className="size-4" /> Generate FAQ section ·{' '}
-														{CREDIT_COSTS.FAQ_GENERATION} credits
+														<CreditCost amount={CREDIT_COSTS.FAQ_GENERATION} />
 													</>
 												)}
 											</button>
@@ -1485,21 +2148,7 @@ export default function Workspace() {
 											We&apos;ll analyze the top search results and write an SEO-optimized draft
 											based on what&apos;s working for your competitors.
 										</p>
-										<Button
-											className="bg-brand-500 hover:bg-brand-600 mt-6 text-white"
-											disabled={generating || !hasCreditsForArticle}
-											onClick={handleGenerateArticle}
-										>
-											<CreditBadge
-												cost={articleCost}
-												action="Article"
-												sufficient={hasCreditsForArticle}
-											/>
-											<Sparkles className="ml-2 size-4" />
-											<span className="ml-2">
-												{generating ? 'Generating...' : 'Generate Article'}
-											</span>
-										</Button>
+										<div className="mt-4">{renderMainGenerateButton()}</div>
 										<hr className="my-6 w-sm border-t border-gray-200 dark:border-gray-600" />
 										<div className="text-center text-sm text-gray-500 dark:text-gray-400">
 											Or you can start from scratch and write your own article.
@@ -1517,7 +2166,7 @@ export default function Workspace() {
 									<>
 										{/* Tiptap Toolbar */}
 										{editor && (
-											<div className="z-10 mb-4 flex shrink-0 flex-wrap items-center justify-between gap-1 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
+											<div className="sticky top-0 z-10 mb-4 flex shrink-0 flex-wrap items-center justify-between gap-1 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
 												<Tooltip content="Align left" tooltipPosition="bottom">
 													<button
 														onClick={() => editor.chain().focus().setTextAlign('left').run()}
@@ -1713,9 +2362,10 @@ export default function Workspace() {
 											<div className="mb-4 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-800 dark:bg-blue-900/30">
 												<Info className="mt-0.5 size-4 shrink-0 text-blue-600 dark:text-blue-400" />
 												<div className="flex-1 text-[13px] text-blue-800 dark:text-blue-200">
-													Your content may be flagged by AI detection tools (Grammarly, ZeroGPT, etc.).
-													This has no effect on Google rankings. What Google measures is semantic depth
-													and expertise signals — which your content score already tracks.
+													Worried about AI detection? Google doesn't use those tools — they measure
+													writing patterns, not search quality. What Google actually evaluates is
+													whether your content covers the topic thoroughly and adds something
+													original. That's exactly what your SEO score measures.
 												</div>
 												<button
 													type="button"
@@ -1731,7 +2381,14 @@ export default function Workspace() {
 											</div>
 										)}
 
-										<div className="scrollbar-branded relative flex min-h-[400px] min-w-0 flex-1 flex-col overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+										{editor && (
+											<span className="mb-4 block flex-1 text-center text-xs text-gray-500 dark:text-gray-400">
+												As with any AI, Sharkly can make mistakes. Please review all content before
+												publishing.
+											</span>
+										)}
+
+										<div className="min-h-screen-height-visible relative flex min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
 											{editor && (
 												<BubbleMenu
 													editor={editor}
@@ -1832,9 +2489,10 @@ export default function Workspace() {
 											)}
 											<EditorContent
 												editor={editor}
-												className="flex h-full min-h-0 min-w-0 flex-1 flex-col [&_.tiptap]:min-h-[360px] [&_.tiptap]:min-w-0 [&_.tiptap]:flex-1"
+												className="flex h-full min-h-0 min-w-0 flex-1 flex-col [&_.tiptap]:min-h-[800px] [&_.tiptap]:min-w-0 [&_.tiptap]:flex-1"
 											/>
 										</div>
+
 										{page.targetWordCount > 0 && (
 											<div className="flex justify-end p-3">
 												<span
@@ -1863,7 +2521,7 @@ export default function Workspace() {
 					{/* ---------------------------------------------------------------- */}
 					<div className="w-1/3 max-w-75 shrink-0 rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
 						<div className="flex justify-center gap-2 border-b border-gray-200 dark:border-gray-700">
-							{/* CRO tab hidden — add 'cro' to re-enable (system-1-cro-layer) */}
+							{/* CRO tab removed — CRO evaluation now in CRO Studio (cro-studio.md) */}
 							{(['seo', 'competitors', 'entities'] as const).map((tab) => (
 								<button
 									key={tab}
@@ -1881,6 +2539,44 @@ export default function Workspace() {
 						</div>
 
 						<div className="scrollbar-branded h-[calc(100%-48px)] overflow-y-auto p-4 text-gray-900 dark:text-white">
+							{/* CRO — Open in CRO Studio (CRO evaluation done there) */}
+							{/* {(isFocusPage || page?.type === 'article') && (
+								<div className="mb-4">
+									<div className="rounded-lg border border-gray-200 bg-gray-50/50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+										<div className="mb-2 flex items-center gap-2 text-[11px] font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
+											<Target className="size-3.5" />
+											CRO Studio
+										</div>
+										{!canAccessCROStudio(organization) ? (
+											<Button
+												size="sm"
+												variant="outline"
+												className="w-full justify-center gap-2"
+												onClick={openCROStudioUpgradeModal}
+											>
+												<Target className="size-4" />
+												Add CRO Studio
+											</Button>
+										) : (
+											<Button
+												size="sm"
+												variant="outline"
+												className="w-full justify-center gap-2"
+												onClick={handleOpenInCROStudio}
+												disabled={openCROStudioLoading}
+											>
+												{openCROStudioLoading ? (
+													<Loader2 className="size-4 animate-spin" />
+												) : (
+													<Target className="size-4" />
+												)}
+												{openCROStudioLoading ? 'Checking…' : 'Open in CRO Studio'}
+											</Button>
+										)}
+									</div>
+								</div>
+							)} */}
+
 							{/* ====================================================== */}
 							{/* SEO TAB — UPSA 4-module breakdown */}
 							{/* ====================================================== */}
@@ -1904,9 +2600,7 @@ export default function Workspace() {
 														<div className="text-lg font-bold text-gray-900 dark:text-white">
 															{pageGscMetrics.impressions.toLocaleString()}
 														</div>
-														<div className="text-[10px] text-gray-500 dark:text-gray-400">
-															Impr
-														</div>
+														<div className="text-[10px] text-gray-500 dark:text-gray-400">Impr</div>
 													</div>
 													<div>
 														<div className="text-lg font-bold text-gray-900 dark:text-white">
@@ -1920,17 +2614,13 @@ export default function Workspace() {
 														<div className="text-lg font-bold text-gray-900 dark:text-white">
 															{pageGscMetrics.ctr.toFixed(2)}%
 														</div>
-														<div className="text-[10px] text-gray-500 dark:text-gray-400">
-															CTR
-														</div>
+														<div className="text-[10px] text-gray-500 dark:text-gray-400">CTR</div>
 													</div>
 													<div>
 														<div className="text-lg font-bold text-gray-900 dark:text-white">
 															{pageGscMetrics.position.toFixed(1)}
 														</div>
-														<div className="text-[10px] text-gray-500 dark:text-gray-400">
-															Pos
-														</div>
+														<div className="text-[10px] text-gray-500 dark:text-gray-400">Pos</div>
 													</div>
 												</div>
 											) : (
@@ -1941,8 +2631,10 @@ export default function Workspace() {
 										</div>
 									)}
 
-									{/* When no brief/semantic data, don't show score — it would be misleading */}
-									{!canShowAccurateScore ? (
+									{/* Focus page + brief tab: show Brief Quality in right panel */}
+									{isFocusPage && activeTab === 'brief' && hasBrief ? (
+										<BriefQualityPanel page={page} briefSections={briefSections} />
+									) : !canShowAccurateScore ? (
 										<ScoreUnavailableNotice
 											variant="full"
 											canGenerateBrief={isFocusPage}
@@ -1968,6 +2660,34 @@ export default function Workspace() {
 												</div>
 											</div>
 
+											{isFocusPage ? (
+												<Tooltip
+													content="Target 85+. Focus pages go up against established authorities. Below 85 usually means missing IGS bonus points or incomplete entity coverage — the signals that separate page 1 from page 2."
+													tooltipPosition="top"
+													usePortal
+												>
+													<div className="mb-4 flex items-center justify-center gap-1 text-center text-gray-500 dark:text-gray-400">
+														<Info className="size-3" />
+														<div className="text-[10px] tracking-wide uppercase">
+															Aim for a score of 85+
+														</div>
+													</div>
+												</Tooltip>
+											) : (
+												<Tooltip
+													content="Target 70+. Supporting articles compete on long-tail keywords — a 70 is enough to rank well and pass Google's domain quality threshold."
+													tooltipPosition="top"
+													usePortal
+												>
+													<div className="mb-4 flex items-center justify-center gap-1 text-center text-gray-500 dark:text-gray-400">
+														<Info className="size-3" />
+														<div className="text-[10px] tracking-wide uppercase">
+															Aim for a score of 70+
+														</div>
+													</div>
+												</Tooltip>
+											)}
+
 											{/* Skyscraper Warning */}
 											{liveSeoBreakdown?.skyscraperWarning && (
 												<div className="bg-warning-50 dark:bg-warning-900/20 border-warning-200 dark:border-warning-700 mb-4 rounded-lg border p-3">
@@ -1978,9 +2698,9 @@ export default function Workspace() {
 															<LawTooltip lawId="quality_before_volume" />
 														</span>
 														<span>
-															Your content covers the same ground as every
-															competitor. Add original data, an expert quote, or first-hand
-															experience to earn the information gain bonus.
+															Your content covers the same ground as every competitor. Add original
+															data, an expert quote, or first-hand experience to earn the
+															information gain bonus.
 														</span>
 													</div>
 												</div>
@@ -2174,12 +2894,12 @@ export default function Workspace() {
 															</span>
 														</div>
 														{liveSeoBreakdown.module4.h2ContaminationPenalty && (
-															<div className="mb-2 rounded border border-error-200 bg-error-50 p-2 text-[12px] text-error-700 dark:border-error-800 dark:bg-error-900/30 dark:text-error-300">
+															<div className="border-error-200 bg-error-50 text-error-700 dark:border-error-800 dark:bg-error-900/30 dark:text-error-300 mb-2 rounded border p-2 text-[12px]">
 																{liveSeoBreakdown.module4.vagueH2Count} of your{' '}
-																{liveSeoBreakdown.module4.h2Count} H2s are vague labels
-																(&quot;Our Services&quot;, &quot;Why Choose Us&quot;). These
-																weaken your page&apos;s passage scoring. Rewrite all H2s as
-																specific answerable questions.
+																{liveSeoBreakdown.module4.h2Count} H2s are vague labels (&quot;Our
+																Services&quot;, &quot;Why Choose Us&quot;). These weaken your
+																page&apos;s passage scoring. Rewrite all H2s as specific answerable
+																questions.
 															</div>
 														)}
 														<div className="space-y-1.5 text-[12px]">
@@ -2424,238 +3144,217 @@ export default function Workspace() {
 							)}
 
 							{/* ====================================================== */}
-							{/* COMPETITORS TAB */}
+							{/* COMPETITORS TAB — Phase 4: deep signal panel */}
 							{/* ====================================================== */}
-							{activeIntelTab === 'competitors' && (
-								<div className="space-y-2">
-									{briefCompetitors.length > 0 ? (
-										briefCompetitors.map((c, i) => (
-											<div
-												key={c.url ?? i}
-												className="rounded-lg border border-gray-200 p-3 dark:border-gray-700"
-											>
-												<div className="text-[13px] font-semibold text-gray-900 dark:text-white">
-													{c.title ?? c.url ?? 'Competitor'}
-												</div>
-												<div className="mt-1 flex gap-3 text-xs text-gray-500 dark:text-gray-400">
-													{c.word_count != null && (
-														<span>{c.word_count.toLocaleString()} words</span>
-													)}
-													{c.h2s != null && <span>{c.h2s.length} H2s</span>}
-												</div>
-												{c.h2s != null && c.h2s.length > 0 && (
-													<ul className="mt-2 space-y-0.5 border-t border-gray-200 pt-2 text-[11px] text-gray-600 dark:border-gray-600 dark:text-gray-400">
-														{c.h2s.map((h, j) => (
-															<li key={j} className="truncate">
-																• {h}
-															</li>
-														))}
-													</ul>
-												)}
+							{activeIntelTab === 'competitors' &&
+								(() => {
+									type SS = { min: number; avg: number; max: number } | null;
+									type LT = {
+										term: string;
+										competitor_count: number;
+										avg_freq: number;
+										target_freq: number;
+									};
+									const bd = page?.briefData as Record<string, unknown> | null;
+									const ss = (bd?.competitor_signal_stats ?? null) as {
+										h2_count?: SS;
+										h3_count?: SS;
+										paragraph_count?: SS;
+										internal_links?: SS;
+										external_links?: SS;
+										image_count?: SS;
+										bold_count?: SS;
+									} | null;
+									const lt: LT[] = (bd?.competitor_lsi_terms as LT[] | undefined) ?? [];
+									const st: string[] = (bd?.competitor_schema_types as string[] | undefined) ?? [];
+									const SR = ({ label, s }: { label: string; s: SS }) =>
+										!s ? null : (
+											<div className="flex items-center justify-between text-[12px]">
+												<span className="text-gray-600 dark:text-gray-400">{label}</span>
+												<span className="text-gray-700 tabular-nums dark:text-gray-300">
+													{s.min}–{s.max} <span className="text-gray-400">(avg {s.avg})</span>
+												</span>
 											</div>
-										))
-									) : (
-										<p className="text-[13px] text-gray-500 dark:text-gray-400">
-											No competitor data yet. Generate a brief to analyze search result competitors.
-										</p>
-									)}
-									<div className="bg-brand-50 dark:bg-brand-900/30 mt-3 rounded-lg p-3">
-										<div className="text-brand-600 dark:text-brand-400 text-[13px] font-semibold">
-											Your target: {(page?.targetWordCount ?? 1400).toLocaleString()} words
-										</div>
-									</div>
-								</div>
-							)}
-
-							{/* ====================================================== */}
-							{/* CRO TAB — hidden (add 'cro' to tabs array above to re-enable) */}
-							{/* ====================================================== */}
-							{activeIntelTab === 'cro' && (
-								<div className="space-y-4">
-									{!croData ? (
-										<p className="text-[13px] text-gray-500 dark:text-gray-400">
-											{hasBrief
-												? 'Write or edit content in the Article tab to see your CRO checklist score.'
-												: 'Generate a brief, then add content to see your CRO checklist score.'}
-										</p>
-									) : (
-										<>
-											{/* 1. Score Block */}
-											<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-												<div className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
-													CRO Score
+										);
+									return (
+										<div className="space-y-3">
+											{/* Target + H2 benchmark */}
+											<div className="bg-brand-50 dark:bg-brand-900/30 rounded-lg p-3">
+												<div className="text-brand-600 dark:text-brand-400 text-[13px] font-semibold">
+													Your target: {(page?.targetWordCount ?? 1400).toLocaleString()} words
 												</div>
-												<div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
-													{croData.score ?? 0} / {croData.max_score ?? 7}
-												</div>
-												<div className="mt-0.5 text-[13px] text-gray-600 dark:text-gray-400">
-													{formatPageTypeDisplay(croData.page_type)}
-												</div>
-											</div>
-
-											{/* 2. Funnel Mismatch Warning (conditional, dismissable) */}
-											{croData.funnel_mismatch &&
-												!croMismatchDismissed &&
-												FUNNEL_MISMATCH_WARNINGS[croData.funnel_mismatch] && (
-													<div
-														className={`flex items-start gap-2 rounded-lg border p-3 ${
-															croData.funnel_mismatch === 'hard_cta_on_tofu' ||
-															croData.funnel_mismatch === 'no_cta_on_money'
-																? 'border-error-200 bg-error-50 dark:border-error-800 dark:bg-error-900/30'
-																: 'border-warning-200 bg-warning-50 dark:border-warning-800 dark:bg-warning-900/30'
-														}`}
-													>
-														<AlertTriangle
-															className={`mt-0.5 size-4 shrink-0 ${
-																croData.funnel_mismatch === 'hard_cta_on_tofu' ||
-																croData.funnel_mismatch === 'no_cta_on_money'
-																	? 'text-error-600 dark:text-error-400'
-																	: 'text-warning-600 dark:text-warning-400'
-															}`}
-														/>
-														<div className="flex-1 text-[13px]">
-															{FUNNEL_MISMATCH_WARNINGS[croData.funnel_mismatch]}
-														</div>
-														<button
-															type="button"
-															onClick={() => setCroMismatchDismissed(true)}
-															className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-															aria-label="Dismiss"
-														>
-															<X className="size-4" />
-														</button>
+												{ss?.h2_count && (
+													<div className="mt-1 text-[12px] text-gray-500 dark:text-gray-400">
+														Competitor H2s: avg {ss.h2_count.avg} (range {ss.h2_count.min}–
+														{ss.h2_count.max})
 													</div>
 												)}
-
-											{/* 3. Checklist (8 items) */}
-											<div className="space-y-2">
-												{(['1', '2', '3', '4', '5', '6', '7', '8'] as const).map((key) => {
-													const item = croData.items?.[key];
-													if (!item) return null;
-													const pt = (croData.page_type ?? 'tofu_article') as Parameters<
-														typeof getCroItemRequirement
-													>[0];
-													const req = getCroItemRequirement(pt, key);
-													const isOptionalFail = req === 'optional' && item.status === 'fail';
-													const isOptionalPass =
-														req === 'optional' &&
-														(item.status === 'pass' || item.status === 'partial');
-													const isNa = item.status === 'na' || req === 'na';
-													return (
-														<div
-															key={key}
-															className={`rounded-lg border p-2.5 text-[13px] ${
-																isNa
-																	? 'border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-800/30'
-																	: isOptionalFail
-																		? 'border-gray-200 dark:border-gray-700'
-																		: item.status === 'pass'
-																			? 'border-success-200 bg-success-50/50 dark:border-success-800/50 dark:bg-success-900/20'
-																			: item.status === 'partial'
-																				? 'border-warning-200 bg-warning-50/50 dark:border-warning-800/50 dark:bg-warning-900/20'
-																				: 'border-error-200 bg-error-50/50 dark:border-error-800/50 dark:bg-error-900/20'
-															}`}
-														>
-															<div className="flex items-start gap-2">
-																{isNa ? (
-																	<span className="text-gray-400 dark:text-gray-500">—</span>
-																) : item.status === 'pass' ? (
-																	<Check className="text-success-600 dark:text-success-400 size-4 shrink-0" />
-																) : item.status === 'partial' ? (
-																	<AlertTriangle className="text-warning-600 dark:text-warning-400 size-4 shrink-0" />
-																) : (
-																	<X className="text-error-600 dark:text-error-400 size-4 shrink-0" />
-																)}
-																<div className="min-w-0 flex-1">
-																	<div className="flex items-center gap-1.5 font-medium text-gray-900 dark:text-white">
-																		{CRO_ITEM_LABELS[key] ?? `Item ${key}`}
-																		{isOptionalPass && (
-																			<span className="bg-success-100 text-success-700 dark:bg-success-900/50 dark:text-success-400 rounded px-1.5 py-0.5 text-[10px] font-semibold">
-																				bonus
-																			</span>
-																		)}
-																	</div>
-																	<div
-																		className={`mt-0.5 text-[12px] ${
-																			isNa
-																				? 'text-gray-500 dark:text-gray-400'
-																				: 'text-gray-600 dark:text-gray-400'
-																		}`}
-																	>
-																		{isNa ? 'Not required for this page type' : item.evidence}
-																	</div>
-																</div>
-															</div>
-														</div>
-													);
-												})}
 											</div>
 
-											{/* 4. Get Specific Fixes button */}
-											{hasRequiredFailingItems(croData) && (
-												<>
-													<Button
-														variant="outline"
-														size="sm"
-														className="w-full"
-														disabled={croFixesLoading || creditsRemaining < CREDIT_COSTS.CRO_FIXES}
-														onClick={handleGetCroFixes}
-													>
-														{croFixesLoading ? (
-															<>
-																<span className="mr-2 size-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-600 dark:border-t-gray-400" />
-																Getting fixes…
-															</>
-														) : (
-															<>
-																<Sparkles className="mr-2 size-4" />
-																Get Specific Fixes ({CREDIT_COSTS.CRO_FIXES} credits)
-															</>
-														)}
-													</Button>
-													{croSuggestions && (
-														<div className="border-primary-200 bg-primary-50/50 dark:border-primary-800 dark:bg-primary-950/30 mt-2 rounded-lg border p-3 text-[13px] text-gray-700 dark:text-gray-300">
-															<div className="text-primary-700 dark:text-primary-400 mb-1 font-semibold">
-																AI Suggestions
-															</div>
-															<div className="whitespace-pre-wrap">{croSuggestions}</div>
-														</div>
-													)}
-												</>
+											{/* Page structure benchmarks */}
+											{ss && Object.values(ss).some(Boolean) && (
+												<div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+													<div className="mb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+														Page Structure Benchmarks
+													</div>
+													<div className="space-y-1.5">
+														<SR label="H2 headings" s={ss.h2_count ?? null} />
+														<SR label="H3 headings" s={ss.h3_count ?? null} />
+														<SR label="Paragraphs" s={ss.paragraph_count ?? null} />
+														<SR label="Internal links" s={ss.internal_links ?? null} />
+														<SR label="Images" s={ss.image_count ?? null} />
+														<SR label="Bold tags" s={ss.bold_count ?? null} />
+													</div>
+												</div>
 											)}
 
-											{/* 5. Brief Guidance (collapsed) */}
-											{briefSections.some((s) => s.cro_note) && (
-												<Collapsible defaultOpen={false}>
-													<CollapsibleTrigger className="group flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left text-[13px] font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/50">
-														Brief Guidance
-														<ChevronDown className="size-4 shrink-0 transition-transform group-data-[state=open]:rotate-180" />
-													</CollapsibleTrigger>
-													<CollapsibleContent>
-														<div className="mt-2 space-y-2">
-															{briefSections
-																.filter((s) => s.cro_note)
-																.map((s) => (
-																	<div
-																		key={s.heading ?? s.type ?? ''}
-																		className="rounded-lg border border-gray-200 p-2 dark:border-gray-700"
-																	>
-																		<div className="font-semibold text-gray-900 dark:text-white">
-																			{s.heading ?? s.type ?? 'Section'}
-																		</div>
-																		<div className="mt-1 text-gray-600 dark:text-gray-400">
-																			{s.cro_note}
-																		</div>
-																	</div>
-																))}
-														</div>
-													</CollapsibleContent>
-												</Collapsible>
+											{/* Schema types used by competitors */}
+											{st.length > 0 && (
+												<div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+													<div className="mb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+														Schema Used by ≥2 Competitors
+													</div>
+													<div className="flex flex-wrap gap-1.5">
+														{st.map((t) => (
+															<span
+																key={t}
+																className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+															>
+																{t}
+															</span>
+														))}
+													</div>
+												</div>
 											)}
-										</>
-									)}
-								</div>
-							)}
+
+											{/* Top LSI terms with target frequencies */}
+											{lt.length > 0 && (
+												<div className="rounded-lg border border-gray-200 p-3 dark:border-gray-700">
+													<div className="mb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+														Top Terms &amp; Targets
+													</div>
+													<div className="space-y-1">
+														{lt.slice(0, 12).map((t) => (
+															<div
+																key={t.term}
+																className="flex items-center justify-between text-[12px]"
+															>
+																<span className="text-gray-700 dark:text-gray-300">{t.term}</span>
+																<div className="flex items-center gap-2">
+																	<span className="text-[11px] text-gray-400">
+																		{t.competitor_count} comps
+																	</span>
+																	<span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+																		~{t.target_freq}×
+																	</span>
+																</div>
+															</div>
+														))}
+													</div>
+												</div>
+											)}
+
+											{/* Individual competitor cards */}
+											{briefCompetitors.length > 0 ? (
+												briefCompetitors.map((c, i) => {
+													const cx = c as typeof c & {
+														h3_count?: number;
+														internal_link_count?: number;
+														image_count?: number;
+														bold_count?: number;
+														schema_types?: string[];
+													};
+													return (
+														<div
+															key={cx.url ?? i}
+															className="rounded-lg border border-gray-200 p-3 dark:border-gray-700"
+														>
+															<a
+																href={cx.url}
+																target="_blank"
+																rel="noopener noreferrer"
+																className="text-brand-600 dark:text-brand-400 block truncate text-[13px] font-semibold hover:underline"
+															>
+																{cx.title ?? cx.url ?? 'Competitor'}
+															</a>
+															<div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px]">
+																{cx.word_count != null && (
+																	<span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+																		{cx.word_count.toLocaleString()} words
+																	</span>
+																)}
+																{cx.h2s != null && (
+																	<span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+																		{cx.h2s.length} H2s
+																	</span>
+																)}
+																{(cx.h3_count ?? 0) > 0 && (
+																	<span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+																		{cx.h3_count} H3s
+																	</span>
+																)}
+																{(cx.image_count ?? 0) > 0 && (
+																	<span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+																		{cx.image_count} imgs
+																	</span>
+																)}
+																{cx.internal_link_count != null && (
+																	<span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+																		{cx.internal_link_count} int. links
+																	</span>
+																)}
+																{(cx.bold_count ?? 0) > 0 && (
+																	<span className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+																		{cx.bold_count} bold
+																	</span>
+																)}
+															</div>
+															{cx.schema_types && cx.schema_types.length > 0 && (
+																<div className="mt-1.5 flex flex-wrap gap-1">
+																	{cx.schema_types.map((t) => (
+																		<span
+																			key={t}
+																			className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+																		>
+																			{t}
+																		</span>
+																	))}
+																</div>
+															)}
+															{cx.h2s != null && cx.h2s.length > 0 && (
+																<div className="mt-2 border-t border-gray-200 pt-2 dark:border-gray-600">
+																	<div className="mb-1 text-[10px] font-semibold tracking-wide text-gray-400 uppercase">
+																		H2s — click to copy
+																	</div>
+																	<ul className="space-y-0.5">
+																		{cx.h2s.map((h, j) => (
+																			<li
+																				key={j}
+																				onClick={() => {
+																					navigator.clipboard.writeText(h);
+																					toast.success('Heading copied');
+																				}}
+																				className="cursor-pointer truncate rounded px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+																				title={h}
+																			>
+																				• {h}
+																			</li>
+																		))}
+																	</ul>
+																</div>
+															)}
+														</div>
+													);
+												})
+											) : (
+												<p className="text-[13px] text-gray-500 dark:text-gray-400">
+													No competitor data yet. Generate a brief to analyze search result
+													competitors.
+												</p>
+											)}
+										</div>
+									);
+								})()}
 
 							{/* ====================================================== */}
 							{/* ENTITIES TAB — Three-section panel (Section 7.7 + 17.7) */}
@@ -2876,11 +3575,7 @@ export default function Workspace() {
 			/>
 
 			{/* S2-15: Diagnose This Page — 7-step SEO decision tree */}
-			<DiagnoseModal
-				open={diagnoseOpen}
-				onClose={() => setDiagnoseOpen(false)}
-				pageId={id ?? ''}
-			/>
+			<DiagnoseModal open={diagnoseOpen} onClose={() => setDiagnoseOpen(false)} pageId={id ?? ''} />
 
 			{/* L6: One-click publish to Shopify blog */}
 			{cluster?.siteId && (
@@ -2894,6 +3589,30 @@ export default function Workspace() {
 					metaDescription={page?.metaDescription ?? null}
 				/>
 			)}
+
+			{/* CRO Studio — Add page modal when no existing audit for this SEO page */}
+			<CROAddPageModal
+				open={addToCROModalOpen}
+				onClose={() => setAddToCROModalOpen(false)}
+				onSuccess={(auditId) => {
+					setAddToCROModalOpen(false);
+					navigate(`/cro-studio/audit/${auditId}`);
+				}}
+				getAuthHeader={() => ({
+					Authorization: `Bearer ${session?.access_token ?? ''}`
+				})}
+				initialPageUrl={
+					page?.publishedUrl?.startsWith('http')
+						? page.publishedUrl
+						: siteForAuthor?.url && page?.publishedUrl
+							? `${siteForAuthor.url.replace(/\/$/, '')}${page.publishedUrl.startsWith('/') ? page.publishedUrl : `/${page.publishedUrl}`}`
+							: (page?.publishedUrl ?? undefined)
+				}
+				initialDestinationUrl={cluster?.destinationPageUrl ?? undefined}
+				initialPageLabel={page?.title ?? undefined}
+				initialClusterId={cluster?.id}
+				initialSiteId={cluster?.siteId ?? undefined}
+			/>
 		</>
 	);
 }

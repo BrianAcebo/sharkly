@@ -17,6 +17,8 @@ export type ClusterWarning = {
 	message: string;
 	action: string;
 	affectedPages: string[];
+	/** How we assess this — e.g. "Checked on your live site via Technical Audit" */
+	assessmentNote?: string;
 };
 
 export type ClusterIntelligenceResult = {
@@ -163,7 +165,9 @@ function detectMissingReverseSilo(
 		severity: missing.length >= articles.length * 0.5 ? 'high' : 'medium',
 		message: `${missing.length} of your ${articles.length} articles don't link back to your main content page. Your main page is only receiving ranking power from ${connected} articles instead of all ${articles.length}. Each missing connection is leaving ranking power on the table.`,
 		action: 'Add a contextual link to your main page in each of these articles.',
-		affectedPages: missing
+		affectedPages: missing,
+		assessmentNote:
+			'Assessed from your live site. Set the Published URL for each page in Page settings (Workspace) and run a Technical Audit to check links on your live pages.'
 	};
 }
 

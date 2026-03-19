@@ -4,7 +4,9 @@ import {
 	updateTarget,
 	deleteTarget,
 	listTopicsForTarget,
-	acceptTopicsFromRun
+	acceptTopicsFromRun,
+	moveTopic,
+	generateContentBrief
 } from '../controllers/targetsController.js';
 
 const router = express.Router();
@@ -20,5 +22,10 @@ router.delete('/:targetId', requireAuth, deleteTarget);
 
 // POST /api/targets/:targetId/topics/accept-from-run — accept suggestions from a strategy run
 router.post('/:targetId/topics/accept-from-run', requireAuth, acceptTopicsFromRun);
+
+// POST /api/targets/:targetId/topics/:topicId/move — move topic to another target
+router.post('/:targetId/topics/:topicId/move', requireAuth, moveTopic);
+
+router.post('/targets/:targetId/topics/:topicId/content-brief', generateContentBrief);
 
 export default router;

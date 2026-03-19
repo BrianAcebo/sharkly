@@ -1,12 +1,17 @@
 /**
  * Shopify connection status for a site — shown in site details sheet.
- * Displays Connected / Not connected. Connection is done via Settings → Integrations.
+ * Displays Connected / Not connected. Connection is done via the Shopify App Store install flow.
+ * "Connect" stores siteId so when user returns from Shopify install, we pre-select this site.
  */
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { buildApiUrl } from '../../utils/urls';
 import { AlertCircle, Check, Loader2 } from 'lucide-react';
+import { Button } from '../ui/button';
+import { toast } from 'sonner';
+
+const SHOPIFY_APP_URL = import.meta.env.VITE_SHOPIFY_APP_URL ?? 'https://apps.shopify.com/sharkly';
 
 interface Props {
 	siteId: string;
@@ -71,12 +76,27 @@ export function ShopifyConnectionStatus({ siteId, siteName }: Props) {
 			) : (
 				<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-700">
 					<div className="flex items-center gap-3">
-						<AlertCircle className="mt-0.5 size-5 text-gray-600 dark:text-gray-400" />
-						<div>
+						<AlertCircle className="mt-0.5 size-5 shrink-0 text-gray-600 dark:text-gray-400" />
+						<div className="min-w-0 flex-1">
 							<h3 className="text-sm font-medium text-gray-900 dark:text-white">Not connected</h3>
 							<p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
-								Connect Shopify from Settings → Integrations to publish content and manage ecommerce SEO for "{siteName}".
+								Install the Sharkly app from the Shopify App Store to connect and manage ecommerce SEO for &quot;{siteName}&quot;.
 							</p>
+							<Button
+								size="sm"
+								className="mt-3"
+								onClick={() => {
+									try {
+										sessionStorage.setItem('sharkly_connect_site_id', siteId);
+										toast.success(`We'll connect to "${siteName}" when you return. Install the app from Shopify.`);
+										window.open(SHOPIFY_APP_URL, '_blank', 'noopener,noreferrer');
+									} catch {
+										window.open(SHOPIFY_APP_URL, '_blank', 'noopener,noreferrer');
+									}
+								}}
+							>
+								Connect Shopify
+							</Button>
 						</div>
 					</div>
 				</div>

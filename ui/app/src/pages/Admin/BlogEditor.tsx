@@ -185,6 +185,8 @@ export default function BlogEditor() {
 				CharacterCount,
 				CodeBlockLowlight.configure({ lowlight }),
 				LinkExtension.configure({
+					openOnClick: false,
+					enableClickSelection: true,
 					validate: (href) => /^https?:\/\//.test(href),
 					HTMLAttributes: { rel: null, target: null }
 				}),
@@ -199,7 +201,21 @@ export default function BlogEditor() {
 			attributes: {
 				class: 'w-full mx-auto focus:outline-none text-gray-800 dark:text-gray-300 p-10 min-h-[400px]'
 			},
-			transformPastedHTML: cleanPastedHTML
+			transformPastedHTML: cleanPastedHTML,
+			handleDOMEvents: {
+				mousedown: (_view, event) => {
+					const target = event.target as HTMLElement;
+					if (target.closest('a[href]')) event.preventDefault();
+				},
+				click: (_view, event) => {
+					const target = event.target as HTMLElement;
+					if (target.closest('a[href]')) {
+						event.preventDefault();
+						event.stopPropagation();
+						return true;
+					}
+				}
+			}
 		},
 		onTransaction: () => {
 			setEditorVersion((v) => v + 1);

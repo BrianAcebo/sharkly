@@ -147,7 +147,8 @@ async function extractFromHtml(html: string): Promise<{ text: string; meta: Reco
   return { text, meta: { parser: 'basic', url_refs: Array.from(new Set(urlRefs)).slice(0, 200) } };
 }
 
-async function extractFromPdf(buffer: Buffer): Promise<{ text: string; meta: Record<string, unknown> }> {
+/** Exported for chat file PDF extraction */
+export async function extractFromPdf(buffer: Buffer): Promise<{ text: string; meta: Record<string, unknown> }> {
   try {
     // dynamic import if available in server env
     // @ts-expect-error dynamic optional dependency

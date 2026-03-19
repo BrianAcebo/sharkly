@@ -4,7 +4,7 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
 import { FunnelTag } from '../components/shared/FunnelTag';
 import { detectPageType, pageTypeColor } from '../lib/seoUtils';
-import { CreditBadge } from '../components/shared/CreditBadge';
+import { CreditBadge, CreditCost } from '../components/shared/CreditBadge';
 import { TaskProgressWidget } from '../components/shared/TaskProgressWidget';
 import type { TaskStep, TaskStatus } from '../components/shared/TaskProgressWidget';
 import { Button } from '../components/ui/button';
@@ -28,7 +28,8 @@ import {
 	Lock,
 	FileText,
 	Pencil,
-	Eye
+	Eye,
+	ArrowRightLeft
 } from 'lucide-react';
 import { useSiteContext } from '../contexts/SiteContext';
 import { useTopics } from '../hooks/useTopics';
@@ -69,9 +70,9 @@ import InputField from '../components/form/input/InputField';
 import { CREDIT_COSTS } from '../lib/credits';
 import { KeywordLookupModal } from '../components/strategy/KeywordLookupModal';
 import { EditTargetModal } from '../components/strategy/EditTargetModal';
+import { MoveTopicModal } from '../components/strategy/MoveTopicModal';
 import { Slider } from '../components/ui/slider';
 import TextArea from '../components/form/input/TextArea';
-
 const MARKETING_URL = import.meta.env.VITE_MARKETING_URL ?? 'https://sharkly.co';
 const IGS_LINK = `${MARKETING_URL}/blog/glossary/what-is-information-gain-score-igs`;
 
@@ -154,6 +155,9 @@ function SortableTopicRow({
 	onStartCluster,
 	onDeleteTopic,
 	onEditTopic,
+	onOpenMoveModal,
+	otherTargets,
+	movingTopicId,
 	deletingTopicId,
 	isUnlocked,
 	clustersToUnlock
@@ -164,6 +168,9 @@ function SortableTopicRow({
 	onStartCluster: (id: string) => void;
 	onDeleteTopic: (id: string) => void;
 	onEditTopic: (topic: Topic) => void;
+	onOpenMoveModal: (topic: Topic) => void;
+	otherTargets: Array<{ id: string; name: string }>;
+	movingTopicId: string | null;
 	deletingTopicId: string | null;
 	isUnlocked: boolean;
 	clustersToUnlock: number;
@@ -215,7 +222,7 @@ function SortableTopicRow({
 			}`}
 		>
 			<td className="px-4 py-4" {...attributes} {...listeners}>
-				<GripVertical className="invisible cursor-grab text-gray-500 opacity-0 transition-all duration-200 group-hover:visible group-hover:text-gray-900 active:cursor-grabbing dark:text-gray-400 dark:group-hover:opacity-100" />
+				<GripVertical className="invisible cursor-grab text-gray-500 opacity-0 transition-all duration-200 group-hover:visible group-hover:text-gray-900 group-hover:opacity-100 active:cursor-grabbing dark:text-gray-400 dark:group-hover:opacity-100" />
 			</td>
 			<td className="px-4 py-4 text-[13px] text-gray-500 dark:text-gray-400">{topic.priority}</td>
 			<td className="px-4 py-4">
@@ -279,6 +286,19 @@ function SortableTopicRow({
 							className="invisible rounded p-1 text-gray-400 transition-colors group-hover:visible hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
 						>
 							<Pencil className="size-3.5" />
+						</button>
+					)}
+
+					{/* Move to another target */}
+					{!confirmDelete && otherTargets.length > 0 && (
+						<button
+							type="button"
+							title="Move to another strategy"
+							disabled={movingTopicId === topic.id}
+							onClick={() => onOpenMoveModal(topic)}
+							className="invisible rounded p-1 text-gray-400 transition-colors group-hover:visible hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+						>
+							<ArrowRightLeft className="size-3.5" />
 						</button>
 					)}
 
@@ -440,17 +460,38 @@ export default function StrategyTargetDetail() {
 		topics,
 		loading,
 		refetch: refetchTopics,
-		deleteTopic
+		deleteTopic,
+		moveTopic
 	} = useTargetTopics(targetId ?? null);
 	const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null);
+	const [movingTopicId, setMovingTopicId] = useState<string | null>(null);
 	const {
 		targets,
 		loading: targetsLoading,
 		updateTarget,
+		deleteTarget,
 		refetch: refetchTargets
 	} = useTargets(selectedSite?.id ?? null);
 	const target = targets.find((t) => t.id === targetId);
+	const otherTargets = targets.filter((t) => t.id !== targetId);
+
+	const handleMoveTopic = useCallback(
+		async (topicId: string, destinationTargetId: string) => {
+			setMovingTopicId(topicId);
+			const { error } = await moveTopic(topicId, destinationTargetId);
+			setMovingTopicId(null);
+			if (error) {
+				toast.error(error);
+			} else {
+				const dest = targets.find((t) => t.id === destinationTargetId);
+				toast.success(`Moved to "${dest?.name ?? 'target'}"`);
+			}
+		},
+		[moveTopic, targets]
+	);
 	const [editTargetOpen, setEditTargetOpen] = useState(false);
+	const [moveTopicModalOpen, setMoveTopicModalOpen] = useState(false);
+	const [moveTopicModalTopic, setMoveTopicModalTopic] = useState<Topic | null>(null);
 	const [ecommercePageMatch, setEcommercePageMatch] = useState<{
 		id: string;
 		type: 'product' | 'collection';
@@ -578,8 +619,10 @@ export default function StrategyTargetDetail() {
 	const handleStartCluster = async (topicId: string, maxArticles: number) => {
 		setClusterDialogOpen(false);
 		setStartingTopicId(topicId);
-		// Open widget
-		setClusterWidgetSteps(CLUSTER_STEPS.map((s) => ({ ...s, status: 'pending' })));
+		// Open widget — first step active, others pending
+		setClusterWidgetSteps(
+			CLUSTER_STEPS.map((s, i) => ({ ...s, status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending' }))
+		);
 		setClusterWidgetStatus('running');
 		setClusterWidgetError(undefined);
 		setClusterWidgetOpen(true);
@@ -599,8 +642,9 @@ export default function StrategyTargetDetail() {
 				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
 				body: JSON.stringify({ topicId, maxArticles })
 			});
-			const data = await res.json().catch(() => ({}));
+
 			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
 				if (res.status === 402) {
 					const msg = `Insufficient credits. Need ${data.required ?? CREDIT_COSTS.CLUSTER_GENERATION}, have ${data.available ?? 0}.`;
 					toast.error(msg);
@@ -610,10 +654,66 @@ export default function StrategyTargetDetail() {
 				}
 				throw new Error(data?.error || 'Failed to create cluster');
 			}
+
+			// Consume NDJSON stream — steps advance only when backend actually completes each phase
+			const reader = res.body?.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+			let clusterId: string | null = null;
+
+			if (reader) {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (value) {
+						buffer += decoder.decode(value, { stream: true });
+						const lines = buffer.split('\n');
+						buffer = lines.pop() ?? '';
+						for (const line of lines) {
+							if (!line.trim()) continue;
+							try {
+								const ev = JSON.parse(line) as { type: string; id?: string; clusterId?: string; message?: string };
+								if (ev.type === 'step' && ev.id) {
+									setClusterWidgetSteps((prev) => {
+										const stepIdx = CLUSTER_STEPS.findIndex((st) => st.id === ev.id);
+										if (stepIdx === -1) return prev;
+										return prev.map((s, i) => {
+											if (i <= stepIdx) return { ...s, status: 'complete' as const };
+											if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+											return s;
+										});
+									});
+								} else if (ev.type === 'done') {
+									clusterId = ev.clusterId ?? null;
+								} else if (ev.type === 'error') {
+									throw new Error(ev.message ?? 'Failed to create cluster');
+								}
+							} catch (parseErr) {
+								if (!(parseErr instanceof SyntaxError)) throw parseErr;
+							}
+						}
+					}
+					if (done) break;
+				}
+				// Process any remaining buffer (final chunk may not end with newline)
+				if (buffer.trim()) {
+					try {
+						const ev = JSON.parse(buffer) as { type: string; clusterId?: string; message?: string };
+						if (ev.type === 'done') clusterId = ev.clusterId ?? null;
+					} catch {
+						// ignore parse errors on trailing partial data
+					}
+				}
+			}
+
 			setClusterWidgetStatus('done');
+			if (!clusterId) {
+				toast.error('Cluster created but missing ID');
+				return;
+			}
 			await refetchTopics();
 			refetchOrg();
-			navigate(`/clusters/${data.clusterId}`);
+			// Brief pause so user sees the "done" state before redirect
+			setTimeout(() => navigate(`/clusters/${clusterId}`), 800);
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : 'Failed to create cluster';
 			toast.error(msg);
@@ -954,7 +1054,7 @@ export default function StrategyTargetDetail() {
 		setSeedModalOpen(false);
 
 		// Reset and open the progress widget
-		setTaskSteps(STRATEGY_STEPS.map((s) => ({ ...s, status: 'pending' })));
+		setTaskSteps(STRATEGY_STEPS.map((s, i) => ({ ...s, status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending' })));
 		setTaskStatus('running');
 		setTaskError(undefined);
 		setTaskWidgetOpen(true);
@@ -979,8 +1079,9 @@ export default function StrategyTargetDetail() {
 					...(targetId && { targetId })
 				})
 			});
-			const data = await res.json().catch(() => ({}));
+
 			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
 				if (res.status === 402) {
 					const msg = `Insufficient credits. Need ${data.required ?? CREDIT_COSTS.STRATEGY_GENERATION}, have ${data.available ?? 0}.`;
 					toast.error(msg);
@@ -990,14 +1091,67 @@ export default function StrategyTargetDetail() {
 				}
 				throw new Error(data?.error || 'Failed to generate suggestions');
 			}
+
+			// Consume NDJSON stream
+			const reader = res.body?.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+			let result: {
+				suggestions?: TopicSuggestion[];
+				strategyRationale?: string;
+				researchContext?: unknown;
+				trafficTier?: string | null;
+				runId?: string | null;
+			} = {};
+
+			if (reader) {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (value) {
+						buffer += decoder.decode(value, { stream: true });
+					}
+					const lines = buffer.split('\n');
+					buffer = lines.pop() ?? '';
+					for (const line of lines) {
+						if (!line.trim()) continue;
+						try {
+							const ev = JSON.parse(line) as { type: string; id?: string; message?: string; suggestions?: TopicSuggestion[]; strategyRationale?: string; researchContext?: unknown; trafficTier?: string | null; runId?: string | null };
+							if (ev.type === 'step' && ev.id) {
+								setTaskSteps((prev) => {
+									const stepIdx = STRATEGY_STEPS.findIndex((st) => st.id === ev.id);
+									if (stepIdx === -1) return prev;
+									return prev.map((s, i) => {
+										if (i <= stepIdx) return { ...s, status: 'complete' as const };
+										if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+										return s;
+									});
+								});
+							} else if (ev.type === 'done') {
+								result = {
+									suggestions: ev.suggestions,
+									strategyRationale: ev.strategyRationale,
+									researchContext: ev.researchContext,
+									trafficTier: ev.trafficTier,
+									runId: ev.runId
+								};
+							} else if (ev.type === 'error') {
+								throw new Error(ev.message ?? 'Failed to generate suggestions');
+							}
+						} catch (parseErr) {
+							if (!(parseErr instanceof SyntaxError)) throw parseErr;
+						}
+					}
+				}
+			}
+
 			setTaskStatus('done');
-			const incoming: TopicSuggestion[] = data.suggestions ?? [];
+			const incoming: TopicSuggestion[] = result.suggestions ?? [];
 			setSuggestions(incoming);
-			setTrafficTier(data.trafficTier ?? null);
-			setStrategyRationale(data.strategyRationale ?? '');
-			setResearchContext(data.researchContext ?? null);
+			setTrafficTier(result.trafficTier ?? null);
+			setStrategyRationale(result.strategyRationale ?? '');
+			setResearchContext((result.researchContext ?? null) as ResearchContext | null);
 			setResearchExpanded(true);
-			setLastRunId(data.runId ?? null);
+			setLastRunId(result.runId ?? null);
 			// All topics pre-selected — the order IS the strategy, not the selection.
 			// Users deselect what they don't want; nothing is hidden by default.
 			const preSelected = new Set(incoming.map((_, i) => i));
@@ -1553,7 +1707,7 @@ export default function StrategyTargetDetail() {
 									<span className="flex size-6 items-center justify-center rounded-full border border-dashed border-gray-300 dark:border-gray-600">
 										+
 									</span>
-									Research a keyword · {CREDIT_COSTS.KEYWORD_LOOKUP} credits
+									Research a keyword — <CreditCost amount={CREDIT_COSTS.KEYWORD_LOOKUP} />
 								</button>
 							</div>
 						</>
@@ -1677,6 +1831,12 @@ export default function StrategyTargetDetail() {
 														onStartCluster={openClusterDialog}
 														onDeleteTopic={handleDeleteTopic}
 														onEditTopic={openEditTopic}
+														onOpenMoveModal={(t) => {
+															setMoveTopicModalTopic(t);
+															setMoveTopicModalOpen(true);
+														}}
+														otherTargets={otherTargets}
+														movingTopicId={movingTopicId}
 														deletingTopicId={deletingTopicId}
 														isUnlocked={isUnlocked}
 														clustersToUnlock={clustersToUnlock}
@@ -2262,7 +2422,7 @@ export default function StrategyTargetDetail() {
 				status={taskStatus}
 				steps={taskSteps}
 				errorMessage={taskError}
-				stepInterval={7500}
+				disableAutoAdvance
 				onClose={() => setTaskWidgetOpen(false)}
 			/>
 
@@ -2272,7 +2432,7 @@ export default function StrategyTargetDetail() {
 				status={clusterWidgetStatus}
 				steps={clusterWidgetSteps}
 				errorMessage={clusterWidgetError}
-				stepInterval={6000}
+				disableAutoAdvance
 				onClose={() => setClusterWidgetOpen(false)}
 			/>
 
@@ -2690,6 +2850,17 @@ export default function StrategyTargetDetail() {
 				</DialogContent>
 			</Dialog>
 
+			<MoveTopicModal
+				open={moveTopicModalOpen}
+				onClose={() => {
+					setMoveTopicModalOpen(false);
+					setMoveTopicModalTopic(null);
+				}}
+				topic={moveTopicModalTopic}
+				targets={otherTargets}
+				onMove={handleMoveTopic}
+				moving={movingTopicId !== null}
+			/>
 			<EditTargetModal
 				open={editTargetOpen}
 				onClose={() => setEditTargetOpen(false)}
@@ -2697,6 +2868,14 @@ export default function StrategyTargetDetail() {
 				onSave={async (id, input) => {
 					const result = await updateTarget(id, input);
 					if (!result.error) refetchTargets();
+					return result;
+				}}
+				onDelete={async (id) => {
+					const result = await deleteTarget(id);
+					if (!result.error) {
+						refetchTargets();
+						navigate('/strategy');
+					}
 					return result;
 				}}
 			/>

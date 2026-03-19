@@ -33,7 +33,9 @@ export function verifyShopifyHmac(
 export function getShopifyAuthUrl(shop: string, state: string, redirectUri: string): string {
 	const clientId = process.env.SHOPIFY_API_KEY || '';
 	const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-	const shopDomain = cleanShop.endsWith('.myshopify.com') ? cleanShop : `${cleanShop}.myshopify.com`;
+	const shopDomain = cleanShop.endsWith('.myshopify.com')
+		? cleanShop
+		: `${cleanShop}.myshopify.com`;
 	const params = new URLSearchParams({
 		client_id: clientId,
 		scope: SHOPIFY_SCOPES,
@@ -51,7 +53,9 @@ export async function exchangeShopifyCode(
 	code: string
 ): Promise<{ access_token: string }> {
 	const cleanShop = shop.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-	const shopDomain = cleanShop.endsWith('.myshopify.com') ? cleanShop : `${cleanShop}.myshopify.com`;
+	const shopDomain = cleanShop.endsWith('.myshopify.com')
+		? cleanShop
+		: `${cleanShop}.myshopify.com`;
 
 	const res = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
 		method: 'POST',
@@ -108,10 +112,12 @@ export async function savePendingShopifyToken(
 	accessToken: string
 ): Promise<{ error?: string }> {
 	const expiresAt = new Date(Date.now() + PENDING_TOKEN_TTL_MINUTES * 60 * 1000).toISOString();
-	const { error } = await supabase.from('shopify_pending_tokens').upsert(
-		{ shop_domain: shopDomain, access_token: accessToken, expires_at: expiresAt },
-		{ onConflict: 'shop_domain' }
-	);
+	const { error } = await supabase
+		.from('shopify_pending_tokens')
+		.upsert(
+			{ shop_domain: shopDomain, access_token: accessToken, expires_at: expiresAt },
+			{ onConflict: 'shop_domain' }
+		);
 	if (error) {
 		console.error('[Shopify] Failed to save pending token:', error);
 		return { error: error.message };
@@ -127,8 +133,9 @@ export async function getAndConsumePendingShopifyToken(shopDomain: string): Prom
 		.replace(/^https?:\/\//, '')
 		.replace(/\/.*$/, '')
 		.toLowerCase();
-	const withMyshopify =
-		normalized.endsWith('.myshopify.com') ? normalized : `${normalized}.myshopify.com`;
+	const withMyshopify = normalized.endsWith('.myshopify.com')
+		? normalized
+		: `${normalized}.myshopify.com`;
 
 	const { data, error } = await supabase
 		.from('shopify_pending_tokens')
@@ -185,7 +192,9 @@ export async function disconnectShopify(siteId: string): Promise<{ error?: strin
  * Clear Shopify connection by shop domain (for app uninstall / shop redact webhooks).
  * Preserves site and content; only nulls shopify_domain and shopify_access_token.
  */
-export async function clearShopifyConnectionByDomain(shopDomain: string): Promise<{ error?: string }> {
+export async function clearShopifyConnectionByDomain(
+	shopDomain: string
+): Promise<{ error?: string }> {
 	const normalized = (shopDomain || '')
 		.replace(/^https?:\/\//, '')
 		.replace(/\/.*$/, '')
@@ -255,11 +264,9 @@ export async function listShopifyBlogs(
 	shopDomain: string,
 	accessToken: string
 ): Promise<{ id: string; title: string; handle: string }[]> {
-	const data = await shopifyGraphql<{ blogs: { nodes: Array<{ id: string; title: string; handle: string }> } }>(
-		shopDomain,
-		accessToken,
-		`query { blogs(first: 250) { nodes { id title handle } } }`
-	);
+	const data = await shopifyGraphql<{
+		blogs: { nodes: Array<{ id: string; title: string; handle: string }> };
+	}>(shopDomain, accessToken, `query { blogs(first: 250) { nodes { id title handle } } }`);
 	return data.blogs?.nodes ?? [];
 }
 
@@ -304,10 +311,24 @@ export async function createShopifyArticle(
 				tags: article.tags ?? undefined,
 				metafields: [
 					...(article.metafields_global_title_tag
-						? [{ namespace: 'global', key: 'title_tag', value: article.metafields_global_title_tag, type: 'single_line_text_field' }]
+						? [
+								{
+									namespace: 'global',
+									key: 'title_tag',
+									value: article.metafields_global_title_tag,
+									type: 'single_line_text_field'
+								}
+							]
 						: []),
 					...(article.metafields_global_description_tag
-						? [{ namespace: 'global', key: 'description_tag', value: article.metafields_global_description_tag, type: 'single_line_text_field' }]
+						? [
+								{
+									namespace: 'global',
+									key: 'description_tag',
+									value: article.metafields_global_description_tag,
+									type: 'single_line_text_field'
+								}
+							]
 						: [])
 				].filter(Boolean),
 				isPublished: article.published ?? true
@@ -329,13 +350,34 @@ export async function createShopifyArticle(
 
 // --- Ecommerce SEO: products & collections (GraphQL) ---
 
+export type DisplayMeta = {
+	image_url?: string | null;
+	image_alt?: string | null;
+	price?: string | null;
+	currency?: string | null;
+	vendor?: string | null;
+	product_type?: string | null;
+	tags?: string[] | null;
+};
+
 export type ShopifyProductRow = {
 	id: number;
+	id_gid: string;
 	title: string;
 	body_html: string | null;
 	handle: string;
 	status: string;
-	variants: unknown[];
+	tags: string[];
+	vendor: string | null;
+	product_type: string | null;
+	featured_image_url: string | null;
+	featured_image_alt: string | null;
+	price: string | null;
+	currency: string | null;
+	online_store_url: string | null;
+	seo_title: string | null;
+	seo_description: string | null;
+	variant_count: number;
 };
 
 /**
@@ -354,32 +396,57 @@ export async function listShopifyProducts(
 					descriptionHtml: string | null;
 					handle: string;
 					status: string;
-					variants: { edges: Array<{ node: { id: string } }> };
+					tags: string[];
+					vendor: string | null;
+					productType: string | null;
+					featuredImage: { url: string; altText: string | null } | null;
+					priceRangeV2: {
+						minVariantPrice: { amount: string; currencyCode: string } | null;
+					} | null;
+					onlineStoreUrl: string | null;
+					seo: { title: string | null; description: string | null };
+					variantsCount: { count: number } | null;
 				};
 			}>;
 		};
 	}>(
 		shopDomain,
 		accessToken,
-		`query { products(first: 250) { edges { node { id title descriptionHtml handle status variants(first: 1) { edges { node { id } } } } } } }`
+		`query { products(first: 250) { edges { node { id title descriptionHtml handle status tags vendor productType featuredImage { url altText } priceRangeV2 { minVariantPrice { amount currencyCode } } onlineStoreUrl seo { title description } variantsCount { count } } } } }`
 	);
 	const edges = data.products?.edges ?? [];
 	return edges.map(({ node }) => ({
 		id: gidToId(node.id),
+		id_gid: node.id,
 		title: node.title,
 		body_html: node.descriptionHtml ?? null,
 		handle: node.handle,
 		status: node.status,
-		variants: node.variants?.edges?.map((e) => e.node) ?? []
+		tags: node.tags ?? [],
+		vendor: node.vendor ?? null,
+		product_type: node.productType ?? null,
+		featured_image_url: node.featuredImage?.url ?? null,
+		featured_image_alt: node.featuredImage?.altText ?? null,
+		price: node.priceRangeV2?.minVariantPrice?.amount ?? null,
+		currency: node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
+		online_store_url: node.onlineStoreUrl ?? null,
+		seo_title: node.seo?.title ?? null,
+		seo_description: node.seo?.description ?? null,
+		variant_count: node.variantsCount?.count ?? 0
 	}));
 }
 
 export type ShopifyCollectionRow = {
 	id: number;
+	id_gid: string;
 	title: string;
 	body_html: string | null;
 	handle: string;
 	products_count: number;
+	featured_image_url: string | null;
+	featured_image_alt: string | null;
+	seo_title: string | null;
+	seo_description: string | null;
 };
 
 /**
@@ -397,22 +464,29 @@ export async function listShopifyCollections(
 					title: string;
 					descriptionHtml: string | null;
 					handle: string;
-					productsCount: number;
+					productsCount: { count: number } | null;
+					image: { url: string; altText: string | null } | null;
+					seo: { title: string | null; description: string | null };
 				};
 			}>;
 		};
 	}>(
 		shopDomain,
 		accessToken,
-		`query { collections(first: 250) { edges { node { id title descriptionHtml handle productsCount } } } }`
+		`query { collections(first: 250) { edges { node { id title descriptionHtml handle productsCount { count } image { url altText } seo { title description } } } } }`
 	);
 	const edges = data.collections?.edges ?? [];
 	return edges.map(({ node }) => ({
 		id: gidToId(node.id),
+		id_gid: node.id,
 		title: node.title,
 		body_html: node.descriptionHtml ?? null,
 		handle: node.handle,
-		products_count: node.productsCount ?? 0
+		products_count: node.productsCount?.count ?? 0,
+		featured_image_url: node.image?.url ?? null,
+		featured_image_alt: node.image?.altText ?? null,
+		seo_title: node.seo?.title ?? null,
+		seo_description: node.seo?.description ?? null
 	}));
 }
 
@@ -427,32 +501,157 @@ function collectionGid(id: string): string {
 }
 
 /**
- * Update product descriptionHtml and SEO (GraphQL productUpdate)
+ * Fetch a single product by GID (for sync)
+ */
+export async function getShopifyProductByGid(
+	shopDomain: string,
+	accessToken: string,
+	gid: string
+): Promise<ShopifyProductRow | null> {
+	const data = await shopifyGraphql<{
+		product: {
+			id: string;
+			title: string;
+			descriptionHtml: string | null;
+			handle: string;
+			status: string;
+			tags: string[];
+			vendor: string | null;
+			productType: string | null;
+			featuredImage: { url: string; altText: string | null } | null;
+			priceRangeV2: { minVariantPrice: { amount: string; currencyCode: string } | null } | null;
+			onlineStoreUrl: string | null;
+			seo: { title: string | null; description: string | null };
+			variantsCount: { count: number } | null;
+		} | null;
+	}>(
+		shopDomain,
+		accessToken,
+		`query($id: ID!) { product(id: $id) { id title descriptionHtml handle status tags vendor productType featuredImage { url altText } priceRangeV2 { minVariantPrice { amount currencyCode } } onlineStoreUrl seo { title description } variantsCount { count } } }`,
+		{ id: gid.startsWith('gid://') ? gid : productGid(gid) }
+	);
+	const node = data.product;
+	if (!node) return null;
+	return {
+		id: gidToId(node.id),
+		id_gid: node.id,
+		title: node.title,
+		body_html: node.descriptionHtml ?? null,
+		handle: node.handle,
+		status: node.status,
+		tags: node.tags ?? [],
+		vendor: node.vendor ?? null,
+		product_type: node.productType ?? null,
+		featured_image_url: node.featuredImage?.url ?? null,
+		featured_image_alt: node.featuredImage?.altText ?? null,
+		price: node.priceRangeV2?.minVariantPrice?.amount ?? null,
+		currency: node.priceRangeV2?.minVariantPrice?.currencyCode ?? null,
+		online_store_url: node.onlineStoreUrl ?? null,
+		seo_title: node.seo?.title ?? null,
+		seo_description: node.seo?.description ?? null,
+		variant_count: node.variantsCount?.count ?? 0
+	};
+}
+
+/**
+ * Fetch a single collection by GID (for sync)
+ */
+export async function getShopifyCollectionByGid(
+	shopDomain: string,
+	accessToken: string,
+	gid: string
+): Promise<ShopifyCollectionRow | null> {
+	const data = await shopifyGraphql<{
+		collection: {
+			id: string;
+			title: string;
+			descriptionHtml: string | null;
+			handle: string;
+			productsCount: { count: number } | null;
+			image: { url: string; altText: string | null } | null;
+			seo: { title: string | null; description: string | null };
+		} | null;
+	}>(
+		shopDomain,
+		accessToken,
+		`query($id: ID!) { collection(id: $id) { id title descriptionHtml handle productsCount { count } image { url altText } seo { title description } } }`,
+		{ id: gid.startsWith('gid://') ? gid : collectionGid(gid) }
+	);
+	const node = data.collection;
+	if (!node) return null;
+	return {
+		id: gidToId(node.id),
+		id_gid: node.id,
+		title: node.title,
+		body_html: node.descriptionHtml ?? null,
+		handle: node.handle,
+		products_count: node.productsCount?.count ?? 0,
+		featured_image_url: node.image?.url ?? null,
+		featured_image_alt: node.image?.altText ?? null,
+		seo_title: node.seo?.title ?? null,
+		seo_description: node.seo?.description ?? null
+	};
+}
+
+/**
+ * Update product descriptionHtml, SEO, and optional handle (GraphQL productUpdate)
  */
 export async function updateShopifyProduct(
 	shopDomain: string,
 	accessToken: string,
 	productId: string,
-	payload: { body_html: string; meta_title?: string; meta_description?: string }
+	payload: {
+		body_html: string;
+		meta_title?: string | null;
+		meta_description?: string | null;
+		handle?: string;
+	}
 ): Promise<void> {
 	const product: Record<string, unknown> = {
 		id: productGid(productId),
 		descriptionHtml: payload.body_html
 	};
+	if (payload.handle != null && payload.handle.trim()) {
+		product.handle = payload.handle.trim();
+		product.redirectNewHandle = true;
+	}
 	if (payload.meta_title != null || payload.meta_description != null) {
 		product.seo = {
 			title: payload.meta_title ?? '',
 			description: payload.meta_description ?? ''
 		};
 	}
-	const data = await shopifyGraphql<{ productUpdate: { userErrors: Array<{ message: string }> } }>(
+	const data = await shopifyGraphql<{
+		productUpdate: {
+			product: {
+				id: string;
+				handle: string;
+				descriptionHtml: string | null;
+				seo: { title: string | null; description: string | null } | null;
+				updatedAt: string;
+			} | null;
+			userErrors: Array<{ message: string }>;
+		};
+	}>(
 		shopDomain,
 		accessToken,
 		`mutation ProductUpdate($product: ProductUpdateInput!) {
-      productUpdate(product: $product) {
-        userErrors { message }
-      }
-    }`,
+		  productUpdate(product: $product) {
+			product {
+			  id
+			  handle
+			  descriptionHtml
+			  seo {
+				title
+				description
+			  }
+			  updatedAt
+			}
+			userErrors {
+			  message
+			}
+		  }
+		}`,
 		{ product }
 	);
 	if (data.productUpdate?.userErrors?.length) {
@@ -461,25 +660,36 @@ export async function updateShopifyProduct(
 }
 
 /**
- * Update collection descriptionHtml and SEO (GraphQL collectionUpdate)
+ * Update collection descriptionHtml, SEO, and optional handle (GraphQL collectionUpdate)
  */
 export async function updateShopifyCollection(
 	shopDomain: string,
 	accessToken: string,
 	collectionId: string,
-	payload: { body_html: string; meta_title?: string; meta_description?: string }
+	payload: {
+		body_html: string;
+		meta_title?: string;
+		meta_description?: string;
+		handle?: string;
+	}
 ): Promise<void> {
 	const collection: Record<string, unknown> = {
 		id: collectionGid(collectionId),
 		descriptionHtml: payload.body_html
 	};
+	if (payload.handle != null && payload.handle.trim()) {
+		collection.handle = payload.handle.trim();
+		collection.redirectNewHandle = true;
+	}
 	if (payload.meta_title != null || payload.meta_description != null) {
 		collection.seo = {
 			title: payload.meta_title ?? '',
 			description: payload.meta_description ?? ''
 		};
 	}
-	const data = await shopifyGraphql<{ collectionUpdate: { userErrors: Array<{ message: string }> } }>(
+	const data = await shopifyGraphql<{
+		collectionUpdate: { userErrors: Array<{ message: string }> };
+	}>(
 		shopDomain,
 		accessToken,
 		`mutation CollectionUpdate($collection: CollectionInput!) {

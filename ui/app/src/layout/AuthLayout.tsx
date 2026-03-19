@@ -1,13 +1,16 @@
 import GridShape from '../components/common/GridShape';
-import { Link, Navigate, Outlet } from 'react-router';
+import { Navigate, Outlet, useSearchParams } from 'react-router';
 import ThemeTogglerTwo from '../components/common/ThemeTogglerTwo';
 import useAuth from '../hooks/useAuth';
 
 export default function AuthLayout() {
 	const { session } = useAuth();
+	const [searchParams] = useSearchParams();
+	const returnTo = searchParams.get('return_to') ?? searchParams.get('next');
 
 	if (session) {
-		return <Navigate to="/dashboard" />;
+		const target = returnTo && returnTo.startsWith('/') ? returnTo : '/dashboard';
+		return <Navigate to={target} replace />;
 	}
 
 	return (

@@ -1,6 +1,17 @@
 import React from 'react';
 import { Link } from 'react-router';
-import { Lock, FileText, Plus, ChevronRight, Lightbulb, Search, Zap, AlertTriangle } from 'lucide-react';
+import {
+	Lock,
+	FileText,
+	Plus,
+	ChevronRight,
+	Lightbulb,
+	Search,
+	Zap,
+	AlertTriangle,
+	Target,
+	Loader2
+} from 'lucide-react';
 import { AIInsightBlock } from '../shared/AIInsightBlock';
 import { CustomerJourneyMap } from './CustomerJourneyMap';
 import { Button } from '../ui/button';
@@ -143,7 +154,11 @@ function StageColumn({
 	destinationUrl,
 	visitorCount,
 	onAddArticle,
-	onAddDestination
+	onAddDestination,
+	hasCROAddon,
+	onOpenCROStudio,
+	openCROStudioLoading,
+	onUnlockCROStudio
 }: {
 	stage: FunnelStage;
 	pages: PageData[];
@@ -154,6 +169,10 @@ function StageColumn({
 	visitorCount?: number;
 	onAddArticle?: () => void;
 	onAddDestination?: () => void;
+	hasCROAddon?: boolean;
+	onOpenCROStudio?: () => void;
+	openCROStudioLoading?: boolean;
+	onUnlockCROStudio?: () => void;
 }) {
 	const config = STAGE_CONFIG[stage];
 	const Icon = config.icon;
@@ -196,18 +215,47 @@ function StageColumn({
 					hasDestination ? (
 						<div className="rounded-lg border border-dashed border-gray-300 bg-white p-4 dark:border-gray-600 dark:bg-gray-900">
 							<div className="flex items-center gap-2">
-								<Lock className="size-4 text-gray-400" />
+								{hasCROAddon ? (
+									<Zap className="text-brand-500 size-4" />
+								) : (
+									<Lock className="size-4 text-gray-400" />
+								)}
 								<span className="font-medium text-gray-700 dark:text-gray-300">
 									{destinationLabel || destinationUrl?.split('/').pop() || 'Destination'}
 								</span>
 							</div>
-							<p className="mt-1 text-[11px] text-gray-500">CRO: ??/?? Locked</p>
+							<p className="mt-1 text-[11px] text-gray-500">
+								{hasCROAddon ? 'Destination page audit' : 'CRO: ??/?? Locked'}
+							</p>
 							{visitorCount != null && visitorCount > 0 && (
 								<p className="mt-1 text-[11px] text-gray-500">~{visitorCount} visitors →</p>
 							)}
-							<Button variant="outline" size="sm" className="mt-2 w-full" disabled>
-								Unlock CRO Studio
-							</Button>
+							{hasCROAddon ? (
+								<Button
+									variant="outline"
+									size="sm"
+									className="mt-2 w-full justify-center gap-2"
+									disabled={openCROStudioLoading}
+									onClick={onOpenCROStudio}
+								>
+									{openCROStudioLoading ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : (
+										<Target className="size-4" />
+									)}
+									Open in CRO Studio
+								</Button>
+							) : (
+								<Button
+									variant="outline"
+									size="sm"
+									className="mt-2 w-full"
+									onClick={onUnlockCROStudio}
+								>
+									<Lock className="mr-2 size-4" />
+									Unlock CRO Studio
+								</Button>
+							)}
 						</div>
 					) : (
 						<button
@@ -280,6 +328,11 @@ export type FunnelVisualizerProps = {
 	warnings?: ClusterWarningBanner[];
 	onAddDestination?: () => void;
 	onAddArticle?: () => void;
+	/** CRO Studio add-on active — show "Open in CRO Studio" vs "Unlock CRO Studio" */
+	hasCROAddon?: boolean;
+	onOpenCROStudio?: () => void;
+	openCROStudioLoading?: boolean;
+	onUnlockCROStudio?: () => void;
 };
 
 export function FunnelVisualizer({
@@ -289,7 +342,11 @@ export function FunnelVisualizer({
 	anchorClickCount,
 	warnings = [],
 	onAddDestination,
-	onAddArticle
+	onAddArticle,
+	hasCROAddon,
+	onOpenCROStudio,
+	openCROStudioLoading,
+	onUnlockCROStudio
 }: FunnelVisualizerProps) {
 	const boFuFocus = detectBoFuFocusPage(pages);
 
@@ -299,7 +356,7 @@ export function FunnelVisualizer({
 	const hasDestination = !!destinationUrl;
 
 	return (
-		<div className="flex flex-col gap-8 rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+		<div className="flex flex-col gap-8 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
 			<div className="flex items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-700">
 				<div>
 					<p className="text-[13px] font-semibold text-gray-900 dark:text-white">
@@ -326,7 +383,7 @@ export function FunnelVisualizer({
 
 			{/* S1-11: W7 — BoFu focus page full-width red banner (from cluster intelligence or client-side fallback) */}
 			{(warnings.some((w) => w.type === 'bofu_focus_page') || boFuFocus) && (
-				<div className="-mx-4 rounded-none border-0 border-y-2 border-red-300 bg-red-50 p-5 dark:border-red-800 dark:bg-red-950/50 sm:rounded-xl sm:border-2 sm:border-red-200 sm:dark:border-red-800">
+				<div className="-mx-4 rounded-none border-0 border-y-2 border-red-300 bg-red-50 p-5 sm:rounded-xl sm:border-2 sm:border-red-200 dark:border-red-800 dark:bg-red-950/50 sm:dark:border-red-800">
 					<p className="font-semibold text-red-800 dark:text-red-200">
 						Your SEO anchor is targeting a buying-intent keyword
 					</p>
@@ -358,7 +415,10 @@ export function FunnelVisualizer({
 								.filter((w) => w.type !== 'bofu_focus_page')
 								.slice(0, 2)
 								.map((w, i) => (
-									<p key={w.type + String(i)} className="text-[13px] text-amber-800 dark:text-amber-200">
+									<p
+										key={w.type + String(i)}
+										className="text-[13px] text-amber-800 dark:text-amber-200"
+									>
 										{w.message}
 									</p>
 								))}
@@ -395,6 +455,10 @@ export function FunnelVisualizer({
 					destinationUrl={destinationUrl ?? undefined}
 					visitorCount={anchorClickCount}
 					onAddDestination={onAddDestination}
+					hasCROAddon={hasCROAddon}
+					onOpenCROStudio={onOpenCROStudio}
+					openCROStudioLoading={openCROStudioLoading}
+					onUnlockCROStudio={onUnlockCROStudio}
 				/>
 			</div>
 		</div>

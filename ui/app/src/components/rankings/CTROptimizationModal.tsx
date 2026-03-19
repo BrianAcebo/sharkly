@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '../ui/button';
 import { Loader2, Copy, Check, TrendingUp, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { CreditCost } from '../shared/CreditBadge';
 import { CREDIT_COSTS } from '../../lib/credits';
 
 interface RankingRow {
@@ -171,7 +172,7 @@ export function CTROptimizationModal({ open, onClose, siteId, ranking }: Props) 
 							>
 								{loading
 									? 'Generating suggestions…'
-									: `Generate suggestions · ${CREDIT_COSTS.CTR_OPTIMIZE} credits`}
+									: <>Generate suggestions — <CreditCost amount={CREDIT_COSTS.CTR_OPTIMIZE} /></>}
 							</Button>
 						)}
 
@@ -253,7 +254,7 @@ export function CTROptimizationModal({ open, onClose, siteId, ranking }: Props) 
 									className="w-full text-sm"
 								>
 									{loading ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-									Regenerate · {CREDIT_COSTS.CTR_OPTIMIZE} credits
+									Regenerate — <CreditCost amount={CREDIT_COSTS.CTR_OPTIMIZE} />
 								</Button>
 							</div>
 						)}

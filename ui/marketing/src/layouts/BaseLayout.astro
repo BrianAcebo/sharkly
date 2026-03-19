@@ -83,7 +83,10 @@ const navLinks = [
     <script type="application/ld+json" set:html={JSON.stringify(schema ?? defaultSchema)} />
 
     <!-- RSS -->
-    <link rel="alternate" type="application/rss+xml" title="Sharkly Blog" href="/rss.xml" />
+    <link rel="alternate" type="application/rss+xml" title="Sharkly Blog" href="/blog/rss.xml" />
+
+    <!-- Sitemap -->
+    <link rel="sitemap" type="application/xml" href="/sitemap-index.xml" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -99,8 +102,7 @@ const navLinks = [
         {/* Desktop nav */}
         <nav class="hidden md:flex gap-2 items-center text-sm font-medium" aria-label="Main navigation">
           {navLinks.map(link => {
-            const isCurrent = (link.href === '/' && Astro.url.pathname === '/') || (link.href.startsWith('/blog') && Astro.url.pathname.startsWith('/blog')) || (link.href === '/pricing' && Astro.url.pathname === '/pricing');
-            console.log(isCurrent, link.href, Astro.url.pathname);
+            const isCurrent = (link.href === '/' && Astro.url.pathname === '/') || (link.href.startsWith('/blog') && Astro.url.pathname.startsWith('/blog')) || (link.href === '/pricing' && Astro.url.pathname === '/pricing') || (link.href.startsWith('/#') && Astro.url.pathname === '/' && Astro.url.hash === link.href.slice(1));
             return (
               <a
                 href={link.href}
@@ -216,9 +218,12 @@ const navLinks = [
             <div class="text-sm font-semibold mb-4 text-white/90">Product</div>
             <div class="flex flex-col gap-2">
               <a href="/" class="text-white/80 text-[0.9375rem] hover:text-white">Overview</a>
+              <a href="/#research" class="text-white/80 text-[0.9375rem] hover:text-white">Research</a>
+              <a href="/#features" class="text-white/80 text-[0.9375rem] hover:text-white">Features</a>
               <a href="/#strategy" class="text-white/80 text-[0.9375rem] hover:text-white">Strategy</a>
               <a href="/#clusters" class="text-white/80 text-[0.9375rem] hover:text-white">Clusters</a>
               <a href="/#rankings" class="text-white/80 text-[0.9375rem] hover:text-white">Rankings</a>
+              <a href="/pricing" class="text-white/80 text-[0.9375rem] hover:text-white">Pricing</a>
               <a href="/blog" class="text-white/80 text-[0.9375rem] hover:text-white">Blog</a>
             </div>
           </div>

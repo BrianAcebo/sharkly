@@ -122,8 +122,13 @@ export function ClusterHealthCheck({
 									<p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
 										<strong>Action:</strong> {w.action}
 									</p>
+									{w.assessmentNote && (
+										<p className="mt-1.5 text-xs italic text-gray-500 dark:text-gray-400">
+											{w.assessmentNote}
+										</p>
+									)}
 									{w.affectedPages.length > 0 && (
-										<ul className="mt-2 list-inside list-disc text-xs text-gray-500 dark:text-gray-450">
+										<ul className="mt-2 list-inside list-disc text-xs text-gray-500 dark:text-gray-400">
 											{w.affectedPages.slice(0, 5).map((p) => (
 												<li key={p}>{p}</li>
 											))}

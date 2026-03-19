@@ -26,7 +26,7 @@ export default function SignInForm() {
 	const returnTo = searchParams.get('return_to');
 	const navigate = useNavigate();
 
-	const marketingUrl = import.meta.env.VITE_MARKETING_URL;
+	const marketingUrl = import.meta.env.VITE_MARKETING_URL ?? 'https://sharkly.co';
 
 	// Reset rate limit when component unmounts
 	useEffect(() => {

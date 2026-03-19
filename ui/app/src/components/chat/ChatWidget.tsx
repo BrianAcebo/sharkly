@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChat, ChatMessage, ToolExecution } from '../../contexts/ChatContext';
 import { useOrganization } from '../../hooks/useOrganization';
-import { hasFinAccess } from '../../utils/featureGating';
+import { canAccessPerformance } from '../../utils/featureGating';
 import { ChatMarkdown } from './ChatMarkdown';
 import {
 	MessageCircle,
@@ -266,8 +266,8 @@ export default function ChatWidget() {
 		}
 	}, [isOpen]);
 
-	// Fin requires Growth+ and Fin add-on (or Scale/Pro) — early return after all hooks
-	if (!organization || !hasFinAccess(organization)) {
+	// Fin (AI Assistant) requires Growth tier (roadmap). Gate by plan tier, not hasFinAccess.
+	if (!organization || !canAccessPerformance(organization)) {
 		return null;
 	}
 
@@ -291,7 +291,7 @@ export default function ChatWidget() {
 			<button
 				onClick={openChat}
 				className={cn(
-					'fixed right-6 bottom-6 z-50',
+					'fixed right-6 bottom-6 z-40',
 					'h-14 w-14 rounded-full shadow-lg',
 					'to-brand-600 bg-gradient-to-br from-blue-500 text-white',
 					'flex items-center justify-center',

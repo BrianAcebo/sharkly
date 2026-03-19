@@ -18,6 +18,8 @@ export type ClusterWarning = {
 	message: string;
 	action: string;
 	affectedPages: string[];
+	/** How we assess this — e.g. for live-URL checks */
+	assessmentNote?: string;
 };
 
 export type ClusterIntelligence = {

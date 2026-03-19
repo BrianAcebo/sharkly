@@ -57,3 +57,15 @@ export const buildBackendUrl = (path: string): string => {
 	const base = getBackendUrl();
 	return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 };
+
+/**
+ * Marketing site homepage URL (separate from app).
+ * Production: sharkly.co. Local dev: localhost:4321.
+ * Use for redirecting unauthenticated users from protected routes.
+ */
+export const getMarketingUrl = (): string => {
+	if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+		return 'http://localhost:4321';
+	}
+	return import.meta.env.VITE_MARKETING_URL ?? 'https://sharkly.co';
+};

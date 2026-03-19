@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router';
+import { useParams, Link, useNavigate } from 'react-router';
 import {
 	ReactFlow,
 	Background,
@@ -86,6 +86,8 @@ import type { PageData } from '../hooks/useClusterPages';
 import { FunnelVisualizer } from '../components/cluster/FunnelVisualizer';
 import { ClusterHealthCheck } from '../components/cluster/ClusterHealthCheck';
 import { useClusterIntelligence } from '../hooks/useClusterIntelligence';
+import { useAuth } from '../hooks/useAuth';
+import { useCROStudioUpgrade } from '../contexts/CROStudioUpgradeContext';
 
 const MARKETING_URL = import.meta.env.VITE_MARKETING_URL ?? 'https://sharkly.co';
 
@@ -934,6 +936,9 @@ export default function ClusterDetail() {
 		refetch: refetchIntelligence
 	} = useClusterIntelligence(id ?? null);
 	const { organization } = useOrganization();
+	const navigate = useNavigate();
+	const { session } = useAuth();
+	const { openCROStudioUpgradeModal } = useCROStudioUpgrade();
 
 	const articleCount = dbPages.filter((p) => p.type === 'article').length;
 
@@ -1013,6 +1018,7 @@ export default function ClusterDetail() {
 		destinationPageLabel: ''
 	});
 	const [settingsSubmitting, setSettingsSubmitting] = useState(false);
+	const [openCROStudioLoading, setOpenCROStudioLoading] = useState(false);
 
 	// Regenerate cluster state
 	const REGEN_STEPS: TaskStep[] = [
@@ -1033,6 +1039,57 @@ export default function ClusterDetail() {
 	const [regenSuggestions, setRegenSuggestions] = useState<ClusterRunSuggestion[]>([]);
 	const [regenSelected, setRegenSelected] = useState<Set<number>>(new Set());
 	const [regenArticleCount, setRegenArticleCount] = useState(10);
+
+	const handleOpenCROStudio = useCallback(async () => {
+		if (!cluster?.destinationPageUrl?.trim()) return;
+		if (organization?.has_cro_addon !== true) {
+			openCROStudioUpgradeModal();
+			return;
+		}
+		const token = session?.access_token;
+		if (!token) {
+			toast.error('Please sign in to continue');
+			return;
+		}
+		setOpenCROStudioLoading(true);
+		try {
+			const res = await fetch(buildApiUrl('/api/cro-studio/audits'), {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+				body: JSON.stringify({
+					page_url: cluster.destinationPageUrl.trim(),
+					page_type: 'destination_page',
+					page_label: cluster.destinationPageLabel?.trim() || null,
+					cluster_id: cluster.id,
+					site_id: cluster.siteId ?? null
+				})
+			});
+			const data = await res.json().catch(() => ({}));
+			if (res.ok && data.audit_id) {
+				toast.success('Audit complete');
+				navigate(`/cro-studio/audit/${data.audit_id}`);
+				return;
+			}
+			if (res.status === 402) {
+				toast.error(
+					`Insufficient credits. Need ${data.required ?? CREDIT_COSTS.CRO_STUDIO_AUDIT ?? 1}, have ${data.available ?? 0}.`
+				);
+				return;
+			}
+			toast.error(data.error ?? data.message ?? 'Failed to run audit');
+		} finally {
+			setOpenCROStudioLoading(false);
+		}
+	}, [
+		cluster?.destinationPageUrl,
+		cluster?.destinationPageLabel,
+		cluster?.id,
+		cluster?.siteId,
+		organization?.has_cro_addon,
+		session?.access_token,
+		navigate,
+		openCROStudioUpgradeModal
+	]);
 	const [addingSelected, setAddingSelected] = useState(false);
 
 	const pagesForFlow = useMemo(() => {
@@ -1103,15 +1160,22 @@ export default function ClusterDetail() {
 		// S2-3: Cannibalization check before adding article
 		if (keyword && cluster.siteId) {
 			try {
-				const { data: { session } } = await supabase.auth.getSession();
+				const {
+					data: { session }
+				} = await supabase.auth.getSession();
 				const token = session?.access_token;
 				if (token) {
 					const res = await fetch(
-						buildApiUrl(`/api/sites/${cluster.siteId}/check-cannibalization?keyword=${encodeURIComponent(keyword)}`),
+						buildApiUrl(
+							`/api/sites/${cluster.siteId}/check-cannibalization?keyword=${encodeURIComponent(keyword)}`
+						),
 						{ headers: { Authorization: `Bearer ${token}` } }
 					);
 					if (res.ok) {
-						const data = (await res.json()) as { hasConflict?: boolean; conflict?: { keyword: string; pages: Array<{ title: string }> } };
+						const data = (await res.json()) as {
+							hasConflict?: boolean;
+							conflict?: { keyword: string; pages: Array<{ title: string }> };
+						};
 						if (data.hasConflict && data.conflict) {
 							const pageList = data.conflict.pages.map((p) => p.title).join(', ');
 							const proceed = window.confirm(
@@ -1184,7 +1248,12 @@ export default function ClusterDetail() {
 		if (!id) return;
 		setRegenerating(true);
 		// Open widget
-		setRegenWidgetSteps(REGEN_STEPS.map((s) => ({ ...s, status: 'pending' })));
+		setRegenWidgetSteps(
+			REGEN_STEPS.map((s, i) => ({
+				...s,
+				status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
+			}))
+		);
 		setRegenWidgetStatus('running');
 		setRegenWidgetError(undefined);
 		setRegenWidgetOpen(true);
@@ -1204,8 +1273,9 @@ export default function ClusterDetail() {
 				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
 				body: JSON.stringify({ maxArticles: regenArticleCount })
 			});
-			const data = await res.json().catch(() => ({}));
+
 			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
 				if (res.status === 402) {
 					const msg = `Not enough credits. Need ${data.required ?? CREDIT_COSTS.CLUSTER_GENERATION}, you have ${data.available ?? 0}.`;
 					toast.error(msg);
@@ -1215,8 +1285,54 @@ export default function ClusterDetail() {
 				}
 				throw new Error(data?.error || 'Failed to regenerate');
 			}
+
+			// Consume NDJSON stream
+			const reader = res.body?.getReader();
+			const decoder = new TextDecoder();
+			let buffer = '';
+			let result: { suggestions?: ClusterRunSuggestion[]; runId?: string | null } = {};
+
+			if (reader) {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split('\n');
+					buffer = lines.pop() ?? '';
+					for (const line of lines) {
+						if (!line.trim()) continue;
+						try {
+							const ev = JSON.parse(line) as {
+								type: string;
+								id?: string;
+								message?: string;
+								suggestions?: ClusterRunSuggestion[];
+								runId?: string | null;
+							};
+							if (ev.type === 'step' && ev.id) {
+								setRegenWidgetSteps((prev) => {
+									const stepIdx = REGEN_STEPS.findIndex((st) => st.id === ev.id);
+									if (stepIdx === -1) return prev;
+									return prev.map((s, i) => {
+										if (i <= stepIdx) return { ...s, status: 'complete' as const };
+										if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+										return s;
+									});
+								});
+							} else if (ev.type === 'done') {
+								result = { suggestions: ev.suggestions, runId: ev.runId };
+							} else if (ev.type === 'error') {
+								throw new Error(ev.message ?? 'Failed to regenerate');
+							}
+						} catch (parseErr) {
+							if (!(parseErr instanceof SyntaxError)) throw parseErr;
+						}
+					}
+				}
+			}
+
 			setRegenWidgetStatus('done');
-			const suggestions: ClusterRunSuggestion[] = data.suggestions ?? [];
+			const suggestions: ClusterRunSuggestion[] = result.suggestions ?? [];
 			setRegenSuggestions(suggestions);
 			const existingNorm = new Set(dbPages.map((p) => p.keyword.toLowerCase().trim()));
 			setRegenSelected(
@@ -1422,7 +1538,7 @@ export default function ClusterDetail() {
 		<>
 			<PageMeta title={displayCluster.title} description="Cluster detail" noIndex />
 
-			<div className="flex h-[calc(100vh-120px)] flex-col">
+			<div className="h-screen-height-visible flex min-h-0 flex-col">
 				<PageHeader
 					title={displayCluster.title}
 					breadcrumb={
@@ -1473,721 +1589,743 @@ export default function ClusterDetail() {
 				/>
 
 				{/* Cluster health bar */}
-				<div className="flex flex-wrap items-center gap-8 border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-700 dark:bg-gray-900">
-					<div>
-						<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-							Funnel Coverage
-						</div>
-						<div className="flex h-2 w-40 overflow-hidden rounded-full">
-							<div
-								className="bg-blue-light-500 opacity-70"
-								style={{ width: `${Math.max(1, (funnelCoverage.tofu || 0) * 10)}%` }}
-							/>
-							<div
-								className="bg-warning-500"
-								style={{ width: `${Math.max(1, (funnelCoverage.mofu || 0) * 10)}%` }}
-							/>
-							<div
-								className="bg-success-600"
-								style={{ width: `${Math.max(1, (funnelCoverage.bofu || 0) * 10)}%` }}
-							/>
-						</div>
-						<p className="mt-1 flex flex-col gap-0.5 text-[11px]">
-							{totalPieces === 0 ? (
-								<span className="text-warning-600 dark:text-warning-400">
-									Add articles to build your cluster
-								</span>
-							) : (
-								<>
-									<span className="text-blue-light-600 dark:text-blue-light-400">
-										Supporting articles (ToFu)
-									</span>
-									<span className="leading-none text-gray-400">↓</span>
-									<span className="text-warning-600 dark:text-warning-400">Focus page (MoFu)</span>
-									<span className="leading-none text-gray-400">↓</span>
-									<span className="text-success-600 dark:text-success-400">
-										Destination (separate)
-									</span>
-								</>
-							)}
-						</p>
-					</div>
-					<div>
-						<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-							CRO Score
-						</div>
-						<div className="font-montserrat text-warning-600 dark:text-warning-400 text-2xl font-extrabold">
-							{displayCluster.croScore ?? 0}/100
-						</div>
-					</div>
-					<div>
-						<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-							Authority Fit
-						</div>
-						<div className="text-brand-600 dark:text-brand-400 flex items-center gap-1.5 text-sm font-semibold">
-							<Check className="size-4" />
-							Achievable Now
-						</div>
-					</div>
-					<div>
-						<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-							Completion
-						</div>
-						<div className="text-sm font-semibold text-gray-900 dark:text-white">
-							{completedPieces} of {totalPieces} pieces
-						</div>
-					</div>
-					<div className="ml-auto max-w-md">
-						{(() => {
-							const tofu = funnelCoverage.tofu ?? 0;
-							const mofu = funnelCoverage.mofu ?? 0;
-							const remaining = totalPieces - completedPieces;
-							// Clusters: ToFu supporting articles + 1 MoFu focus page. BoFu is the destination page (outside clusters).
-							const breakdown = [
-								tofu > 0 ? `${tofu} supporting article${tofu !== 1 ? 's' : ''} (ToFu)` : '',
-								mofu > 0 ? '1 focus page (MoFu)' : ''
-							]
-								.filter(Boolean)
-								.join(', ');
-
-							let variant: 'success' | 'info' | 'warning' = 'success';
-							let message: string;
-
-							if (completedPieces === totalPieces && totalPieces > 0) {
-								variant = 'success';
-								message = `All ${totalPieces} piece${totalPieces !== 1 ? 's' : ''} are drafted or published — this cluster is fully covered. Make sure every article links back to the focus page.`;
-							} else if (remaining > 0) {
-								variant = 'info';
-								message = `${articleCount} article${articleCount !== 1 ? 's' : ''} planned${breakdown ? ` (${breakdown})` : ''}. ${remaining} piece${remaining !== 1 ? 's' : ''} left to write. Articles build topical authority and link to your focus page — the destination (pricing, signup) lives outside the cluster.`;
-							} else {
-								variant = 'success';
-								message = `${articleCount} article${articleCount !== 1 ? 's' : ''} ${breakdown ? `(${breakdown})` : ''}. Everything is written. Make sure internal links between articles and the focus page are in place.`;
-							}
-
-							return (
-								<AIInsightBlock
-									variant={variant}
-									compact
-									label="CLUSTER INSIGHT"
-									message={message}
+				<div className="mt-6 flex min-h-0 flex-1 flex-col border border-gray-200 dark:border-gray-700">
+					<div className="flex flex-wrap items-center gap-8 border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-700 dark:bg-gray-900">
+						<div>
+							<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+								Funnel Coverage
+							</div>
+							<div className="flex h-2 w-40 overflow-hidden rounded-full">
+								<div
+									className="bg-blue-light-500 opacity-70"
+									style={{ width: `${Math.max(1, (funnelCoverage.tofu || 0) * 10)}%` }}
 								/>
-							);
-						})()}
-					</div>
-				</div>
-
-				{/* Reverse silo: alert when articles lack link to focus page (V1: no internal_links table yet, so 0) */}
-				{id && <ReverseSiloAlert missingCount={0} clusterId={id} />}
-
-				{/* Content: left nav + main + right panel (for map only) */}
-				<div className="flex flex-1 overflow-hidden">
-					<div className="w-[200px] shrink-0 border-r border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
-						<nav className="space-y-1">
-							{tabs.map(({ id: tabId, label, icon: Icon }) => (
-								<button
-									key={tabId}
-									type="button"
-									onClick={() => setActiveTab(tabId)}
-									className={cn(
-										'flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm',
-										activeTab === tabId
-											? 'bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 font-semibold'
-											: 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
-									)}
-								>
-									<Icon className="size-4 shrink-0" />
-									{label}
-								</button>
-							))}
-						</nav>
-					</div>
-
-					{/* Main content by tab */}
-					<div className="relative flex flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
-						{activeTab === 'journey' && (
-							<div className="flex-1 overflow-auto p-6">
-								{pagesLoading ? (
-									<div className="flex h-64 items-center justify-center">
-										<p className="text-gray-500 dark:text-gray-400">Loading…</p>
-									</div>
+								<div
+									className="bg-warning-500"
+									style={{ width: `${Math.max(1, (funnelCoverage.mofu || 0) * 10)}%` }}
+								/>
+								<div
+									className="bg-success-600"
+									style={{ width: `${Math.max(1, (funnelCoverage.bofu || 0) * 10)}%` }}
+								/>
+							</div>
+							<p className="mt-1 flex flex-col gap-0.5 text-[11px]">
+								{totalPieces === 0 ? (
+									<span className="text-warning-600 dark:text-warning-400">
+										Add articles to build your cluster
+									</span>
 								) : (
 									<>
-										<FunnelVisualizer
-											pages={dbPages}
-											destinationUrl={displayCluster.destinationPageUrl}
-											destinationLabel={displayCluster.destinationPageLabel}
-											warnings={intelligence?.warnings?.slice(0, 2) ?? []}
-											onAddDestination={() => setActiveTab('settings')}
-											onAddArticle={() => setAddArticleOpen(true)}
-										/>
-										<ClusterHealthCheck
-											intelligence={intelligence ?? null}
-											loading={intelligenceLoading}
-											error={intelligenceError}
-											onRefetch={refetchIntelligence}
-										/>
+										<span className="text-blue-light-600 dark:text-blue-light-400">
+											Supporting articles (ToFu)
+										</span>
+										<span className="leading-none text-gray-400">↓</span>
+										<span className="text-warning-600 dark:text-warning-400">
+											Focus page (MoFu)
+										</span>
+										<span className="leading-none text-gray-400">↓</span>
+										<span className="text-success-600 dark:text-success-400">
+											Destination (separate)
+										</span>
 									</>
 								)}
+							</p>
+						</div>
+						<div>
+							<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+								CRO Score
 							</div>
-						)}
+							<div className="font-montserrat text-warning-600 dark:text-warning-400 text-2xl font-extrabold">
+								{displayCluster.croScore ?? 0}/100
+							</div>
+						</div>
+						<div>
+							<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+								Authority Fit
+							</div>
+							<div className="text-brand-600 dark:text-brand-400 flex items-center gap-1.5 text-sm font-semibold">
+								<Check className="size-4" />
+								Achievable Now
+							</div>
+						</div>
+						<div>
+							<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+								Completion
+							</div>
+							<div className="text-sm font-semibold text-gray-900 dark:text-white">
+								{completedPieces} of {totalPieces} pieces
+							</div>
+						</div>
+						<div className="ml-auto max-w-md">
+							{(() => {
+								const tofu = funnelCoverage.tofu ?? 0;
+								const mofu = funnelCoverage.mofu ?? 0;
+								const remaining = totalPieces - completedPieces;
+								// Clusters: ToFu supporting articles + 1 MoFu focus page. BoFu is the destination page (outside clusters).
+								const breakdown = [
+									tofu > 0 ? `${tofu} supporting article${tofu !== 1 ? 's' : ''} (ToFu)` : '',
+									mofu > 0 ? '1 focus page (MoFu)' : ''
+								]
+									.filter(Boolean)
+									.join(', ');
 
-						{activeTab === 'map' && (
-							<div className="flex min-h-0 flex-1">
-								<div className="relative flex-1">
+								let variant: 'success' | 'info' | 'warning' = 'success';
+								let message: string;
+
+								if (completedPieces === totalPieces && totalPieces > 0) {
+									variant = 'success';
+									message = `All ${totalPieces} piece${totalPieces !== 1 ? 's' : ''} are drafted or published — this cluster is fully covered. Make sure every article links back to the focus page.`;
+								} else if (remaining > 0) {
+									variant = 'info';
+									message = `${articleCount} article${articleCount !== 1 ? 's' : ''} planned${breakdown ? ` (${breakdown})` : ''}. ${remaining} piece${remaining !== 1 ? 's' : ''} left to write. Articles build topical authority and link to your focus page — the destination (pricing, signup) lives outside the cluster.`;
+								} else {
+									variant = 'success';
+									message = `${articleCount} article${articleCount !== 1 ? 's' : ''} ${breakdown ? `(${breakdown})` : ''}. Everything is written. Make sure internal links between articles and the focus page are in place.`;
+								}
+
+								return (
+									<AIInsightBlock
+										variant={variant}
+										compact
+										label="CLUSTER INSIGHT"
+										message={message}
+									/>
+								);
+							})()}
+						</div>
+					</div>
+
+					{/* Reverse silo: alert when articles lack link to focus page (V1: no internal_links table yet, so 0) */}
+					{id && <ReverseSiloAlert missingCount={0} clusterId={id} />}
+
+					{/* Content: left nav + main + right panel (for map only) */}
+					<div className="flex h-full min-h-0 flex-1 overflow-hidden">
+						<div className="w-[200px] shrink-0 border-r border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
+							<nav className="space-y-1">
+								{tabs.map(({ id: tabId, label, icon: Icon }) => (
+									<button
+										key={tabId}
+										type="button"
+										onClick={() => setActiveTab(tabId)}
+										className={cn(
+											'flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm',
+											activeTab === tabId
+												? 'bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400 font-semibold'
+												: 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white'
+										)}
+									>
+										<Icon className="size-4 shrink-0" />
+										{label}
+									</button>
+								))}
+							</nav>
+						</div>
+
+						{/* Main content by tab */}
+						<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-gray-900">
+							{activeTab === 'journey' && (
+								<div className="flex-1 overflow-auto p-6">
 									{pagesLoading ? (
-										<div className="flex h-full items-center justify-center">
-											<p className="text-gray-500 dark:text-gray-400">Loading map…</p>
+										<div className="flex h-64 items-center justify-center">
+											<p className="text-gray-500 dark:text-gray-400">Loading…</p>
 										</div>
 									) : (
-										<ReactFlow
-											nodes={nodes}
-											edges={edges}
-											onNodesChange={onNodesChange}
-											onEdgesChange={onEdgesChange}
-											onNodeClick={onNodeClick}
-											onPaneClick={onPaneClick}
-											nodeTypes={nodeTypes}
-											edgeTypes={edgeTypes}
-											colorMode={theme}
-											fitView
-											fitViewOptions={{ padding: 0.2, duration: 0 }}
-										>
-											<Background gap={20} color={BG_COLORS[theme]} />
-											<Controls className="!rounded-lg !border !border-gray-200 !bg-white !shadow-sm dark:!border-gray-700 dark:!bg-gray-900" />
-										</ReactFlow>
+										<>
+											<FunnelVisualizer
+												pages={dbPages}
+												destinationUrl={displayCluster.destinationPageUrl}
+												destinationLabel={displayCluster.destinationPageLabel}
+												warnings={intelligence?.warnings?.slice(0, 2) ?? []}
+												onAddDestination={() => setActiveTab('settings')}
+												onAddArticle={() => setAddArticleOpen(true)}
+												hasCROAddon={organization?.has_cro_addon === true}
+												onOpenCROStudio={handleOpenCROStudio}
+												openCROStudioLoading={openCROStudioLoading}
+												onUnlockCROStudio={openCROStudioUpgradeModal}
+											/>
+											<ClusterHealthCheck
+												intelligence={intelligence ?? null}
+												loading={intelligenceLoading}
+												error={intelligenceError}
+												onRefetch={refetchIntelligence}
+											/>
+										</>
 									)}
 								</div>
-								{/* Right detail panel (map only) */}
-								<div className="w-[300px] shrink-0 border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-									{selectedNode && selectedPage ? (
-										<>
-											<div className="flex items-center justify-between border-b border-gray-200 p-5 dark:border-gray-700">
-												<h3 className="font-montserrat text-base font-bold text-gray-900 dark:text-white">
-													{selectedPage.title}
-												</h3>
-												<button
-													onClick={() => setSelectedNode(null)}
-													className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
-												>
-													<X className="size-4" />
-												</button>
+							)}
+
+							{activeTab === 'map' && (
+								<div className="flex min-h-0 flex-1">
+									<div className="relative flex-1">
+										{pagesLoading ? (
+											<div className="flex h-full items-center justify-center">
+												<p className="text-gray-500 dark:text-gray-400">Loading map…</p>
 											</div>
-											<div className="max-h-[calc(100vh-320px)] overflow-y-auto p-5">
-												<div className="space-y-2.5 border-b border-gray-200 py-2.5 text-[13px] dark:border-gray-700">
-													<div className="flex justify-between">
-														<span className="text-gray-500 dark:text-gray-400">Content Type</span>
-														<span className="text-gray-900 dark:text-white">
-															{selectedPage.type === 'focus_page' ? 'Focus Page' : 'Blog Article'}
-														</span>
+										) : (
+											<ReactFlow
+												nodes={nodes}
+												edges={edges}
+												onNodesChange={onNodesChange}
+												onEdgesChange={onEdgesChange}
+												onNodeClick={onNodeClick}
+												onPaneClick={onPaneClick}
+												nodeTypes={nodeTypes}
+												edgeTypes={edgeTypes}
+												colorMode={theme}
+												fitView
+												fitViewOptions={{ padding: 0.2, duration: 0 }}
+											>
+												<Background gap={20} color={BG_COLORS[theme]} />
+												<Controls className="!rounded-lg !border !border-gray-200 !bg-white !shadow-sm dark:!border-gray-700 dark:!bg-gray-900" />
+											</ReactFlow>
+										)}
+									</div>
+									{/* Right detail panel (map only) */}
+									<div className="flex min-h-0 w-[300px] shrink-0 flex-col overflow-hidden border-l border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+										{selectedNode && selectedPage ? (
+											<>
+												<div className="flex shrink-0 items-center justify-between border-b border-gray-200 p-5 dark:border-gray-700">
+													<h3 className="font-montserrat text-base font-bold text-gray-900 dark:text-white">
+														{selectedPage.title}
+													</h3>
+													<button
+														onClick={() => setSelectedNode(null)}
+														className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
+													>
+														<X className="size-4" />
+													</button>
+												</div>
+												<div className="h-0 min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-5 pb-28">
+													<div className="space-y-2.5 border-b border-gray-200 py-2.5 text-[13px] dark:border-gray-700">
+														<div className="flex justify-between">
+															<span className="text-gray-500 dark:text-gray-400">Content Type</span>
+															<span className="text-gray-900 dark:text-white">
+																{selectedPage.type === 'focus_page' ? 'Focus Page' : 'Blog Article'}
+															</span>
+														</div>
+														<div className="flex justify-between">
+															<span className="text-gray-500 dark:text-gray-400">Funnel Stage</span>
+															<FunnelTag stage={selectedPage.funnel} />
+														</div>
+														<div className="flex justify-between">
+															<span className="text-gray-500 dark:text-gray-400">
+																Target Keyword
+															</span>
+															<span className="text-brand-600 dark:text-brand-400 font-mono text-xs">
+																{selectedPage.keyword}
+															</span>
+														</div>
+														<div className="flex justify-between">
+															<span className="text-gray-500 dark:text-gray-400">
+																Monthly Volume
+															</span>
+															<span className="text-gray-900 dark:text-white">
+																{selectedPage.volume.toLocaleString()}
+															</span>
+														</div>
+														<div className="flex justify-between">
+															<span className="text-gray-500 dark:text-gray-400">Status</span>
+															<span
+																className={
+																	selectedPage.status === 'published'
+																		? 'text-success-600 dark:text-success-400'
+																		: selectedPage.status === 'draft'
+																			? 'text-warning-600 dark:text-warning-400'
+																			: 'text-gray-500 dark:text-gray-400'
+																}
+															>
+																{selectedPage.status}
+															</span>
+														</div>
 													</div>
-													<div className="flex justify-between">
-														<span className="text-gray-500 dark:text-gray-400">Funnel Stage</span>
-														<FunnelTag stage={selectedPage.funnel} />
-													</div>
-													<div className="flex justify-between">
-														<span className="text-gray-500 dark:text-gray-400">Target Keyword</span>
-														<span className="text-brand-600 dark:text-brand-400 font-mono text-xs">
-															{selectedPage.keyword}
-														</span>
-													</div>
-													<div className="flex justify-between">
-														<span className="text-gray-500 dark:text-gray-400">Monthly Volume</span>
-														<span className="text-gray-900 dark:text-white">
-															{selectedPage.volume.toLocaleString()}
-														</span>
-													</div>
-													<div className="flex justify-between">
-														<span className="text-gray-500 dark:text-gray-400">Status</span>
-														<span
-															className={
-																selectedPage.status === 'published'
-																	? 'text-success-600 dark:text-success-400'
-																	: selectedPage.status === 'draft'
-																		? 'text-warning-600 dark:text-warning-400'
-																		: 'text-gray-500 dark:text-gray-400'
+													<div className="mt-4">
+														<AIInsightBlock
+															variant="info"
+															label={
+																selectedPage.type === 'focus_page'
+																	? 'FOCUS PAGE'
+																	: 'WHY THIS ARTICLE'
 															}
-														>
-															{selectedPage.status}
-														</span>
+															compact
+															message={
+																selectedPage.type === 'focus_page'
+																	? `Your cluster hub for "${selectedPage.keyword}". Nail the brief and word count here; supporting articles link back to strengthen rankings.`
+																	: `Targets "${selectedPage.keyword}" (${selectedPage.volume.toLocaleString()}/mo). Supports your focus page and captures ${selectedPage.funnel === 'tofu' ? 'early-stage' : selectedPage.funnel === 'mofu' ? 'mid-funnel' : 'high-intent'} traffic.`
+															}
+														/>
+													</div>
+													<div className="mt-5 flex flex-col gap-2">
+														<Link to={`/workspace/${selectedPage.id}`}>
+															<Button className="bg-brand-500 hover:bg-brand-600 w-full text-white">
+																Open in Workspace →
+															</Button>
+														</Link>
+														{selectedPage.type === 'article' && (
+															<Button
+																variant="ghost"
+																className="text-error-600 dark:text-error-400 w-full"
+																onClick={() => setPageToDelete(selectedPage)}
+															>
+																Remove from Cluster
+															</Button>
+														)}
 													</div>
 												</div>
-												<div className="mt-4">
-													<AIInsightBlock
-														variant="info"
-														label={
-															selectedPage.type === 'focus_page' ? 'FOCUS PAGE' : 'WHY THIS ARTICLE'
-														}
-														compact
-														message={
-															selectedPage.type === 'focus_page'
-																? `Your cluster hub for "${selectedPage.keyword}". Nail the brief and word count here; supporting articles link back to strengthen rankings.`
-																: `Targets "${selectedPage.keyword}" (${selectedPage.volume.toLocaleString()}/mo). Supports your focus page and captures ${selectedPage.funnel === 'tofu' ? 'early-stage' : selectedPage.funnel === 'mofu' ? 'mid-funnel' : 'high-intent'} traffic.`
-														}
-													/>
+											</>
+										) : (
+											<div className="flex flex-col items-center justify-center p-8 text-center">
+												<p className="text-sm text-gray-500 dark:text-gray-400">
+													Click any node to see details and open the editor.
+												</p>
+												<p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+													{totalPieces} pieces · Est.{' '}
+													{(displayCluster.estimatedTraffic || 0).toLocaleString()} visits
+												</p>
+											</div>
+										)}
+									</div>
+								</div>
+							)}
+
+							{activeTab === 'content' && (
+								<div className="flex-1 overflow-auto p-6">
+									{pagesLoading ? (
+										<p className="text-gray-500 dark:text-gray-400">Loading…</p>
+									) : dbPages.length === 0 ? (
+										<p className="text-gray-500 dark:text-gray-400">
+											No content yet. Add an article above.
+										</p>
+									) : (
+										<>
+											{/* Cluster keyword summary */}
+											<div className="mb-4 grid grid-cols-4 gap-3">
+												<div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+													<div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+														Total Volume/mo
+													</div>
+													<div className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+														{clusterSummary.totalVolume > 0
+															? clusterSummary.totalVolume.toLocaleString()
+															: '—'}
+													</div>
+													<div className="mt-0.5 text-[11px] text-gray-400">
+														{clusterSummary.realDataCount} of {dbPages.length} pages have data
+													</div>
 												</div>
-												<div className="mt-5 flex flex-col gap-2">
-													<Link to={`/workspace/${selectedPage.id}`}>
-														<Button className="bg-brand-500 hover:bg-brand-600 w-full text-white">
-															Open in Workspace →
-														</Button>
-													</Link>
-													{selectedPage.type === 'article' && (
-														<Button
-															variant="ghost"
-															className="text-error-600 dark:text-error-400 w-full"
-															onClick={() => setPageToDelete(selectedPage)}
+												<div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+													<div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+														Avg Competition
+													</div>
+													<div
+														className={`mt-1 text-xl font-bold ${
+															clusterSummary.medianKd == null
+																? 'text-gray-400'
+																: clusterSummary.medianKd < 25
+																	? 'text-success-600'
+																	: clusterSummary.medianKd <= 45
+																		? 'text-warning-600'
+																		: 'text-error-600'
+														}`}
+													>
+														{clusterSummary.medianKd != null
+															? `${Math.round(clusterSummary.medianKd)}%`
+															: '—'}
+													</div>
+													<div className="mt-0.5 text-[11px] text-gray-400">
+														median across all pages
+													</div>
+												</div>
+												<div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+													<div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+														Avg Ad Value (US)
+													</div>
+													<div className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
+														{clusterSummary.avgCpc != null
+															? `$${clusterSummary.avgCpc.toFixed(2)}`
+															: '—'}
+													</div>
+													<div className="mt-0.5 text-[11px] text-gray-400">
+														volume-weighted avg CPC
+													</div>
+												</div>
+												<div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+													<div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
+														Primary Intent
+													</div>
+													<div className="mt-1">
+														<span
+															className={`inline-block rounded-full px-2.5 py-0.5 text-sm font-semibold ${clusterSummary.intentColor}`}
 														>
-															Remove from Cluster
-														</Button>
-													)}
+															{clusterSummary.intentLabel}
+														</span>
+													</div>
+													<div className="mt-0.5 text-[11px] text-gray-400">
+														Info {clusterSummary.intentCounts.tofu} · Commercial{' '}
+														{clusterSummary.intentCounts.mofu} · Transact.{' '}
+														{clusterSummary.intentCounts.bofu}
+													</div>
 												</div>
+											</div>
+
+											<div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+												<table className="w-full">
+													<thead>
+														<tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
+															<th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+																Title
+															</th>
+															<th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+																Page Type
+															</th>
+															<th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+																Intent
+															</th>
+															<th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+																Volume/mo
+															</th>
+															<th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+																KD%
+															</th>
+															<th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+																Ad Value
+															</th>
+															<th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+																Status
+															</th>
+															<th className="w-[180px] px-4 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+																Actions
+															</th>
+														</tr>
+													</thead>
+													<tbody>
+														{dbPages.map((p) => {
+															const kdColor =
+																p.kd === 0
+																	? 'text-gray-400'
+																	: p.kd < 25
+																		? 'text-success-600 font-semibold'
+																		: p.kd <= 45
+																			? 'text-warning-600 font-semibold'
+																			: 'text-error-600 font-semibold';
+															return (
+																<tr
+																	key={p.id}
+																	className="border-b border-gray-200 last:border-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+																>
+																	<td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
+																		<div className="flex items-center gap-2">
+																			{p.type === 'focus_page' && (
+																				<span className="bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 rounded-full px-2 py-0.5 text-[10px] font-semibold">
+																					Focus
+																				</span>
+																			)}
+																			<span>{p.title}</span>
+																		</div>
+																		{p.keyword && p.keyword !== p.title && (
+																			<div className="mt-0.5 font-mono text-[11px] text-gray-400">
+																				{p.keyword}
+																			</div>
+																		)}
+																	</td>
+																	<td className="px-4 py-3">
+																		{(() => {
+																			const pt = p.pageType ?? detectPageType(p.keyword);
+																			return (
+																				<span
+																					className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${pageTypeColor(pt)}`}
+																				>
+																					{formatPageTypeDisplay(pt)}
+																				</span>
+																			);
+																		})()}
+																	</td>
+																	<td className="px-4 py-3">
+																		<FunnelTag
+																			stage={p.type === 'focus_page' ? 'money' : p.funnel}
+																			showTooltip
+																		/>
+																	</td>
+																	<td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">
+																		{p.volume > 0 ? (
+																			p.volume.toLocaleString()
+																		) : (
+																			<span className="text-gray-400">—</span>
+																		)}
+																	</td>
+																	<td className={`px-4 py-3 text-right text-sm ${kdColor}`}>
+																		{p.kd > 0 ? (
+																			`${p.kd}%`
+																		) : (
+																			<span className="text-gray-400">—</span>
+																		)}
+																	</td>
+																	<td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">
+																		{p.cpc != null ? (
+																			`$${p.cpc.toFixed(2)}`
+																		) : (
+																			<span className="text-gray-400">—</span>
+																		)}
+																	</td>
+																	<td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+																		{p.status}
+																	</td>
+																	<td className="px-4 py-3 text-right">
+																		<Link to={`/workspace/${p.id}`}>
+																			<Button size="sm" variant="outline" className="mr-2">
+																				Open
+																			</Button>
+																		</Link>
+																		{p.type === 'article' && (
+																			<Button
+																				size="sm"
+																				variant="ghost"
+																				className="text-error-600 dark:text-error-400"
+																				onClick={() => setPageToDelete(p)}
+																			>
+																				<Trash2 className="size-4" />
+																			</Button>
+																		)}
+																	</td>
+																</tr>
+															);
+														})}
+													</tbody>
+												</table>
 											</div>
 										</>
-									) : (
-										<div className="flex flex-col items-center justify-center p-8 text-center">
-											<p className="text-sm text-gray-500 dark:text-gray-400">
-												Click any node to see details and open the editor.
-											</p>
-											<p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-												{totalPieces} pieces · Est.{' '}
-												{(displayCluster.estimatedTraffic || 0).toLocaleString()} visits
-											</p>
-										</div>
 									)}
 								</div>
-							</div>
-						)}
+							)}
 
-						{activeTab === 'content' && (
-							<div className="flex-1 overflow-auto p-6">
-								{pagesLoading ? (
-									<p className="text-gray-500 dark:text-gray-400">Loading…</p>
-								) : dbPages.length === 0 ? (
-									<p className="text-gray-500 dark:text-gray-400">
-										No content yet. Add an article above.
-									</p>
-								) : (
-									<>
-										{/* Cluster keyword summary */}
-										<div className="mb-4 grid grid-cols-4 gap-3">
-											<div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
-												<div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
-													Total Volume/mo
-												</div>
-												<div className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
-													{clusterSummary.totalVolume > 0
-														? clusterSummary.totalVolume.toLocaleString()
-														: '—'}
-												</div>
-												<div className="mt-0.5 text-[11px] text-gray-400">
-													{clusterSummary.realDataCount} of {dbPages.length} pages have data
-												</div>
-											</div>
-											<div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
-												<div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
-													Avg Competition
-												</div>
-												<div
-													className={`mt-1 text-xl font-bold ${
-														clusterSummary.medianKd == null
-															? 'text-gray-400'
-															: clusterSummary.medianKd < 25
-																? 'text-success-600'
-																: clusterSummary.medianKd <= 45
-																	? 'text-warning-600'
-																	: 'text-error-600'
-													}`}
+							{activeTab === 'links' && (
+								<div id="internal-links" className="flex-1 overflow-auto p-6">
+									<AIInsightBlock
+										variant="info"
+										label="INTERNAL LINKS · REVERSE SILO"
+										message={
+											<span>
+												Every article must link to the focus page in the first 400 words (1.00×
+												equity). Articles cross-link in groups of 5. The focus page links back to at
+												least 3 articles. This is the{' '}
+												<a
+													href={`${MARKETING_URL}/blog/glossary/reverse-silo-internal-linking-strategy`}
+													target="_blank"
+													rel="noopener noreferrer"
+													className="text-brand-600 dark:text-brand-400"
 												>
-													{clusterSummary.medianKd != null
-														? `${Math.round(clusterSummary.medianKd)}%`
-														: '—'}
-												</div>
-												<div className="mt-0.5 text-[11px] text-gray-400">
-													median across all pages
-												</div>
-											</div>
-											<div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
-												<div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
-													Avg Ad Value (US)
-												</div>
-												<div className="mt-1 text-xl font-bold text-gray-900 dark:text-white">
-													{clusterSummary.avgCpc != null
-														? `$${clusterSummary.avgCpc.toFixed(2)}`
-														: '—'}
-												</div>
-												<div className="mt-0.5 text-[11px] text-gray-400">
-													volume-weighted avg CPC
-												</div>
-											</div>
-											<div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
-												<div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
-													Primary Intent
-												</div>
-												<div className="mt-1">
-													<span
-														className={`inline-block rounded-full px-2.5 py-0.5 text-sm font-semibold ${clusterSummary.intentColor}`}
-													>
-														{clusterSummary.intentLabel}
-													</span>
-												</div>
-												<div className="mt-0.5 text-[11px] text-gray-400">
-													Info {clusterSummary.intentCounts.tofu} · Commercial{' '}
-													{clusterSummary.intentCounts.mofu} · Transact.{' '}
-													{clusterSummary.intentCounts.bofu}
-												</div>
-											</div>
-										</div>
-
-										<div className="rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-											<table className="w-full">
-												<thead>
-													<tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
-														<th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-															Title
-														</th>
-														<th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-															Page Type
-														</th>
-														<th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-															Intent
-														</th>
-														<th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-															Volume/mo
-														</th>
-														<th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-															KD%
-														</th>
-														<th className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-															Ad Value
-														</th>
-														<th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-															Status
-														</th>
-														<th className="w-[180px] px-4 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-															Actions
-														</th>
-													</tr>
-												</thead>
-												<tbody>
-													{dbPages.map((p) => {
-														const kdColor =
-															p.kd === 0
-																? 'text-gray-400'
-																: p.kd < 25
-																	? 'text-success-600 font-semibold'
-																	: p.kd <= 45
-																		? 'text-warning-600 font-semibold'
-																		: 'text-error-600 font-semibold';
-														return (
-															<tr
-																key={p.id}
-																className="border-b border-gray-200 last:border-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
-															>
-																<td className="px-4 py-3 font-medium text-gray-900 dark:text-white">
-																	<div className="flex items-center gap-2">
-																		{p.type === 'focus_page' && (
-																			<span className="bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400 rounded-full px-2 py-0.5 text-[10px] font-semibold">
-																				Focus
-																			</span>
-																		)}
-																		<span>{p.title}</span>
-																	</div>
-																	{p.keyword && p.keyword !== p.title && (
-																		<div className="mt-0.5 font-mono text-[11px] text-gray-400">
-																			{p.keyword}
-																		</div>
-																	)}
-																</td>
-																<td className="px-4 py-3">
-																	{(() => {
-																		const pt = p.pageType ?? detectPageType(p.keyword);
-																		return (
-																			<span
-																				className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${pageTypeColor(pt)}`}
-																			>
-																				{formatPageTypeDisplay(pt)}
-																			</span>
-																		);
-																	})()}
-																</td>
-																<td className="px-4 py-3">
-																	<FunnelTag
-																		stage={p.type === 'focus_page' ? 'money' : p.funnel}
-																		showTooltip
-																	/>
-																</td>
-																<td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">
-																	{p.volume > 0 ? (
-																		p.volume.toLocaleString()
-																	) : (
-																		<span className="text-gray-400">—</span>
-																	)}
-																</td>
-																<td className={`px-4 py-3 text-right text-sm ${kdColor}`}>
-																	{p.kd > 0 ? `${p.kd}%` : <span className="text-gray-400">—</span>}
-																</td>
-																<td className="px-4 py-3 text-right text-sm text-gray-700 dark:text-gray-300">
-																	{p.cpc != null ? (
-																		`$${p.cpc.toFixed(2)}`
-																	) : (
-																		<span className="text-gray-400">—</span>
-																	)}
-																</td>
-																<td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-																	{p.status}
-																</td>
-																<td className="px-4 py-3 text-right">
-																	<Link to={`/workspace/${p.id}`}>
-																		<Button size="sm" variant="outline" className="mr-2">
-																			Open
-																		</Button>
-																	</Link>
-																	{p.type === 'article' && (
-																		<Button
-																			size="sm"
-																			variant="ghost"
-																			className="text-error-600 dark:text-error-400"
-																			onClick={() => setPageToDelete(p)}
-																		>
-																			<Trash2 className="size-4" />
-																		</Button>
-																	)}
-																</td>
-															</tr>
-														);
-													})}
-												</tbody>
-											</table>
-										</div>
-									</>
-								)}
-							</div>
-						)}
-
-						{activeTab === 'links' && (
-							<div id="internal-links" className="flex-1 overflow-auto p-6">
-								<AIInsightBlock
-									variant="info"
-									label="INTERNAL LINKS · REVERSE SILO"
-									message={
-										<span>
-											Every article must link to the focus page in the first 400 words (1.00×
-											equity). Articles cross-link in groups of 5. The focus page links back to at
-											least 3 articles. This is the{' '}
-											<a
-												href={`${MARKETING_URL}/blog/glossary/reverse-silo-internal-linking-strategy`}
-												target="_blank"
-												rel="noopener noreferrer"
-												className="text-brand-600 dark:text-brand-400"
-											>
-												reverse silo model
-											</a>{' '}
-											— link equity flows upward to your money page.
-										</span>
-									}
-								/>
-								<div className="mt-4">
-									<ReverseSiloMap pages={dbPages} />
-								</div>
-								<div className="mt-6">
-									<p className="mb-3 text-[12px] font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
-										Suggested Links
-									</p>
-									<InternalLinksTable
-										pages={dbPages}
-										destination={
-											cluster?.destinationPageUrl && cluster?.destinationPageLabel
-												? { url: cluster.destinationPageUrl, label: cluster.destinationPageLabel }
-												: null
+													reverse silo model
+												</a>{' '}
+												— link equity flows upward to your money page.
+											</span>
 										}
 									/>
-								</div>
-							</div>
-						)}
-
-						{activeTab === 'settings' && cluster && (
-							<div className="flex-1 space-y-6 overflow-auto p-6">
-								<div className="max-w-md rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
-									<h3 className="font-montserrat text-lg font-bold text-gray-900 dark:text-white">
-										Cluster Settings
-									</h3>
-									<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-										Update the cluster title and target keyword.
-									</p>
-									<div className="mt-6 grid gap-4">
-										<InputField
-											label="Title"
-											value={settingsForm.title}
-											onChange={(e) => setSettingsForm((f) => ({ ...f, title: e.target.value }))}
-										/>
-										<InputField
-											label="Target keyword"
-											value={settingsForm.targetKeyword}
-											onChange={(e) =>
-												setSettingsForm((f) => ({ ...f, targetKeyword: e.target.value }))
+									<div className="mt-4">
+										<ReverseSiloMap pages={dbPages} />
+									</div>
+									<div className="mt-6">
+										<p className="mb-3 text-[12px] font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
+											Suggested Links
+										</p>
+										<InternalLinksTable
+											pages={dbPages}
+											destination={
+												cluster?.destinationPageUrl && cluster?.destinationPageLabel
+													? { url: cluster.destinationPageUrl, label: cluster.destinationPageLabel }
+													: null
 											}
 										/>
-										<div className="space-y-2 rounded-lg border border-dashed border-gray-200 bg-gray-50/50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
-											<p className="text-xs font-medium text-gray-700 dark:text-gray-300">
-												Destination page (optional)
-											</p>
-											<p className="text-[11px] text-gray-500 dark:text-gray-400">
-												Does this cluster drive visitors to a product page, signup page, or service
-												booking page?
-											</p>
-											<InputField
-												label="Page URL"
-												value={settingsForm.destinationPageUrl}
-												onChange={(e) =>
-													setSettingsForm((f) => ({ ...f, destinationPageUrl: e.target.value }))
-												}
-												placeholder="https://yoursite.com/product"
-											/>
-											<InputField
-												label="Page label"
-												value={settingsForm.destinationPageLabel}
-												onChange={(e) =>
-													setSettingsForm((f) => ({ ...f, destinationPageLabel: e.target.value }))
-												}
-												placeholder="e.g. Product Page"
-											/>
-										</div>
-										<Button
-											className="bg-brand-500 hover:bg-brand-600 text-white"
-											onClick={handleSaveSettings}
-											disabled={settingsSubmitting}
-										>
-											{settingsSubmitting ? 'Saving…' : 'Save changes'}
-										</Button>
 									</div>
 								</div>
+							)}
 
-								{/* Regenerate settings + past runs */}
-								<div className="max-w-2xl rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-									<div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
-										<div className="flex items-center gap-2">
-											<RefreshCw className="size-4 text-gray-400" />
-											<span className="font-semibold text-gray-800 dark:text-gray-200">
-												Regenerate Cluster
-											</span>
-										</div>
-										<div className="flex items-center gap-3">
-											<label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-												Articles to suggest:
-												<input
-													type="number"
-													min={3}
-													max={20}
-													value={regenArticleCount}
+							{activeTab === 'settings' && cluster && (
+								<div className="flex-1 space-y-6 overflow-auto p-6">
+									<div className="max-w-md rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
+										<h3 className="font-montserrat text-lg font-bold text-gray-900 dark:text-white">
+											Cluster Settings
+										</h3>
+										<p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+											Update the cluster title and target keyword.
+										</p>
+										<div className="mt-6 grid gap-4">
+											<InputField
+												label="Title"
+												value={settingsForm.title}
+												onChange={(e) => setSettingsForm((f) => ({ ...f, title: e.target.value }))}
+											/>
+											<InputField
+												label="Target keyword"
+												value={settingsForm.targetKeyword}
+												onChange={(e) =>
+													setSettingsForm((f) => ({ ...f, targetKeyword: e.target.value }))
+												}
+											/>
+											<div className="space-y-2 rounded-lg border border-dashed border-gray-200 bg-gray-50/50 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+												<p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+													Destination page (optional)
+												</p>
+												<p className="text-[11px] text-gray-500 dark:text-gray-400">
+													Does this cluster drive visitors to a product page, signup page, or
+													service booking page?
+												</p>
+												<InputField
+													label="Page URL"
+													value={settingsForm.destinationPageUrl}
 													onChange={(e) =>
-														setRegenArticleCount(Math.max(3, Math.min(20, Number(e.target.value))))
+														setSettingsForm((f) => ({ ...f, destinationPageUrl: e.target.value }))
 													}
-													className="w-16 rounded-md border border-gray-200 bg-white px-2 py-1 text-center text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+													placeholder="https://yoursite.com/product"
 												/>
-											</label>
+												<InputField
+													label="Page label"
+													value={settingsForm.destinationPageLabel}
+													onChange={(e) =>
+														setSettingsForm((f) => ({ ...f, destinationPageLabel: e.target.value }))
+													}
+													placeholder="e.g. Product Page"
+												/>
+											</div>
 											<Button
 												className="bg-brand-500 hover:bg-brand-600 text-white"
-												size="sm"
-												disabled={regenerating || !hasCreditsForRegen}
-												onClick={() => setConfirmRegenOpen(true)}
+												onClick={handleSaveSettings}
+												disabled={settingsSubmitting}
 											>
-												<CreditBadge
-													cost={CREDIT_COSTS.CLUSTER_GENERATION}
-													action="Regenerate"
-													sufficient={hasCreditsForRegen}
-												/>
-												{regenerating ? (
-													<Loader2 className="ml-2 size-3 animate-spin" />
-												) : (
-													<Sparkles className="ml-2 size-3" />
-												)}
-												<span className="ml-1">
-													{regenerating ? 'Researching...' : 'Run New Research'}
-												</span>
+												{settingsSubmitting ? 'Saving…' : 'Save changes'}
 											</Button>
 										</div>
 									</div>
-									<p className="px-5 py-3 text-[12px] text-gray-500 dark:text-gray-400">
-										Re-runs the full keyword research pipeline + Google PAA + AI curation and
-										returns fresh article suggestions. Existing articles are never removed — you
-										pick which new ones to add.
-									</p>
 
-									{/* Past runs list */}
-									{(clusterRuns.length > 0 || runsLoading) && (
-										<div className="border-t border-gray-100 dark:border-gray-800">
-											<div className="flex items-center gap-2 px-5 py-3">
-												<History className="size-3.5 text-gray-400" />
-												<span className="text-[12px] font-semibold tracking-wider text-gray-600 uppercase dark:text-gray-400">
-													Past Runs
-												</span>
-												<span className="ml-auto text-[11px] text-gray-400">
-													Click any run to re-open its article list
+									{/* Regenerate settings + past runs */}
+									<div className="max-w-2xl rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+										<div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
+											<div className="flex items-center gap-2">
+												<RefreshCw className="size-4 text-gray-400" />
+												<span className="font-semibold text-gray-800 dark:text-gray-200">
+													Regenerate Cluster
 												</span>
 											</div>
-											{runsLoading ? (
-												<div className="px-5 py-4 text-center text-sm text-gray-400">Loading…</div>
-											) : (
-												<div className="divide-y divide-gray-100 dark:divide-gray-800">
-													{clusterRuns.map((run) => {
-														const existingNorm = new Set(
-															dbPages.map((p) => p.keyword.toLowerCase().trim())
-														);
-														const newCount = run.suggestions.filter(
-															(s) => !existingNorm.has(s.keyword.toLowerCase().trim())
-														).length;
-														return (
-															<div
-																key={run.id}
-																className="group flex items-center gap-3 px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50"
-															>
-																<div className="min-w-0 flex-1">
-																	<div className="flex items-center gap-2">
-																		<span className="text-[13px] font-medium text-gray-900 dark:text-white">
-																			{run.suggestions.length} article suggestions
-																		</span>
-																		{newCount > 0 && (
-																			<span className="bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-400 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
-																				{newCount} new
-																			</span>
-																		)}
-																	</div>
-																	<div className="mt-0.5 text-[11px] text-gray-400">
-																		{new Date(run.createdAt).toLocaleDateString(undefined, {
-																			month: 'short',
-																			day: 'numeric',
-																			year: 'numeric',
-																			hour: '2-digit',
-																			minute: '2-digit'
-																		})}
-																	</div>
-																</div>
-																<button
-																	type="button"
-																	onClick={() => handleOpenRunPicker(run.suggestions)}
-																	className="hover:border-brand-300 hover:text-brand-600 dark:hover:border-brand-600 dark:hover:text-brand-400 flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-600 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
-																>
-																	<RotateCcw className="size-3" />
-																	Review
-																</button>
-																<button
-																	type="button"
-																	onClick={() => deleteClusterRun(run.id)}
-																	className="invisible rounded p-1 text-gray-400 group-hover:visible hover:text-red-500"
-																	title="Delete run"
-																>
-																	<Trash2 className="size-3.5" />
-																</button>
-															</div>
-														);
-													})}
-												</div>
-											)}
+											<div className="flex items-center gap-3">
+												<label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+													Articles to suggest:
+													<input
+														type="number"
+														min={3}
+														max={20}
+														value={regenArticleCount}
+														onChange={(e) =>
+															setRegenArticleCount(
+																Math.max(3, Math.min(20, Number(e.target.value)))
+															)
+														}
+														className="w-16 rounded-md border border-gray-200 bg-white px-2 py-1 text-center text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+													/>
+												</label>
+												<Button
+													className="bg-brand-500 hover:bg-brand-600 text-white"
+													size="sm"
+													disabled={regenerating || !hasCreditsForRegen}
+													onClick={() => setConfirmRegenOpen(true)}
+												>
+													<CreditBadge
+														cost={CREDIT_COSTS.CLUSTER_GENERATION}
+														action="Regenerate"
+														sufficient={hasCreditsForRegen}
+													/>
+													{regenerating ? (
+														<Loader2 className="ml-2 size-3 animate-spin" />
+													) : (
+														<Sparkles className="ml-2 size-3" />
+													)}
+													<span className="ml-1">
+														{regenerating ? 'Researching...' : 'Run New Research'}
+													</span>
+												</Button>
+											</div>
 										</div>
-									)}
+										<p className="px-5 py-3 text-[12px] text-gray-500 dark:text-gray-400">
+											Re-runs the full keyword research pipeline + Google PAA + AI curation and
+											returns fresh article suggestions. Existing articles are never removed — you
+											pick which new ones to add.
+										</p>
+
+										{/* Past runs list */}
+										{(clusterRuns.length > 0 || runsLoading) && (
+											<div className="border-t border-gray-100 dark:border-gray-800">
+												<div className="flex items-center gap-2 px-5 py-3">
+													<History className="size-3.5 text-gray-400" />
+													<span className="text-[12px] font-semibold tracking-wider text-gray-600 uppercase dark:text-gray-400">
+														Past Runs
+													</span>
+													<span className="ml-auto text-[11px] text-gray-400">
+														Click any run to re-open its article list
+													</span>
+												</div>
+												{runsLoading ? (
+													<div className="px-5 py-4 text-center text-sm text-gray-400">
+														Loading…
+													</div>
+												) : (
+													<div className="divide-y divide-gray-100 dark:divide-gray-800">
+														{clusterRuns.map((run) => {
+															const existingNorm = new Set(
+																dbPages.map((p) => p.keyword.toLowerCase().trim())
+															);
+															const newCount = run.suggestions.filter(
+																(s) => !existingNorm.has(s.keyword.toLowerCase().trim())
+															).length;
+															return (
+																<div
+																	key={run.id}
+																	className="group flex items-center gap-3 px-5 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+																>
+																	<div className="min-w-0 flex-1">
+																		<div className="flex items-center gap-2">
+																			<span className="text-[13px] font-medium text-gray-900 dark:text-white">
+																				{run.suggestions.length} article suggestions
+																			</span>
+																			{newCount > 0 && (
+																				<span className="bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-400 rounded-full px-1.5 py-0.5 text-[10px] font-medium">
+																					{newCount} new
+																				</span>
+																			)}
+																		</div>
+																		<div className="mt-0.5 text-[11px] text-gray-400">
+																			{new Date(run.createdAt).toLocaleDateString(undefined, {
+																				month: 'short',
+																				day: 'numeric',
+																				year: 'numeric',
+																				hour: '2-digit',
+																				minute: '2-digit'
+																			})}
+																		</div>
+																	</div>
+																	<button
+																		type="button"
+																		onClick={() => handleOpenRunPicker(run.suggestions)}
+																		className="hover:border-brand-300 hover:text-brand-600 dark:hover:border-brand-600 dark:hover:text-brand-400 flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[12px] font-medium text-gray-600 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
+																	>
+																		<RotateCcw className="size-3" />
+																		Review
+																	</button>
+																	<button
+																		type="button"
+																		onClick={() => deleteClusterRun(run.id)}
+																		className="invisible rounded p-1 text-gray-400 group-hover:visible hover:text-red-500"
+																		title="Delete run"
+																	>
+																		<Trash2 className="size-3.5" />
+																	</button>
+																</div>
+															);
+														})}
+													</div>
+												)}
+											</div>
+										)}
+									</div>
 								</div>
-							</div>
-						)}
+							)}
+						</div>
 					</div>
 				</div>
 			</div>
@@ -2322,7 +2460,7 @@ export default function ClusterDetail() {
 				status={regenWidgetStatus}
 				steps={regenWidgetSteps}
 				errorMessage={regenWidgetError}
-				stepInterval={6000}
+				disableAutoAdvance
 				onClose={() => setRegenWidgetOpen(false)}
 			/>
 

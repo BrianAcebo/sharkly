@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { supabase } from '../utils/supabaseClient.js';
 import fetch from 'node-fetch';
 import { serperSearch } from '../utils/serper.js';
-import { fetchCompetitorPages } from '../utils/competitorFetch.js';
+import { fetchCompetitorPages, aggregateLsiTerms, competitorSignalStats, competitorSchemaUnion } from '../utils/competitorFetch.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
 import {
 	classifyPageType,
@@ -14,6 +14,7 @@ import {
 } from '../utils/croChecklist.js';
 import { extractPlainText, extractH1s } from '../utils/tiptapExtract.js';
 import { YMYL_PROMPT_ADDITIONS } from '../utils/ymyl.js';
+import { createNotificationForUser } from '../utils/notifications.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const CLAUDE_MODEL = process.env.CLAUDE_SONNET_MODEL || 'claude-sonnet-4-5-20250929';
@@ -25,7 +26,7 @@ const openai = process.env.OPENAI_API_KEY
 	: null;
 
 /** Shared helper: call Claude and return the text response */
-async function callClaude(system: string, user: string, maxTokens = 8000): Promise<string> {
+async function callClaude(system: string, user: string, maxTokens = 8192): Promise<string> {
 	const res = await fetch('https://api.anthropic.com/v1/messages', {
 		method: 'POST',
 		headers: {
@@ -46,6 +47,47 @@ async function callClaude(system: string, user: string, maxTokens = 8000): Promi
 	}
 	const data = (await res.json()) as { content?: Array<{ type: string; text: string }> };
 	return data.content?.find((c) => c.type === 'text')?.text ?? '';
+}
+
+/**
+ * Refund credits to an org after a server-side generation failure.
+ * Uses credit_back_action RPC for audit trail (same as billing admin).
+ * Sends an in-app notification so the user knows what happened.
+ * Never throws — refund failures are logged but don't mask the original error.
+ */
+async function refundCredits(
+	orgId: string,
+	userId: string,
+	amount: number,
+	actionKey: string,
+	reason: string,
+	notificationTitle: string,
+	notificationUrl: string
+): Promise<void> {
+	try {
+		const { error: refundErr } = await supabase.rpc('credit_back_action', {
+			p_org_id: orgId,
+			p_action_key: actionKey,
+			p_credits: amount,
+			p_reason: reason
+		});
+		if (refundErr) {
+			console.error(`[Pages] CRITICAL: Failed to refund ${amount} credits to org ${orgId}:`, refundErr.message);
+		} else {
+			console.log(`[Pages] Refunded ${amount} credits to org ${orgId} — reason: ${reason}`);
+			await createNotificationForUser(userId, orgId, {
+				title: notificationTitle,
+				message: `${amount} credits were automatically refunded to your account. ${reason}`,
+				type: 'credit_refund',
+				priority: 'high',
+				action_url: notificationUrl,
+				metadata: { credits_refunded: amount, reason },
+				skipToast: true
+			});
+		}
+	} catch (err) {
+		console.error('[Pages] refundCredits threw:', err instanceof Error ? err.message : err);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -78,14 +120,17 @@ function slugifyKeyword(keyword: string): string {
 		.replace(/-+/g, '-');
 }
 
+/** Max internal links per page — Reasonable Surfer: quality over quantity */
+const MAX_INTERNAL_LINKS = 4;
+
 /**
  * Build link instructions for the page being generated.
  *
- * Reverse silo rules (Section 17.6):
- *   Article → focus page  : CRITICAL, intro, equity 1.0×
- *   Focus page → destination : CRITICAL when set (many-to-one-to-one; connects to store)
- *   Focus page → articles : HIGH, body, equity 0.8×
- *   Article → siblings    : MEDIUM, body, equity 0.8×
+ * Reverse silo rules (Section 17.6 / US8117209B1 Reasonable Surfer):
+ * Body text links in the first 400 words pass the most equity.
+ *
+ * Supporting articles: main link = focus page (first 400 words), rest 2–3 = interlinking.
+ * Focus page: first link = destination URL (first 400 words), rest 2–3 = supporting articles.
  */
 function buildInternalLinksForPage(
 	currentPageId: string,
@@ -109,9 +154,9 @@ function buildInternalLinksForPage(
 	}
 
 	if (currentPageType === 'focus_page') {
-		// Focus page: max 3 outbound links total. When destination set: 1 destination + 2 articles.
+		// Focus page: first link = destination (first 400 words), rest 2–3 = supporting articles. Max 4 total.
 		const hasDestination = Boolean(destination?.url && destination?.label);
-		// 1. Destination (primary conversion; many-to-one-to-one)
+		// 1. Destination (primary conversion; first link in first 400 words)
 		if (hasDestination) {
 			const href = destination!.url.startsWith('http')
 				? destination!.url
@@ -119,14 +164,14 @@ function buildInternalLinksForPage(
 			instructions.push({
 				toTitle: destination!.label,
 				anchorText: destination!.label,
-				placement: 'body',
+				placement: 'intro',
 				priority: 'critical',
 				href,
-				note: `Connects to your store — include a natural contextual link to ${destination!.label} (primary conversion target for this cluster)`
+				note: `First link in first 400 words — connects to ${destination!.label} (primary conversion target) [US8117209B1]`
 			});
 		}
-		// 2. Top 2 articles when destination, else top 3 (cap at 3 total)
-		const articleSlots = hasDestination ? 2 : 3;
+		// 2. Up to 3 supporting articles (body text). Cap at MAX_INTERNAL_LINKS total.
+		const articleSlots = Math.min(hasDestination ? 3 : 4, MAX_INTERNAL_LINKS - instructions.length);
 		const targets = articles.filter((a) => a.id !== currentPageId).slice(0, articleSlots);
 		for (const a of targets) {
 			instructions.push({
@@ -135,11 +180,11 @@ function buildInternalLinksForPage(
 				placement: 'body',
 				priority: 'high',
 				href: `${baseUrl}/${slugifyKeyword(a.keyword)}`,
-				note: 'Place in the body where the topic naturally comes up (equity 0.8×)'
+				note: 'Place in body where topic naturally comes up — interlink with supporting articles (equity 0.8×)'
 			});
 		}
 	} else {
-		// Article MUST link to focus page — critical reverse-silo link
+		// Supporting article: main link = focus page (first 400 words), rest 2–3 = sibling articles. Max 4 total.
 		if (focusPage && focusPage.id !== currentPageId) {
 			instructions.push({
 				toTitle: focusPage.title,
@@ -147,15 +192,16 @@ function buildInternalLinksForPage(
 				placement: 'intro',
 				priority: 'critical',
 				href: `${baseUrl}/${slugifyKeyword(focusPage.keyword)}`,
-				note: 'Place in first 2 paragraphs — highest PageRank equity [US8117209B1]'
+				note: 'Place in first 400 words — highest equity [US8117209B1 Reasonable Surfer]'
 			});
 		}
 
-		// Article also links to 1-2 sibling articles in the same group of 5
+		// Up to 3 sibling articles (reverse silo mesh). Cap at MAX_INTERNAL_LINKS total.
+		const siblingSlots = Math.min(3, MAX_INTERNAL_LINKS - instructions.length);
 		const currentIdx = articles.findIndex((a) => a.id === currentPageId);
 		const groupStart = currentIdx >= 0 ? Math.floor(currentIdx / 5) * 5 : 0;
 		const group = articles.slice(groupStart, groupStart + 5);
-		const siblings = group.filter((a) => a.id !== currentPageId).slice(0, 2);
+		const siblings = group.filter((a) => a.id !== currentPageId).slice(0, siblingSlots);
 		for (const sib of siblings) {
 			instructions.push({
 				toTitle: sib.title,
@@ -163,12 +209,12 @@ function buildInternalLinksForPage(
 				placement: 'body',
 				priority: 'medium',
 				href: `${baseUrl}/${slugifyKeyword(sib.keyword)}`,
-				note: 'Article-to-article mesh — place naturally in the body (equity 0.8×)'
+				note: 'Article-to-article mesh — place naturally in body (equity 0.8×)'
 			});
 		}
 	}
 
-	return instructions;
+	return instructions.slice(0, MAX_INTERNAL_LINKS);
 }
 
 /** Format link instructions as a prompt block for Claude */
@@ -500,50 +546,126 @@ and CTA placement. Treat every section as an opportunity to move the reader clos
 //   Anti-pogo-stick — SEO System §2, US10055467B1 (short-click penalty)
 //   H3 heading vector — US9959315B1 (Title→H1→H2→H3→passage coherence path)
 // ---------------------------------------------------------------------------
-const EEAT_AND_OPENING_INSTRUCTIONS = `
+/**
+ * Build EEAT + opening instructions personalised to the site and author.
+ * Generic templates ("In our experience...") are replaced with author-specific
+ * language when an author bio is present. Without an author, EEAT signals
+ * default to brand-level expertise markers using the site's niche and tone.
+ */
+/**
+ * Build meaningful defaults from whatever site fields are populated.
+ * Called once and passed into the EEAT builder and prompt blocks.
+ */
+function resolveSiteContext(
+	siteName: string | null | undefined,
+	siteNiche: string | null | undefined,
+	customerDescription: string | null | undefined,
+	tone: string | null | undefined
+): { name: string; niche: string; audience: string; tone: string; toneGuidance: string } {
+	const name = siteName?.trim() || 'this brand';
+	const niche = siteNiche?.trim() || 'this industry';
+	const audience = customerDescription?.trim() || `people interested in ${niche}`;
+
+	// Expand tone into concrete writing guidance so Claude has something to work with
+	// even when the user hasn't filled in the tone field.
+	const rawTone = tone?.trim().toLowerCase() || '';
+	let resolvedTone: string;
+	let toneGuidance: string;
+
+	if (rawTone.includes('conversational') || rawTone.includes('casual') || rawTone.includes('informal')) {
+		resolvedTone = 'conversational';
+		toneGuidance = 'Write like a knowledgeable friend explaining something over coffee. Use contractions. Direct address ("you"). Short punchy sentences mixed with longer ones. Sound like a person, not a press release.';
+	} else if (rawTone.includes('friendly') || rawTone.includes('warm') || rawTone.includes('approachable')) {
+		resolvedTone = 'friendly';
+		toneGuidance = 'Warm, encouraging, accessible. Avoid clinical language. Celebrate small wins. The reader should feel supported, not lectured.';
+	} else if (rawTone.includes('authoritative') || rawTone.includes('expert') || rawTone.includes('technical')) {
+		resolvedTone = 'authoritative';
+		toneGuidance = 'Confident and precise. Use technical vocabulary where appropriate but always explain it. Sound like the definitive source — not a textbook. Readers should walk away feeling they learned from an expert, not read a manual.';
+	} else if (rawTone.includes('professional')) {
+		resolvedTone = 'professional';
+		toneGuidance = 'Clear, authoritative, human. No jargon without explanation. Not stiff or corporate — think smart colleague, not legal document. Vary sentence length to avoid monotony.';
+	} else {
+		// Default when tone field is empty or unrecognised —
+		// use a balanced conversational-professional default that works for any niche
+		resolvedTone = 'clear and helpful';
+		toneGuidance = `Write clearly and helpfully for ${audience}. Sound like a knowledgeable human who respects the reader's time. Use plain language. Vary sentence length — short for emphasis, longer to explain. No corporate jargon, no hollow filler phrases.`;
+	}
+
+	// If the user has provided custom tone text (not a keyword), use it directly
+	if (rawTone.length > 20) {
+		resolvedTone = rawTone;
+		toneGuidance = `Follow this brand voice exactly: "${tone!.trim()}". Apply it consistently from the first sentence to the last.`;
+	}
+
+	return { name, niche, audience, tone: resolvedTone, toneGuidance };
+}
+
+function buildEEATInstructions(
+	authorBio: string | null,
+	siteName: string | null,
+	siteNiche: string | null,
+	brandTone: string,
+	customerDescription?: string | null
+): string {
+	const ctx = resolveSiteContext(siteName, siteNiche, customerDescription, brandTone);
+	const hasAuthor = !!(authorBio?.trim());
+
+	// Author / experience block
+	const authorLine = hasAuthor
+		? `AUTHOR: ${authorBio!.trim()}
+Write as this person. Ground every EEAT signal in their specific background, credentials, and experience. Do NOT use hollow phrases like "In our experience" or "Having worked with" — replace them with specifics from this bio.`
+		: `No author bio provided. Write as ${ctx.name} — a trusted voice in ${ctx.niche}. Use brand-level experience markers tied to the niche, not generic placeholders. Example: instead of "In our experience," write "At ${ctx.name}, we've seen..." or "After working with [specific type of customer/situation in ${ctx.niche}]..."`;
+
+	const experienceInstruction = hasAuthor
+		? `1. EXPERIENCE — draw from the author bio above. Reference concrete specifics: years in field, types of clients/cases/products they've encountered, direct observations. Never use a template phrase without filling in the actual detail.`
+		: `1. EXPERIENCE — use ${ctx.name} as the experienced voice. Write: "At ${ctx.name}, we've..." or "Our customers in ${ctx.niche} consistently..." or "After [specific relevant action]...". Always tie to ${ctx.niche} — never leave it generic.`;
+
+	return `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EEAT SIGNALS — INCLUDE ALL OF THESE
+VOICE & EEAT — READ THIS BEFORE WRITING ANYTHING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Google's quality rater guidelines reward pages that demonstrate Experience,
-Expertise, Authoritativeness, and Trustworthiness. Include at least 3 of:
+${authorLine}
 
-1. EXPERIENCE marker — first-hand language: "In our experience...", "We've tested...",
-   "When we [did X], we found...", "Based on [N] projects/clients/cases..."
-2. EXPERTISE signal — cite a specific methodology, framework, or standard:
-   "According to [Named Expert / Institution]...", reference a specific study or data point
-   with source attribution, use precise technical vocabulary appropriate to the topic.
-3. AUTHOR CREDENTIAL hook — include a sentence that implies real-world experience:
-   "Having worked with [type of business/situation]...", "After reviewing [N] options..."
-4. PRIMARY SOURCE citation — quote or reference a credible external source by name
-   (study, report, official documentation, recognised expert). Do NOT invent citations.
-5. TRUSTWORTHINESS signal — acknowledge trade-offs, limitations, or when NOT to use
-   something. Honest nuance signals expertise more than uniform positivity.
+TONE: ${ctx.tone}
+${ctx.toneGuidance}
+
+Regardless of tone: vary sentence length deliberately. Short sentences land hard. Longer sentences build context and carry nuance before arriving at the point. Uniform sentence length is the clearest signal of AI-generated text — actively avoid it.
+
+BANNED PHRASES — never appear in the output:
+• "In this article, we will explore..."
+• "In today's [adjective] world..."
+• "It's worth noting that..."
+• "It is important to note..."
+• "When it comes to..."
+• "Having said that..."
+• "Delve into..."
+• Any instance of "In our experience" or "Having worked with" that isn't followed by a specific claim grounded in the author bio or brand context above
+
+EEAT SIGNALS — include at least 3 of these 5:
+${experienceInstruction}
+2. EXPERTISE — cite a specific study, data point, framework, or standard with source attribution. Use precise vocabulary appropriate to ${ctx.niche}. Do NOT invent citations.
+3. CREDENTIAL HOOK — one sentence grounded in the author's actual background or ${ctx.name}'s track record in ${ctx.niche}. Specific, not templated.
+4. PRIMARY SOURCE — reference a credible external source by name (study, institution, regulator, expert). Do NOT fabricate.
+5. HONEST TRADE-OFF — acknowledge a real limitation, edge case, or "when this doesn't work." Nuance signals expertise; uniform positivity signals marketing copy.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ANTI-POGO-STICK OPENING — CRITICAL
+OPENING PARAGRAPH — ANTI-POGO-STICK [US10055467B1]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Google penalises pages where users immediately return to search results (pogo-stick
-behaviour) [US10055467B1]. The FIRST PARAGRAPH must do one job: confirm to the
-reader that they found exactly what they searched for.
+The first paragraph must make ${ctx.audience} think "yes, this is exactly what I needed" within 2 sentences.
 
-Rules for the opening paragraph:
-• Start with a direct, confident statement that contains or paraphrases the target keyword
-• Immediately signal what the reader will learn/get/be able to do after reading
-• DO NOT start with a question, a generic greeting, or a vague scene-setter
-• DO NOT use: "In this article...", "Are you looking for...", "Have you ever wondered..."
-• DO: "X is [direct definition/answer]. In this guide, you'll [specific outcome]."
-• The opening paragraph should make a reader think "yes, this is exactly what I needed"
-  within the first 2 sentences.
+Rules:
+• Start with the reader's situation or problem — NOT a dictionary definition, NOT the keyword used as a noun
+• Immediately signal what they'll learn or be able to do after reading
+• DO NOT open with: a question, a definition, "In this article...", "Are you looking for...", "Have you ever..."
+• DO: open with a confident, specific statement that meets the reader exactly where they are
 
-Example of WRONG opening:
-"Have you ever wondered how to improve your website's rankings? In this article,
-we'll explore some strategies that might help..."
+WRONG: "A moisturizer with benzoyl peroxide refers to either a standalone hydrating product..."
+RIGHT: "Benzoyl peroxide is one of the most effective acne treatments available — and one of the most likely to wreck your skin barrier if you don't pair it right. This guide covers exactly which moisturizers work with it, which ingredients to avoid, and why the combination matters more than the product alone."
 
-Example of CORRECT opening:
-"Drain cleaning costs between $150–$400 for most households, depending on the
-blockage type and pipe access. This guide covers exactly what drives that price,
-how to avoid overpaying, and when a job needs a professional vs. a DIY fix."
+WRONG: "In today's competitive digital landscape, SEO is more important than ever..."
+RIGHT: "Your Google rankings dropped and you want to know why. Here's a systematic way to diagnose the problem — starting with the fixes that actually move the needle."
 `;
+}
 
 async function checkAndDeductCredits(
 	orgId: string,
@@ -572,7 +694,14 @@ async function checkAndDeductCredits(
 	return { ok: true };
 }
 
+/** Write a single NDJSON line to a streaming response */
+function writeNdjson(res: Response, obj: object): void {
+	res.write(JSON.stringify(obj) + '\n');
+}
+
 export const generateBrief = async (req: Request, res: Response) => {
+	let streamOrgId: string | undefined;
+	let streamCreditCost: number = 25;
 	try {
 		const userId = req.user?.id;
 		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
@@ -583,7 +712,7 @@ export const generateBrief = async (req: Request, res: Response) => {
 		const { data: page, error: pageErr } = await supabase
 			.from('pages')
 			.select(
-				'id, cluster_id, site_id, type, title, keyword, funnel_stage, target_word_count, page_type, author_bio_override'
+				'id, cluster_id, site_id, type, title, keyword, funnel_stage, target_word_count, page_type, author_bio_override, brief_data'
 			)
 			.eq('id', pageId)
 			.single();
@@ -618,10 +747,20 @@ export const generateBrief = async (req: Request, res: Response) => {
 			return res.status(403).json({ error: 'Access denied' });
 		}
 
-		// Use appropriate credit cost based on page type
+		// Credit logic:
+		// - First brief (no sections in brief_data yet): FOCUS_PAGE_FULL (40).
+		//   The 40 credits bundle the research + brief + the first article generation.
+		//   brief_paid is set to true so the first article generation is free.
+		// - Regen brief (sections already exist): FOCUS_PAGE_BRIEF_REGEN (25).
+		//   User already consumed the bundled article. This is research-only.
+		const hasPreviousBrief = !!(
+			(page.brief_data as Record<string, unknown> | null)?.sections as unknown[]
+		)?.length;
 		const creditCost =
 			page.type === 'focus_page'
-				? CREDIT_COSTS.MONEY_PAGE_BRIEF
+				? hasPreviousBrief
+					? CREDIT_COSTS.FOCUS_PAGE_BRIEF_REGEN
+					: CREDIT_COSTS.FOCUS_PAGE_FULL
 				: (CREDIT_COSTS.ARTICLE_BRIEF ?? CREDIT_COSTS.MONEY_PAGE_BRIEF);
 
 		const creditCheck = await checkAndDeductCredits(site.organization_id, creditCost);
@@ -632,11 +771,28 @@ export const generateBrief = async (req: Request, res: Response) => {
 				available: creditCheck.available
 			});
 		}
+		streamOrgId = site.organization_id;
+		streamCreditCost = creditCost;
 
-		const { organic, relatedSearches, peopleAlsoAsk } = await serperSearch(
-			page.keyword || page.title,
-			10
-		);
+		// For informational/MoFu pages, search by PAGE TITLE not keyword.
+		// "moisturizer with benzoyl peroxide" (commercial) returns Amazon/Target.
+		// "How to Choose a Moisturizer When Using Benzoyl Peroxide" returns Healthline/Byrdie.
+		const isInformationalPage =
+			page.type === 'focus_page' ||
+			page.funnel_stage === 'tofu' ||
+			page.funnel_stage === 'mofu';
+
+		const serpQuery = isInformationalPage && page.title && page.title !== page.keyword
+			? page.title
+			: page.keyword || page.title;
+
+		// Start NDJSON stream — client drives TaskProgressWidget from real step events
+		res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+		res.setHeader('Cache-Control', 'no-cache');
+		res.setHeader('X-Accel-Buffering', 'no'); // nginx: disable buffering
+
+		const { organic, relatedSearches, peopleAlsoAsk } = await serperSearch(serpQuery, 10);
+		writeNdjson(res, { type: 'step', id: '1' }); // Analyzing context
 
 		// Fetch competitor pages to extract H2s and word count — used in Competitors tab
 		const competitorUrls = (organic || [])
@@ -644,6 +800,8 @@ export const generateBrief = async (req: Request, res: Response) => {
 			.map((o) => (o as { link?: string }).link)
 			.filter((u): u is string => typeof u === 'string' && u.startsWith('http'));
 		const competitorsRaw = await fetchCompetitorPages(competitorUrls, 5);
+		writeNdjson(res, { type: 'step', id: '2' }); // Crawling competitors
+
 		// Merge titles from Serper when our fetch didn't get a title (match by URL)
 		const organicByLink = new Map(
 			(organic || []).map((o) => [(o as { link?: string }).link, o as { title?: string }])
@@ -681,6 +839,49 @@ export const generateBrief = async (req: Request, res: Response) => {
 					)
 				: null;
 
+		// ── Phase 2: Deep signal aggregation ────────────────────────────────────
+		// Aggregate Phase 1 deep crawler signals across competitors.
+		// These populate per-element benchmarks in the brief prompt and
+		// surface in the Competitors tab (Phase 4).
+		const deepCompetitors = competitorsWithTitles as import('../utils/competitorFetch.js').CompetitorPage[];
+
+		const signalStats = {
+			h2_count: competitorSignalStats(deepCompetitors, (c) => c.h2_count ?? c.h2s?.length ?? 0),
+			h3_count: competitorSignalStats(deepCompetitors, (c) => c.h3_count ?? 0),
+			paragraph_count: competitorSignalStats(deepCompetitors, (c) => c.paragraph_count ?? 0),
+			internal_links: competitorSignalStats(deepCompetitors, (c) => c.internal_link_count ?? 0),
+			external_links: competitorSignalStats(deepCompetitors, (c) => c.external_link_count ?? 0),
+			image_count: competitorSignalStats(deepCompetitors, (c) => c.image_count ?? 0),
+			bold_count: competitorSignalStats(deepCompetitors, (c) => c.bold_count ?? 0)
+		};
+
+		// Top LSI terms from competitor body text — sorted by competitor frequency
+		const aggregatedLsiTerms = aggregateLsiTerms(deepCompetitors, 25);
+
+		// Schema types used by ≥2 competitors (Phase 5 foundation)
+		const competitorSchemaTypes = competitorSchemaUnion(deepCompetitors, 2);
+
+		// Format page structure benchmarks for the brief prompt
+		const structureStatsBlock = signalStats.h2_count
+			? [
+				`H2 headings: avg ${signalStats.h2_count.avg} (range ${signalStats.h2_count.min}–${signalStats.h2_count.max})`,
+				signalStats.h3_count?.avg ? `H3 headings: avg ${signalStats.h3_count.avg} (range ${signalStats.h3_count.min}–${signalStats.h3_count.max})` : null,
+				signalStats.paragraph_count?.avg ? `Paragraphs: avg ${signalStats.paragraph_count.avg}` : null,
+				signalStats.internal_links?.avg ? `Internal links: avg ${signalStats.internal_links.avg} (range ${signalStats.internal_links.min}–${signalStats.internal_links.max})` : null,
+				signalStats.image_count?.avg ? `Images: avg ${signalStats.image_count.avg}` : null,
+				signalStats.bold_count?.avg ? `Bold tags: avg ${signalStats.bold_count.avg}` : null,
+				competitorSchemaTypes.length > 0 ? `Schema types used: ${competitorSchemaTypes.join(', ')}` : null
+			].filter(Boolean).join('\n')
+			: '';
+
+		// Top competitor LSI terms with target frequencies
+		const lsiFreqBlock = aggregatedLsiTerms.length > 0
+			? aggregatedLsiTerms
+				.slice(0, 15)
+				.map((t) => `"${t.term}" — found in ${t.competitor_count}/${deepCompetitors.length} competitors, target ~${t.target_freq}x`)
+				.join('\n')
+			: '';
+
 		const paaList = (peopleAlsoAsk || []).map((p) => p.question);
 		const relatedKeywords = (relatedSearches || []).map((r) => r.query).join(', ');
 		// Target = competitor average × 1.1, floor at page setting if manually set higher
@@ -688,9 +889,10 @@ export const generateBrief = async (req: Request, res: Response) => {
 			? Math.max(page.target_word_count || 0, Math.round(competitorAvgWc * 1.1))
 			: (page.target_word_count || 1400);
 
-		const brandTone = (site.tone as string | null) || 'professional';
+		const brandTone = (site.tone as string | null) || '';
 		const includeTerms = (site.include_terms as string | null) || '(none specified)';
 		const avoidTerms = (site.avoid_terms as string | null) || '(none)';
+		const siteCtxBrief = resolveSiteContext(site.name as string | null, site.niche as string | null, site.customer_description as string | null, brandTone);
 		const targetLanguage = (site.target_language as string | null) || 'English';
 		const targetRegion = (site.target_region as string | null) || 'United States';
 		const pageTypeInstr = getPageTypeInstructions(page.page_type as string | null);
@@ -740,6 +942,14 @@ Include a natural contextual link to this destination in the content — it is t
 			}
 		}
 
+		// Internal link placement — Reasonable Surfer US8117209B1: body text links in first 400 words pass most equity
+		const internalLinksBlock = page.cluster_id
+			? `
+INTERNAL LINK PLACEMENT (CRITICAL — US8117209B1 Reasonable Surfer):
+Research confirms body text links in the first 400 words pass the most equity. Your intro section guidance MUST explicitly instruct the writer: "Place the primary internal link (to the focus page or destination) in the first 400 words of body text — do not bury it in the conclusion." Maximum 3–4 internal links per page total. This architectural instruction is non-negotiable for when content is written.
+`
+			: '';
+
 		const userPrompt = `PAGE TYPE: ${page.page_type || 'Blog Post / Article'}
 ${pageTypeInstr.systemNote}
 ${croContextBlock}
@@ -758,6 +968,15 @@ Domain Authority: ${site.domain_authority || 0}
 
 Competitor analysis (real H2s and word counts crawled from top-ranking pages):
 ${competitorBlock}
+
+COMPETITOR PAGE STRUCTURE BENCHMARKS (use to calibrate section count, H2/H3 targets):
+${structureStatsBlock || '(structure data not available — estimate from keyword context)'}
+
+COMPETITOR TERM FREQUENCY — top content words with suggested usage targets:
+${lsiFreqBlock || '(term frequency data not available)'}
+
+COMPETITOR SCHEMA TYPES:
+${competitorSchemaTypes.length > 0 ? competitorSchemaTypes.join(', ') : '(none detected — recommend based on page type)'}
 
 IGS REQUIREMENT: Identify what ALL competitors are covering (the shared H2 topics above) AND what NONE of them cover — that gap must be your igs_opportunity field.
 
@@ -778,7 +997,13 @@ ${pageTypeInstr.h3Rules}
 AVOID:
 ${pageTypeInstr.avoidRules}
 
-${EEAT_AND_OPENING_INSTRUCTIONS}
+${buildEEATInstructions(resolvedAuthor, site.name as string | null, site.niche as string | null, brandTone, site.customer_description as string | null)}
+${page.cluster_id ? `
+INTERNAL LINK PLACEMENT (US8117209B1 Reasonable Surfer — CRITICAL):
+Body text links in the first 400 words pass the most equity. For cluster pages:
+- Supporting articles: primary link = focus page (MUST be in first 400 words); rest 2–3 = interlinking with sibling articles.
+- Focus page: first link = destination page URL (first 400 words); rest 2–3 = supporting articles.
+Include in your intro section guidance: instruct the writer to place the primary internal link in the first 400 words. Maximum 3–4 internal links total.` : ''}
 
 Create a content brief for this specific page type. Return ONLY a valid JSON object:
 {
@@ -819,25 +1044,115 @@ Requirements:
 			rawContent = await callClaude(
 				`You are an expert SEO content strategist. You create detailed content briefs adapted to the specific page type — different page types have fundamentally different on-page SEO rules. ${pageTypeInstr.systemNote} Return only valid JSON — no markdown fences, no extra text.`,
 				userPrompt,
-				4000
+				8192
 			);
 		} catch (err) {
 			console.error('[Pages] Claude brief error:', err instanceof Error ? err.message : err);
-			return res.status(500).json({ error: 'Failed to generate brief' });
+			await refundCredits(site.organization_id, userId, creditCost, 'brief_generation',
+				'Claude API error during brief generation',
+				'Brief generation failed — credits refunded',
+				`/workspace/${pageId}`);
+			writeNdjson(res, { type: 'error', message: 'Failed to generate brief. Your credits have been refunded.' });
+			res.end();
+			return;
 		}
+		writeNdjson(res, { type: 'step', id: '3' }); // Rebuilding brief
 
 		let briefData: Record<string, unknown>;
 		try {
-			briefData = JSON.parse(rawContent.replace(/```json\n?|\n?```/g, '').trim());
+			const cleaned = rawContent.replace(/```json\n?|\n?```/g, '').trim();
+			briefData = JSON.parse(cleaned);
 		} catch {
-			console.error('[Pages] Brief parse error:', rawContent.slice(0, 200));
-			briefData = { sections: [], meta_title_suggestion: '', meta_description_suggestion: '' };
+			// JSON truncated — most likely hit max_tokens mid-object.
+			console.error('[Pages] Brief parse error (likely truncated):', rawContent.slice(0, 300));
+			await refundCredits(site.organization_id, userId, creditCost, 'brief_generation',
+				'Brief JSON was truncated mid-generation (token limit reached)',
+				'Brief generation failed — credits refunded',
+				`/workspace/${pageId}`);
+			writeNdjson(res, {
+				type: 'error',
+				message: 'Brief generation was cut off before completing. Your credits have been refunded — please try again.',
+				code: 'BRIEF_TRUNCATED'
+			});
+			res.end();
+			return;
 		}
 
-		// Attach competitor H2s and word counts for the Competitors tab
+		// Validate the parsed object has actual sections — catch cases where
+		// Claude returned valid JSON but with empty or missing content.
+		const parsedSections = Array.isArray(briefData.sections) ? briefData.sections : [];
+		if (parsedSections.length === 0) {
+			console.error('[Pages] Brief generated with no sections:', JSON.stringify(briefData).slice(0, 200));
+			await refundCredits(site.organization_id, userId, creditCost, 'brief_generation',
+				'Brief generated with zero sections — likely a model response issue',
+				'Brief generation failed — credits refunded',
+				`/workspace/${pageId}`);
+			writeNdjson(res, {
+				type: 'error',
+				message: 'Brief generation returned no sections. Your credits have been refunded — please try again.',
+				code: 'BRIEF_EMPTY'
+			});
+			res.end();
+			return;
+		}
+
+		// Attach full deep competitor data for the Competitors tab (Phase 4)
+		// Includes all Phase 1 signals: h1, h3s, paragraph_count, link counts,
+		// image counts, bold counts, schema_types, lsi_term_freq
 		if (competitorsWithTitles.length > 0) {
 			briefData.competitors_raw = competitorsWithTitles;
 		}
+
+		// Attach aggregated signal stats for Phase 2+ (term targets, structure benchmarks)
+		if (Object.values(signalStats).some((s) => s !== null)) {
+			briefData.competitor_signal_stats = signalStats;
+		}
+		if (aggregatedLsiTerms.length > 0) {
+			briefData.competitor_lsi_terms = aggregatedLsiTerms;
+		}
+		if (competitorSchemaTypes.length > 0) {
+			briefData.competitor_schema_types = competitorSchemaTypes;
+		}
+
+		// Bake internal link placement into brief (Reasonable Surfer US8117209B1)
+		// Body text links in first 400 words pass the most equity — writer must follow this
+		if (page.cluster_id) {
+			const { data: clusterPages } = await supabase
+				.from('pages')
+				.select('id, title, keyword, type')
+				.eq('cluster_id', page.cluster_id);
+			let dest: { url: string; label: string } | undefined;
+			const { data: cluster } = await supabase
+				.from('clusters')
+				.select('destination_page_url, destination_page_label')
+				.eq('id', page.cluster_id)
+				.single();
+			if (cluster?.destination_page_url) {
+				dest = { url: cluster.destination_page_url, label: cluster.destination_page_label || cluster.destination_page_url };
+			}
+			const siteUrl = (site.url as string | null) ?? '';
+			const linkInstr = buildInternalLinksForPage(
+				pageId,
+				page.type || 'article',
+				[
+					{ id: page.id, title: page.title, keyword: page.keyword || page.title, type: page.type || 'article' },
+					...(clusterPages ?? []).filter((p) => p.id !== pageId)
+				],
+				siteUrl,
+				dest
+			);
+			briefData.internal_link_instructions = linkInstr.map((l) => ({
+				target: l.toTitle,
+				anchor_text: l.anchorText,
+				placement: l.placement === 'intro' ? 'first_400_words' : 'body',
+				priority: l.priority,
+				note: l.note
+			}));
+		}
+
+		// brief_paid = true means the first article generation is included (free).
+		// Stored in brief_data JSON — no schema change needed.
+		briefData.brief_paid = true;
 
 		const updatePayload: Record<string, unknown> = {
 			brief_data: briefData,
@@ -859,16 +1174,37 @@ Requirements:
 		}
 		await supabase.from('pages').update(updatePayload).eq('id', pageId);
 
-		return res.json({ briefData, status: 'brief_generated' });
+		writeNdjson(res, { type: 'done', briefData, status: 'brief_generated' });
+		res.end();
 	} catch (err) {
 		console.error('[Pages] generateBrief error:', err);
-		return res.status(500).json({ error: 'Internal server error' });
+		// If we've already sent headers (stream started), refund and write error
+		if (res.headersSent) {
+			try {
+				if (req.user?.id && streamOrgId) {
+					await refundCredits(streamOrgId, req.user.id, streamCreditCost, 'brief_generation',
+						'Unexpected error during brief generation',
+						'Brief generation failed — credits refunded',
+						`/workspace/${req.params.id ?? ''}`);
+				}
+				writeNdjson(res, { type: 'error', message: 'Internal server error. Your credits have been refunded.' });
+				res.end();
+			} catch {
+				// ignore
+			}
+		} else {
+			return res.status(500).json({ error: 'Internal server error. If credits were deducted, they will be refunded within a few minutes.' });
+		}
 	}
 };
 
 export const generateArticle = async (req: Request, res: Response) => {
+	let _site: { organization_id: string } | null = null;
+	let _articleCreditCost = 0;
+	let _userId: string | undefined;
 	try {
 		const userId = req.user?.id;
+		_userId = userId;
 		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
 		const pageId = req.params.id;
@@ -877,12 +1213,14 @@ export const generateArticle = async (req: Request, res: Response) => {
 		const { data: page, error: pageErr } = await supabase
 			.from('pages')
 			.select(
-				'id, cluster_id, site_id, type, title, keyword, target_word_count, page_type, brief_data, author_bio_override'
+				'id, cluster_id, site_id, type, title, keyword, funnel_stage, target_word_count, word_count, page_type, brief_data, author_bio_override'
 			)
 			.eq('id', pageId)
 			.single();
 
 		if (pageErr || !page) return res.status(404).json({ error: 'Page not found' });
+
+		const isFocusPage = page.type === 'focus_page';
 
 		const { data: site } = await supabase
 			.from('sites')
@@ -943,22 +1281,51 @@ export const generateArticle = async (req: Request, res: Response) => {
 			destination
 		);
 
-		const creditCheck = await checkAndDeductCredits(
-			site.organization_id,
-			CREDIT_COSTS.ARTICLE_GENERATION
-		);
-		if (!creditCheck.ok) {
-			return res.status(402).json({
-				error: creditCheck.error,
-				required: CREDIT_COSTS.ARTICLE_GENERATION,
-				available: creditCheck.available
-			});
-		}
+		// First article from a paid brief is FREE — bundled in FOCUS_PAGE_FULL.
+		// Condition: brief_paid === true AND article_generated is not yet set.
+		// We use article_generated (not word_count) so deleting content doesn't
+		// re-unlock the free generation. article_generated is only set by the backend
+		// after a successful article generation — the user cannot influence it.
+		// Safe refresh window: if the user refreshes between brief and article generation,
+		// brief_paid is true but article_generated is still absent → correctly free.
+		const briefData = page.brief_data as Record<string, unknown> | null;
+		const briefPaid = !!briefData?.brief_paid;
+		const articleAlreadyGenerated = !!briefData?.article_generated;
+		const isFirstArticleFromBrief = briefPaid && !articleAlreadyGenerated;
+		const articleCreditCost = isFirstArticleFromBrief ? 0 : CREDIT_COSTS.ARTICLE_GENERATION;
 
-		const { organic, relatedSearches, peopleAlsoAsk } = await serperSearch(
-			page.keyword || page.title,
-			10
-		);
+		if (articleCreditCost > 0) {
+			const creditCheck = await checkAndDeductCredits(site.organization_id, articleCreditCost);
+			if (!creditCheck.ok) {
+				return res.status(402).json({
+					error: creditCheck.error,
+					required: articleCreditCost,
+					available: creditCheck.available
+				});
+			}
+		}
+		// articleCreditCost === 0: first article from paid brief, no deduction needed
+		_site = site;
+		_articleCreditCost = articleCreditCost;
+
+		// NDJSON streaming — headers must be set before any writes
+		res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+		res.setHeader('Cache-Control', 'no-cache');
+		res.setHeader('X-Accel-Buffering', 'no');
+
+		// Use page title for informational/MoFu pages — avoids returning commercial
+		// product pages (Amazon, Target) when the page title is the real topic.
+		// Same logic as generateBrief — search what we're actually writing about.
+		const isInfoPage =
+			page.type === 'focus_page' ||
+			page.funnel_stage === 'tofu' ||
+			page.funnel_stage === 'mofu';
+		const articleSerpQuery =
+			isInfoPage && page.title && page.title !== page.keyword
+				? page.title
+				: page.keyword || page.title;
+
+		const { organic, relatedSearches, peopleAlsoAsk } = await serperSearch(articleSerpQuery, 10);
 
 		// Fetch real competitor H2s and word counts for article generation
 		// Falls back to brief_data.competitors_raw if already populated from brief
@@ -991,6 +1358,8 @@ export const generateArticle = async (req: Request, res: Response) => {
 				? brief.competitors_raw
 				: await fetchCompetitorPages(articleCompetitorUrls, 5);
 
+		writeNdjson(res, { type: 'step', id: '1' });
+
 		const paaList = (peopleAlsoAsk || []).map((p) => p.question);
 		const relatedKws = (relatedSearches || [])
 			.map((r) => r.query)
@@ -1004,11 +1373,60 @@ export const generateArticle = async (req: Request, res: Response) => {
 				return `- ${s.heading}${s.guidance ? `: ${s.guidance}` : ''}${eeaNote}`;
 			})
 			.join('\n');
-		const lsiTerms = brief?.lsi_terms?.map((t) => t.term).join(', ') || relatedKws || 'None';
-		const entities = brief?.entities?.map((e) => e.term ?? e.name ?? '').join(', ') || 'None';
-		const igsOpportunity =
-			brief?.igs_opportunity ||
-			'Add a unique perspective, original stat, or first-hand insight not found in competitor articles.';
+		// ── Derive semantic intelligence from deep crawler when no brief exists ──
+		// For supporting articles (no brief), use lsi_term_freq from Phase 1 competitor
+		// crawl to get real LSI terms instead of falling back to 'None'.
+		// Brief path is completely unchanged — brief data always takes priority.
+
+		// LSI terms: brief → deep crawler frequency map → Serper related keywords
+		const lsiTerms = (() => {
+			if (brief?.lsi_terms?.length) return brief.lsi_terms.map((t) => t.term).join(', ');
+			if (articleCompetitorsRaw && articleCompetitorsRaw.length > 0) {
+				const freq: Record<string, number> = {};
+				for (const c of articleCompetitorsRaw) {
+					const termFreq = (c as { lsi_term_freq?: Record<string, number> }).lsi_term_freq ?? {};
+					for (const [term, count] of Object.entries(termFreq)) {
+						freq[term] = (freq[term] ?? 0) + count;
+					}
+				}
+				const topTerms = Object.entries(freq)
+					.sort((a, b) => b[1] - a[1])
+					.slice(0, 15)
+					.map(([term]) => term);
+				if (topTerms.length > 0) return topTerms.join(', ');
+			}
+			return relatedKws || 'None';
+		})();
+
+		// Entities: brief → approximate from competitor titles + H1s
+		const entities = (() => {
+			if (brief?.entities?.length) return brief.entities.map((e) => e.term ?? e.name ?? '').join(', ');
+			if (articleCompetitorsRaw && articleCompetitorsRaw.length > 0) {
+				const candidates = articleCompetitorsRaw
+					.flatMap((c) => {
+						const h1 = (c as { h1?: string | null }).h1;
+						return [c.title, h1].filter(Boolean) as string[];
+					})
+					.slice(0, 5);
+				if (candidates.length > 0) {
+					return `(derived from competitor titles — cover concepts in: ${candidates.join(' | ')})`;
+				}
+			}
+			return 'None';
+		})();
+
+		// IGS opportunity: brief (structured) → keyword-specific instruction → generic fallback
+		// Skyscraper penalty (US20190155948A1) applies to all pages — even supporting articles.
+		// Even one original element prevents domain-level quality score degradation [Panda].
+		const igsOpportunity = (() => {
+			if (brief?.igs_opportunity) {
+				const igs = brief.igs_opportunity as { description?: string; type?: string } | string;
+				if (typeof igs === 'object' && igs.description) return `${igs.type ?? 'Original element'}: ${igs.description}`;
+				if (typeof igs === 'string') return igs;
+			}
+			const kw = page.keyword || page.title || 'this topic';
+			return `For "${kw}": add ONE specific original element not found in competitor articles. Ranked by IGS bonus: (1) Specific stat with source attribution +5pts; (2) Expert quote with name/credentials +4pts; (3) First-hand observation/test result +3pts; (4) Original comparison table or structured list +2pts; (5) Evidence-backed contrarian perspective +1pt. Without at least one, this article scores zero on Information Gain and risks the Skyscraper penalty at the domain level [US20190155948A1].`;
+		})();
 
 		// Competitor heading structure for article prompt (spec Section 8.3: {competitor_heading_structure})
 		const competitorHeadingStructure =
@@ -1039,9 +1457,10 @@ export const generateArticle = async (req: Request, res: Response) => {
 
 		const paaFromBrief = brief?.paa_questions?.map((q) => q.question) || paaList;
 
-		const brandTone = (site.tone as string | null) || 'professional';
+		const brandTone = (site.tone as string | null) || '';
 		const includeTerms = (site.include_terms as string | null) || '(none)';
 		const avoidTerms = (site.avoid_terms as string | null) || '(none)';
+		const siteCtx = resolveSiteContext(site.name as string | null, site.niche as string | null, site.customer_description as string | null, brandTone);
 		const targetLanguage = (site.target_language as string | null) || 'English';
 		const targetRegion = (site.target_region as string | null) || 'United States';
 		const resolvedAuthorArticle =
@@ -1065,21 +1484,22 @@ ${resolvedAuthorArticle}
 				.map((o) => `- ${o.title}`)
 				.join('\n');
 
-		const maxWords = Math.ceil(Number(resolvedArticleWc) * 1.15);
+		const maxWords = Math.ceil(Number(resolvedArticleWc) * 1.1); // 10% hard ceiling — strict
 		const userPrompt = `PAGE TYPE: ${page.page_type || 'Blog Post / Article'}
 ${articlePageTypeInstr.systemNote}
 
-CRITICAL WORD COUNT: Your output MUST be approximately ${resolvedArticleWc} words (±15%). Do NOT exceed ${maxWords} words. This is non-negotiable — count your words before returning.
-
-Write complete ${resolvedArticleWc}-word content targeting: "${page.keyword || page.title}"
-
-Business: ${site.name} — ${site.niche || ''}
-Audience: ${site.customer_description || 'general audience'}
-Brand tone: ${brandTone}
-Language: ${targetLanguage}
-Region / dialect: ${targetRegion}${targetRegion !== 'United States' ? ` (use ${targetRegion} spelling and conventions throughout)` : ''}
+BRAND & VOICE CONTEXT — read this first, it governs everything you write:
+Business: ${siteCtx.name} — ${siteCtx.niche}
+Audience: ${siteCtx.audience}
+Tone: ${siteCtx.tone} — ${siteCtx.toneGuidance}
 Must include these terms: ${includeTerms}
 Avoid these terms: ${avoidTerms}
+Language: ${targetLanguage} / ${targetRegion}${targetRegion !== 'United States' ? ` (use ${targetRegion} spelling and conventions throughout)` : ''}
+
+This is non-negotiable: every sentence must sound like a knowledgeable human at ${siteCtx.name} wrote it for ${siteCtx.audience}. Not a generic AI article.
+
+KEYWORD TARGET: "${page.keyword || page.title}"
+TARGET WORD COUNT: ${resolvedArticleWc} words (hard limit: ${maxWords} words). Write EXACTLY this many words. Do NOT pad, do NOT add extra sections beyond the outline, stop when the outline is covered.
 
 LSI / contextual terms to weave in naturally:
 ${lsiTerms}
@@ -1117,7 +1537,7 @@ UNIVERSAL REQUIREMENTS:
 3. Natural keyword density (1-2x primary keyword, rest LSI terms)
 4. At least ONE section with original perspective or specific statistic (IGS — patent US20190155948A1)
 ${authorBlockArticle}
-${EEAT_AND_OPENING_INSTRUCTIONS}
+${buildEEATInstructions(resolvedAuthorArticle, site.name as string | null, site.niche as string | null, brandTone, site.customer_description as string | null)}
 ${site.is_ymyl ? YMYL_PROMPT_ADDITIONS : ''}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1126,11 +1546,13 @@ MANDATORY INTERNAL LINKS — YOU MUST INSERT ALL OF THESE AS <a> TAGS
 ${formatLinksForPrompt(linkInstructions)}
 
 Internal link rules (US8117209B1 Reasonable Surfer):
+• Body text links in the first 400 words pass the most equity — place INTRO links there
 • Use EXACTLY the anchor text specified — do not paraphrase or split it
 • Wrap naturally into a sentence, e.g. "…read our guide on <a href="...">anchor text</a> to…"
 • Always include a space before <a> and after </a> so links don't merge with adjacent words (e.g. "Understanding <a href="...">ingredients</a> reactions" not "Understanding<a>ingredients</a>reactions")
-• INTRO links go in the first two paragraphs (before the first H2)
+• INTRO links = first 400 words of body text (highest equity; do not bury in conclusion)
 • BODY links go where the topic is naturally mentioned in the article
+• Maximum 3–4 internal links total — quality over quantity
 • Do NOT add rel="nofollow" or target="_blank" to internal links
 • Every link listed above MUST appear in the final HTML — they are mandatory
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1140,13 +1562,22 @@ Output HTML only (h1, h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, a 
 		let htmlContent: string;
 		try {
 			htmlContent = await callClaude(
-				`You are an expert SEO content writer who adapts your approach completely based on page type. ${articlePageTypeInstr.systemNote} Each page type has different H2 rules, H3 rules, schema requirements, and CTA strategies. CRITICAL: Respect the exact word count specified — do not exceed the maximum. You MUST insert every internal link listed in the prompt as an HTML <a> tag at the exact placement specified — these are non-negotiable for the reverse-silo link architecture. Output HTML only — no markdown, no wrappers.`,
+				`You are a content writer for ${siteCtx.name}, a brand in ${siteCtx.niche}. Write for ${siteCtx.audience}. Tone: ${siteCtx.tone} — ${siteCtx.toneGuidance} Adapt structure completely by page type. ${articlePageTypeInstr.systemNote} Every sentence must sound like a real human at ${siteCtx.name} wrote it. Vary sentence length. Avoid filler phrases. Insert every internal link as an HTML <a> tag — mandatory. Output HTML only — no markdown, no wrappers.`,
 				userPrompt,
-				6000
+				8192
 			);
+			writeNdjson(res, { type: 'step', id: '2' });
 		} catch (err) {
 			console.error('[Pages] Claude article error:', err instanceof Error ? err.message : err);
-			return res.status(500).json({ error: 'Failed to generate article' });
+			if (articleCreditCost > 0) {
+				await refundCredits(site.organization_id, userId, articleCreditCost, 'article_generation',
+					'Claude API error during article generation',
+					'Article generation failed — credits refunded',
+					`/workspace/${pageId}`);
+			}
+			writeNdjson(res, { type: 'error', message: 'Failed to generate article. Your credits have been refunded.' });
+			res.end();
+			return;
 		}
 
 		const htmlWithSpaces = ensureSpacesAroundLinks(htmlContent);
@@ -1203,6 +1634,12 @@ Requirements:
 			console.warn('[Pages] Meta extraction failed:', err instanceof Error ? err.message : err);
 		}
 
+		writeNdjson(res, { type: 'step', id: '3' });
+
+		if (isFocusPage) {
+			writeNdjson(res, { type: 'step', id: '4' });
+		}
+
 		const existingBrief = (page.brief_data as Record<string, unknown> | null) ?? {};
 		const mergedBriefData = {
 			...existingBrief,
@@ -1220,7 +1657,12 @@ Requirements:
 						word_count: c.word_count,
 						h2s: c.h2s
 					}))
-				})
+				}),
+			// Mark that an article has been generated from this brief.
+			// This flag is what determines whether the next article generation is free.
+			// Set ONLY here — after successful generation — so a refresh between
+			// brief and article generation doesn't lose the user's included article.
+			article_generated: true
 		};
 
 		await supabase
@@ -1239,16 +1681,33 @@ Requirements:
 			})
 			.eq('id', pageId);
 
-		return res.json({
+		writeNdjson(res, {
+			type: 'done',
 			content: tiptapContent,
 			wordCount,
 			status: 'draft',
 			metaTitle: extractedMeta?.meta_title,
 			metaDescription: extractedMeta?.meta_description
 		});
+		res.end();
 	} catch (err) {
 		console.error('[Pages] generateArticle error:', err);
-		return res.status(500).json({ error: 'Internal server error' });
+		if (res.headersSent) {
+			try {
+				if (_articleCreditCost > 0 && _site && _userId) {
+					await refundCredits(_site.organization_id, _userId, _articleCreditCost, 'article_generation',
+						'Article generation failed mid-stream',
+						'Article generation failed — credits refunded',
+						`/workspace/${req.params.id ?? ''}`);
+				}
+				writeNdjson(res, { type: 'error', message: 'Internal server error. Your credits have been refunded.' });
+				res.end();
+			} catch {
+				// ignore
+			}
+		} else {
+			return res.status(500).json({ error: 'Internal server error. If credits were deducted, they will be refunded within a few minutes.' });
+		}
 	}
 };
 
@@ -1525,6 +1984,81 @@ Rewrite this section content (150-250 words). Keep the tone professional but app
 };
 
 // ---------------------------------------------------------------------------
+// Manual brief section edit (no credits — user tweaks guidance text)
+// PATCH /api/pages/:id/brief-section
+// ---------------------------------------------------------------------------
+
+export const updateBriefSection = async (req: Request, res: Response) => {
+	try {
+		const userId = req.user?.id;
+		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+		const pageId = req.params.id;
+		const { sectionIndex, guidance } = req.body;
+
+		if (!pageId || sectionIndex == null) {
+			return res.status(400).json({ error: 'pageId and sectionIndex are required' });
+		}
+
+		const { data: page } = await supabase
+			.from('pages')
+			.select('id, site_id, brief_data')
+			.eq('id', pageId)
+			.single();
+
+		if (!page) return res.status(404).json({ error: 'Page not found' });
+
+		const { data: site } = await supabase
+			.from('sites')
+			.select('organization_id')
+			.eq('id', page.site_id)
+			.single();
+
+		if (!site) return res.status(404).json({ error: 'Site not found' });
+
+		const { data: userOrg } = await supabase
+			.from('user_organizations')
+			.select('organization_id')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (!userOrg || userOrg.organization_id !== site.organization_id) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		const briefData = page.brief_data as Record<string, unknown> | null;
+		if (!briefData || !Array.isArray(briefData.sections)) {
+			return res.status(400).json({ error: 'No brief sections found' });
+		}
+
+		const sections = briefData.sections as Array<Record<string, unknown>>;
+		if (sectionIndex < 0 || sectionIndex >= sections.length) {
+			return res.status(400).json({ error: 'Invalid section index' });
+		}
+
+		sections[sectionIndex] = {
+			...sections[sectionIndex],
+			guidance: typeof guidance === 'string' ? guidance : String(guidance ?? '')
+		};
+
+		const { error: updateErr } = await supabase
+			.from('pages')
+			.update({ brief_data: briefData, updated_at: new Date().toISOString() })
+			.eq('id', pageId);
+
+		if (updateErr) {
+			console.error('[Pages] updateBriefSection error:', updateErr);
+			return res.status(500).json({ error: 'Failed to save section' });
+		}
+
+		res.json({ success: true, data: { sectionIndex, guidance: sections[sectionIndex].guidance } });
+	} catch (error) {
+		console.error('[Pages] updateBriefSection error:', error);
+		res.status(500).json({ error: 'Failed to save section' });
+	}
+};
+
+// ---------------------------------------------------------------------------
 // FAQ generation
 // POST /api/pages/:id/generate-faq
 // ---------------------------------------------------------------------------
@@ -1730,23 +2264,7 @@ For each failing item:
 - Give the exact copy or structural change
 - If suggesting copy, write the actual words: not "add a testimonial" but "Add this line: 'Over 200 London homeowners trust us — see their stories below'"`;
 
-		if (!openai) {
-			console.error('[Pages] OpenAI API key not configured');
-			return res.status(500).json({ error: 'CRO fixes service not configured' });
-		}
-
-		const completion = await openai.chat.completions.create({
-			model: GPT_CONTENT_MODEL,
-			messages: [
-				{ role: 'system', content: systemPrompt },
-				{ role: 'user', content: userPrompt }
-			],
-			max_tokens: 800
-		});
-
-		const suggestions =
-			completion.choices[0]?.message?.content?.trim() ??
-			'Sorry, no suggestions could be generated.';
+		const suggestions = await callClaude(systemPrompt, userPrompt, 1000);
 
 		res.json({
 			success: true,
@@ -1755,5 +2273,178 @@ For each failing item:
 	} catch (error) {
 		console.error('[Pages] CRO fixes error:', error);
 		res.status(500).json({ error: 'Failed to generate CRO fixes' });
+	}
+};
+
+// ---------------------------------------------------------------------------
+// Schema Generation — Phase 5
+// POST /api/pages/:id/generate-schema
+//
+// Uses competitor_schema_types from brief_data to recommend and generate
+// JSON-LD markup. Closes the schemaGenerated flag in UPSA Module 5 (3pts).
+//
+// Flow:
+//   1. Load page + brief_data.competitor_schema_types
+//   2. Determine best schema type(s) for this page type
+//   3. AI generates JSON-LD using page metadata + site context
+//   4. Saves schema to page.schema_markup, sets schema_generated = true
+//   5. Returns schema string + recommended types for MetaSidebar display
+// ---------------------------------------------------------------------------
+
+export const generateSchema = async (req: Request, res: Response) => {
+	try {
+		const userId = req.user?.id;
+		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+		const pageId = req.params.id;
+		if (!pageId) return res.status(400).json({ error: 'Page ID required' });
+
+		const { data: page } = await supabase
+			.from('pages')
+			.select('id, site_id, keyword, title, type, page_type, meta_title, meta_description, slug, brief_data')
+			.eq('id', pageId)
+			.single();
+
+		if (!page) return res.status(404).json({ error: 'Page not found' });
+
+		const { data: site } = await supabase
+			.from('sites')
+			.select('id, name, niche, url, organization_id, author_bio')
+			.eq('id', page.site_id)
+			.single();
+
+		if (!site) return res.status(404).json({ error: 'Site not found' });
+
+		const { data: userOrg } = await supabase
+			.from('user_organizations')
+			.select('organization_id')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (!userOrg || userOrg.organization_id !== site.organization_id) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		const creditCost = CREDIT_COSTS.FAQ_GENERATION; // reuse FAQ cost (same complexity)
+		const creditCheck = await checkAndDeductCredits(site.organization_id, creditCost);
+		if (!creditCheck.ok) {
+			return res.status(402).json({ error: creditCheck.error, required: creditCost, available: creditCheck.available });
+		}
+
+		// Pull competitor schema types from brief_data (populated by Phase 2)
+		const briefData = page.brief_data as Record<string, unknown> | null;
+		const competitorSchemaTypes: string[] = (briefData?.competitor_schema_types as string[] | undefined) ?? [];
+		const briefSchemaType = (briefData?.schema_type as string | undefined) ?? null;
+
+		// Determine recommended schema types for this page
+		// Priority: brief-generated schema_type → competitor consensus → page type fallback
+		const pageType = (page.page_type as string | null) ?? (page.type === 'focus_page' ? 'mofu_article' : 'tofu_article');
+		const fallbackSchema = (() => {
+			const pt = pageType.toLowerCase();
+			if (pt.includes('product')) return 'Product';
+			if (pt.includes('service') || pt.includes('local')) return 'Service';
+			if (pt.includes('how') || pt.includes('howto')) return 'HowTo';
+			if (pt.includes('review')) return 'Review';
+			if (pt.includes('faq')) return 'FAQPage';
+			return 'Article';
+		})();
+
+		// Build the schema recommendation from available data
+		const recommendedTypes = [
+			...(briefSchemaType ? briefSchemaType.split(/[,+\s]+/).map((s) => s.trim()).filter(Boolean) : []),
+			...competitorSchemaTypes
+		].filter(Boolean);
+
+		const primaryType = recommendedTypes[0] ?? fallbackSchema;
+
+		const siteUrl = (site.url as string | null)?.replace(/\/$/, '') ?? 'https://example.com';
+		const siteName = (site.name as string | null) ?? 'Site';
+		const pageUrl = page.slug
+			? `${siteUrl}/${page.slug}`
+			: `${siteUrl}/${((page.title as string) || (page.keyword as string) || 'page').toLowerCase().replace(/\s+/g, '-')}`;
+
+		const authorBio = (site.author_bio as string | null) ?? null;
+
+		// Generate JSON-LD via Claude
+		const schemaPrompt = `Generate valid JSON-LD schema markup for this page.
+
+Page details:
+- Title: "${(page.title as string) || (page.keyword as string)}"
+- Target keyword: "${(page.keyword as string) || (page.title as string)}"
+- Page URL: "${pageUrl}"
+- Site name: "${siteName}"
+- Page type: ${pageType}
+- Primary schema type recommended: ${primaryType}
+- Additional schema types (from competitor analysis): ${competitorSchemaTypes.join(', ') || 'none'}
+${authorBio ? `- Author: ${authorBio}` : ''}
+- Meta description: "${(page.meta_description as string | null) ?? ''}"
+
+SCHEMA RULES:
+1. Always include BreadcrumbList as a secondary schema (Google rewards it)
+2. For Article/BlogPosting: include author (Person), datePublished (use today's date), publisher (Organization)
+3. For HowTo: include estimatedCost, totalTime, and at minimum 3 step objects
+4. For FAQPage: include at least 4 mainEntity Question/Answer pairs from the page topic
+5. For Product: include name, description, offers (with price placeholder)
+6. For Service: include serviceType, provider (LocalBusiness), areaServed
+7. For Review: include itemReviewed, reviewRating (ratingValue 1-5), author
+8. Always use @context: "https://schema.org"
+9. Wrap multiple schemas in an @graph array
+
+Return ONLY the complete JSON-LD as a raw string (no markdown fences, no explanation).
+The output will be wrapped in <script type="application/ld+json"> tags by the caller.`;
+
+		let schemaJson: string;
+		try {
+			schemaJson = await callClaude(
+				'You are an expert in structured data and JSON-LD schema markup. Generate valid, complete schema markup. Return only the raw JSON string.',
+				schemaPrompt,
+				2000
+			);
+			// Strip markdown fences if present
+			schemaJson = schemaJson.replace(/```json\n?|\n?```/g, '').trim();
+		} catch (err) {
+			console.error('[Pages] Schema generation error:', err instanceof Error ? err.message : err);
+			return res.status(500).json({ error: 'Failed to generate schema' });
+		}
+
+		// Validate it's parseable JSON
+		try {
+			JSON.parse(schemaJson);
+		} catch {
+			console.error('[Pages] Schema JSON parse error:', schemaJson.slice(0, 200));
+			return res.status(500).json({ error: 'Generated schema was not valid JSON' });
+		}
+
+		const schemaScript = `<script type="application/ld+json">\n${schemaJson}\n</script>`;
+
+		// Persist schema + set schema_generated flag (closes UPSA Module 5 schemaGenerated check)
+		const updatedBriefData = {
+			...(briefData ?? {}),
+			schema_generated: true,
+			schema_markup: schemaScript
+		};
+
+		await supabase
+			.from('pages')
+			.update({
+				schema_markup: schemaScript,
+				brief_data: updatedBriefData,
+				updated_at: new Date().toISOString()
+			})
+			.eq('id', pageId);
+
+		return res.json({
+			success: true,
+			data: {
+				schema: schemaScript,
+				schemaJson,
+				primaryType,
+				recommendedTypes,
+				competitorTypes: competitorSchemaTypes
+			}
+		});
+	} catch (err) {
+		console.error('[Pages] generateSchema error:', err);
+		return res.status(500).json({ error: 'Internal server error' });
 	}
 };

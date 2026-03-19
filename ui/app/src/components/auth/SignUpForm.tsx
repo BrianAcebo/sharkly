@@ -33,13 +33,14 @@ export default function SignUpForm() {
 	const [isRateLimited, setIsRateLimited] = useState(false);
 	const { signInWithGoogle, signUp, message, loadingState } = useAuth();
 
-	const marketingUrl = import.meta.env.VITE_MARKETING_URL;
+	const marketingUrl = import.meta.env.VITE_MARKETING_URL ?? 'https://sharkly.co';
 
 	// Persist shopify_store and return_to for post-signup redirect (e.g. Shopify attach flow)
 	useEffect(() => {
 		try {
 			if (shopifyStore) sessionStorage.setItem('sharkly_shopify_store', shopifyStore);
-			if (returnTo && returnTo.startsWith('/')) sessionStorage.setItem('sharkly_return_to', returnTo);
+			if (returnTo && returnTo.startsWith('/'))
+				sessionStorage.setItem('sharkly_return_to', returnTo);
 		} catch {
 			// ignore
 		}
@@ -58,7 +59,7 @@ export default function SignUpForm() {
 		const shopifyError = searchParams.get('shopify_error');
 		if (shopifyError === 'invalid_state') {
 			toast.error(
-				'The Shopify connection timed out. Sign up or sign in, then connect your store from Settings → Integrations.',
+				'The Shopify connection timed out. Sign up or sign in, then connect your store from your site’s details on the Sites page.',
 				{ duration: 8000 }
 			);
 		} else if (shopifyError === 'oauth_failed') {

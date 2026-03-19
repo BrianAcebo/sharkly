@@ -30,6 +30,24 @@ export async function generateMetaSuggestions(req: Request, res: Response): Prom
 			return;
 		}
 
+		// Charge credits before AI call
+		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
+			p_org_id: organizationId,
+			p_credits: CREDIT_COSTS.META_GENERATION,
+			p_reference_type: 'content_generation',
+			p_reference_id: null,
+			p_description: `Meta suggestions for keyword: ${keyword}`
+		});
+
+		if (spendError || !spendResult?.ok) {
+			res.status(402).json({
+				error: 'Insufficient credits',
+				required: CREDIT_COSTS.META_GENERATION,
+				needs_topup: spendResult?.reason?.includes('insufficient') || false
+			});
+			return;
+		}
+
 		// Generate meta titles and descriptions via GPT
 		const completion = await openai.chat.completions.create({
 			model: GPT_CONTENT_MODEL,
@@ -62,24 +80,6 @@ Requirements:
 
 		const suggestions = JSON.parse(completion.choices[0].message.content || '{}');
 
-		// Spend credits using RPC (handles included + wallet automatically)
-		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
-			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.META_GENERATION,
-			p_reference_type: 'content_generation',
-			p_reference_id: null,
-			p_description: `Meta suggestions for keyword: ${keyword}`
-		});
-
-		if (spendError || !spendResult?.ok) {
-			res.status(402).json({
-				error: 'Insufficient credits',
-				required: CREDIT_COSTS.META_GENERATION,
-				needs_topup: spendResult?.reason?.includes('insufficient') || false
-			});
-			return;
-		}
-
 		res.json({
 			success: true,
 			data: {
@@ -108,6 +108,24 @@ export async function rewriteProductDescription(req: Request, res: Response): Pr
 
 		if (!organizationId || !currentDescription || !productName) {
 			res.status(400).json({ error: 'organizationId, currentDescription, and productName required' });
+			return;
+		}
+
+		// Charge credits before AI call
+		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
+			p_org_id: organizationId,
+			p_credits: CREDIT_COSTS.PRODUCT_DESCRIPTION,
+			p_reference_type: 'content_generation',
+			p_reference_id: null,
+			p_description: `Product description rewrite for: ${productName}`
+		});
+
+		if (spendError || !spendResult?.ok) {
+			res.status(402).json({
+				error: 'Insufficient credits',
+				required: CREDIT_COSTS.PRODUCT_DESCRIPTION,
+				needs_topup: spendResult?.reason?.includes('insufficient') || false
+			});
 			return;
 		}
 
@@ -145,24 +163,6 @@ Each version should:
 
 		const suggestions = JSON.parse(completion.choices[0].message.content || '{}');
 
-		// Spend credits using RPC (handles included + wallet automatically)
-		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
-			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.PRODUCT_DESCRIPTION,
-			p_reference_type: 'content_generation',
-			p_reference_id: null,
-			p_description: `Product description rewrite for: ${productName}`
-		});
-
-		if (spendError || !spendResult?.ok) {
-			res.status(402).json({
-				error: 'Insufficient credits',
-				required: CREDIT_COSTS.PRODUCT_DESCRIPTION,
-				needs_topup: spendResult?.reason?.includes('insufficient') || false
-			});
-			return;
-		}
-
 		res.json({
 			success: true,
 			data: {
@@ -188,6 +188,24 @@ export async function generateFAQ(req: Request, res: Response): Promise<void> {
 
 		if (!organizationId || !topic) {
 			res.status(400).json({ error: 'organizationId and topic required' });
+			return;
+		}
+
+		// Charge credits before AI call
+		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
+			p_org_id: organizationId,
+			p_credits: CREDIT_COSTS.FAQ_GENERATION,
+			p_reference_type: 'content_generation',
+			p_reference_id: null,
+			p_description: `FAQ generation for: ${topic}`
+		});
+
+		if (spendError || !spendResult?.ok) {
+			res.status(402).json({
+				error: 'Insufficient credits',
+				required: CREDIT_COSTS.FAQ_GENERATION,
+				needs_topup: spendResult?.reason?.includes('insufficient') || false
+			});
 			return;
 		}
 
@@ -227,24 +245,6 @@ Generate 8 questions/answers that:
 
 		const suggestions = JSON.parse(completion.choices[0].message.content || '{}');
 
-		// Spend credits using RPC (handles included + wallet automatically)
-		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
-			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.FAQ_GENERATION,
-			p_reference_type: 'content_generation',
-			p_reference_id: null,
-			p_description: `FAQ generation for: ${topic}`
-		});
-
-		if (spendError || !spendResult?.ok) {
-			res.status(402).json({
-				error: 'Insufficient credits',
-				required: CREDIT_COSTS.FAQ_GENERATION,
-				needs_topup: spendResult?.reason?.includes('insufficient') || false
-			});
-			return;
-		}
-
 		res.json({
 			success: true,
 			data: {
@@ -270,6 +270,24 @@ export async function rewriteSection(req: Request, res: Response): Promise<void>
 
 		if (!organizationId || !sectionContent) {
 			res.status(400).json({ error: 'organizationId and sectionContent required' });
+			return;
+		}
+
+		// Charge credits before AI call
+		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
+			p_org_id: organizationId,
+			p_credits: CREDIT_COSTS.SECTION_REWRITE,
+			p_reference_type: 'content_generation',
+			p_reference_id: null,
+			p_description: 'Content section rewrite'
+		});
+
+		if (spendError || !spendResult?.ok) {
+			res.status(402).json({
+				error: 'Insufficient credits',
+				required: CREDIT_COSTS.SECTION_REWRITE,
+				needs_topup: spendResult?.reason?.includes('insufficient') || false
+			});
 			return;
 		}
 
@@ -305,24 +323,6 @@ Each version should:
 
 		const suggestions = JSON.parse(completion.choices[0].message.content || '{}');
 
-		// Spend credits using RPC (handles included + wallet automatically)
-		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
-			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.SECTION_REWRITE,
-			p_reference_type: 'content_generation',
-			p_reference_id: null,
-			p_description: 'Content section rewrite'
-		});
-
-		if (spendError || !spendResult?.ok) {
-			res.status(402).json({
-				error: 'Insufficient credits',
-				required: CREDIT_COSTS.SECTION_REWRITE,
-				needs_topup: spendResult?.reason?.includes('insufficient') || false
-			});
-			return;
-		}
-
 		res.json({
 			success: true,
 			data: {
@@ -356,6 +356,24 @@ export async function adjustTone(req: Request, res: Response): Promise<void> {
 			return;
 		}
 
+		// Charge credits before AI call
+		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
+			p_org_id: organizationId,
+			p_credits: CREDIT_COSTS.TONE_ADJUSTMENT,
+			p_reference_type: 'content_generation',
+			p_reference_id: null,
+			p_description: `Tone adjustment to: ${targetTone}`
+		});
+
+		if (spendError || !spendResult?.ok) {
+			res.status(402).json({
+				error: 'Insufficient credits',
+				required: CREDIT_COSTS.TONE_ADJUSTMENT,
+				needs_topup: spendResult?.reason?.includes('insufficient') || false
+			});
+			return;
+		}
+
 		// Adjust tone via GPT
 		const completion = await openai.chat.completions.create({
 			model: GPT_CONTENT_MODEL,
@@ -378,24 +396,6 @@ Return ONLY the rewritten content, no JSON, no markdown blocks.`
 		});
 
 		const rewritten = completion.choices[0].message.content || '';
-
-		// Spend credits using RPC (handles included + wallet automatically)
-		const { data: spendResult, error: spendError } = await supabase.rpc('spend_credits', {
-			p_org_id: organizationId,
-			p_credits: CREDIT_COSTS.TONE_ADJUSTMENT,
-			p_reference_type: 'content_generation',
-			p_reference_id: null,
-			p_description: `Tone adjustment to: ${targetTone}`
-		});
-
-		if (spendError || !spendResult?.ok) {
-			res.status(402).json({
-				error: 'Insufficient credits',
-				required: CREDIT_COSTS.TONE_ADJUSTMENT,
-				needs_topup: spendResult?.reason?.includes('insufficient') || false
-			});
-			return;
-		}
 
 		res.json({
 			success: true,

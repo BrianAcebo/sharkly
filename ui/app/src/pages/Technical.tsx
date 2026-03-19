@@ -36,10 +36,16 @@ import {
 	Minus,
 	Search,
 	Award,
-	Download
+	Download,
+	Newspaper,
+	Mic,
+	Smartphone,
+	PenLine,
+	Handshake
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
+import { CreditCost } from '../components/shared/CreditBadge';
 import { CREDIT_COSTS } from '../lib/credits';
 import { TierGate } from '../components/common/TierGate';
 import { LawTooltip } from '../components/shared/LawTooltip';
@@ -312,7 +318,7 @@ function BrandSearchPanel({
 			icon: <TrendingUp className="size-4 text-blue-500" />
 		},
 		declining: {
-			label: '⚠ Ratio Declining',
+			label: 'Ratio Declining',
 			color: 'text-amber-500',
 			bg: 'bg-amber-500/10 border-amber-500/20',
 			icon: <TrendingDown className="size-4 text-amber-500" />
@@ -416,7 +422,14 @@ function BrandSearchPanel({
 								}`}
 							>
 								<p className="text-sm font-medium text-amber-800 dark:text-amber-200">
-									{ratioStatus.status === 'warning' ? '⚠ Links outpacing brand recognition' : 'Links growing faster than brand'}
+									{ratioStatus.status === 'warning' ? (
+									<span className="inline-flex items-center gap-1.5">
+										<AlertTriangle className="size-4 shrink-0" />
+										Links outpacing brand recognition
+									</span>
+								) : (
+									'Links growing faster than brand'
+								)}
 								</p>
 								<p className="mt-1 text-sm text-amber-700 dark:text-amber-300">{ratioStatus.message}</p>
 							</div>
@@ -560,23 +573,23 @@ function BrandSearchPanel({
 							<ul className="space-y-1.5">
 								{[
 									{
-										icon: '📰',
+										icon: <Newspaper className="size-4 shrink-0" />,
 										text: 'PR placements — get your brand name mentioned in industry publications'
 									},
 									{
-										icon: '🎙️',
+										icon: <Mic className="size-4 shrink-0" />,
 										text: 'Podcast appearances — say your brand name, listeners search for it later'
 									},
 									{
-										icon: '📱',
+										icon: <Smartphone className="size-4 shrink-0" />,
 										text: 'Social media — consistent brand name usage across platforms builds recall'
 									},
 									{
-										icon: '✍️',
+										icon: <PenLine className="size-4 shrink-0" />,
 										text: 'Use your brand name naturally in all content (not just in logos)'
 									},
 									{
-										icon: '🤝',
+										icon: <Handshake className="size-4 shrink-0" />,
 										text: 'Partnerships — co-marketing puts your name in front of new audiences'
 									}
 								].map(({ icon, text }) => (
@@ -584,7 +597,7 @@ function BrandSearchPanel({
 										key={text}
 										className="flex items-start gap-2 text-xs text-gray-600 dark:text-gray-400"
 									>
-										<span className="mt-0.5 flex-shrink-0">{icon}</span>
+										<span className="mt-0.5 flex-shrink-0 text-gray-500 dark:text-gray-400">{icon}</span>
 										<span>{text}</span>
 									</li>
 								))}
@@ -983,7 +996,7 @@ function LinkVelocityPanel({
 						onClick={runCheck}
 						startIcon={running ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
 					>
-						{running ? 'Checking…' : `Check now (${CREDIT_COSTS.LINK_VELOCITY_CHECK} credits)`}
+						{running ? 'Checking…' : <>Check now — <CreditCost amount={CREDIT_COSTS.LINK_VELOCITY_CHECK} /></>}
 					</Button>
 				</div>
 			</div>
@@ -1123,7 +1136,7 @@ function ToxicLinksPanel({
 					onClick={runAudit}
 					startIcon={running ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
 				>
-					{running ? 'Running…' : `Run audit (${CREDIT_COSTS.TOXIC_LINK_AUDIT} credits)`}
+					{running ? 'Running…' : <>Run audit — <CreditCost amount={CREDIT_COSTS.TOXIC_LINK_AUDIT} /></>}
 				</Button>
 			</div>
 
@@ -1793,7 +1806,7 @@ export default function Technical() {
 						<div>
 							<p className="font-medium text-gray-900 dark:text-white">Run Site Crawl</p>
 							<p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-								Audits up to 100 pages across 12 technical layers · 10 credits
+								Audits up to 100 pages across 12 technical layers — <CreditCost amount={CREDIT_COSTS.SITE_CRAWL} />
 								{results?.crawlMeta?.end_time && (
 									<span className="ml-2 inline-flex items-center gap-1">
 										<Clock className="size-3" />

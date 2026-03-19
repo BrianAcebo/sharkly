@@ -10,6 +10,7 @@ export type SchemaType =
 	| 'Article'
 	| 'FAQPage'
 	| 'Product'
+	| 'CollectionPage'
 	| 'LocalBusiness'
 	| 'BreadcrumbList'
 	| 'HowTo'
@@ -480,6 +481,39 @@ export function getShopifyArticleLiquidSnippet(): string {
     "@type": "Organization",
     "name": {{ shop.name | json }},
     "url": {{ shop.url | json }}
+  }
+}
+</script>`;
+}
+
+/** CollectionPage schema (dynamic) — uses Shopify collection object. */
+export function getShopifyCollectionLiquidSnippet(): string {
+	return `{% comment %}
+  Collection schema (dynamic) — uses Shopify collection object.
+  Save as: snippets/schema-collection.liquid
+  Include in collection template: {% render 'schema-collection' %}
+{% endcomment %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": {{ collection.title | json }},
+  "description": {{ collection.description | strip_html | truncate: 300 | json }},
+  "url": {{ shop.url | append: collection.url | json }},
+  "mainEntity": {
+    "@type": "ItemList",
+    "name": {{ collection.title | json }},
+    "numberOfItems": {{ collection.products_count | json }},
+    "itemListElement": [
+      {% for product in collection.products limit: 10 %}
+      {
+        "@type": "ListItem",
+        "position": {{ forloop.index }},
+        "url": {{ shop.url | append: product.url | json }},
+        "name": {{ product.title | json }}
+      }{% unless forloop.last %},{% endunless %}
+      {% endfor %}
+    ]
   }
 }
 </script>`;

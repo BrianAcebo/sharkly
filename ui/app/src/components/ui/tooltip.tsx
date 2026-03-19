@@ -79,7 +79,7 @@ export function Tooltip({
 	const tooltipContent = (
 		<span
 			className={cn(
-				'pointer-events-none z-[9999] rounded bg-black px-2 py-1 text-xs text-white',
+				'pointer-events-none z-[9999] min-w-[220px] max-w-[340px] whitespace-normal rounded bg-black px-3 py-2 text-left text-xs text-white',
 				usePortal ? 'fixed' : 'absolute',
 				!usePortal && tooltipPositionClasses[tooltipPosition],
 				!usePortal && 'scale-0 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100',

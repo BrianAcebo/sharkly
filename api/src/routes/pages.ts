@@ -5,6 +5,7 @@ import {
 	generateBrief,
 	generateArticle,
 	rewriteSection,
+	updateBriefSection,
 	generateFAQ,
 	getCroFixes
 } from '../controllers/pages.js';
@@ -16,6 +17,7 @@ router.get('/:id/diagnose', requireAuth, requireTier('growth'), diagnosePage);
 router.post('/:id/brief', requireAuth, generateBrief);
 router.post('/:id/article', requireAuth, generateArticle);
 router.post('/:id/rewrite-section', requireAuth, rewriteSection);
+router.patch('/:id/brief-section', requireAuth, updateBriefSection);
 router.post('/:id/generate-faq', requireAuth, generateFAQ);
 router.post('/:id/cro-fixes', requireAuth, getCroFixes);
 

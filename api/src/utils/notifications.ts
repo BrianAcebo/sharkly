@@ -12,6 +12,8 @@ export interface CreateNotificationInput {
 	priority?: 'low' | 'medium' | 'high';
 	action_url?: string | null;
 	metadata?: Record<string, unknown>;
+	/** When true, notification appears in panel but does not trigger a toast. */
+	skipToast?: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ export async function createNotificationForUser(
 			action_url: input.action_url ?? null,
 			metadata: input.metadata ?? {},
 			read: false,
-			shown: false
+			shown: input.skipToast ?? false
 		});
 	} catch (e) {
 		console.warn('[notifications] Failed to create notification for user', { userId, type: input.type, error: e });

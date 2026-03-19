@@ -64,6 +64,18 @@ export function canAccessTechnical(organization: OrganizationRow | null): boolea
 }
 
 /**
+ * Check if organization has CRO Studio add-on ($29/month).
+ * CRO Studio is a separate product space for destination page conversion audits.
+ * When true, CRO Studio nav item is unlocked and destination pages are accessible.
+ *
+ * IMPORTANT: All CRO Studio feature gates must use this check.
+ * Organization must have has_cro_addon === true to access CRO Studio.
+ */
+export function canAccessCROStudio(organization: OrganizationRow | null): boolean {
+  return organization?.has_cro_addon === true;
+}
+
+/**
  * Check if organization has access to bundled features
  * For trials with "no bundled minutes", keep included quotas at 0 until stripe_status='active'
  */

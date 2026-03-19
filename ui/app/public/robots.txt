@@ -1,0 +1,4 @@
+# Block all crawlers from app.sharkly.co
+# App routes are authenticated; no public content to index
+User-agent: *
+Disallow: /

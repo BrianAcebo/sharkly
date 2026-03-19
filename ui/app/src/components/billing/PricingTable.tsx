@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
-import { CheckCircle, Users, Coins, MessageCircle } from 'lucide-react';
+import { CheckCircle, Users, Coins, MessageCircle, ExternalLink } from 'lucide-react';
 import { PlanCatalogRow } from '../../types/billing';
+import { getMarketingUrl } from '../../utils/urls';
 import {
 	Dialog,
 	DialogContent,
@@ -36,12 +37,13 @@ const PricingTable: React.FC<PricingTableProps> = ({
 			{ icon: Coins, text: `${plan.included_credits.toLocaleString()} credits` }
 		];
 		const chatMessages = plan.included_chat_messages ?? 0;
-		if (chatMessages > 0) {
-			features.push({
-				icon: MessageCircle,
-				text: `Fin AI Assistant (${chatMessages.toLocaleString()} messages/mo)`
-			});
-		}
+		features.push({
+			icon: MessageCircle,
+			text:
+				chatMessages > 0
+					? `Fin AI Assistant (${chatMessages.toLocaleString()} messages/mo)`
+					: 'Fin AI Assistant — Upgrade to Growth'
+		});
 		return { features };
 	};
 
@@ -52,6 +54,15 @@ const PricingTable: React.FC<PricingTableProps> = ({
 				<p className="text-gray-600 dark:text-gray-400">
 					Select the plan that best fits your organization's needs
 				</p>
+				<a
+					href={`${getMarketingUrl()}/pricing`}
+					target="_blank"
+					rel="noopener noreferrer"
+					className="mt-2 inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+				>
+					View full feature comparison
+					<ExternalLink className="size-3.5" />
+				</a>
 			</div>
 
 			<div className="grid grid-cols-1 gap-6 md:grid-cols-3">

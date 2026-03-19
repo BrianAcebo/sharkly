@@ -17,7 +17,9 @@ import {
   Trash2, 
   Check, 
   RefreshCw,
-  Search
+  Search,
+  Calendar,
+  Eye
 } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import Input from '../components/form/input/InputField';
@@ -561,9 +563,9 @@ export default function Notifications() {
                           )}
                           
                           <div className="flex items-center gap-4 mt-4 text-sm text-gray-500 dark:text-gray-400">
-                            <span>📅 {formatTimeAgo(notification.created_at)}</span>
+                            <span className="inline-flex items-center gap-1.5"><Calendar className="size-4" /> {formatTimeAgo(notification.created_at)}</span>
                             {notification.read && notification.read_at && (
-                              <span>👁️ Read {formatTimeAgo(notification.read_at)}</span>
+                              <span className="inline-flex items-center gap-1.5"><Eye className="size-4" /> Read {formatTimeAgo(notification.read_at)}</span>
                             )}
                           </div>
                         </div>

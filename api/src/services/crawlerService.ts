@@ -184,6 +184,14 @@ export class CrawlerService {
 			// Save all results
 			await this.saveResults(siteId, session.results, siteWideIssues);
 
+			// Update internal_links.implemented from crawl — Cluster Health Check uses this
+			try {
+				const { updateInternalLinksFromCrawl } = await import('./internalLinkCrawlSync.js');
+				await updateInternalLinksFromCrawl(siteId, session.results, siteUrl);
+			} catch (syncErr) {
+				console.warn('[Crawler] Internal link sync failed:', syncErr);
+			}
+
 			const allIssues = [...session.results.flatMap((r) => r.issues), ...siteWideIssues];
 			const criticalCount = allIssues.filter((i) => i.severity === 'critical').length;
 			const warningCount = allIssues.filter((i) => i.severity === 'warning').length;

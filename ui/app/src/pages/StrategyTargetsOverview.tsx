@@ -8,18 +8,37 @@ import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
 import { Button } from '../components/ui/button';
-import { Plus, FileText, Layers, Target as TargetIcon } from 'lucide-react';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger
+} from '../components/ui/dropdown-menu';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle
+} from '../components/ui/alert-dialog';
+import { Plus, FileText, Layers, MoreVertical, Target as TargetIcon, Trash2 } from 'lucide-react';
 import { useSiteContext } from '../contexts/SiteContext';
 import { useTargets } from '../hooks/useTargets';
 import { useTopics } from '../hooks/useTopics';
 import { useClusters } from '../hooks/useClusters';
 import { AddTargetModal } from '../components/strategy/AddTargetModal';
+import { toast } from 'sonner';
 import type { Target } from '../types/target';
 
 
 export default function StrategyTargetsOverview() {
 	const { selectedSite } = useSiteContext();
-	const { targets, loading, refetch } = useTargets(selectedSite?.id ?? null);
+	const { targets, loading, refetch, deleteTarget } = useTargets(selectedSite?.id ?? null);
+	const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<Target | null>(null);
+	const [deleting, setDeleting] = useState(false);
 	const { topics } = useTopics(selectedSite?.id ?? null);
 	const { clusters } = useClusters(selectedSite?.id ?? null);
 	const [addModalOpen, setAddModalOpen] = useState(false);
@@ -93,36 +112,63 @@ export default function StrategyTargetsOverview() {
 						{targets.map((target) => {
 							const { topicCount, clusterCount, inProgress } = getTargetStats(target);
 							return (
-								<Link
+								<div
 									key={target.id}
-									to={`/strategy/${target.id}`}
-									className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 transition-colors hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-700 dark:hover:bg-brand-950/30"
+									className="relative flex flex-col rounded-xl border border-gray-200 bg-white p-5 transition-colors hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-700 dark:hover:bg-brand-950/30"
 								>
-									<h3 className="font-semibold text-gray-900 dark:text-white">{target.name}</h3>
-									{target.destinationPageLabel && (
-										<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-											→ {target.destinationPageLabel}
-										</p>
-									)}
-									<div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-400">
-										<span className="flex items-center gap-1.5">
-											<FileText className="size-4" />
-											{topicCount} topic{topicCount !== 1 ? 's' : ''}
-										</span>
-										<span className="flex items-center gap-1.5">
-											<Layers className="size-4" />
-											{clusterCount} cluster{clusterCount !== 1 ? 's' : ''}
-										</span>
-										{inProgress > 0 && (
-											<span className="text-brand-600 dark:text-brand-400">
-												{inProgress} in progress
-											</span>
-										)}
+									<div className="absolute top-3 right-3">
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													variant="ghost"
+													size="icon"
+													className="size-8 -mr-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+													onClick={(e) => e.stopPropagation()}
+												>
+													<MoreVertical className="size-4" />
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end">
+												<DropdownMenuItem
+													className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+													onClick={() => setDeleteConfirmTarget(target)}
+												>
+													<Trash2 className="mr-2 size-4" />
+													Delete target
+												</DropdownMenuItem>
+											</DropdownMenuContent>
+										</DropdownMenu>
 									</div>
-									<span className="mt-4 text-sm font-medium text-brand-600 dark:text-brand-400">
-										View Topics →
-									</span>
-								</Link>
+									<Link
+										to={`/strategy/${target.id}`}
+										className="flex flex-1 flex-col"
+									>
+										<h3 className="pr-8 font-semibold text-gray-900 dark:text-white">{target.name}</h3>
+										{target.destinationPageLabel && (
+											<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+												→ {target.destinationPageLabel}
+											</p>
+										)}
+										<div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-400">
+											<span className="flex items-center gap-1.5">
+												<FileText className="size-4" />
+												{topicCount} topic{topicCount !== 1 ? 's' : ''}
+											</span>
+											<span className="flex items-center gap-1.5">
+												<Layers className="size-4" />
+												{clusterCount} cluster{clusterCount !== 1 ? 's' : ''}
+											</span>
+											{inProgress > 0 && (
+												<span className="text-brand-600 dark:text-brand-400">
+													{inProgress} in progress
+												</span>
+											)}
+										</div>
+										<span className="mt-4 text-sm font-medium text-brand-600 dark:text-brand-400">
+											View Topics →
+										</span>
+									</Link>
+								</div>
 							);
 						})}
 					</div>
@@ -135,6 +181,44 @@ export default function StrategyTargetsOverview() {
 				siteId={selectedSite?.id ?? ''}
 				onTargetCreated={() => refetch()}
 			/>
+
+			<AlertDialog
+				open={!!deleteConfirmTarget}
+				onOpenChange={(open) => !open && setDeleteConfirmTarget(null)}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete target?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will permanently delete &quot;{deleteConfirmTarget?.name}&quot; and all its topics,
+							clusters, and related content. This cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-red-600 hover:bg-red-700"
+							onClick={async (e) => {
+								e.preventDefault();
+								if (!deleteConfirmTarget) return;
+								setDeleting(true);
+								const { error } = await deleteTarget(deleteConfirmTarget.id);
+								setDeleting(false);
+								setDeleteConfirmTarget(null);
+								if (error) {
+									toast.error(error);
+								} else {
+									refetch();
+									toast.success('Target deleted');
+								}
+							}}
+							disabled={deleting}
+						>
+							{deleting ? 'Deleting…' : 'Delete'}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</>
 	);
 }

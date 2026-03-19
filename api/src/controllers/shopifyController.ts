@@ -19,8 +19,6 @@ import {
 } from '../services/shopifyService.js';
 import { generateRandomString } from '../utils/helpers.js';
 
-const oauthStates = new Map<string, { siteId: string | null; createdAt: number }>();
-
 const STATE_TTL_MS = 20 * 60 * 1000; // 20 minutes (covers slow install, cold starts)
 
 function getShopifyRedirectUri(): string {
@@ -30,10 +28,23 @@ function getShopifyRedirectUri(): string {
 	return `${backendUrl}/auth/shopify/callback`;
 }
 
-function cleanupExpiredStates() {
-	for (const [key, value] of oauthStates.entries()) {
-		if (Date.now() - value.createdAt > STATE_TTL_MS) oauthStates.delete(key);
-	}
+async function saveOAuthState(state: string, siteId: string | null): Promise<void> {
+	await supabase.from('shopify_oauth_states').insert({ state, site_id: siteId });
+	// Clean up expired rows occasionally (fire-and-forget)
+	supabase.from('shopify_oauth_states').delete().lt('created_at', new Date(Date.now() - STATE_TTL_MS).toISOString()).then(() => {});
+}
+
+async function consumeOAuthState(state: string): Promise<{ siteId: string | null } | null> {
+	const cutoff = new Date(Date.now() - STATE_TTL_MS).toISOString();
+	const { data, error } = await supabase
+		.from('shopify_oauth_states')
+		.select('site_id')
+		.eq('state', state)
+		.gte('created_at', cutoff)
+		.maybeSingle();
+	if (error || !data) return null;
+	await supabase.from('shopify_oauth_states').delete().eq('state', state);
+	return { siteId: (data.site_id as string | null) ?? null };
 }
 
 /**
@@ -55,8 +66,7 @@ export async function startShopifyOAuth(req: Request, res: Response): Promise<vo
 		}
 
 		const state = generateRandomString(32);
-		oauthStates.set(state, { siteId, createdAt: Date.now() });
-		cleanupExpiredStates();
+		await saveOAuthState(state, siteId);
 
 		const redirectUri = getShopifyRedirectUri();
 		const authUrl = getShopifyAuthUrl(shop, state, redirectUri);
@@ -81,8 +91,7 @@ export async function startShopifyOAuthInstall(req: Request, res: Response): Pro
 		}
 
 		const state = generateRandomString(32);
-		oauthStates.set(state, { siteId: null, createdAt: Date.now() });
-		cleanupExpiredStates();
+		await saveOAuthState(state, null);
 
 		const redirectUri = getShopifyRedirectUri();
 		const authUrl = getShopifyAuthUrl(shop, state, redirectUri);
@@ -105,11 +114,11 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 		const { code, shop, hmac, state } = req.query as Record<string, string>;
 
 		if (!code || !shop || !hmac || !state) {
-			res.redirect(`${frontendUrl}/settings/integrations?shopify_error=missing_params`);
+			res.redirect(`${frontendUrl}/sites?shopify_error=missing_params`);
 			return;
 		}
 
-		const stateData = oauthStates.get(state);
+		const stateData = await consumeOAuthState(state);
 		if (!stateData) {
 			const appUrl = process.env.FRONTEND_URL || 'https://app.sharkly.co';
 			const shopDomain = (shop || '').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
@@ -119,18 +128,17 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 			res.redirect(`${appUrl}/signup?${query.toString()}`);
 			return;
 		}
-		oauthStates.delete(state);
 
 		const secret = process.env.SHOPIFY_API_SECRET;
 		if (!secret) {
 			console.error('[Shopify] SHOPIFY_API_SECRET not configured');
-			res.redirect(`${frontendUrl}/settings/integrations?shopify_error=config`);
+			res.redirect(`${frontendUrl}/sites?shopify_error=config`);
 			return;
 		}
 
 		const params = { code, shop, state, ...(req.query as Record<string, string>) };
 		if (!verifyShopifyHmac(params, hmac, secret)) {
-			res.redirect(`${frontendUrl}/settings/integrations?shopify_error=hmac_invalid`);
+			res.redirect(`${frontendUrl}/sites?shopify_error=hmac_invalid`);
 			return;
 		}
 
@@ -154,15 +162,15 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 
 		const { error } = await saveShopifyConnection(stateData.siteId, finalDomain, access_token);
 		if (error) {
-			res.redirect(`${frontendUrl}/settings/integrations?shopify_error=save_failed`);
+			res.redirect(`${frontendUrl}/sites?shopify_error=save_failed`);
 			return;
 		}
 
-		res.redirect(`${frontendUrl}/settings/integrations?shopify_success=1&siteId=${stateData.siteId}`);
+		res.redirect(`${frontendUrl}/sites?shopify_success=1&siteId=${stateData.siteId}`);
 	} catch (error) {
 		console.error('[Shopify] OAuth callback error:', error);
 		const msg = encodeURIComponent(error instanceof Error ? error.message : 'Unknown error');
-		res.redirect(`${frontendUrl}/settings/integrations?shopify_error=${msg}`);
+		res.redirect(`${frontendUrl}/sites?shopify_error=${msg}`);
 	}
 }
 

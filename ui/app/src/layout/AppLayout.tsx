@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import AppHeader from '../components/header/AppHeader';
 import AppSidebar from '../components/header/AppSidebar';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router';
+import { getMarketingUrl } from '../utils/urls';
 import { useSidebar } from '../hooks/useSidebar';
 import { BreadcrumbsProvider } from '../providers/BreadcrumbsProvider';
 import { SidebarProvider } from '../providers/SidebarProvider';
@@ -21,6 +22,8 @@ import Backdrop from './Backdrop';
 import ChatWidget from '../components/chat/ChatWidget';
 import { ChatProvider } from '../contexts/ChatContext';
 import { SiteProvider } from '../contexts/SiteContext';
+import { CROStudioUpgradeProvider } from '../contexts/CROStudioUpgradeContext';
+import { TierUpgradeProvider } from '../contexts/TierUpgradeContext';
 
 const LayoutContent: React.FC = () => {
 	const { pathname } = useLocation();
@@ -28,7 +31,7 @@ const LayoutContent: React.FC = () => {
 	const { isExpanded, isMobileOpen } = useSidebar();
 	const { user, loadingState, session } = useAuth();
 	const trialInfo = useTrial();
-	const { organization: currentOrg } = useOrganization();
+	const { organization: currentOrg, loading: orgLoading } = useOrganization();
 	const { isPaused, isDisabled, status: orgStatus } = useOrganizationStatus();
 
 	const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
@@ -47,9 +50,10 @@ const LayoutContent: React.FC = () => {
 		return <AuthLoading state={AuthLoadingState.LOADING} />;
 	}
 
-	// Simple redirects without state
+	// Simple redirects without state — send unauthenticated users directly to marketing home
 	if (!session || !user?.id) {
-		return <Navigate to="/" replace />;
+		window.location.href = getMarketingUrl();
+		return null;
 	}
 
 	// For newly created users, prioritize onboarding over organization check
@@ -175,7 +179,7 @@ const LayoutContent: React.FC = () => {
 		<>
 			<div className="min-h-screen">
 				<div>
-					<AppSidebar organization={organizationForBilling} />
+					<AppSidebar organization={organizationForBilling} organizationLoading={orgLoading} />
 					<Backdrop />
 				</div>
 				<div
@@ -201,10 +205,14 @@ const AppLayout: React.FC = () => {
 		<SidebarProvider>
 			<BreadcrumbsProvider>
 				<SiteProvider>
-					<ChatProvider>
-						<LayoutContent />
-						<ChatWidget />
-					</ChatProvider>
+					<CROStudioUpgradeProvider>
+						<TierUpgradeProvider>
+							<ChatProvider>
+								<LayoutContent />
+								<ChatWidget />
+							</ChatProvider>
+						</TierUpgradeProvider>
+					</CROStudioUpgradeProvider>
 				</SiteProvider>
 			</BreadcrumbsProvider>
 		</SidebarProvider>

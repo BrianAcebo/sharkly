@@ -28,7 +28,7 @@ export function LawTooltip({ lawId, tooltipPosition = 'top', size = 'sm' }: Prop
 			content={content}
 			tooltipPosition={tooltipPosition}
 			usePortal
-			className="max-w-[260px] whitespace-normal text-left"
+			className="max-w-[340px]"
 		>
 			<span className="inline-flex cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-500">
 				<Info className={iconClass} />

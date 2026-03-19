@@ -17,6 +17,7 @@ import { Button } from '../ui/button';
 import InputField from '../form/input/InputField';
 import { Loader2, Search, TrendingUp, Target, ShoppingCart, Info, CheckCircle, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { CreditCost } from '../shared/CreditBadge';
 import { CREDIT_COSTS } from '../../lib/credits';
 import { useOrganization } from '../../hooks/useOrganization';
 
@@ -175,7 +176,7 @@ export function KeywordLookupModal({
 						</Button>
 					</div>
 					<p className="text-xs text-gray-400 dark:text-gray-500">
-						{CREDIT_COSTS.KEYWORD_LOOKUP} credits per lookup · Press Enter to search
+						<span className="inline-flex items-center gap-1"><CreditCost amount={CREDIT_COSTS.KEYWORD_LOOKUP} /> per lookup · Press Enter to search</span>
 					</p>
 
 					{/* Results */}

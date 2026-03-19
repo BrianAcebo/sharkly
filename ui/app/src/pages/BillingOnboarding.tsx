@@ -12,7 +12,7 @@ import {
 } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
-import { CheckCircle, ArrowRight, ArrowLeft, Users, Coins } from 'lucide-react';
+import { CheckCircle, ArrowRight, ArrowLeft, Users, Coins, MessageCircle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../utils/api';
@@ -26,6 +26,7 @@ import {
 	PostalAddress,
 	PlanCode
 } from '../types/billing';
+import { getMarketingUrl } from '../utils/urls';
 
 const BillingOnboarding: React.FC = () => {
 	const { user } = useAuth();
@@ -65,7 +66,11 @@ const BillingOnboarding: React.FC = () => {
 			const response = await api.get('/api/billing/plans');
 			const data = await response.json();
 			if (data.plans) {
-				setPlans(data.plans);
+				// Pro plan not offered yet — hide from onboarding
+				const filtered = data.plans.filter(
+					(p: PlanCatalogRow) => !['pro', 'pro_test'].includes(p.plan_code)
+				);
+				setPlans(filtered);
 			}
 		} catch (error) {
 			console.error('Error fetching plans:', error);
@@ -192,6 +197,14 @@ const BillingOnboarding: React.FC = () => {
 							<Coins className="mr-2 h-4 w-4 text-gray-500" />
 							<span>{plan.included_credits.toLocaleString()} credits</span>
 						</div>
+						<div className="flex items-center text-sm">
+							<MessageCircle className="mr-2 h-4 w-4 text-gray-500" />
+							<span>
+								{(plan.included_chat_messages ?? 0) > 0
+									? `Fin AI Assistant (${(plan.included_chat_messages ?? 0).toLocaleString()} messages/mo)`
+									: 'Fin AI Assistant — Upgrade to Growth'}
+							</span>
+						</div>
 					</div>
 				</CardContent>
 			</Card>
@@ -205,6 +218,15 @@ const BillingOnboarding: React.FC = () => {
 				<p className="text-gray-600 dark:text-gray-400">
 					Select the plan that best fits your organization's needs
 				</p>
+				<a
+					href={`${getMarketingUrl()}/pricing`}
+					target="_blank"
+					rel="noopener noreferrer"
+					className="mt-2 inline-flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+				>
+					View full feature comparison
+					<ExternalLink className="size-3.5" />
+				</a>
 			</div>
 
 			<div className="grid grid-cols-1 gap-6 md:grid-cols-3">{plans.map(renderPlanCard)}</div>

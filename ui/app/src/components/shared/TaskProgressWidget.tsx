@@ -10,6 +10,8 @@ import { Check, X, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 export type TaskStep = {
 	id: string;
 	label: string;
+	/** Optional subtitle for step detail (e.g. Research & Write flow) */
+	subtitle?: string;
 	status: 'pending' | 'active' | 'complete';
 };
 
@@ -21,8 +23,10 @@ type Props = {
 	status: TaskStatus;
 	steps: TaskStep[];
 	errorMessage?: string;
-	/** ms between auto-advancing steps when status='running'. Default 3200ms. */
+	/** ms between auto-advancing steps when status='running'. Default 9600ms. Set to 0 or pass disableAutoAdvance to drive from real events. */
 	stepInterval?: number;
+	/** When true, steps are driven by parent (e.g. streaming events) — no auto-advance timer. */
+	disableAutoAdvance?: boolean;
 	onClose: () => void;
 };
 
@@ -80,7 +84,8 @@ export function TaskProgressWidget({
 	status,
 	steps: externalSteps,
 	errorMessage,
-	stepInterval = 3200,
+	stepInterval = 9600,
+	disableAutoAdvance = false,
 	onClose
 }: Props) {
 	const [minimized, setMinimized] = useState(false);
@@ -92,9 +97,9 @@ export function TaskProgressWidget({
 		setInternalSteps(externalSteps);
 	}, [externalSteps]);
 
-	// Auto-advance steps while running
+	// Auto-advance steps while running (skip when parent drives steps via streaming)
 	useEffect(() => {
-		if (status !== 'running') return;
+		if (status !== 'running' || disableAutoAdvance) return;
 
 		const advance = () => {
 			setInternalSteps((prev) => {
@@ -114,11 +119,11 @@ export function TaskProgressWidget({
 			timerRef.current = setTimeout(advance, stepInterval);
 		};
 
-		timerRef.current = setTimeout(advance, 600);
+		timerRef.current = setTimeout(advance, 1800);
 		return () => {
 			if (timerRef.current) clearTimeout(timerRef.current);
 		};
-	}, [status, stepInterval]);
+	}, [status, stepInterval, disableAutoAdvance]);
 
 	// Complete all steps when done
 	useEffect(() => {

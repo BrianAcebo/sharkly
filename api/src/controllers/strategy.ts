@@ -1,65 +1,54 @@
 /**
- * Strategy Topic Generation
+ * Strategy Topic Generation — v5.0 (Data-First Edition)
  *
- * Mirrors SEMrush's Keyword Strategy Builder + Topic Research tool.
+ * Rebuilt to match exactly how a senior SEO strategist works manually:
  *
- * Output: TOPIC AREAS (broad themes), not individual keywords.
- * e.g. "Tree Service Costs" = cluster of keywords like "tree trimming cost",
- * "how much to trim a tree", "tree service prices" — reported with REAL
- * aggregate stats from DataForSEO:
- *   • All keywords  — count of real keywords in the cluster
- *   • Total volume  — sum of real monthly searches across the cluster
- *   • Avg KD        — median keyword difficulty across the cluster
- *   • Avg CPC       — volume-weighted avg CPC across the cluster
+ *   1. Start with the business's services/products as seed topics
+ *   2. Map the full competitive landscape into topic zones (AI domain knowledge)
+ *   3. Pull real keyword data for EVERY zone simultaneously:
+ *      DataForSEO (volume/KD/CPC) + Google SERP (organic titles) + PAA (user questions)
+ *   4. Profile each zone from the actual data — metrics first, no guessing
+ *   5. AI synthesizes topic titles FROM the keyword clusters
+ *   6. Fill gaps with AI suggestions backed by PAA/SERP signals, clearly labeled
+ *   7. Per-topic SERP research for competition density and format signals
+ *   8. Final metrics computed from real data, priority scored and sorted
  *
- * Pipeline
- * ─────────────────────────────────────────────────────────────────────────
- * Phase 0  PRE-FLIGHT
- *          Credit check (15 credits), site lookup, live Moz DA refresh.
+ * THE CRITICAL FIX FROM v4:
+ * Topics are derived FROM keyword zone data, not generated independently then
+ * matched to data afterward. Every topic has real metrics because it was
+ * built from real metrics. The primary_keyword comes from DataForSEO, not Claude.
  *
- * Phase 1  REAL KEYWORD DISCOVERY
- *          DataForSEO Keyword Suggestions API: up to 100 real keywords per
- *          seed — real volume, real KD, real CPC (same data SEMrush uses).
- *          ALSO runs 4 SERP query variations per seed (Serper) to harvest
- *          PAA questions + related searches + organic titles for clustering
- *          context and topic naming.
- *          DataForSEO = the NUMBERS. Serper SERP = the CONTEXT.
+ * ─── PATENT GROUNDING ────────────────────────────────────────────────────────
  *
- * Phase 2  COMPETITOR GAP ANALYSIS (Serper)
- *          site:{competitor} scrapes reveal every topic they publish.
- *          Proven traffic-driving topics this site doesn't cover yet.
+ * Zone profiling / topic count:
+ *   US9135307B1 — Google pre-classifies domains as high/low quality. Topical
+ *   depth is required before pre-classification fires. Topic count = number
+ *   of zones with real search demand, not a preset.
  *
- * Phase 3  AI TOPIC CLUSTERING (Claude Sonnet)
- *          Claude receives ALL real keywords from DataForSEO + PAA + related
- *          + competitor signals and GROUPS them into 8–15 broad topic areas.
- *          It is explicitly told these are real keywords — its job is to GROUP,
- *          not to invent. Seeds become their own topic or are clearly included.
+ * Priority Score:
+ *   US8682892B1 + US10055467B1 — Traffic tier thresholds. KD above tier = locked.
+ *   US8595225B1 — Navboost. High-dwell topics compound over 13 months. navboostMult.
+ *   US20190155948A1 — Information Gain. No original element = unsustained rankings. igsMult.
  *
- * Phase 4  PER-TOPIC SERP RESEARCH (Serper, parallel)
- *          For each topic, run a real SERP + allintitle: query to measure
- *          competitive density (top domains, high-auth count, local results,
- *          PAA depth, allintitle count).
+ * Internal linking / content briefs:
+ *   US8117209B1 — Body text links in first 400 words pass maximum equity.
  *
- * Phase 5  REAL METRICS COMPUTATION + AI REASONING
- *          For each topic cluster, match all real DataForSEO keywords to it
- *          via exact + fuzzy matching. Call aggregateTopicMetrics() to compute:
- *            total_volume  = sum of all matched keyword monthly searches
- *            keyword_count = number of matched keywords
- *            avg_kd        = median KD (not mean — avoids outlier skew)
- *            cpc           = volume-weighted average CPC
- *          Metrics are COMPUTED from real data. Claude's only job here is
- *          writing ai_reasoning (citing SERP evidence) and strategyRationale.
- *          Falls back to SERP-signal estimation only if DataForSEO is not
- *          configured, with a visible warning in the UI.
+ * Passage scoring:
+ *   US9940367B1 + US9959315B1 — H2s as answerable questions, first-sentence answers.
  *
- * Finalize
- *          Compute authority_fit (achievable/buildToward/locked) from DA vs KD.
- *          Compute priority_score (formula: CPC × √volume / KD × funnel weight
- *          × authority multiplier × traffic tier fit).
- *          Compute KGR score (allintitle / monthly_volume — Quick Win detector).
- *          Sort: achievable → buildToward → locked, then by priority_score desc.
- *          KD determines ORDER — never exclusion.
+ * ─── PIPELINE ────────────────────────────────────────────────────────────────
+ *
+ * Phase 0  PRE-FLIGHT: credit check · DA refresh · GSC impressions · dedup
+ * Phase 1  LANDSCAPE MAPPING: AI generates 12-18 zone seeds from domain knowledge
+ * Phase 2  PARALLEL RESEARCH: DataForSEO + SERP + PAA for every zone simultaneously
+ * Phase 3  ZONE PROFILING: compute vol/KD/CPC/best_keyword per zone from real data
+ * Phase 4  COMPETITOR GAP: site:{competitor} scrapes
+ * Phase 5  AI SYNTHESIS: derive topics FROM zone data (data-first, IGS-gated)
+ * Phase 6  PER-TOPIC SERP: allintitle · format · PAA depth · competition density
+ * Phase 7  METRICS + PRIORITY: exclusive assignment · real aggregation · scoring
+ * Phase 8  AI REASONING: plain-English coaching using real computed numbers
  */
+
 import { Request, Response, RequestHandler } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { serperSearch, parseSearchResultCount } from '../utils/serper.js';
@@ -71,15 +60,17 @@ import {
 	type DfsKeyword
 } from '../utils/dataforseo.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
+import { createNotificationForUser } from '../utils/notifications.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const CLAUDE_MODEL = process.env.CLAUDE_SONNET_MODEL || 'claude-sonnet-4-5-20250929';
+
 const GPT_CONTENT_MODEL = process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini';
 
-// ---------------------------------------------------------------------------
-// Traffic Tier (Avalanche Theory)
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
+// Traffic Tier — US8682892B1 + US10055467B1
+// ─────────────────────────────────────────────────────────────────────────────
 const TRAFFIC_TIERS = [
 	{ minDaily: 0, maxDaily: 10, label: 'Level 0' },
 	{ minDaily: 10, maxDaily: 20, label: 'Level 10' },
@@ -95,6 +86,11 @@ const TRAFFIC_TIERS = [
 	{ minDaily: 10000, maxDaily: 12500, label: 'Level 10,000' },
 	{ minDaily: 25000, maxDaily: 50000, label: 'Level 25,000' }
 ] as const;
+
+/** Write NDJSON line for streaming responses */
+function writeNdjson(res: Response, obj: object): void {
+	res.write(JSON.stringify(obj) + '\n');
+}
 
 function getTrafficTier(monthlyImpressions: number) {
 	const daily = monthlyImpressions / 30;
@@ -121,35 +117,29 @@ function computePriorityScore(
 	avgKd: number,
 	funnel: string,
 	fit: string,
-	monthlyImpressions: number
+	monthlyImpressions: number,
+	navboostMultiplier: number,
+	igsMultiplier: number
 ): number {
-	// Spec formula: (intentWeight × CPC × log10(searches+1)) / (kd/100 + 0.1)
-	// intentWeight: bofu=3, mofu=2, tofu=1
-	// kd/100+0.1 normalises KD to 0-1 scale so CPC remains the dominant signal
+	if (igsMultiplier === 0) return 0;
 	const fw = funnel === 'bofu' ? 3 : funnel === 'mofu' ? 2 : 1;
 	const am = fit === 'achievable' ? 2.0 : fit === 'buildToward' ? 1.2 : 0.5;
-
 	if (monthlyImpressions === 0) {
-		// New site: score on commercial value (CPC) and low competition only.
-		// log10(1+0.1) as volume floor keeps formula consistent with established sites.
 		const base = (fw * Math.max(cpc, 0.1) * Math.log10(1 + 0.1)) / (Math.max(avgKd, 1) / 100 + 0.1);
-		return Math.round(base * am * 100) / 100;
+		return Math.round(base * am * navboostMultiplier * igsMultiplier * 100) / 100;
 	}
-
-	// Core spec formula: log10 dampens outlier volumes; kd/100+0.1 keeps denominator > 0
 	const base =
 		(fw * Math.max(cpc, 0.1) * Math.log10(Math.max(totalVolume, 1) + 1)) /
 		(Math.max(avgKd, 1) / 100 + 0.1);
 	const tier = getTrafficTier(monthlyImpressions);
-	// Prefer topics whose total volume aligns with the site's current traffic tier
 	const tierMax = tier.maxDaily * 60;
 	const tierFit = tierMax > 0 && totalVolume <= tierMax * 2 ? 1.5 : 1.0;
-	return Math.round(base * am * tierFit * 100) / 100;
+	return Math.round(base * am * tierFit * navboostMultiplier * igsMultiplier * 100) / 100;
 }
 
-// ---------------------------------------------------------------------------
-// AI helpers — Claude Sonnet with retry, OpenAI fallback
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
+// AI helpers
+// ─────────────────────────────────────────────────────────────────────────────
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function callClaude(
@@ -213,9 +203,229 @@ async function callOpenAI(system: string, user: string): Promise<string | null> 
 const ai = (system: string, user: string, maxTokens?: number) =>
 	callClaude(system, user, maxTokens).then((r) => r ?? callOpenAI(system, user));
 
-// ---------------------------------------------------------------------------
+function parseJSON<T>(raw: string | null, fallback: T): T {
+	if (!raw) return fallback;
+	try {
+		return JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim()) as T;
+	} catch {
+		return fallback;
+	}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Types
+// ─────────────────────────────────────────────────────────────────────────────
+type CategoryBreadth = 'narrow' | 'medium' | 'broad';
+type NavboostPotential = 'high' | 'medium' | 'low';
+type IgsFeasibility = 'strong' | 'borderline' | 'failed';
+type DominantFormat = 'how-to' | 'comparison' | 'listicle' | 'review' | 'tool' | 'guide';
+type DataConfidence = 'data_backed' | 'paa_backed' | 'ai_suggested';
+
+interface ZoneProfile {
+	seed: string;
+	keywords: DfsKeyword[];
+	total_volume: number;
+	median_kd: number;
+	weighted_cpc: number;
+	keyword_count: number;
+	best_keyword: string;
+	best_keyword_volume: number;
+	best_keyword_kd: number;
+	best_keyword_cpc: number;
+	top_5_keywords: string;
+	paa_questions: string[];
+	organic_titles: string[];
+	has_data: boolean;
+	commercial_score: number;
+	navboost_score: number;
+}
+
+interface SynthesizedTopic {
+	title: string;
+	primary_keyword: string;
+	primary_keyword_volume: number;
+	primary_keyword_kd: number;
+	primary_keyword_cpc: number;
+	topic_description: string;
+	example_keywords: string[];
+	funnel_stage: string;
+	mofu_type: 'mofu_article' | 'mofu_comparison';
+	igs_feasibility: IgsFeasibility;
+	original_angle: string;
+	navboost_potential: NavboostPotential;
+	data_confidence: DataConfidence;
+	source_zone: string;
+	tier: 'unlocked' | 'locked';
+	discovery_sources: string[];
+}
+
+interface TopicResearch {
+	title: string;
+	primaryKw: string;
+	topDomains: string[];
+	topTitles: string[];
+	highAuthCount: number;
+	paaDepth: number;
+	paaQuestions: string[];
+	relatedDepth: number;
+	allintitleCount: number;
+	hasLocalResults: boolean;
+	dominantFormat: DominantFormat;
+	hasOriginalDataInTop5: boolean;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Zone profiling
+// ─────────────────────────────────────────────────────────────────────────────
+function buildZoneProfile(
+	seed: string,
+	keywords: DfsKeyword[],
+	paaQuestions: string[],
+	organicTitles: string[]
+): ZoneProfile {
+	// Defensive: always ensure arrays are safe — guards against undefined from failed API calls
+	const safePAA = Array.isArray(paaQuestions) ? paaQuestions : [];
+	const safeTitles = Array.isArray(organicTitles) ? organicTitles : [];
+	const safeKws = Array.isArray(keywords) ? keywords : [];
+
+	if (safeKws.length === 0) {
+		return {
+			seed,
+			keywords: safeKws,
+			paa_questions: safePAA,
+			organic_titles: safeTitles,
+			total_volume: 0,
+			median_kd: 50,
+			weighted_cpc: 0,
+			keyword_count: 0,
+			best_keyword: seed,
+			best_keyword_volume: 0,
+			best_keyword_kd: 50,
+			best_keyword_cpc: 0,
+			top_5_keywords: 'No keyword data found',
+			has_data: false,
+			commercial_score: 0,
+			navboost_score: safePAA.length
+		};
+	}
+	const totalVolume = safeKws.reduce((s, k) => s + k.monthly_searches, 0);
+	const sorted = [...safeKws].sort((a, b) => a.keyword_difficulty - b.keyword_difficulty);
+	const mid = Math.floor(sorted.length / 2);
+	const medianKd =
+		sorted.length % 2 === 0
+			? (sorted[mid - 1].keyword_difficulty + sorted[mid].keyword_difficulty) / 2
+			: sorted[mid].keyword_difficulty;
+	const weightedCpc =
+		totalVolume > 0
+			? safeKws.reduce((s, k) => s + k.cpc * k.monthly_searches, 0) / totalVolume
+			: safeKws.reduce((s, k) => s + k.cpc, 0) / safeKws.length;
+	const best = [...safeKws].sort((a, b) => b.monthly_searches - a.monthly_searches)[0];
+	const top5 = safeKws
+		.slice(0, 5)
+		.map((k) => `"${k.keyword}" vol:${k.monthly_searches} KD:${k.keyword_difficulty} $${k.cpc}`)
+		.join(' | ');
+	const commercialScore = Math.max(weightedCpc, 0.1) * Math.log10(Math.max(totalVolume, 1) + 1);
+	const comparisonSignal = safeTitles.some(
+		(t) => t.toLowerCase().includes(' vs ') || t.toLowerCase().includes('alternative')
+	)
+		? 2
+		: 0;
+	return {
+		seed,
+		keywords: safeKws,
+		paa_questions: safePAA,
+		organic_titles: safeTitles,
+		total_volume: totalVolume,
+		median_kd: Math.round(medianKd),
+		weighted_cpc: Math.round(weightedCpc * 100) / 100,
+		keyword_count: safeKws.length,
+		best_keyword: best.keyword,
+		best_keyword_volume: best.monthly_searches,
+		best_keyword_kd: best.keyword_difficulty,
+		best_keyword_cpc: best.cpc,
+		top_5_keywords: top5,
+		has_data: true,
+		commercial_score: Math.round(commercialScore * 100) / 100,
+		navboost_score: safePAA.length + comparisonSignal
+	};
+}
+
+function formatZoneForPrompt(z: ZoneProfile, index: number): string {
+	if (!z.has_data) {
+		return `ZONE ${index + 1}: "${z.seed}"
+  Data: NO KEYWORD DATA
+  PAA questions (${z.paa_questions.length}): ${z.paa_questions.slice(0, 4).join(' | ') || 'none'}
+  Organic titles seen: ${z.organic_titles.slice(0, 3).join(' | ') || 'none'}
+  Status: potential AI gap topic`;
+	}
+	return `ZONE ${index + 1}: "${z.seed}"
+  Keywords: ${z.keyword_count} | Monthly searches: ${z.total_volume.toLocaleString()} | Median KD: ${z.median_kd} | CPC: $${z.weighted_cpc}
+  Best keyword: "${z.best_keyword}" (vol:${z.best_keyword_volume.toLocaleString()} KD:${z.best_keyword_kd} CPC:$${z.best_keyword_cpc})
+  Top 5: ${z.top_5_keywords}
+  PAA (${z.paa_questions.length}): ${z.paa_questions.slice(0, 4).join(' | ') || 'none'}
+  Organic titles: ${z.organic_titles.slice(0, 3).join(' | ') || 'none'}
+  Commercial score: ${z.commercial_score} | Navboost score: ${z.navboost_score}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SERP helpers
+// ─────────────────────────────────────────────────────────────────────────────
+const FORMAT_SIGNALS: Record<DominantFormat, string[]> = {
+	'how-to': ['how to', 'step by step', 'guide to', 'tutorial'],
+	comparison: ['vs', 'versus', 'compare', 'alternatives', ' or '],
+	listicle: ['best ', 'top ', 'ways to', 'tips'],
+	review: ['review', 'rating', 'pros and cons'],
+	tool: ['calculator', 'tool', 'template', 'generator', 'checker'],
+	guide: ['guide', 'complete', 'ultimate', 'comprehensive']
+};
+
+function detectDominantFormat(titles: string[]): DominantFormat {
+	const scores: Record<DominantFormat, number> = {
+		'how-to': 0,
+		comparison: 0,
+		listicle: 0,
+		review: 0,
+		tool: 0,
+		guide: 0
+	};
+	const combined = titles.join(' ').toLowerCase();
+	for (const [format, signals] of Object.entries(FORMAT_SIGNALS)) {
+		signals.forEach((s) => {
+			if (combined.includes(s)) scores[format as DominantFormat]++;
+		});
+	}
+	return (Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0] as DominantFormat) || 'guide';
+}
+
+const HIGH_AUTH_DOMAINS = [
+	'wikipedia.org',
+	'forbes.com',
+	'nytimes.com',
+	'wsj.com',
+	'healthline.com',
+	'webmd.com',
+	'investopedia.com',
+	'shopify.com',
+	'hubspot.com',
+	'nerdwallet.com',
+	'reddit.com',
+	'quora.com',
+	'amazon.com',
+	'yelp.com',
+	'angi.com',
+	'homeadvisor.com',
+	'thisoldhouse.com',
+	'entrepreneur.com',
+	'ahrefs.com',
+	'moz.com',
+	'semrush.com',
+	'backlinko.com',
+	'neilpatel.com'
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/strategy/suggest
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
 export const suggestTopics = async (req: Request, res: Response) => {
 	try {
 		const userId = req.user?.id;
@@ -228,22 +438,28 @@ export const suggestTopics = async (req: Request, res: Response) => {
 		};
 		if (!siteId) return res.status(400).json({ error: 'siteId is required' });
 
-		// If targetId provided, load target and optionally use its seed_keywords
-		let target: { id: string; site_id: string; seed_keywords: string[]; name: string } | null =
-			null;
+		// Load target
+		let target: {
+			id: string;
+			site_id: string;
+			seed_keywords: string[];
+			name: string;
+			destination_page_url: string | null;
+		} | null = null;
 		if (targetId) {
-			const { data: targetRow } = await supabase
+			const { data: tr } = await supabase
 				.from('targets')
-				.select('id, site_id, seed_keywords, name')
+				.select('id, site_id, seed_keywords, name, destination_page_url')
 				.eq('id', targetId)
 				.single();
-			if (!targetRow || targetRow.site_id !== siteId)
+			if (!tr || tr.site_id !== siteId)
 				return res.status(404).json({ error: 'Target not found or does not belong to site' });
 			target = {
-				id: targetRow.id,
-				site_id: targetRow.site_id,
-				seed_keywords: Array.isArray(targetRow.seed_keywords) ? targetRow.seed_keywords : [],
-				name: targetRow.name ?? ''
+				id: tr.id,
+				site_id: tr.site_id,
+				seed_keywords: Array.isArray(tr.seed_keywords) ? tr.seed_keywords : [],
+				name: tr.name ?? '',
+				destination_page_url: tr.destination_page_url ?? null
 			};
 		}
 
@@ -258,12 +474,9 @@ export const suggestTopics = async (req: Request, res: Response) => {
 			.filter(Boolean)
 			.slice(0, 5);
 		if (seeds.length === 0)
-			return res.status(400).json({
-				error:
-					'At least one seed keyword is required (provide seedKeywords or target with seed_keywords)'
-			});
+			return res.status(400).json({ error: 'At least one seed keyword is required' });
 
-		// Auth + org + credit check
+		// Auth + credits
 		const { data: userOrg } = await supabase
 			.from('user_organizations')
 			.select('organization_id')
@@ -282,6 +495,17 @@ export const suggestTopics = async (req: Request, res: Response) => {
 		if (available < cost)
 			return res.status(402).json({ error: 'Insufficient credits', required: cost, available });
 
+		const newCredits = Math.max(0, available - cost);
+		const { error: deductErr } = await supabase
+			.from('organizations')
+			.update({
+				included_credits_remaining: newCredits,
+				...(org?.included_credits != null && { included_credits: newCredits })
+			})
+			.eq('id', orgId);
+		if (deductErr) return res.status(500).json({ error: 'Failed to deduct credits' });
+
+		// Site
 		const { data: site } = await supabase
 			.from('sites')
 			.select('id, name, niche, customer_description, url, domain_authority, competitor_urls')
@@ -290,7 +514,7 @@ export const suggestTopics = async (req: Request, res: Response) => {
 			.single();
 		if (!site) return res.status(404).json({ error: 'Site not found' });
 
-		// GSC impressions for traffic tier calibration
+		// GSC impressions
 		const { data: perfRows } = await supabase
 			.from('performance_data')
 			.select('impressions')
@@ -301,11 +525,9 @@ export const suggestTopics = async (req: Request, res: Response) => {
 		);
 		const tier = getTrafficTier(monthlyImpressions);
 
-		// Existing topics (de-dupe against) — when target scoped, only topics for that target
+		// Dedup existing
 		let topicsQuery = supabase.from('topics').select('keyword, title').eq('site_id', siteId);
-		if (target) {
-			topicsQuery = topicsQuery.eq('target_id', target.id);
-		}
+		if (target) topicsQuery = topicsQuery.eq('target_id', target.id);
 		const { data: existingTopics } = await topicsQuery;
 		const existingTitles = new Set(
 			(existingTopics ?? [])
@@ -313,212 +535,317 @@ export const suggestTopics = async (req: Request, res: Response) => {
 				.filter(Boolean)
 		);
 
-		// Refresh DA from Moz before generating so we always use current authority
+		// Moz DA refresh
 		let da = Number(site.domain_authority ?? 0);
 		try {
 			const mozResult = await fetchDomainAuthority(site.url);
 			if (mozResult.method !== 'not_configured' && mozResult.method !== 'error') {
 				da = mozResult.da;
-				// Persist updated DA back to the site row (non-blocking)
 				void supabase
 					.from('sites')
 					.update({ domain_authority: da })
 					.eq('id', siteId)
-					.then(() => {
-						console.log(`[Strategy] DA updated in DB: ${da}`);
-					});
+					.then(() => console.log(`[Strategy] DA: ${da}`));
 			}
 		} catch {
-			// Fall back to stored value — non-fatal
+			/* non-fatal */
 		}
 
+		const isNewDomain = da <= 5;
+		const noImpressionsYet = monthlyImpressions === 0;
 		const competitorUrls: string[] = Array.isArray(site.competitor_urls)
 			? site.competitor_urls
 			: [];
+		const tierNote = noImpressionsYet
+			? `New/low-authority site (DA ${da}). Prioritize low-competition — high-volume head terms are unrealistic.`
+			: `DA ${da}, tier ${tier.label} (${tier.minDaily}–${tier.maxDaily} daily impressions).`;
+		const destContext = target?.destination_page_url
+			? `Destination page: ${target.destination_page_url}`
+			: '';
 
 		console.log(
-			`[Strategy] Seeds: "${seeds.join('", "')}" | DA: ${da} (fresh from Moz) | Competitors: ${competitorUrls.length}`
+			`[Strategy] v5.0 | Seeds: "${seeds.join('", "')}" | DA: ${da} | Tier: ${tier.label}`
 		);
 
 		// =====================================================================
-		// PHASE 1 — REAL KEYWORD DISCOVERY (DataForSEO Keyword Magic Tool)
-		//
-		// KEY INSIGHT: querying broad seeds like "search engine optimization"
-		// returns head terms (Wikipedia/Forbes level) that are useless for any
-		// real content strategy. We need SPECIFIC intersection queries that find
-		// the long-tail, topically-focused keywords within the niche.
-		//
-		// Strategy:
-		//  A) Intersection seeds: combine user seeds with specificity modifiers
-		//     so DataForSEO returns the FOCUSED subtopics, not head terms.
-		//  B) SERP queries: targeted how-to / guide / tips queries that surface
-		//     real PAA questions — the kind a content writer can actually answer.
-		//  C) Filter: remove keywords that are too broad (< 3 words) or too hard
-		//     (KD > 65) so Claude gets ACTIONABLE data, not impossible targets.
+		// PHASE 1 — COMPETITIVE LANDSCAPE MAPPING
+		// AI maps the category into specific zone seeds using domain knowledge.
+		// These are actual sub-topic areas, not modifier variants of the seed.
 		// =====================================================================
-		console.log('[Strategy] Phase 1: real keyword discovery (DataForSEO + SERP signals)');
+		console.log('[Strategy] Phase 1: competitive landscape mapping');
 
-		// Build intersection seeds — combine user seeds with niche-specific modifiers
-		// e.g. seeds ["seo", "seo for ecommerce"] →
-		//   "seo guide", "how to do seo for ecommerce", "ecommerce seo checklist", etc.
-		const nicheContext = site.niche?.toLowerCase() ?? '';
-		const SPECIFICITY_MODIFIERS = [
-			'guide',
-			'tips',
-			'checklist',
-			'strategy',
-			'best practices',
-			'how to'
-		];
-		const intersectionSeeds = new Set<string>();
-		seeds.forEach((seed) => {
-			intersectionSeeds.add(seed);
-			intersectionSeeds.add(`${seed} guide`);
-			intersectionSeeds.add(`how to ${seed}`);
+		const landscapeRaw = await ai(
+			`You are a senior SEO strategist mapping the COMPLETE competitive landscape of a topic category.
+
+Your job: given a business and its seed keywords, identify ALL the distinct topic ZONES within
+this category — every specific sub-topic that people actively search for.
+
+Zone seeds are used as DataForSEO search queries. Each must be:
+- A specific, searchable phrase (not a broad head term like "seo" or "marketing")
+- Representing a DISTINCT user intent — not a variation of another zone
+- Phrased the way a searcher actually types it
+
+IMPORTANT: Be EXHAUSTIVE. Cover every angle of the category. Do not stop at the obvious ones.
+For broad categories, you should always return 15-18 zones. Missing a zone means missing a
+topic opportunity for the user. It is better to return too many than too few.
+
+FULL EXAMPLE — "ecommerce seo" (broad category → 18 zones):
+"shopify product page seo", "ecommerce category page optimization",
+"duplicate product descriptions seo", "faceted navigation seo crawl budget",
+"ecommerce schema markup", "product image alt text seo",
+"ecommerce internal linking", "online store page speed optimization",
+"ecommerce link building", "local seo ecommerce store",
+"woocommerce seo", "ecommerce technical seo audit",
+"ecommerce site architecture seo", "product page conversion seo",
+"ecommerce blog content strategy", "seasonal seo ecommerce",
+"international ecommerce seo", "ecommerce keyword research"
+
+FULL EXAMPLE — "private investigator" (medium category → 10 zones):
+"surveillance investigation services", "infidelity investigation private investigator",
+"background check investigator", "cyber crime investigation services",
+"bug sweep hidden camera detection", "missing persons investigator",
+"insurance fraud investigation", "corporate espionage investigation",
+"private investigator cost", "private investigator laws"
+
+FULL EXAMPLE — "hydrating moisturizer" (narrow category → 6 zones):
+"moisturizer for dry skin", "hyaluronic acid moisturizer",
+"moisturizer for sensitive skin", "lightweight hydrating moisturizer",
+"moisturizer vs serum hydration", "best moisturizer ingredients"
+
+Category breadth rules:
+- narrow (single product/ingredient/service): 5-8 zones
+- medium (product line/service category): 8-12 zones
+- broad (full discipline/domain/industry): 12-16 zones
+
+IMPORTANT: Each zone seed will be searched in DataForSEO. Zones that are too niche or
+too long-tail will return 0 keywords. Prefer zone seeds that are specific enough to be
+focused but common enough that people actually search for them as a category.
+Bad zone (too obscure): "ecommerce hreflang tag implementation for international stores"
+Good zone (searchable): "international ecommerce seo"
+Bad zone: "ecommerce javascript rendering seo issues"
+Good zone: "ecommerce technical seo audit"
+Quality over quantity — 12 searchable zones beat 18 obscure ones.
+
+Return ONLY valid JSON, no markdown.`,
+			`Business: ${site.name}
+Niche: ${site.niche}
+Customer: ${site.customer_description || 'general audience'}
+Seed keywords: ${seeds.join(', ')}
+${destContext}
+
+Map the distinct topic zones in this category. For broad categories, return 12-16 zones.
+For medium categories, return 8-12 zones. For narrow, return 5-8 zones.
+Prioritize zones that are specific enough to be focused but common enough to return
+keyword data — avoid overly technical or niche phrases that nobody searches directly.
+
+Return:
+{
+  "category_breadth": "narrow|medium|broad",
+  "breadth_reasoning": "1 sentence why — include how many zones you identified",
+  "zone_seeds": ["all zone seeds — push toward the maximum for the breadth level"],
+  "high_commercial_zones": ["3-5 zone seeds most likely high CPC / commercial intent"],
+  "high_navboost_zones": ["2-4 zone seeds likely to produce long-session content"]
+}`,
+			1500
+		);
+
+		const landscape = parseJSON<{
+			category_breadth: CategoryBreadth;
+			breadth_reasoning: string;
+			zone_seeds: string[];
+			high_commercial_zones: string[];
+			high_navboost_zones: string[];
+		}>(landscapeRaw, {
+			category_breadth: 'medium',
+			breadth_reasoning: 'Defaulted.',
+			zone_seeds: seeds,
+			high_commercial_zones: [],
+			high_navboost_zones: []
 		});
-		// Cross-seed combinations (most valuable — find the INTERSECTION topic space)
-		for (let i = 0; i < seeds.length; i++) {
-			for (let j = i + 1; j < seeds.length; j++) {
-				const combo = `${seeds[i]} ${seeds[j]}`.slice(0, 60);
-				intersectionSeeds.add(combo);
-			}
-		}
-		// Add niche-specific combination if niche is set and not already in seeds
-		if (nicheContext && !seeds.some((s) => s.toLowerCase().includes(nicheContext.split(' ')[0]))) {
-			seeds.forEach((seed) => {
-				intersectionSeeds.add(`${seed} for ${nicheContext}`.slice(0, 60));
-			});
-		}
-		const dfsQueryList = [...intersectionSeeds].slice(0, 8); // cap at 8 queries (cost control)
 
-		// --- DataForSEO: real keyword data ---
-		const dfsResultsBySeed: Record<string, DfsKeyword[]> = {};
-		const allDfsKeywordsRaw: DfsKeyword[] = [];
-
-		const dfsResults = await Promise.allSettled(
-			dfsQueryList.map((seed) => getKeywordSuggestions(seed, { limit: 50 }))
+		// Always include the user's original seeds
+		const allZoneSeeds = [...new Set([...seeds, ...landscape.zone_seeds])].slice(0, 16);
+		console.log(
+			`[Strategy] Phase 1: breadth=${landscape.category_breadth} | ${allZoneSeeds.length} zones`
 		);
 
+		// =====================================================================
+		// PHASE 2 — PARALLEL KEYWORD RESEARCH
+		// All three sources fire simultaneously for every zone.
+		// Results kept grouped by zone seed — NOT flattened.
+		// =====================================================================
+		console.log('[Strategy] Phase 2: parallel keyword research');
+
+		// A) DataForSEO per zone (cap 12 for cost control)
+		const dfsZoneSeeds = allZoneSeeds.slice(0, 16); // up to 16 zones queried ($0.0001/keyword, ~$0.01/zone)
 		let dataForSeoConfigured = false;
-		dfsResults.forEach((r) => {
+
+		const dfsZoneResults = await Promise.allSettled(
+			dfsZoneSeeds.map((seed) => getKeywordSuggestions(seed, { limit: 50 }))
+		);
+
+		const rawKeywordsByZone: Record<string, DfsKeyword[]> = {};
+		dfsZoneResults.forEach((r) => {
 			if (r.status !== 'fulfilled') return;
 			const { seed, keywords, configured } = r.value;
 			if (configured) dataForSeoConfigured = true;
-			dfsResultsBySeed[seed] = keywords;
-			allDfsKeywordsRaw.push(...keywords);
+			rawKeywordsByZone[seed] = keywords;
 		});
 
-		// De-dupe across queries (same keyword can appear in multiple seed results)
-		const seenKws = new Set<string>();
-		const allDfsKeywordsDeduped: DfsKeyword[] = [];
-		allDfsKeywordsRaw.forEach((k) => {
-			if (!seenKws.has(k.keyword)) {
-				seenKws.add(k.keyword);
-				allDfsKeywordsDeduped.push(k);
-			}
-		});
-
-		// FILTER: remove keywords that are too generic or too hard to be useful.
-		// - "seo" (1 word) → not a topic, just a head term
-		// - KD > 65 → locked for any site under DA 40
-		// - volume > 100,000 AND KD > 40 → impossible for almost any site
-		const allDfsKeywords = allDfsKeywordsDeduped.filter((k) => {
-			const wordCount = k.keyword.trim().split(/\s+/).length;
-			if (wordCount < 2) return false;
-			if (k.keyword_difficulty > 65) return false;
-			if (k.monthly_searches > 100_000 && k.keyword_difficulty > 40) return false;
-			return true;
-		});
-
-		console.log(
-			`[Strategy] Phase 1: DataForSEO raw=${allDfsKeywordsRaw.length} → after dedup+filter=${allDfsKeywords.length} keywords (${dfsQueryList.length} queries, configured: ${dataForSeoConfigured})`
+		// B+C) SERP + PAA per zone simultaneously
+		const serpZoneResults = await Promise.allSettled(
+			allZoneSeeds.slice(0, 18).map((seed) => serperSearch(seed, 10))
 		);
 
-		// --- SERP: targeted queries for PAA + related searches ---
-		// Use specific, actionable queries — NOT "best [seed]" or "[seed] cost"
-		// which return high-competition generic content.
-		const paaSignals: string[] = [];
-		const relatedSignals: string[] = [];
-		const organicTitleSignals: string[] = [];
+		const paaByZone: Record<string, string[]> = {};
+		const organicTitlesByZone: Record<string, string[]> = {};
+		const allPAASignals: string[] = [];
+		const allRelatedSignals: string[] = [];
 
-		const discoveryQueries = seeds.flatMap((seed) => [
-			`${seed} guide`,
-			`how to ${seed}`,
-			`${seed} tips`
-		]);
-		// Add niche-specific combination queries for SERP too
-		if (seeds.length > 1) {
-			discoveryQueries.push(`${seeds[0]} ${seeds[1]}`);
+		serpZoneResults.forEach((r, idx) => {
+			if (r.status !== 'fulfilled') return;
+			const seed = allZoneSeeds[idx];
+			const data = r.value;
+			paaByZone[seed] = (data.peopleAlsoAsk ?? []).map((p) => p.question).filter(Boolean);
+			organicTitlesByZone[seed] = (data.organic ?? [])
+				.slice(0, 7)
+				.map((o) => o.title)
+				.filter(Boolean);
+			allPAASignals.push(...paaByZone[seed]);
+			(data.relatedSearches ?? []).forEach((q) => {
+				if (q.query) allRelatedSignals.push(q.query);
+			});
+		});
+
+		const uniquePAA = [...new Set(allPAASignals)].slice(0, 60);
+		const uniqueRelated = [...new Set(allRelatedSignals)].slice(0, 40);
+		console.log(
+			`[Strategy] Phase 2: ${Object.keys(rawKeywordsByZone).length} DFS zones | PAA: ${uniquePAA.length}`
+		);
+
+		// =====================================================================
+		// PHASE 3 — ZONE PROFILING
+		// Compute real aggregate metrics per zone from DataForSEO results.
+		// De-dup globally (keyword assigned to first zone it appears in).
+		// =====================================================================
+		console.log('[Strategy] Phase 3: zone profiling');
+
+		const globalSeenKws = new Set<string>();
+		const deduplicatedByZone: Record<string, DfsKeyword[]> = {};
+
+		for (const seed of allZoneSeeds) {
+			const raw = rawKeywordsByZone[seed] ?? [];
+			const deduped: DfsKeyword[] = [];
+			for (const kw of raw) {
+				if (!globalSeenKws.has(kw.keyword)) {
+					globalSeenKws.add(kw.keyword);
+					deduped.push(kw);
+				}
+			}
+			deduplicatedByZone[seed] = deduped.filter((k) => {
+				const wc = k.keyword.trim().split(/\s+/).length;
+				if (wc < 2) return false;
+				if (k.keyword_difficulty > 65) return false;
+				if (k.monthly_searches > 100_000 && k.keyword_difficulty > 40) return false;
+				return true;
+			});
 		}
 
-		const serpResults = await Promise.allSettled(
-			discoveryQueries.slice(0, 12).map((q) => serperSearch(q, 10))
+		const zoneProfiles: ZoneProfile[] = allZoneSeeds.map((seed) =>
+			buildZoneProfile(
+				seed,
+				deduplicatedByZone[seed] ?? [],
+				paaByZone[seed] ?? [],
+				organicTitlesByZone[seed] ?? []
+			)
 		);
 
-		serpResults.forEach((r) => {
-			if (r.status !== 'fulfilled') return;
-			const data = r.value;
-			(data.peopleAlsoAsk ?? []).forEach((p) => {
-				if (p.question) paaSignals.push(p.question);
-			});
-			(data.relatedSearches ?? []).forEach((q) => {
-				if (q.query) relatedSignals.push(q.query);
-			});
-			(data.organic ?? []).slice(0, 5).forEach((o) => {
-				if (o.title) organicTitleSignals.push(o.title);
-			});
-		});
-
-		const uniquePAA = [...new Set(paaSignals)].slice(0, 50);
-		const uniqueRelated = [...new Set(relatedSignals)].slice(0, 50);
-		const uniqueOrganicTitles = [...new Set(organicTitleSignals)].slice(0, 40);
-
-		// Build keyword snapshot for Claude — sorted by relevance score, not just volume.
-		// Prefer multi-word, lower-KD, specific keywords over generic head terms.
-		const scoredKeywords = allDfsKeywords
-			.map((k) => {
-				const wordCount = k.keyword.trim().split(/\s+/).length;
-				const specificityBonus = wordCount >= 4 ? 2.0 : wordCount >= 3 ? 1.5 : 1.0;
-				const difficultyPenalty = k.keyword_difficulty > 45 ? 0.7 : 1.0;
-				// Boost keywords that contain words from multiple seeds (intersection signal)
-				const intersectionBonus =
-					seeds.filter((s) => k.keyword.toLowerCase().includes(s.toLowerCase().split(' ')[0]))
-						.length > 1
-						? 1.5
-						: 1.0;
-				return {
-					...k,
-					relevanceScore:
-						Math.sqrt(k.monthly_searches + 1) *
-						specificityBonus *
-						difficultyPenalty *
-						intersectionBonus
-				};
-			})
-			.sort((a, b) => b.relevanceScore - a.relevanceScore);
-
-		const topDfsKeywords = scoredKeywords.slice(0, 60);
-
-		const dfsKeywordList =
-			topDfsKeywords.length > 0
-				? topDfsKeywords
-						.map(
-							(k) =>
-								`${k.keyword} (vol:${k.monthly_searches}, KD:${k.keyword_difficulty}, CPC:$${k.cpc})`
-						)
-						.join('\n')
-				: '(DataForSEO not configured — using SERP signals only)';
+		// Flat keyword pool for Phase 7 exclusive assignment
+		const allDfsKeywords: DfsKeyword[] = zoneProfiles.flatMap((z) => z.keywords);
+		const strongZones = zoneProfiles.filter((z) => z.has_data && z.keyword_count > 0);
+		const weakZones = zoneProfiles.filter((z) => !z.has_data || z.keyword_count === 0);
 
 		console.log(
-			`[Strategy] Phase 1: ${uniquePAA.length} PAA + ${uniqueRelated.length} related + ${topDfsKeywords.length} scored keywords passed to Claude`
+			`[Strategy] Phase 3: ${strongZones.length} strong | ${weakZones.length} gap zones | ${allDfsKeywords.length} keywords`
 		);
 
 		// =====================================================================
-		// PHASE 2 — COMPETITOR GAP ANALYSIS
-		// site:{competitor} scrapes reveal what topics they publish.
-		// Proven traffic-driving topics this site doesn't cover yet.
+		// DATAFORSEO HARD STOP — Option A
+		//
+		// If DataForSEO is configured (credentials present) but returned 0 keywords
+		// across ALL zones, the account is out of funds or the API is down.
+		// A strategy with no keyword data has 0 volume, 0% KD, $0.00 CPC on every
+		// topic — this is misleading and damages user trust.
+		//
+		// Action: refund credits, abort with a clear error message.
+		// The user can add DataForSEO funds and regenerate — no data is lost.
+		//
+		// We only abort when DataForSEO is CONFIGURED but broken.
+		// If it was never configured (no credentials), we allow PAA/SERP-only runs
+		// since that's an intentional setup choice, not a payment failure.
 		// =====================================================================
-		console.log('[Strategy] Phase 2: competitor gap analysis');
+		if (dataForSeoConfigured && allDfsKeywords.length === 0) {
+			console.error(
+				`[Strategy] ABORT: DataForSEO configured but returned 0 keywords across ` +
+					`${dfsZoneSeeds.length} zones. Likely cause: account balance is zero (402) ` +
+					`or API is down. Refunding ${cost} credits to org ${orgId}.`
+			);
+
+			// Refund credits via credit_back_action (same as billing admin — audit trail + proper credit restoration)
+			const { data: refundData, error: refundErr } = await supabase.rpc('credit_back_action', {
+				p_org_id: orgId,
+				p_action_key: 'strategy_generation',
+				p_credits: cost,
+				p_reason: 'DataForSEO returned no keyword data — keyword research account may need top-up'
+			});
+
+			if (refundErr) {
+				console.error(
+					'[Strategy] CRITICAL: Failed to refund credits after DataForSEO failure:',
+					refundErr.message
+				);
+			} else {
+				console.log(
+					`[Strategy] Credits refunded via credit_back_action: ${cost} credits returned to org ${orgId}`,
+					refundData ? ` (refund_id: ${(refundData as { refund_id?: string })?.refund_id})` : ''
+				);
+				// In-app notification (no toast) — appears in notification panel
+				await createNotificationForUser(userId, orgId, {
+					title: 'Strategy generation failed',
+					message: `Strategy generation failed and ${cost} credits were refunded. The keyword research account may need to be topped up.`,
+					type: 'strategy_refund',
+					priority: 'high',
+					action_url: '/strategy',
+					metadata: { credits_refunded: cost, reason: 'keyword_data_unavailable' },
+					skipToast: true
+				});
+			}
+
+			return res.status(503).json({
+				error: 'keyword_data_unavailable',
+				message:
+					"We couldn't pull keyword data for your strategy right now. " +
+					'This is usually because the keyword research account needs to be topped up. ' +
+					"Your credits have been fully refunded — you haven't been charged. " +
+					'Please try again once the issue is resolved.',
+				creditsRefunded: cost,
+				creditsRemaining: available
+			});
+		}
+
+		// NDJSON streaming — set headers after all early returns
+		res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+		res.setHeader('Cache-Control', 'no-cache');
+		res.setHeader('X-Accel-Buffering', 'no');
+
+		writeNdjson(res, { type: 'step', id: 'authority' });
+		writeNdjson(res, { type: 'step', id: 'keywords' });
+		writeNdjson(res, { type: 'step', id: 'google' });
+
+		// =====================================================================
+		// PHASE 4 — COMPETITOR GAP ANALYSIS
+		// =====================================================================
+		console.log('[Strategy] Phase 4: competitor gap analysis');
 
 		const competitorContent: string[] = [];
 		const competitorDomains: string[] = [];
@@ -538,349 +865,259 @@ export const suggestTopics = async (req: Request, res: Response) => {
 				if (titles.length) competitorContent.push(`${domain}: ${titles.join(' | ')}`);
 			})
 		);
-
-		console.log(`[Strategy] Phase 2: competitor content from ${competitorDomains.length} sites`);
+		writeNdjson(res, { type: 'step', id: 'competitors' });
 
 		// =====================================================================
-		// PHASE 3 — TWO-STEP: BRAINSTORM FIRST, VALIDATE WITH DATA SECOND
+		// PHASE 5 — AI TOPIC SYNTHESIS (data-first, IGS-gated)
 		//
-		// The old approach (cluster keywords → get topics) produces garbage
-		// because keywords returned by DataForSEO are biased toward whatever
-		// is popular, not toward what's strategically important to cover.
-		//
-		// The RIGHT approach (what SEMrush + a good strategist does):
-		//   Step A — BRAINSTORM: "What are ALL the topical pillars of this niche?"
-		//            Think comprehensively about every dimension of the subject.
-		//            Don't look at keyword data yet — just map the topic space.
-		//            e.g. for "SEO": on-page, off-page, technical, content,
-		//            local, link building, analytics, tools, algorithm updates…
-		//
-		//   Step B — VALIDATE WITH DATA: "Here's real keyword research —
-		//            which keywords from the data map to each pillar?
-		//            What does the data tell us about search demand for each?"
-		//
-		// This produces topics like "On-Page SEO for Ecommerce" (comprehensive,
-		// actionable) not "Best SEO Tools" (what keywords happened to come back).
+		// Claude receives full zone profiles with real computed metrics.
+		// For strong zones: derives topic FROM keyword cluster data.
+		// For weak zones: AI-backed suggestion with PAA/SERP justification.
+		// primary_keyword must come from the zone's actual DataForSEO data.
 		// =====================================================================
-		console.log('[Strategy] Phase 3a: niche brainstorm (comprehensive topic mapping)');
+		console.log('[Strategy] Phase 5: AI topic synthesis from zone data');
 
-		const isNewDomain = da <= 5;
-		const noImpressionsYet = monthlyImpressions === 0;
-		const tierNote = noImpressionsYet
-			? `Site authority context: new/low-authority site (DA ${da}). The strategy MUST prioritize low-competition angles. High-volume head terms are unrealistic — focus on long-tail, specific subtopics where new sites can actually rank.`
-			: `Site authority context: DA ${da}, traffic tier ${tier.label} (${tier.minDaily}–${tier.maxDaily} daily impressions). Target keywords appropriate for this authority level.`;
+		const authNote = isNewDomain
+			? `New site (DA ${da}). Achievable=KD≤15. BuildToward=KD 16-30. Locked=KD>30.`
+			: `DA ${da}. Achievable=KD≤${da + 10}. BuildToward=KD ${da + 11}-${da + 25}. Locked=KD>${da + 25}.`;
 
-		// ── Step A: Identify highest-leverage topic opportunities ────────────────
-		// Grounded in Traffic Tier Threshold Theory (US8682892B1 + US10055467B1):
-		// Google gates high-volume keywords behind domain trust tiers. The correct
-		// strategy is to find winnable topics within the site's current tier,
-		// prioritised by: Priority Score = (CommercialIntent × CPC × SearchVolume) / KeywordDifficulty
-		// (The Complete SEO System, Section 5.3, Step 2)
-		// Topics must also support original content — Google's Information Gain scoring
-		// (US20190155948A1) penalises copycat content regardless of comprehensiveness.
-		const brainstormRaw = await ai(
-			`You are a senior SEO strategist. Your job is to identify the highest-leverage content opportunities for a specific business at its current authority level — not to map out a comprehensive encyclopedia of the niche.
+		// Note: if DataForSEO is NOT configured at all (no credentials), strongZones
+		// may be 0 but we continue — that's an intentional no-credentials setup.
+		// The hard abort above handles the configured-but-broken case.
+		const zonesBriefing = zoneProfiles.map((z, i) => formatZoneForPrompt(z, i)).join('\n\n');
 
-Google enforces implicit traffic thresholds: high-volume keywords are reserved for domains that have earned the trust tier to compete for them (US8682892B1 — group modification factor). A new or low-authority site cannot skip tiers. Your selection must respect this reality.
+		const synthesisRaw = await ai(
+			`You are a senior SEO strategist analyzing real keyword research data to build a content strategy.
+You have zone profiles — each zone is a sub-topic area with real DataForSEO keyword data.
 
-WHAT YOU ARE SELECTING FOR:
-- Topics with genuine search demand this site can realistically rank for NOW given its authority level
-- Topics with commercial value — higher CPC indicates conversions happen from this traffic AND better user engagement signals (dwell time, deliberate visits) that feed Google's Navboost behavioural layer (US8595225B1)
-- Topics where genuinely original content is possible — Google's Information Gain scoring (US20190155948A1) penalises content that merely synthesises the existing top-10 results, regardless of how comprehensive it is
-- Topics specific to this niche intersection — not generic content competing with every site on the internet
+YOUR JOB:
+For each strong zone (has keyword data): synthesize a MoFu focus page topic derived FROM the data.
+For weak zones (no data but PAA/SERP signal): suggest an AI-backed topic with explicit reasoning.
 
-WHAT A GOOD TOPICAL PILLAR IS:
-- A subject area with enough depth for a MoFu focus page (consideration stage — evaluating options or methods) plus multiple ToFu supporting articles (informational — learning about the topic)
-- The PILLAR TITLE must be framed at the consideration stage — two valid types:
-  mofu_article  → "How to Choose X", "X for [specific use case/audience]", "X Reviews", "X Guide for [audience]"
-  mofu_comparison → "X vs Y", "X Alternatives", "Compare X Options"
+CRITICAL RULES:
+1. The topic title must represent what the keyword data SHOWS people are searching for
+2. primary_keyword MUST be an exact keyword from that zone's DataForSEO results
+3. primary_keyword_volume/kd/cpc MUST match that keyword's real DataForSEO values
+4. Do NOT invent keywords. If a zone has no data, use the best_keyword field and mark as paa_backed/ai_suggested
 
-  IMPORTANT: Avoid "Best X" titles. They are overused, dominated by affiliate sites, and score
-  low on Information Gain (US20190155948A1) because every competitor uses the same format.
-  Prefer specific use-case or audience framing — it targets a more qualified searcher and has
-  less competition.
+TOPIC TITLE RULES:
+- mofu_article: "How to [action]", "[X] for [specific audience/situation]", "[X] Guide for [use case]"
+- mofu_comparison: "[X] vs [Y]", "[X] Alternatives", "Compare [X] Options"
+- Avoid: "Complete Guide", "Everything About", "Best X" (overused, low IGS)
 
-  ✅ "How to Choose a Cyber Crime Investigator" — mofu_article (decision-support)
-  ✅ "Hydrating Moisturizers for Sensitive Skin Prone to Redness" — mofu_article (specific audience)
-  ✅ "Gel Cleanser vs Foam Cleanser for Oily Skin" — mofu_comparison
-  ✅ "Shopify SEO for Small Stores" — mofu_article (specific use case)
-  ⚠️  "Best Moisturizers for Sensitive Skin" — last resort only, if no better angle exists
-  ❌ "What is a Moisturizer" — ToFu awareness, belongs as a supporting article inside a cluster
-  ❌ "How Does SEO Work" — ToFu awareness, too generic, not a focus page
-- Specific to the niche and the specific target area — not generic content that competes with every site
-- Has a clear path to first-hand experience, original data, or a unique perspective the business actually holds
+IGS FEASIBILITY [US20190155948A1 — Helpful Content Update]:
+- "strong": business has genuine first-hand data/experience/expertise specific to this topic
+- "borderline": some angle possible but requires effort to differentiate from generic content
+- "failed": dominated by major authorities; business cannot add original value — SKIP THESE
 
-WHAT TO EXCLUDE ENTIRELY:
-- Topics dominated by Wikipedia, WebMD, Healthline, Forbes, or other unbeatable authority sites at this tier
-- Topics where no realistic original angle exists — pure Skyscraper territory scores near zero on Information Gain (US20190155948A1)
-- Topics with no commercial connection to what this business sells
-- Topics so broad they describe the entire internet
+NAVBOOST POTENTIAL [US8595225B1 — DOJ confirmed most important ranking signal]:
+- "high": comparison/decision content, 5+ PAA questions, commercial proximity → long dwell
+- "medium": moderate engagement depth expected
+- "low": quick informational, user leaves fast
 
-Return ONLY a JSON array of pillar titles. No other fields needed at this stage.
-Format: ["Pillar Title 1", "Pillar Title 2", ...]`,
-			`Business: ${site.name}
-Niche: ${site.niche}
-Customer served: ${site.customer_description || 'small business owners'}
-Target area / seed keywords: ${seeds.join(' | ')}
-Competitor content signals: ${competitorContent.slice(0, 3).join(' | ')}
-PAA questions from Google: ${uniquePAA.slice(0, 15).join(' | ')}
+DATA CONFIDENCE:
+- "data_backed": zone has keyword data (keyword_count > 0) — PREFERRED
+- "paa_backed": no keyword data but 4+ PAA questions confirming real user demand
+- "ai_suggested": minimal signals — only use to fill genuine gaps, NOT as padding
 
-${tierNote}
+TOPIC COUNT RULE — DATA FIRST:
+The strategy must be built on hard data, not inflated with AI guesses.
 
-IMPORTANT — HOW TO USE THE SEED KEYWORDS:
-The seed keywords define the TARGET AREA this user wants to rank in — NOT the literal topic title.
-A seed like "deeply hydrating moisturizer" means the user sells or covers deeply hydrating moisturizers.
-Your pillars should be the content strategy AROUND that target area — covering the adjacent questions,
-comparisons, and concerns that lead a reader toward purchasing or choosing from that category.
-Do NOT create pillars that are just the seed keyword rephrased. Treat the seed as context, not as a topic.
+STEP 1: Include ALL strong zones (has keyword data, keyword_count > 0). These are the spine.
+STEP 2: Include paa_backed zones ONLY if they cover a genuinely distinct angle not already
+  covered by a strong zone, AND have 4+ PAA questions as evidence of real demand.
+STEP 3: Include ai_suggested topics ONLY to fill critical gaps where:
+  - The business clearly serves this need (e.g. a Shopify SEO tool covering WooCommerce)
+  - AND no strong zone already covers this angle
+  - AND there is at least some PAA or organic title signal
+  - MAXIMUM 2-3 ai_suggested topics regardless of category breadth
 
-Examples of the right lift:
-  Seed: "deeply hydrating moisturizer"
-  ❌ BAD pillar: "Deeply Hydrating Moisturizer Guide" (just the seed rephrased)
-  ✅ GOOD pillars: "Moisturizers for Skin That Feels Tight After Washing",
-                   "Hyaluronic Acid vs Glycerin: Which Hydrates Better",
-                   "How to Layer Actives Without Disrupting Your Skin Barrier"
+TOPIC CAPS BY BREADTH:
+- narrow: 4-6 total (mostly data_backed)
+- medium: 6-10 total (mostly data_backed, 1-2 gap fills)
+- broad: 8-14 total (mostly data_backed, 2-3 gap fills max)
 
-  Seed: "ecommerce SEO"
-  ❌ BAD: "Ecommerce SEO Guide" (seed rephrased)
-  ✅ GOOD: "Product Page Optimization for Shopify", "Category Page SEO for Online Stores",
-           "Handling Duplicate Content on Ecommerce Sites"
+SKIP a zone if ANY of these are true:
+- Zero keyword data AND fewer than 4 PAA questions AND no strong organic title signal
+- Topic is already covered by another stronger zone in this list
+- No meaningful commercial connection to this business
+- You would only include it to hit a target number — do NOT pad
 
-List 5–8 topical pillars. Every pillar must pass all three tests:
-1. WINNABLE — not dominated by major established brands at this authority level
-2. COMMERCIALLY VALUABLE — connected to what this business sells, CPC signal exists
-3. ORIGINAL ANGLE POSSIBLE — business has genuine experience or perspective competitors lack
+QUALITY OVER QUANTITY. 8 data-backed topics beat 18 half-empty ones.
+A user acting on hollow AI suggestions wastes real time and effort with no results.
 
-Quality over quantity. Return 4 strong, adjacent pillars rather than 10 weak ones. If a topic fails any test, exclude it entirely.
-
-Existing topics already in strategy (skip these): ${existingTitles.size > 0 ? [...existingTitles].join(', ') : 'none'}`,
-			2000
-		);
-
-		// Parse pillar titles from Step A
-		let pillarTitles: string[] = [];
-		try {
-			const parsed = JSON.parse((brainstormRaw ?? '[]').replace(/```json\n?|\n?```/g, '').trim());
-			pillarTitles = Array.isArray(parsed) ? parsed.filter((t) => typeof t === 'string') : [];
-		} catch {
-			console.error('[Strategy] Phase 3a parse error:', (brainstormRaw ?? '').slice(0, 200));
-		}
-
-		if (pillarTitles.length === 0) {
-			// Fallback: use seeds as pillar starters
-			pillarTitles = seeds.map((s) => s.charAt(0).toUpperCase() + s.slice(1));
-		}
-		console.log(
-			`[Strategy] Phase 3a: ${pillarTitles.length} pillars brainstormed: ${pillarTitles.slice(0, 5).join(', ')}…`
-		);
-
-		// ── Step B: Validate pillars with keyword research data ───────────────
-		// Claude now maps real DataForSEO keywords to each brainstormed pillar.
-		// This grounds the comprehensive topic map in actual search demand.
-		console.log('[Strategy] Phase 3b: validating pillars with keyword research data');
-
-		const clusteringRaw = await ai(
-			`You are an SEO strategist validating a content strategy. You have been given:
-1. A list of TOPICAL PILLARS (already brainstormed comprehensively)
-2. Real keyword research data from DataForSEO
-3. Google SERP signals (PAA, related searches)
-
-Your job: for each pillar, find the best matching keywords from the research data and assign them. Then output the full structured topic list.
-
-RULES:
-- VALIDATE each pillar and assign it one of two tiers:
-
-  TIER 1 — UNLOCKED (winnable now):
-  Keyword difficulty is within the site's current authority range AND search volume is real (>0).
-  These are what the user should build first.
-
-  TIER 2 — LOCKED (worth doing later):
-  Real search volume exists AND CPC signals commercial value, BUT keyword difficulty is above
-  the site's current threshold. Keep these — they represent the growth path. Do NOT cut them.
-  The user needs to see where they're headed.
-
-  CUT ENTIRELY (do not include at all):
-  (a) Volume is zero or near-zero with no PAA/related search signal suggesting emerging demand
-  (b) SERP is dominated by Wikipedia, WebMD, Healthline, or other permanently unbeatable authority
-      sites that this domain cannot realistically compete with at any authority level
-  (c) No commercial connection to what this business sells — pure tangential content
-
-- Target 5–8 total pillars across both tiers combined. At least 3 should be Tier 1 (unlocked).
-  If the data only supports 3–4 strong pillars, return 3–4. Do not pad with weak topics.
-  If 6–7 genuinely strong pillars exist, return all of them.
-
-- PRIORITISE within each tier using: Priority Score = (CommercialIntent × CPC × SearchVolume) / KeywordDifficulty
-  Higher CPC = more commercial value AND better Navboost engagement signals (US8595225B1)
-
-- For each pillar, find the primary keyword from the research data that best represents the PILLAR INTENT
-  (not just the seed rephrased). A pillar about "skin barrier repair" should get the best-volume
-  keyword from the data about skin barrier — even if the seed was "hydrating moisturizer".
-  If the data contains no meaningful keyword for this pillar, use the pillar title lowercased.
-  Do NOT default to a near-duplicate of the seed keyword just because it exists in the data.
-- Set "funnel_stage" to "mofu" for ALL topics. Every topic generated here becomes a focus page —
-  the MoFu consideration-stage content that sits between ToFu supporting articles and the BoFu
-  destination page. This is the architecture. ToFu content is generated later as supporting articles
-  within each cluster. BoFu is the destination page the user already has. Do not return tofu or bofu here.
-
-- Every topic title must map to one of these two MoFu article types:
-
-  TYPE 1 — mofu_article: targets someone evaluating options or researching before a decision
-    Preferred patterns: "How to Choose X", "X for [specific use case]", "X for [specific audience]",
-                        "X Reviews", "X Guide for [audience]", "Which X is Right for [situation]"
-    Avoid: "Best X for Y" and "Top X for Y" — these are overused by affiliate sites and score
-           low on Information Gain (US20190155948A1). Use specific use-case framing instead.
-           Only use "Best" if the keyword data shows it has significantly higher volume than
-           any alternative framing AND no better angle exists.
-    Example: "How to Choose a Cyber Crime Investigator" ✅ not "Best Cyber Crime Investigators"
-    Example: "Hydrating Moisturizers for Sensitive Skin Prone to Redness" ✅ not "Best Moisturizers"
-    Example: "Shopify SEO Guide for Small Stores" ✅ not "Best Shopify SEO Tips"
-
-  TYPE 2 — mofu_comparison: targets someone comparing specific options against each other
-    Title patterns: "X vs Y", "X vs Y: Which is Better", "X Alternatives", "Compare X Options",
-                    "X or Y for [use case]"
-    Example: "Gel Cleanser vs Foam Cleanser: Which is Better for Oily Skin"
-    Example: "Hiring a PI vs DIY Investigation"
-    Example: "Shopify SEO vs WooCommerce SEO"
-
-  If a title you are considering does not fit either type — it is a ToFu article and does not
-  belong here. Reframe it or replace it with a topic that does fit.
-
-- Add a "tier" field: "unlocked" or "locked"
-- Add a "mofu_type" field: "mofu_article" or "mofu_comparison"
-
-Return ONLY valid JSON array. No markdown.`,
+Return ONLY valid JSON array, no markdown.`,
 			`Business: ${site.name} | Niche: ${site.niche}
+Customer: ${site.customer_description || 'general audience'}
+${authNote}
 ${tierNote}
+${destContext}
 
-BRAINSTORMED TOPICAL PILLARS (these define the strategy):
-${pillarTitles.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+ZONE PROFILES (real keyword research):
+${zonesBriefing}
 
-KEYWORD RESEARCH DATA (use to find primary keywords and validate demand):
-${dfsKeywordList}
-
-PEOPLE ALSO ASK (shows what questions people have in this niche):
-${uniquePAA.slice(0, 25).join('\n')}
+ALL PAA QUESTIONS:
+${uniquePAA.slice(0, 30).join('\n')}
 
 RELATED SEARCHES:
-${uniqueRelated.slice(0, 15).join('\n')}
+${uniqueRelated.slice(0, 20).join(' | ')}
 
 COMPETITOR CONTENT:
-${competitorContent.join('\n')}
+${competitorContent.join('\n') || 'None available'}
 
-For each pillar, return:
+HIGH COMMERCIAL ZONES: ${landscape.high_commercial_zones.join(', ')}
+HIGH NAVBOOST ZONES: ${landscape.high_navboost_zones.join(', ')}
+
+Existing topics to skip: ${existingTitles.size > 0 ? [...existingTitles].join(', ') : 'none'}
+
+For each valid zone return:
 [
   {
-    "title": "exact pillar title from the brainstorm list",
-    "primary_keyword": "best matching keyword from research data (or closest appropriate keyword)",
-    "topic_description": "1 sentence: what specific content lives here",
-    "example_keywords": ["3-5 keywords from data that belong to this pillar"],
+    "title": "MoFu focus page title derived from the keyword data",
+    "primary_keyword": "exact keyword from this zone's DataForSEO results",
+    "primary_keyword_volume": 0,
+    "primary_keyword_kd": 0,
+    "primary_keyword_cpc": 0.0,
+    "topic_description": "1 sentence: what content lives here and why it serves this business",
+    "example_keywords": ["3-5 real keywords from the zone's DataForSEO data"],
     "funnel_stage": "mofu",
     "mofu_type": "mofu_article|mofu_comparison",
+    "igs_feasibility": "strong|borderline|failed",
+    "original_angle": "specific: what first-hand data, experience, or expertise this business has for THIS topic",
+    "navboost_potential": "high|medium|low",
+    "data_confidence": "data_backed|paa_backed|ai_suggested",
+    "source_zone": "the zone seed this came from",
     "tier": "unlocked|locked",
-    "discovery_sources": ["seed"|"keyword_research"|"google_paa"|"competitor_gap"|"ai_brainstorm"]
+    "discovery_sources": ["seed|keyword_research|google_paa|competitor_gap|ai_brainstorm"]
   }
 ]`,
-			4000
+			6000
 		);
 
-		type TopicCluster = {
-			title: string;
-			primary_keyword: string;
-			topic_description: string;
-			example_keywords: string[];
-			funnel_stage: string;
-			discovery_sources: string[];
-		};
+		let synthesizedTopics = parseJSON<SynthesizedTopic[]>(synthesisRaw, []);
 
-		let topicClusters: TopicCluster[] = [];
-		try {
-			const parsed = JSON.parse((clusteringRaw ?? '[]').replace(/```json\n?|\n?```/g, '').trim());
-			topicClusters = Array.isArray(parsed) ? parsed : [];
-		} catch {
-			console.error('[Strategy] Phase 3b parse error:', (clusteringRaw ?? '').slice(0, 300));
+		// Fallback if parse fails
+		if (synthesizedTopics.length === 0) {
+			synthesizedTopics = zoneProfiles
+				.filter((z) => z.has_data && z.keyword_count > 0)
+				.slice(0, 10)
+				.map((z) => ({
+					title: z.seed.charAt(0).toUpperCase() + z.seed.slice(1),
+					primary_keyword: z.best_keyword,
+					primary_keyword_volume: z.best_keyword_volume,
+					primary_keyword_kd: z.best_keyword_kd,
+					primary_keyword_cpc: z.best_keyword_cpc,
+					topic_description: `Content about ${z.seed} for ${site.niche}`,
+					example_keywords: z.keywords.slice(0, 3).map((k) => k.keyword),
+					funnel_stage: 'mofu',
+					mofu_type: 'mofu_article' as const,
+					igs_feasibility: 'borderline' as IgsFeasibility,
+					original_angle: `First-hand experience from ${site.name}`,
+					navboost_potential:
+						z.navboost_score >= 4
+							? 'high'
+							: z.navboost_score >= 2
+								? 'medium'
+								: ('low' as NavboostPotential),
+					data_confidence: 'data_backed' as DataConfidence,
+					source_zone: z.seed,
+					tier: 'unlocked' as const,
+					discovery_sources: ['keyword_research']
+				}));
 		}
 
-		if (topicClusters.length === 0) {
-			// Fallback: use brainstormed pillar titles as topic stubs
-			topicClusters = pillarTitles.map((title) => ({
-				title,
-				primary_keyword: title.toLowerCase(),
-				topic_description: `Content about ${title} for ${site.niche}`,
-				example_keywords: [title.toLowerCase()],
-				funnel_stage: 'tofu',
-				discovery_sources: ['ai_brainstorm']
-			}));
-		}
-
-		// Filter out topics that already exist
-		topicClusters = topicClusters.filter(
-			(tc) => !existingTitles.has(tc.title.toLowerCase().trim())
+		// Exclude IGS-failed and existing
+		synthesizedTopics = synthesizedTopics.filter(
+			(tc) => tc.igs_feasibility !== 'failed' && !existingTitles.has(tc.title.toLowerCase().trim())
 		);
+
+		// Lookup map for zone data — used by quality gate and zero-patch below
+		const zoneProfileMap = new Map(zoneProfiles.map((z) => [z.seed, z]));
+
+		// ── Zero-patch: restore real numbers if Claude returned 0s ───────────────
+		// Claude sometimes copies the template placeholder (0) instead of the real
+		// zone data value. Patch from zone profile before quality gate runs.
+		synthesizedTopics = synthesizedTopics.map((tc) => {
+			const zone = zoneProfileMap.get(tc.source_zone);
+			if (!zone || !zone.has_data) return tc;
+			const vol =
+				tc.primary_keyword_volume > 0 ? tc.primary_keyword_volume : zone.best_keyword_volume;
+			const kd = tc.primary_keyword_kd > 0 ? tc.primary_keyword_kd : zone.best_keyword_kd;
+			const cpc = tc.primary_keyword_cpc > 0 ? tc.primary_keyword_cpc : zone.best_keyword_cpc;
+			const kw = tc.primary_keyword?.trim() ? tc.primary_keyword : zone.best_keyword;
+			if (
+				vol !== tc.primary_keyword_volume ||
+				kd !== tc.primary_keyword_kd ||
+				cpc !== tc.primary_keyword_cpc
+			) {
+				console.log(
+					`[Strategy] Zero-patch "${tc.title}": vol ${tc.primary_keyword_volume}→${vol} KD ${tc.primary_keyword_kd}→${kd} CPC ${tc.primary_keyword_cpc}→${cpc}`
+				);
+			}
+			return {
+				...tc,
+				primary_keyword: kw,
+				primary_keyword_volume: vol,
+				primary_keyword_kd: kd,
+				primary_keyword_cpc: cpc
+			};
+		});
+
+		// ── Data quality gate ────────────────────────────────────────────────────
+		// AI-suggested topics with no PAA signal and no volume are hollow padding.
+		// They waste the user's credit budget and provide no rankable direction.
+		// Rules:
+		//   - data_backed topics: always keep (real keyword data)
+		//   - paa_backed topics: keep only if 3+ PAA questions for this zone
+		//   - ai_suggested topics: max 3 total, only if zone has PAA or organic signal
+		// ─────────────────────────────────────────────────────────────────────────
+		const dataBackedTopics = synthesizedTopics.filter((tc) => tc.data_confidence === 'data_backed');
+		const paaBackedTopics = synthesizedTopics.filter((tc) => {
+			if (tc.data_confidence !== 'paa_backed') return false;
+			const zone = zoneProfileMap.get(tc.source_zone);
+			return (zone?.paa_questions.length ?? 0) >= 3;
+		});
+		const aiSuggestedTopics = synthesizedTopics
+			.filter((tc) => {
+				if (tc.data_confidence !== 'ai_suggested') return false;
+				const zone = zoneProfileMap.get(tc.source_zone);
+				// Must have at least some signal — PAA or organic titles
+				const hasPAA = (zone?.paa_questions.length ?? 0) >= 2;
+				const hasOrganic = (zone?.organic_titles.length ?? 0) >= 2;
+				return hasPAA || hasOrganic;
+			})
+			.slice(0, 3); // hard cap: max 3 AI-suggested topics
+
+		const beforeFilter = synthesizedTopics.length;
+		synthesizedTopics = [...dataBackedTopics, ...paaBackedTopics, ...aiSuggestedTopics];
 
 		console.log(
-			`[Strategy] Phase 3b: ${topicClusters.length} validated topics (from ${pillarTitles.length} brainstormed pillars)`
+			`[Strategy] Phase 5: ${synthesizedTopics.length} topics after quality gate ` +
+				`(${dataBackedTopics.length} data-backed | ${paaBackedTopics.length} paa-backed | ` +
+				`${aiSuggestedTopics.length} ai-suggested | ${beforeFilter - synthesizedTopics.length} cut as hollow)`
 		);
+		writeNdjson(res, { type: 'step', id: 'brainstorm' });
 
 		// =====================================================================
-		// PHASE 4 — PER-TOPIC SERP RESEARCH
-		// For each topic area, run real SERP + allintitle: to measure the
-		// competitive landscape for that entire topic cluster.
+		// PHASE 6 — PER-TOPIC SERP RESEARCH
 		// =====================================================================
-		console.log('[Strategy] Phase 4: per-topic SERP research');
+		console.log('[Strategy] Phase 6: per-topic SERP research');
 
-		const HIGH_AUTH = [
-			'wikipedia.org',
-			'forbes.com',
-			'nytimes.com',
-			'wsj.com',
-			'healthline.com',
-			'webmd.com',
-			'investopedia.com',
-			'shopify.com',
-			'hubspot.com',
-			'nerdwallet.com',
-			'reddit.com',
-			'quora.com',
-			'amazon.com',
-			'yelp.com',
-			'angi.com',
-			'homeadvisor.com',
-			'thisoldhouse.com',
-			'familyhandyman.com',
-			'bhg.com',
-			'hgtv.com',
-			'entrepreneur.com'
-		];
+		const SERP_BATCH = 2;
+		const serpResearchResults: PromiseSettledResult<TopicResearch>[] = [];
 
-		type TopicResearch = {
-			title: string;
-			primaryKw: string;
-			topDomains: string[];
-			topTitles: string[];
-			highAuthCount: number;
-			paaDepth: number;
-			relatedDepth: number;
-			allintitleCount: number;
-			hasLocalResults: boolean;
-		};
-
-		// Serper rate limit: 5 requests/second.
-		// Each topic needs 2 queries (SERP + allintitle), so run 2 topics at a time
-		// (= 4 req/batch) with a 350ms pause between batches to stay safely under limit.
-		const SERP_BATCH_SIZE = 2;
-		const researchResults: PromiseSettledResult<TopicResearch>[] = [];
-
-		for (let i = 0; i < topicClusters.length; i += SERP_BATCH_SIZE) {
-			const batch = topicClusters.slice(i, i + SERP_BATCH_SIZE);
+		for (let i = 0; i < synthesizedTopics.length; i += SERP_BATCH) {
+			const batch = synthesizedTopics.slice(i, i + SERP_BATCH);
 			const batchResults = await Promise.allSettled(
 				batch.map(async (tc): Promise<TopicResearch> => {
 					const kw = tc.primary_keyword || tc.title;
 					const [serp, ati] = await Promise.all([
-						serperSearch(kw, 5),
+						serperSearch(kw, 10),
 						serperSearch(`allintitle:${kw}`, 1)
 					]);
-					const topDomains = (serp.organic ?? [])
-						.slice(0, 5)
+					const items = serp.organic ?? [];
+					const topDomains = items
+						.slice(0, 7)
 						.map((o) => {
 							try {
 								return new URL(o.link).hostname.replace('www.', '');
@@ -889,81 +1126,84 @@ For each pillar, return:
 							}
 						})
 						.filter(Boolean);
+					const topTitles = items
+						.slice(0, 7)
+						.map((o) => o.title)
+						.filter(Boolean);
+					const paas = (serp.peopleAlsoAsk ?? []).map((p) => p.question).filter(Boolean);
+					const hasOriginalDataInTop5 = topTitles.some((t) =>
+						[
+							'study',
+							'survey',
+							'data',
+							'research',
+							'found that',
+							'analyzed',
+							'tested',
+							'experiment'
+						].some((sig) => t.toLowerCase().includes(sig))
+					);
 					return {
 						title: tc.title,
 						primaryKw: kw,
 						topDomains,
-						topTitles: (serp.organic ?? [])
-							.slice(0, 5)
-							.map((o) => o.title)
-							.filter(Boolean),
-						highAuthCount: topDomains.filter((d) => HIGH_AUTH.some((h) => d.includes(h))).length,
-						paaDepth: (serp.peopleAlsoAsk ?? []).length,
+						topTitles,
+						highAuthCount: topDomains.filter((d) => HIGH_AUTH_DOMAINS.some((h) => d.includes(h)))
+							.length,
+						paaDepth: paas.length,
+						paaQuestions: paas.slice(0, 8),
 						relatedDepth: (serp.relatedSearches ?? []).length,
 						allintitleCount: parseSearchResultCount(ati.searchInformation?.totalResults),
 						hasLocalResults: topDomains.some((d) =>
 							['yelp', 'angi', 'homeadvisor', 'houzz', 'thumbtack', 'bark'].some((l) =>
 								d.includes(l)
 							)
-						)
+						),
+						dominantFormat: detectDominantFormat(topTitles),
+						hasOriginalDataInTop5
 					};
 				})
 			);
-			researchResults.push(...batchResults);
-			// Pause between batches — skip delay after last batch
-			if (i + SERP_BATCH_SIZE < topicClusters.length) {
-				await sleep(350);
-			}
+			serpResearchResults.push(...batchResults);
+			if (i + SERP_BATCH < synthesizedTopics.length) await sleep(350);
 		}
 
 		const researchMap: Record<string, TopicResearch> = {};
-		researchResults.forEach((r) => {
+		serpResearchResults.forEach((r) => {
 			if (r.status === 'fulfilled') researchMap[r.value.title] = r.value;
 		});
 
-		console.log(`[Strategy] Phase 4: ${Object.keys(researchMap).length} topics researched`);
+		// Refine navboost_potential with real PAA depth
+		synthesizedTopics = synthesizedTopics.map((tc) => {
+			const rd = researchMap[tc.title];
+			if (!rd) return tc;
+			let navboost = tc.navboost_potential;
+			if (rd.paaDepth >= 6) navboost = 'high';
+			else if (rd.paaDepth >= 3 && navboost !== 'high') navboost = 'medium';
+			else if (rd.paaDepth <= 1 && navboost === 'high') navboost = 'medium';
+			return { ...tc, navboost_potential: navboost };
+		});
+
+		console.log(`[Strategy] Phase 6: ${Object.keys(researchMap).length} topics SERP-researched`);
+		writeNdjson(res, { type: 'step', id: 'validate' });
+		writeNdjson(res, { type: 'step', id: 'competition' });
 
 		// =====================================================================
-		// PHASE 5 — REAL AGGREGATE METRICS + AI REASONING
-		//
-		// For each topic cluster Claude identified, find all real DataForSEO
-		// keywords that belong to it by matching the cluster's example_keywords
-		// and primary_keyword against the full keyword pool.
-		//
-		// Metrics are COMPUTED from real data — not estimated by Claude.
-		// Claude's job in this phase is ONLY to write the ai_reasoning
-		// (citing SERP evidence) and the strategy rationale paragraph.
+		// PHASE 7 — REAL METRICS + PRIORITY SCORING
+		// Exclusive keyword-to-topic assignment (two-pass).
+		// Falls back to Phase 5 primary_keyword data for topics with no assignment.
 		// =====================================================================
-		console.log('[Strategy] Phase 5: computing real metrics + AI reasoning');
+		console.log('[Strategy] Phase 7: metrics + priority scoring');
 
-		const authNote = isNewDomain
-			? `Site context: brand new website (authority score ${da}/100). Start with low-competition topics (difficulty ≤ 15). Mid-competition topics (16–30) are achievable in 6–12 months. High-competition topics (> 30) should wait until the site grows.`
-			: `Site context: established website (authority score ${da}/100). Low-competition means difficulty ≤ ${da + 10}. Medium-competition is ${da + 11}–${da + 25}. High-competition (> ${da + 25}) requires more growth first.`;
-
-		// Build a lookup of all real keywords by lowercase string
 		const dfsKeywordMap = new Map<string, DfsKeyword>();
 		allDfsKeywords.forEach((k) => dfsKeywordMap.set(k.keyword.toLowerCase(), k));
 
-		// ── Exclusive keyword-to-topic assignment ────────────────────────────
-		// Problem with simple fuzzy matching: niche keywords (e.g. "coding")
-		// appear in every topic title AND every DataForSEO keyword, so every
-		// topic ends up with the same 50 keywords → identical metrics for all.
-		//
-		// Fix: two-pass exclusive assignment.
-		//   Pass 1: exact matches on primary_keyword + Claude's example_keywords.
-		//           These are the most confident assignments — claim them first.
-		//   Pass 2: for remaining unassigned keywords, score against every topic
-		//           and assign EXCLUSIVELY to the single best-scoring topic.
-		//           A keyword can only count toward ONE topic's metrics.
-		// ─────────────────────────────────────────────────────────────────────
 		const topicRealKeywords: Record<string, DfsKeyword[]> = {};
-		topicClusters.forEach((tc) => {
+		synthesizedTopics.forEach((tc) => {
 			topicRealKeywords[tc.title] = [];
 		});
 
 		const assignedKeywords = new Set<string>();
-
-		// Precompute significant words per topic (length > 2, skip common stopwords)
 		const STOPWORDS = new Set([
 			'the',
 			'and',
@@ -978,41 +1218,34 @@ For each pillar, return:
 			'our',
 			'its',
 			'this',
-			'that'
+			'that',
+			'best',
+			'top'
 		]);
-		const topicSignatureWords = topicClusters.map((tc) => {
-			const titleWords = tc.title
-				.toLowerCase()
-				.split(/\s+/)
-				.filter((w) => w.length > 2 && !STOPWORDS.has(w));
-			const primaryWords = tc.primary_keyword
-				.toLowerCase()
-				.split(/\s+/)
-				.filter((w) => w.length > 2 && !STOPWORDS.has(w));
-			const exampleWords = (tc.example_keywords ?? []).flatMap((ek) =>
-				ek
-					.toLowerCase()
-					.split(/\s+/)
-					.filter((w) => w.length > 2 && !STOPWORDS.has(w))
+
+		const topicSigWords = synthesizedTopics.map((tc) => {
+			const words = new Set(
+				[
+					...tc.title.toLowerCase().split(/\s+/),
+					...tc.primary_keyword.toLowerCase().split(/\s+/),
+					...(tc.example_keywords ?? []).flatMap((ek) => ek.toLowerCase().split(/\s+/))
+				].filter((w) => w.length > 2 && !STOPWORDS.has(w))
 			);
-			// Remove the niche/seed words that appear in ALL topics (too generic to be discriminating)
-			return { title: tc.title, words: new Set([...titleWords, ...primaryWords, ...exampleWords]) };
+			return { title: tc.title, words };
 		});
 
-		// Identify words that appear in EVERY topic — these are generic niche words
-		// (e.g. "coding" in a coding niche) and should be ignored for scoring
 		const wordTopicCount = new Map<string, number>();
-		topicSignatureWords.forEach(({ words }) => {
+		topicSigWords.forEach(({ words }) => {
 			words.forEach((w) => wordTopicCount.set(w, (wordTopicCount.get(w) ?? 0) + 1));
 		});
 		const genericWords = new Set(
 			[...wordTopicCount.entries()]
-				.filter(([, count]) => count >= topicClusters.length - 1) // present in almost all topics
-				.map(([word]) => word)
+				.filter(([, c]) => c >= synthesizedTopics.length - 1)
+				.map(([w]) => w)
 		);
 
-		// Pass 1: exact matches on primary keyword + Claude's example keywords
-		topicClusters.forEach((tc) => {
+		// Pass 1: exact
+		synthesizedTopics.forEach((tc) => {
 			const addExact = (kw: string) => {
 				const match = dfsKeywordMap.get(kw.toLowerCase());
 				if (match && !assignedKeywords.has(match.keyword)) {
@@ -1024,128 +1257,93 @@ For each pillar, return:
 			(tc.example_keywords ?? []).forEach(addExact);
 		});
 
-		// Pass 2: score remaining keywords exclusively against topics
+		// Pass 2: scored exclusive
 		allDfsKeywords.forEach((k) => {
 			if (assignedKeywords.has(k.keyword)) return;
-			const kl = k.keyword.toLowerCase();
-			const kWords = kl
+			const kWords = k.keyword
+				.toLowerCase()
 				.split(/\s+/)
 				.filter((w) => w.length > 2 && !STOPWORDS.has(w) && !genericWords.has(w));
-			if (kWords.length === 0) return; // only generic words — skip
-
-			let bestTopic = '';
-			let bestScore = 0;
-
-			topicClusters.forEach((tc) => {
-				const sig = topicSignatureWords.find((s) => s.title === tc.title)!;
+			if (kWords.length === 0) return;
+			let bestTopic = '',
+				bestScore = 0;
+			synthesizedTopics.forEach((tc) => {
+				const sig = topicSigWords.find((s) => s.title === tc.title)!;
 				let score = 0;
 				kWords.forEach((w) => {
-					if (sig.words.has(w))
-						score += 3; // exact word match
-					else if ([...sig.words].some((sw) => sw.includes(w) || w.includes(sw))) score += 1; // partial
+					if (sig.words.has(w)) score += 3;
+					else if ([...sig.words].some((sw) => sw.includes(w) || w.includes(sw))) score += 1;
 				});
 				if (score > bestScore) {
 					bestScore = score;
 					bestTopic = tc.title;
 				}
 			});
-
-			// Only assign if there's a meaningful discriminating match
-			if (bestTopic && bestScore >= 3 && topicRealKeywords[bestTopic].length < 50) {
+			if (bestTopic && bestScore >= 3 && topicRealKeywords[bestTopic].length < 60) {
 				topicRealKeywords[bestTopic].push(k);
 				assignedKeywords.add(k.keyword);
 			}
 		});
 
-		// Build topic summaries with REAL metrics for Claude's reasoning prompt.
-		// Labels are intentionally plain-English so Claude doesn't echo technical field names back.
-		const topicSummaries = topicClusters
+		// Multipliers
+		const NAV_MULT: Record<NavboostPotential, number> = { high: 1.3, medium: 1.0, low: 0.7 };
+		const IGS_MULT: Record<IgsFeasibility, number> = { strong: 1.0, borderline: 0.8, failed: 0.0 };
+		const CONF_MULT: Record<DataConfidence, number> = {
+			data_backed: 1.0,
+			paa_backed: 0.9,
+			ai_suggested: 0.75
+		};
+
+		// Topic summaries for Phase 8
+		const topicSummaries = synthesizedTopics
 			.map((tc) => {
 				const realKws = topicRealKeywords[tc.title] ?? [];
 				const metrics = aggregateTopicMetrics(realKws);
 				const d = researchMap[tc.title];
-				const topKeywords = realKws
-					.slice(0, 5)
-					.map((k) => `"${k.keyword}" (${k.monthly_searches.toLocaleString()} searches/mo)`)
-					.join(', ');
-				const competitionLevel =
-					metrics.keyword_difficulty < 20
-						? 'low'
-						: metrics.keyword_difficulty < 40
-							? 'medium'
-							: 'high';
-				const bigSites = d ? d.topDomains.filter((dom) => d.highAuthCount > 0).length : 0;
-				return `TOPIC: "${tc.title}"
-  Stage in buyer journey: ${tc.funnel_stage === 'tofu' ? 'awareness (top of funnel)' : tc.funnel_stage === 'mofu' ? 'consideration (mid funnel)' : 'decision (bottom of funnel)'}
-  People searching for this per month: ${metrics.monthly_searches.toLocaleString()}
-  How hard to rank for (0=easy, 100=very hard): ${metrics.keyword_difficulty} — that is ${competitionLevel} competition
-  Ad value per click: $${metrics.cpc}
-  Number of related search terms found: ${metrics.keyword_count}
-  Example search terms people use: ${topKeywords || 'none found'}
-  Big established sites already ranking: ${d ? (bigSites > 0 ? `yes (${bigSites} major sites)` : 'no major sites, mostly smaller ones') : 'unknown'}
-  Local search results present: ${d ? (d.hasLocalResults ? 'yes' : 'no') : 'unknown'}`;
+				const vol =
+					metrics.monthly_searches > 0 ? metrics.monthly_searches : tc.primary_keyword_volume;
+				const kd = metrics.keyword_count > 0 ? metrics.keyword_difficulty : tc.primary_keyword_kd;
+				const cpc = metrics.cpc > 0 ? metrics.cpc : tc.primary_keyword_cpc;
+				const comp = kd < 20 ? 'low' : kd < 40 ? 'medium' : 'high';
+				return `"${tc.title}"
+  Confidence: ${tc.data_confidence} | Navboost: ${tc.navboost_potential} | IGS: ${tc.igs_feasibility}
+  Vol: ${vol.toLocaleString()}/mo | KD: ${kd} (${comp}) | CPC: $${cpc}
+  Original angle: ${tc.original_angle}
+  PAA: ${d?.paaDepth ?? 0} questions | Format: ${d?.dominantFormat ?? 'unknown'} | Competitors with original data: ${d?.hasOriginalDataInTop5 ? 'yes' : 'no'}`;
 			})
 			.join('\n\n');
 
-		// Claude writes ONLY reasoning and rationale — metrics come from real data.
-		// Language must be plain and friendly — our users are small business owners, not SEO experts.
+		writeNdjson(res, { type: 'step', id: 'metrics' });
+
+		// =====================================================================
+		// PHASE 8 — AI REASONING
+		// =====================================================================
+		console.log('[Strategy] Phase 8: AI reasoning');
+
 		const reasoningRaw = await ai(
-			`You are a friendly content coach helping a small business owner figure out what to write about on their website. You speak in plain, everyday English — never in marketing or SEO jargon.
+			`You are a friendly content coach helping a small business owner understand their content strategy.
+Plain everyday English. Zero SEO jargon.
 
-You will receive a list of content topics with data about how popular they are and how competitive they are.
+Write:
+1. "rationale" — 2-3 sentences. What's the plan? Why these topics? What's achievable now vs later?
+   Reference the original angles to make it feel concrete and specific to THIS business.
+2. "ai_reasoning" per topic — 1 sentence. Why this topic for THIS specific business.
+   If confidence is "ai_suggested", say it's based on questions people are asking.
 
-Your job is to write TWO things:
-1. A "rationale" — 2-3 conversational sentences summarizing the overall plan: what to write about first, and why it makes sense to save the harder topics for later as the site grows.
-2. An "ai_reasoning" for each topic — 1 short sentence explaining in plain terms why this topic is worth writing about.
-
-STRICT LANGUAGE RULES — follow these exactly:
-- NEVER say: DA, KD, SERP, allintitle, head terms, long-tail, topical authority, domain authority, authority score, keyword difficulty, organic results, CTR, backlinks, indexed, crawled.
-- Instead say: "competition" instead of KD, "how many people search for it" instead of volume, "how strong your site is" instead of domain authority, "Google results" instead of SERP.
-- Do NOT quote raw numbers like "(KD 7, 980 volume)" in the rationale — describe what they mean in plain words instead.
-- Do NOT mention topic names with numbers in parentheses. Just name the topic naturally.
-- Write like you're texting a friend who owns a small business, not presenting a marketing report.
-- Keep it encouraging and practical. The owner should feel excited, not overwhelmed.
-
-EXAMPLE OF BAD output (never write like this):
-"For a new domain (DA 1) in the competitive ecommerce SEO space, the data reveals a clear path forward: prioritize ultra-low-competition targets first. 'Ecommerce Platform SEO' (KD 0, 980 volume) represents an immediate opportunity..."
-
-EXAMPLE OF GOOD output (write like this):
-"We found some great topics your site can realistically start ranking for right now — especially ones where there isn't much competition yet. Start with those first to get some early wins, then tackle the bigger topics as your site gets more established. Think of it like building a reputation: start local before going national."
-
-- Do NOT invent or change any numbers.
-- Return ONLY valid JSON. No markdown fences.`,
+NEVER say: DA, KD, SERP, CTR, backlinks, domain authority, keyword difficulty, Navboost, IGS.
+Write like texting a friend who owns a small business.
+Return ONLY valid JSON, no markdown.`,
 			`${authNote}
-${tierNote}
 Business: ${site.name} | Niche: ${site.niche}
+Category: ${landscape.category_breadth} — ${landscape.breadth_reasoning}
 
-TOPIC DATA:
+TOPICS:
 ${topicSummaries}
 
-Return this exact JSON structure:
-{
-  "rationale": "2-3 conversational sentences. What's the plan? Why start with certain topics? What do they build toward? Sound like a coach, not a consultant.",
-  "topics": [
-    {
-      "title": "exact topic title from input",
-      "ai_reasoning": "1 sentence — plain English reason why this topic is worth writing about"
-    }
-  ]
-}`,
-			4000
+Return: { "rationale": "2-3 sentences", "topics": [{ "title": "exact title", "ai_reasoning": "1 sentence" }] }`,
+			3000
 		);
 
-		type FinalTopic = {
-			title: string;
-			keyword: string;
-			keyword_count: number;
-			monthly_searches: number;
-			keyword_difficulty: number;
-			cpc: number;
-			funnel_stage: string;
-			ai_reasoning: string;
-		};
-
-		// Parse Claude's reasoning
 		const reasoningByTitle: Record<string, string> = {};
 		let strategyRationale = '';
 		try {
@@ -1155,140 +1353,143 @@ Return this exact JSON structure:
 				reasoningByTitle[t.title] = t.ai_reasoning ?? '';
 			});
 		} catch {
-			console.error(
-				'[Strategy] Phase 5 reasoning parse error:',
-				(reasoningRaw ?? '').slice(0, 300)
-			);
+			console.error('[Strategy] Phase 8 parse error:', (reasoningRaw ?? '').slice(0, 200));
 		}
 
-		// Build final topics with REAL metrics + AI reasoning
-		const enrichedTopics: FinalTopic[] = topicClusters.map((tc) => {
-			const realKws = topicRealKeywords[tc.title] ?? [];
-			const metrics = aggregateTopicMetrics(realKws);
-
-			// If we have no real keywords for this topic (DataForSEO not configured),
-			// fall back to SERP-based estimation via allintitle and PAA signals
-			const d = researchMap[tc.title];
-			const fallbackVolume = d ? Math.max(d.paaDepth * 500, 200) : 500;
-			const fallbackKD = d ? (d.highAuthCount >= 3 ? 55 : d.hasLocalResults ? 20 : 35) : 40;
-
-			return {
-				title: tc.title,
-				keyword: tc.primary_keyword,
-				keyword_count: metrics.keyword_count > 0 ? metrics.keyword_count : (d?.paaDepth ?? 1) * 10,
-				monthly_searches: metrics.monthly_searches > 0 ? metrics.monthly_searches : fallbackVolume,
-				keyword_difficulty: metrics.keyword_count > 0 ? metrics.keyword_difficulty : fallbackKD,
-				cpc: metrics.cpc > 0 ? metrics.cpc : 1.5,
-				funnel_stage: tc.funnel_stage,
-				ai_reasoning:
-					reasoningByTitle[tc.title] ??
-					(dataForSeoConfigured
-						? `Research found ${realKws.length} related keywords for this topic.`
-						: 'DataForSEO not configured — metrics estimated from SERP signals.')
-			};
-		});
+		writeNdjson(res, { type: 'step', id: 'rank' });
 
 		// =====================================================================
-		// FINALIZE: server-side authority_fit + priority_score + discovery_source
-		// Sort: achievable → buildToward → locked; within tier by priority_score
+		// FINALIZE
 		// =====================================================================
-		const suggestions = enrichedTopics
-			.filter((s) => !existingTitles.has((s.title ?? '').toLowerCase().trim()))
-			.map((s) => {
-				const kd = Number(s.keyword_difficulty ?? 50);
-				const volume = Number(s.monthly_searches ?? 0);
-				const authority_fit = computeAuthorityFit(kd, da);
+		const suggestions = synthesizedTopics
+			.filter((tc) => !existingTitles.has((tc.title ?? '').toLowerCase().trim()))
+			.map((tc) => {
+				const realKws = topicRealKeywords[tc.title] ?? [];
+				const metrics = aggregateTopicMetrics(realKws);
+				const d = researchMap[tc.title];
+
+				// Real metrics first; fall back to Phase 5 zone-derived values
+				const monthly_searches =
+					metrics.monthly_searches > 0 ? metrics.monthly_searches : tc.primary_keyword_volume;
+				const keyword_difficulty =
+					metrics.keyword_count > 0 ? metrics.keyword_difficulty : tc.primary_keyword_kd;
+				const cpc = metrics.cpc > 0 ? metrics.cpc : tc.primary_keyword_cpc;
+				const keyword_count =
+					metrics.keyword_count > 0 ? metrics.keyword_count : realKws.length || 1;
+
+				const authority_fit = computeAuthorityFit(keyword_difficulty, da);
+				const navMult = NAV_MULT[tc.navboost_potential] ?? 1.0;
+				const igsMult = IGS_MULT[tc.igs_feasibility] ?? 0.8;
+				const confMult = CONF_MULT[tc.data_confidence] ?? 0.75;
+
 				const priority_score = computePriorityScore(
-					Number(s.cpc ?? 0),
-					volume,
-					kd,
-					s.funnel_stage ?? 'tofu',
+					cpc,
+					monthly_searches,
+					keyword_difficulty,
+					tc.funnel_stage ?? 'mofu',
 					authority_fit,
-					monthlyImpressions
+					monthlyImpressions,
+					navMult * confMult,
+					igsMult
 				);
 
-				const cluster = topicClusters.find((tc) => tc.title === s.title);
-				const rawSources = cluster?.discovery_sources ?? [];
+				const rawSources = tc.discovery_sources ?? [];
 				const discovery_source = rawSources.includes('seed')
 					? 'seed'
 					: rawSources.includes('competitor_gap')
 						? 'competitor_gap'
 						: rawSources.includes('google_paa')
 							? 'google_paa'
-							: rawSources.includes('google_related')
-								? 'google_related'
+							: rawSources.includes('keyword_research')
+								? 'keyword_research'
 								: 'ai_brainstorm';
 
-				const rd = researchMap[s.title];
-				const allintitleCount = rd?.allintitleCount ?? 0;
+				const allintitleCount = d?.allintitleCount ?? 0;
 				const kgr_score =
-					volume > 0 && allintitleCount > 0
-						? Math.round((allintitleCount / volume) * 1000) / 1000
+					monthly_searches > 0 && allintitleCount > 0
+						? Math.round((allintitleCount / monthly_searches) * 1000) / 1000
 						: null;
 
 				return {
-					...s,
+					title: tc.title,
+					keyword: tc.primary_keyword,
+					keyword_count,
+					monthly_searches,
+					keyword_difficulty,
+					cpc,
+					funnel_stage: tc.funnel_stage,
+					mofu_type: tc.mofu_type,
 					authority_fit,
 					priority_score,
 					kgr_score,
 					allintitle_count: allintitleCount,
-					data_source: rd ? 'serp_researched' : 'estimated',
-					discovery_source
+					data_source: d ? 'serp_researched' : 'zone_computed',
+					data_confidence: tc.data_confidence,
+					discovery_source,
+					navboost_potential: tc.navboost_potential,
+					igs_feasibility: tc.igs_feasibility,
+					original_angle: tc.original_angle,
+					dominant_format: d?.dominantFormat ?? 'guide',
+					has_original_data_in_top5: d?.hasOriginalDataInTop5 ?? false,
+					paa_questions: d?.paaQuestions ?? [],
+					ai_reasoning:
+						reasoningByTitle[tc.title] ??
+						(tc.data_confidence === 'data_backed'
+							? `Found ${keyword_count} related keywords people are searching for in this area.`
+							: tc.data_confidence === 'paa_backed'
+								? 'Based on questions people are actively asking Google about this topic.'
+								: 'AI-identified gap — shows demand signals not yet tracked by keyword tools.')
 				};
-			});
+			})
+			.filter((s) => s.priority_score > 0);
 
 		const ORDER = { achievable: 0, buildToward: 1, locked: 2 };
 		suggestions.sort((a, b) => {
 			const ad = ORDER[a.authority_fit as keyof typeof ORDER] ?? 3;
 			const bd = ORDER[b.authority_fit as keyof typeof ORDER] ?? 3;
 			if (ad !== bd) return ad - bd;
-
-			if (noImpressionsYet) {
-				// New site with no traffic: sort low volume → high volume within each bucket.
-				// You can't win high-volume keywords without authority — tackle the smallest
-				// winnable topics first, then grow into larger ones as the site earns trust.
-				return a.monthly_searches - b.monthly_searches;
-			}
-
-			// Established site: highest priority_score first (CPC × volume / KD weighted)
+			if (noImpressionsYet) return a.monthly_searches - b.monthly_searches;
 			return b.priority_score - a.priority_score;
 		});
 
+		// Collect all organic titles across zones for researchContext (frontend compat)
+		const allOrganicTitlesSampled = [
+			...new Set(Object.values(organicTitlesByZone).flatMap((titles) => titles))
+		].slice(0, 40);
+
 		const researchContext = {
+			// v5.0 fields
+			strategy_version: '5.0',
+			category_breadth: landscape.category_breadth,
+			breadth_reasoning: landscape.breadth_reasoning,
+			zone_seeds_generated: allZoneSeeds.length,
+			strong_zones: strongZones.length,
+			weak_gap_zones: weakZones.length,
+			dfs_zones_queried: dfsZoneSeeds.length,
+			topics_data_backed: suggestions.filter((s) => s.data_confidence === 'data_backed').length,
+			topics_paa_backed: suggestions.filter((s) => s.data_confidence === 'paa_backed').length,
+			topics_ai_suggested: suggestions.filter((s) => s.data_confidence === 'ai_suggested').length,
+			// v4 compatible fields (frontend reads these)
 			seeds_used: seeds,
-			discovery_queries_run: discoveryQueries.length,
+			discovery_queries_run: allZoneSeeds.length,
 			dataforseo_keywords_found: allDfsKeywords.length,
 			dataforseo_configured: dataForSeoConfigured,
 			competitors_analyzed: competitorDomains.filter(Boolean),
 			competitor_signals: competitorContent.slice(0, 3),
 			people_also_ask: uniquePAA.slice(0, 10),
 			related_searches: uniqueRelated.slice(0, 10),
-			organic_titles_sampled: uniqueOrganicTitles.slice(0, 8),
+			organic_titles_sampled: allOrganicTitlesSampled.slice(0, 8),
 			keywords_from_paa: uniquePAA.length,
 			keywords_from_related: uniqueRelated.length,
-			keywords_from_organic: uniqueOrganicTitles.length,
+			keywords_from_organic: allOrganicTitlesSampled.length,
 			keywords_from_competitors: competitorContent.length,
-			keywords_from_ai: topicClusters.filter((tc) =>
-				(tc.discovery_sources ?? []).includes('ai_brainstorm')
-			).length,
+			keywords_from_ai: suggestions.filter((s) => s.data_confidence === 'ai_suggested').length,
 			topics_researched: Object.keys(researchMap).length,
 			traffic_tier: tier.label,
 			monthly_impressions: monthlyImpressions,
 			has_gsc_data: monthlyImpressions > 0
 		};
 
-		// Deduct credits
-		const newCredits = Math.max(0, available - cost);
-		await supabase
-			.from('organizations')
-			.update({
-				included_credits_remaining: newCredits,
-				...(org?.included_credits != null && { included_credits: newCredits })
-			})
-			.eq('id', orgId);
-
-		// Persist this run so the user can always recover suggestions later.
-		// Non-blocking — a save failure should never break the response.
 		const runInsert: Record<string, unknown> = {
 			site_id: siteId,
 			organization_id: orgId,
@@ -1306,42 +1507,60 @@ Return this exact JSON structure:
 			.insert(runInsert)
 			.select('id')
 			.single();
+		if (runErr) console.error('[Strategy] Failed to save run:', runErr.message);
+		else console.log(`[Strategy] Run saved: ${runRow?.id} | ${suggestions.length} topics | v5.0`);
 
-		if (runErr) {
-			console.error('[Strategy] Failed to save run:', runErr.message);
-		} else {
-			console.log(`[Strategy] Run saved: ${runRow?.id}`);
-		}
-
-		return res.json({
+		writeNdjson(res, {
+			type: 'done',
 			suggestions,
 			strategyRationale,
 			researchContext,
 			trafficTier: tier.label,
+			categoryBreadth: landscape.category_breadth,
 			creditsUsed: cost,
 			creditsRemaining: newCredits,
 			runId: runRow?.id ?? null
 		});
+		res.end();
 	} catch (err) {
 		console.error('[Strategy] suggestTopics error:', err);
-		return res.status(500).json({ error: 'Internal server error' });
+		if (res.headersSent) {
+			try {
+				// Refund credits when stream started but error occurred
+				const { data: userOrg } = await supabase
+					.from('user_organizations')
+					.select('organization_id')
+					.eq('user_id', req.user?.id ?? '')
+					.maybeSingle();
+				if (userOrg?.organization_id) {
+					await supabase.rpc('credit_back_action', {
+						p_org_id: userOrg.organization_id,
+						p_action_key: 'strategy_generation',
+						p_credits: CREDIT_COSTS.STRATEGY_GENERATION,
+						p_reason: 'Strategy generation failed mid-stream'
+					});
+				}
+				writeNdjson(res, {
+					type: 'error',
+					message: 'Internal server error. Your credits have been refunded.'
+				});
+				res.end();
+			} catch {
+				// ignore
+			}
+		} else {
+			return res.status(500).json({ error: 'Internal server error' });
+		}
 	}
 };
 
 /**
- * GET real keyword metrics from DataForSEO for a single keyword.
- * Used by the Add/Edit Topic modal to enrich manually-entered keywords
- * with the same real data quality as AI-generated topics.
- *
  * POST /api/strategy/keyword-metrics
- * Body: { keyword: string }
+ * Real keyword metrics for a single keyword (Add/Edit Topic modal).
  */
 export const getKeywordMetricsHandler: RequestHandler = async (req, res) => {
 	const { keyword } = req.body as { keyword?: string };
-	if (!keyword?.trim()) {
-		return res.status(400).json({ error: 'keyword is required' });
-	}
-
+	if (!keyword?.trim()) return res.status(400).json({ error: 'keyword is required' });
 	try {
 		const metrics = await getKeywordMetrics(keyword.trim());
 		return res.json(metrics);

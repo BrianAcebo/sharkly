@@ -572,7 +572,7 @@ export default function Clusters() {
 							/>
 							<hr className="my-4 border-gray-200 dark:border-gray-600" />
 							<p className="text-xs font-medium text-gray-700 dark:text-gray-300">
-								Destination page (optional...but recommended)
+								Destination page (optional)
 							</p>
 							<p className="text-[11px] text-gray-500 dark:text-gray-400">
 								Product, signup, or service page this content drives visitors toward.

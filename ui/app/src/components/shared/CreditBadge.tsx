@@ -1,5 +1,15 @@
 import React from 'react';
-import { Zap } from 'lucide-react';
+import { Coins } from 'lucide-react';
+
+/** Inline display of credit cost: Coins icon + amount. Use in buttons/labels. */
+export function CreditCost({ amount, className }: { amount: number; className?: string }) {
+	return (
+		<span className={className ?? 'inline-flex items-center gap-1 text-current'}>
+			{amount}
+			<Coins className="size-3.5 shrink-0" />
+		</span>
+	);
+}
 
 interface CreditBadgeProps {
 	cost: number;
@@ -14,8 +24,8 @@ export function CreditBadge({ cost, action, sufficient = true }: CreditBadgeProp
 				sufficient ? 'bg-brand-50 text-brand-600' : 'bg-error-50 text-error-600'
 			}`}
 		>
-			<Zap className="size-3" />
-			{cost} credits
+			<Coins className="size-3 shrink-0" />
+			{cost}
 		</span>
 	);
 }

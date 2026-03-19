@@ -11,10 +11,20 @@ import {
 	DialogFooter,
 	DialogDescription
 } from '../ui/dialog';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle
+} from '../ui/alert-dialog';
 import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import InputField from '../form/input/InputField';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Target, UpdateTargetInput } from '../../types/target';
 
@@ -23,9 +33,10 @@ interface Props {
 	onClose: () => void;
 	target: Target | null;
 	onSave: (targetId: string, input: UpdateTargetInput) => Promise<{ error: string | null }>;
+	onDelete?: (targetId: string) => Promise<{ error: string | null }>;
 }
 
-export function EditTargetModal({ open, onClose, target, onSave }: Props) {
+export function EditTargetModal({ open, onClose, target, onSave, onDelete }: Props) {
 	const [form, setForm] = useState({
 		name: '',
 		destinationPageUrl: '',
@@ -33,6 +44,8 @@ export function EditTargetModal({ open, onClose, target, onSave }: Props) {
 		seedKeywords: ''
 	});
 	const [saving, setSaving] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
 	useEffect(() => {
 		if (target) {
@@ -74,8 +87,26 @@ export function EditTargetModal({ open, onClose, target, onSave }: Props) {
 		}
 	};
 
+	const handleDelete = async () => {
+		if (!target || !onDelete) return;
+		setDeleting(true);
+		setDeleteConfirmOpen(false);
+		try {
+			const { error } = await onDelete(target.id);
+			if (error) throw new Error(error);
+			setDeleteConfirmOpen(false);
+			toast.success('Target deleted');
+			onClose();
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Failed to delete target');
+		} finally {
+			setDeleting(false);
+		}
+	};
+
 	return (
-		<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+		<>
+			<Dialog open={open} onOpenChange={(o) => !o && onClose()}>
 			<DialogContent className="max-w-md">
 				<DialogHeader>
 					<DialogTitle>Edit Target</DialogTitle>
@@ -117,16 +148,55 @@ export function EditTargetModal({ open, onClose, target, onSave }: Props) {
 						/>
 					</div>
 				</div>
-				<DialogFooter>
-					<Button variant="outline" onClick={onClose}>
-						Cancel
-					</Button>
-					<Button className="bg-brand-500 hover:bg-brand-600" onClick={handleSave} disabled={saving}>
-						{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-						Save
-					</Button>
+				<DialogFooter className="flex-col gap-3 sm:flex-row sm:justify-between">
+					<div className="flex w-full justify-between sm:order-2 sm:w-auto">
+						<Button variant="outline" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button className="bg-brand-500 hover:bg-brand-600" onClick={handleSave} disabled={saving}>
+							{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+							Save
+						</Button>
+					</div>
+					{onDelete && (
+						<Button
+							variant="ghost"
+							className="sm:order-1 w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-900/20 dark:hover:text-red-400 sm:w-auto"
+							onClick={() => setDeleteConfirmOpen(true)}
+							disabled={saving || deleting}
+						>
+							<Trash2 className="mr-2 size-4" />
+							Delete target
+						</Button>
+					)}
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
+
+		<AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Delete target?</AlertDialogTitle>
+					<AlertDialogDescription>
+						This will permanently delete &quot;{target?.name}&quot; and all its topics, clusters, and
+						related content. This cannot be undone.
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel>Cancel</AlertDialogCancel>
+					<AlertDialogAction
+						className="bg-red-600 hover:bg-red-700"
+						onClick={(e) => {
+							e.preventDefault();
+							handleDelete();
+						}}
+						disabled={deleting}
+					>
+						{deleting ? 'Deleting…' : 'Delete'}
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+		</>
 	);
 }

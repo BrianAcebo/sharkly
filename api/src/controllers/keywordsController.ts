@@ -50,6 +50,16 @@ export async function lookupKeyword(req: Request, res: Response): Promise<void> 
 			return;
 		}
 
+		// Charge credits before any API calls (Serper, Anthropic)
+		const newCredits = Math.max(0, creditsRemaining - CREDIT_COSTS.KEYWORD_LOOKUP);
+		await supabase
+			.from('organizations')
+			.update({
+				included_credits_remaining: newCredits,
+				...(org?.included_credits != null && { included_credits: newCredits })
+			})
+			.eq('id', organizationId);
+
 		// 1. Serper.dev: fetch related searches and PAA for context
 		const serperData = await serperSearch(`${keyword} site statistics`, 5);
 		const relatedSearches = (serperData.relatedSearches || []).map((r: { query: string }) => r.query).slice(0, 10);
@@ -106,16 +116,6 @@ Volume labels:
 		} catch {
 			console.error('[Keywords] Failed to parse Haiku response:', rawText);
 		}
-
-		// Deduct credits
-		const newCredits = Math.max(0, creditsRemaining - CREDIT_COSTS.KEYWORD_LOOKUP);
-		await supabase
-			.from('organizations')
-			.update({
-				included_credits_remaining: newCredits,
-				...(org?.included_credits != null && { included_credits: newCredits })
-			})
-			.eq('id', organizationId);
 
 		res.json({
 			success: true,

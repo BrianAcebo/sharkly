@@ -1,6 +1,6 @@
 import { useAudit } from '../../hooks/useAudit';
 import { Button } from '../ui/button';
-import { RotateCcw, AlertTriangle, AlertCircle } from 'lucide-react';
+import { RotateCcw, AlertTriangle, AlertCircle, CheckCircle, XCircle, Circle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface AuditScoreCardProps {
@@ -28,13 +28,13 @@ export default function AuditScoreCard({ siteId, siteName }: AuditScoreCardProps
 	const getStatusBadge = (status: string | undefined) => {
 		switch (status) {
 			case 'good':
-				return '🟢';
+				return <CheckCircle className="size-6 text-green-500" />;
 			case 'warning':
-				return '🟡';
+				return <AlertTriangle className="size-6 text-yellow-500" />;
 			case 'critical':
-				return '🔴';
+				return <XCircle className="size-6 text-red-500" />;
 			default:
-				return '⚪';
+				return <Circle className="size-6 text-gray-400" />;
 		}
 	};
 

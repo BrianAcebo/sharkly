@@ -45,6 +45,7 @@ import Rankings from './pages/Rankings';
 import Technical from './pages/Technical';
 import Calendar from './pages/Calendar';
 import Sites from './pages/Sites';
+import SiteDetail from './pages/SiteDetail';
 import RefundAdmin from './pages/Admin/RefundAdmin';
 import StripeAudit from './pages/Admin/StripeAudit';
 import AdminDashboard from './pages/Admin/AdminDashboard';
@@ -55,8 +56,8 @@ import AuditResults from './pages/AuditResults';
 import SchemaGenerator from './pages/SchemaGenerator';
 import Ecommerce from './pages/Ecommerce';
 import EcommerceWorkspace from './pages/EcommerceWorkspace';
-import SettingsIntegrations from './pages/SettingsIntegrations';
-
+import CROStudio from './pages/CROStudio';
+import CROAuditDetail from './pages/CROAuditDetail';
 export default function App() {
 	return (
 		<ErrorBoundary>
@@ -85,13 +86,15 @@ export default function App() {
 						<Route path="/rankings" element={<Rankings />} />
 					<Route path="/technical" element={<Technical />} />
 					<Route path="/schema-generator" element={<SchemaGenerator />} />
+					<Route path="/cro-studio/audit/:id" element={<CROAuditDetail />} />
+					<Route path="/cro-studio" element={<CROStudio />} />
 					<Route path="/audit/:siteId" element={<AuditResults />} />
 					{/* <Route path="/calendar" element={<Calendar />} /> */}
 					<Route path="/projects" element={<Navigate to="/sites" replace />} />
 						<Route path="/sites" element={<Sites />} />
+						<Route path="/sites/:id" element={<SiteDetail />} />
 						<Route path="/settings" element={<SettingsLayout />}>
 							<Route index element={<Navigate to="profile" replace />} />
-							<Route path="integrations" element={<SettingsIntegrations />} />
 							<Route path="credits" element={<SettingsCredits />} />
 							<Route path="billing" element={<SettingsBilling />} />
 							<Route path="team" element={<SettingsTeam />} />

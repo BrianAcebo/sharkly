@@ -36,6 +36,7 @@ import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
 import { buildApiUrl } from '../../utils/urls';
+import { CreditCost } from '../shared/CreditBadge';
 import { CREDIT_COSTS } from '../../lib/credits';
 import type { PageDetail } from '../../hooks/usePage';
 import type { Site } from '../../types/site';
@@ -499,7 +500,7 @@ export function MetaSidebar({ open, onClose, page, siteId, onSaved, site }: Prop
 						)}
 						{regenerating
 							? 'Generating suggestions…'
-							: `Regenerate Meta - ${CREDIT_COSTS.META_GENERATION} credits`}
+							: <>Regenerate Meta — <CreditCost amount={CREDIT_COSTS.META_GENERATION} /></>}
 					</Button>
 
 					<Button

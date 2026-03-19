@@ -278,17 +278,18 @@ MODALS:
 │ ├── 3 competitor cards (domain, word count, heading count)
 │ └── Your target comparison pill
 │
-├── CRO TAB (NEW — full functional spec)
-│ ├── Score block: large "5 / 7" + page type in plain English
-│ ├── Funnel mismatch banner (conditional — red/amber, above checklist)
-│ ├── Checklist (8 items):
-│ │ ├── ✅ Pass — item name + evidence string
-│ │ ├── ⚠ Partial — item name + what's partially present
-│ │ ├── ❌ Fail — item name + what's missing
-│ │ └── — N/A — item name + "Not required for this page type" (greyed)
-│ ├── "Get Specific Fixes" button (3 credits — active when ≥1 required item failing)
-│ │ └── Returns exact copy + placement instructions per failing item
-│ └── Brief Guidance (collapsed accordion — existing cro_note fields)
+├── CRO TAB
+│ ├── "Optimize CRO" button → opens CRO Studio with this page pre-loaded
+│ │ ├── Passes: page_url, page_type: 'seo_page', destination_url (from target)
+│ │ ├── Shown only if page has a URL set
+│ │ └── If no URL set: prompt "Add your page URL to run a CRO audit"
+│ ├── If page has been audited in CRO Studio: shows last CRO score + audit date
+│ │ └── "View full audit →" link to /cro-studio/:audit_id
+│ └── If never audited: empty state — "Run a CRO audit to see how well this
+│ page hands off visitors to your destination page."
+│
+│ NOTE: The CRO tab skeleton (8-item checklist) has been removed.
+│ CRO auditing now happens in CRO Studio. See cro-studio.md.
 │
 └── ENTITIES TAB
 ├── Covered entities (green pills)
@@ -311,29 +312,29 @@ MODALS:
 ├── Header: "Ecommerce" + Add Product + Add Collection + Import from Shopify (if connected)
 ├── Tabs: Products (default) | Collections
 ├── Products table
-│   ├── Columns: Name | Keyword | Target | SEO Health | Status | Action
-│   ├── Bulk select checkboxes + sticky "Generate selected" bottom bar with credit cost
-│   └── Each row links to /ecommerce/:id
+│ ├── Columns: Name | Keyword | Target | SEO Health | Status | Action
+│ ├── Bulk select checkboxes + sticky "Generate selected" bottom bar with credit cost
+│ └── Each row links to /ecommerce/:id
 ├── Collections table (same structure)
 ├── Empty state — no Shopify, no items: Add Product / Add Collection / Connect Shopify CTAs
 └── Empty state — Shopify connected, no items: Import from Shopify CTA
 
 MODALS:
 ├── Add Product modal
-│   ├── Product name (required)
-│   ├── Product URL (optional — needed for SEO crawl checks)
-│   ├── Existing description (optional paste)
-│   └── Target selector (optional)
+│ ├── Product name (required)
+│ ├── Product URL (optional — needed for SEO crawl checks)
+│ ├── Existing description (optional paste)
+│ └── Target selector (optional)
 ├── Add Collection modal
-│   ├── Collection name (required)
-│   ├── Collection URL (optional)
-│   ├── Existing intro text (optional paste)
-│   └── Target selector (optional)
+│ ├── Collection name (required)
+│ ├── Collection URL (optional)
+│ ├── Existing intro text (optional paste)
+│ └── Target selector (optional)
 └── Import from Shopify modal
-    ├── Tab: Products — pulls top 250 via Shopify Admin API, checkbox list
-    ├── Tab: Collections — pulls all collections, checkbox list
-    ├── Amber dot on collections with no existing intro text
-    └── "Import selected" button — free (0 credits)
+├── Tab: Products — pulls top 250 via Shopify Admin API, checkbox list
+├── Tab: Collections — pulls all collections, checkbox list
+├── Amber dot on collections with no existing intro text
+└── "Import selected" button — free (0 credits)
 
 ---
 
@@ -341,93 +342,142 @@ MODALS:
 ├── Two-column layout (65% editor / 35% SEO checks)
 │
 ├── LEFT PANEL — editor (65%)
-│   ├── Header row
-│   │   ├── Product/collection name (editable inline)
-│   │   ├── Keyword field (editable inline — placeholder "Set target keyword")
-│   │   ├── Target selector (sets destination_page_url on that Target record)
-│   │   ├── "Publish to Shopify" button (cyan — Shopify connected + content exists)
-│   │   ├── "Copy HTML" button (no Shopify connected + content exists)
-│   │   └── "Generate" button (10 credits)
-│   │
-│   ├── Keyword assignment block (shown until keyword is set)
-│   │   ├── Keyword input field
-│   │   ├── "Check SERP" — 5 credits (top 3 keyword suggestions, volume + difficulty)
-│   │   └── "Set manually" — free
-│   │
-│   ├── Description editor (Tiptap — same component as main workspace)
-│   │   ├── Before generation: existing_content shown read-only as "Current — will be rewritten"
-│   │   ├── After generation: Tiptap editor, same toolbar as workspace
-│   │   ├── Word count indicator: target 350–400 (products) / 150–200 (collections)
-│   │   └── Autosave
-│   │
-│   └── Schema block (collapsible, below editor)
-│       ├── Product: Product + Offer schema
-│       ├── Collection: CollectionPage + BreadcrumbList schema
-│       └── Copy-to-clipboard button
+│ ├── Header row
+│ │ ├── Product/collection name (editable inline)
+│ │ ├── Keyword field (editable inline — placeholder "Set target keyword")
+│ │ ├── Target selector (sets destination_page_url on that Target record)
+│ │ ├── "Publish to Shopify" button (cyan — Shopify connected + content exists)
+│ │ ├── "Copy HTML" button (no Shopify connected + content exists)
+│ │ └── "Generate" button (10 credits)
+│ │
+│ ├── Keyword assignment block (shown until keyword is set)
+│ │ ├── Keyword input field
+│ │ ├── "Check SERP" — 5 credits (top 3 keyword suggestions, volume + difficulty)
+│ │ └── "Set manually" — free
+│ │
+│ ├── Description editor (Tiptap — same component as main workspace)
+│ │ ├── Before generation: existing_content shown read-only as "Current — will be rewritten"
+│ │ ├── After generation: Tiptap editor, same toolbar as workspace
+│ │ ├── Word count indicator: target 350–400 (products) / 150–200 (collections)
+│ │ └── Autosave
+│ │
+│ └── Schema block (collapsible, below editor)
+│ ├── Product: Product + Offer schema
+│ ├── Collection: CollectionPage + BreadcrumbList schema
+│ └── Copy-to-clipboard button
 │
 ├── RIGHT PANEL — SEO checks (35%)
-│   ├── "Re-check" button (free — re-crawls URL)
-│   ├── Pass/fail summary: "X / 6 checks passing"
-│   ├── Check 1: Keyword in page title (weight 1.00)
-│   ├── Check 2: Keyword in H1 (weight 0.95)
-│   ├── Check 3: Keyword in URL slug (weight 0.85) — warning if GSC impressions exist
-│   ├── Check 4: Meta description present + 150–160 chars
-│   ├── Check 5: Description originality (manufacturer copy detection)
-│   ├── Check 6: Product/CollectionPage schema present
-│   ├── Duplicate variants warning (products only — variant_count > 3)
-│   └── Pagination canonical warning (collections only — products_count > 50)
+│ ├── "Re-check" button (free — re-crawls URL)
+│ ├── Pass/fail summary: "X / 6 checks passing"
+│ ├── Check 1: Keyword in page title (weight 1.00)
+│ ├── Check 2: Keyword in H1 (weight 0.95)
+│ ├── Check 3: Keyword in URL slug (weight 0.85) — warning if GSC impressions exist
+│ ├── Check 4: Meta description present + 150–160 chars
+│ ├── Check 5: Description originality (manufacturer copy detection)
+│ ├── Check 6: Product/CollectionPage schema present
+│ ├── Duplicate variants warning (products only — variant_count > 3)
+│ └── Pagination canonical warning (collections only — products_count > 50)
 │
 └── Publish modal (on "Publish to Shopify")
-    ├── Destination: {product name} at {store}.myshopify.com/products/{handle}
-    ├── Checkbox: Overwrite existing description
-    ├── Checkbox: Update meta title + meta description
-    └── Confirm / Cancel
+├── Destination: {product name} at {store}.myshopify.com/products/{handle}
+├── Checkbox: Overwrite existing description
+├── Checkbox: Update meta title + meta description
+└── Confirm / Cancel
 
 ---
 
-### CRO STUDIO (Post-Launch — CRO Add-On subscribers only)
+### CRO STUDIO (Post-Launch — CRO Add-On)
+
+**Full spec:** `cro-studio.md` — single source of truth for all CRO functionality.
 
 /cro-studio — CRO Studio Home
-├── Nav item: "CRO Studio 🎯" (locked/greyed for base subscribers)
-├── LOCKED STATE (base subscribers)
-│ ├── Upgrade modal on nav click
-│ └── Personalised upsell copy (uses actual GSC click data where available)
+├── Nav item: "CRO Studio 🎯" (locked/greyed for base subscribers — clicking opens upgrade modal)
 │
-└── UNLOCKED STATE (CRO add-on active)
-├── Header: "CRO Studio — Destination Pages"
-├── Destination pages list (all pages attached to clusters as destinations)
-│ ├── Card: destination label, cluster name, CRO score (if audited), last audit date
-│ └── Empty state: "Connect destination pages in your clusters to start auditing"
-└── "+ Audit a URL" — manually add any URL for standalone audit
-
-/cro-studio/:destination_id — Destination Page Audit
-├── Header: destination page label + URL
-├── CRO score (large display — the ONLY score on this screen)
-├── "Re-audit" button (1 credit) — amber prompt if audit >30 days old
+├── LOCKED STATE (base subscribers):
+│ ├── Lock overlay with CRO add-on upsell
+│ └── Personalised copy: "X visitors hit your destination pages last month"
+│ (uses GSC click data where available)
 │
-├── AUDIT REPORT
-│ ├── Critical Issues (red) — page architecture violations first
-│ ├── Improvements (amber) — items that could be better
-│ └── Strong (green) — what's working
+└── UNLOCKED STATE (CRO add-on active):
+├── Header: "CRO Studio" + "[ + Add Page ]" button
+├── Tabs: [ SEO Pages ] [ Destination Pages ]
 │
-├── GENERATED FIXES PANEL
-│ ├── Per failing item: inline expand → 2-3 copy options
-│ ├── Each option: exact words to use, exact placement instruction
-│ ├── Copy-to-clipboard per option
-│ └── "Generate All Fixes" (6 credits)
+├── SEO PAGES TAB
+│ ├── Lists all audited SEO pages (focus pages + articles)
+│ ├── Each card: page label, URL, CRO score (X/5), handoff status,
+│ │ last audit date, issue count
+│ └── Empty state: "Open any focus page or article in the Workspace
+│ and click 'Optimize CRO' to start an audit"
 │
-└── AUDIT DIMENSIONS (shown as subsections in report)
-├── Page Architecture — is the page structured in the right sequence?
-├── CRO Checklist — 8-item intent-matched evaluation
-├── Funnel Coherence — do CTAs match where this visitor is in their journey?
-├── Psychological Triggers — 15 cognitive bias signals
-└── Objection Removal — are objections addressed before the CTA?
+├── DESTINATION PAGES TAB
+│ ├── Lists all audited destination pages
+│ ├── Each card: page label, URL, connected target name, CRO score (X/10),
+│ │ last audit date, issue count
+│ └── Empty state: "Click 'Open in CRO Studio' from any cluster's
+│ Customer Journey tab, or add a URL manually below"
+│
+└── Re-audit prompt badge on cards where audit is >30 days old
 
 MODALS:
-└── Upgrade modal (base subscribers — add CRO Studio for +$29/month)
-├── What you get explanation
-├── Personalised data: "X visitors hit your destination pages last month"
-└── Stripe add-on purchase CTA
+└── Add Page modal (from "+ Add Page" button or standalone entry)
+├── Step 1: Page URL input
+├── Step 2: Page type selector
+│ ├── "SEO Page" — focus page or article (ranks and warms the lead)
+│ └── "Destination Page" — product, service, or signup page (converts)
+├── Step 3 (SEO Page only): Destination URL input
+│ ├── "Which page should visitors go to from this page?"
+│ └── Helper: "This should be the product or service page you want to sell"
+├── Validation on submit:
+│ ├── Structural check — flags if declared type doesn't match page structure
+│ └── For SEO pages: checks if destination URL is present as first link
+│ in first 400 words. Warns if not — does not block submission.
+└── Upgrade modal (base subscribers)
+├── "X visitors hit your destination pages last month"
+└── Stripe add-on purchase CTA (+$29/month)
+
+---
+
+/cro-studio/:audit_id — Page Audit View
+
+**Routing:** Same route handles both page types. UI adapts based on `page_type`.
+
+├── SHARED HEADER (both page types)
+│ ├── Page label + URL (↗ opens in new tab)
+│ ├── Page type badge: "SEO Page" or "Destination Page"
+│ ├── Connected target/cluster pill (if connected — links to cluster detail)
+│ ├── CRO Score (large display — only score shown)
+│ ├── Last audited date
+│ ├── [ Re-audit page ] (1 credit)
+│ └── [ Get Fixes ] / [ Generate All Fixes ] (3 credits SEO / 6 credits destination)
+│
+├── SEO PAGE AUDIT VIEW
+│ ├── 🔴 Critical Issues
+│ │ └── Destination handoff failures, funnel mismatch warnings
+│ ├── 🟡 Improvements
+│ │ └── CTA commitment level, emotional hook, CTA presence
+│ ├── ✅ Strong — working well
+│ └── Generated fixes panel (inline expansion per item)
+│ ├── 2-3 copy options per fix with exact words
+│ ├── Placement instruction per option
+│ ├── Copy-to-clipboard
+│ └── ⚠ Note on every fix: "This fix should not require shortening
+│ your article or changing your keyword focus"
+│
+└── DESTINATION PAGE AUDIT VIEW
+├── 🔴 PAGE STRUCTURE VIOLATIONS (shown first if violations exist)
+│ └── Trust-after-CTA, CTA-below-fold violations
+├── AUDIT REPORT (10-step journey)
+│ ├── 🔴 Critical Issues (failed required journey steps)
+│ ├── 🟡 Improvements (partial steps)
+│ └── ✅ Strong (passing steps — keep these)
+├── COGNITIVE BIAS INVENTORY (collapsed section)
+│ ├── 11 biases — present ✅ / missing ❌
+│ └── Advisory only — not scored
+├── SEO BASICS (collapsed section)
+│ └── References runSeoChecks() results from ecommerce workspace
+│ (keyword in title, H1, URL, meta description, originality, schema)
+│ — read-only display, "Edit in Ecommerce workspace →" link
+└── Generated fixes panel (same structure as SEO page — inline expansion)
 
 ---
 
@@ -632,10 +682,13 @@ Project settings (sheet slideout drawer, not a route)
 
 NOTES:
 
-- SEO Anchor pages CANNOT enter CRO Studio (routing enforced)
-- Destination pages CANNOT enter Workspace (routing enforced)
-- No UPSA score, no brief generation, no internal link engine in CRO Studio
-- No word count guidance — destination pages are judged on conversion, not depth
+- CRO Studio audits both SEO pages (focus pages + articles) and destination pages
+- Both page types use live URL fetch — rendered HTML only, not Tiptap content
+- SEO pages get a 5-item light CRO audit (handoff, CTA fit, funnel mismatch, hook, CTA present)
+- Destination pages get a 10-step Optimal Selling Journey audit + cognitive bias inventory
+- No UPSA score anywhere in CRO Studio
+- No content editor — users implement fixes in their own CMS
+- No combined SEO + CRO score — they are always separate numbers
 
 ---
 
@@ -713,7 +766,7 @@ EMPTY STATES (all major screens have designed empty states):
 | /performance                      |      Yes      |         Growth+          |
 | /technical                        |      Yes      |          Scale+          |
 | /cro-studio                       |      Yes      | CRO Add-On (post-launch) |
-| /cro-studio/:destination_id       |      Yes      | CRO Add-On (post-launch) |
+| /cro-studio/:audit_id             |      Yes      | CRO Add-On (post-launch) |
 | /settings/\*                      |      Yes      |           Any            |
 | /projects                         |      Yes      |           Any            |
 | /admin/apps/sharkly               |    Shopify    |           Any            |

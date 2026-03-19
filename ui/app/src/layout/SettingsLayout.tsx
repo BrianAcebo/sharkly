@@ -1,10 +1,9 @@
 import { Link, Outlet, useLocation } from 'react-router';
 import type { LucideIcon } from 'lucide-react';
-import { User, Building2, CreditCard, Receipt, Bell, Plug } from 'lucide-react';
+import { User, Building2, CreditCard, Receipt, Bell } from 'lucide-react';
 
 const SETTINGS_NAV: { path: string; label: string; icon: LucideIcon; badge?: string }[] = [
 	{ path: '/settings/profile', label: 'Profile', icon: User },
-	// { path: '/settings/integrations', label: 'Integrations', icon: Plug },
 	{ path: '/settings/organization', label: 'Organization', icon: Building2 },
 	{ path: '/settings/credits', label: 'Credits & Usage', icon: CreditCard },
 	{ path: '/settings/billing', label: 'Billing', icon: Receipt },

@@ -101,5 +101,26 @@ export function useTargetTopics(targetId: string | null) {
 		return { error: null };
 	}, [targetId]);
 
-	return { topics, loading, error, refetch, deleteTopic };
+	const moveTopic = useCallback(
+		async (topicId: string, destinationTargetId: string): Promise<{ error: string | null }> => {
+			if (!targetId) return { error: 'No target selected' };
+			try {
+				const headers = await getAuthHeaders();
+				const res = await fetch(buildApiUrl(`/api/targets/${targetId}/topics/${topicId}/move`), {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', ...headers },
+					body: JSON.stringify({ destinationTargetId })
+				});
+				const data = (await res.json().catch(() => ({}))) as { error?: string };
+				if (!res.ok) return { error: data?.error ?? 'Failed to move topic' };
+				setTopics((prev) => prev.filter((t) => t.id !== topicId));
+				return { error: null };
+			} catch (err) {
+				return { error: err instanceof Error ? err.message : 'Failed to move topic' };
+			}
+		},
+		[targetId]
+	);
+
+	return { topics, loading, error, refetch, deleteTopic, moveTopic };
 }

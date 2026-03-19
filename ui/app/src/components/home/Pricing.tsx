@@ -19,14 +19,14 @@ const Pricing: React.FC = () => {
 			subtitle: 'Ideal for small businesses and marketing teams publishing regularly.',
 			price: 79,
 			popular: true,
-			features: ['Up to 3 sites', 'Full topic clusters', 'AI content generation', 'Google Search Console integration'],
+			features: ['Up to 3 sites', 'Full topic clusters', 'AI content generation', 'Fin AI Assistant (200 messages/mo)', 'Google Search Console integration'],
 		},
 		{
 			name: 'Scale',
 			subtitle: 'For agencies and brands managing multiple sites and teams.',
 			price: 199,
 			popular: false,
-			features: ['Unlimited sites', 'Team seats', 'Priority support', 'Advanced analytics'],
+			features: ['Unlimited sites', 'Team seats', 'Fin AI Assistant (500 messages/mo)', 'Priority support', 'Advanced analytics'],
 		},
 	];
 

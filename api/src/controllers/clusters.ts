@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { createNotificationForUser } from '../utils/notifications.js';
 import { serperSearch } from '../utils/serper.js';
 import { getKeywordSuggestions } from '../utils/dataforseo.js';
 import type { DfsKeyword } from '../utils/dataforseo.js';
@@ -11,6 +12,40 @@ const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
 const CLAUDE_SONNET_MODEL = process.env.CLAUDE_SONNET_MODEL || 'claude-sonnet-4-5-20250929';
 const GPT_CONTENT_MODEL = process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini';
+
+/** Simple Claude call — used for zone seed generation (Phase 0) */
+async function callClaudeForZones(system: string, user: string): Promise<string | null> {
+	try {
+		const res = await fetch('https://api.anthropic.com/v1/messages', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				'x-api-key': ANTHROPIC_API_KEY,
+				'anthropic-version': '2023-06-01'
+			},
+			body: JSON.stringify({
+				model: CLAUDE_SONNET_MODEL,
+				max_tokens: 800,
+				messages: [{ role: 'user', content: user }],
+				system
+			})
+		});
+		if (!res.ok) return null;
+		const d = (await res.json()) as { content?: Array<{ type: string; text: string }> };
+		return d.content?.find((c) => c.type === 'text')?.text ?? null;
+	} catch {
+		return null;
+	}
+}
+
+function parseJSONSafe<T>(raw: string | null, fallback: T): T {
+	if (!raw) return fallback;
+	try {
+		return JSON.parse(raw.replace(/\`\`\`json\n?|\n?\`\`\`/g, '').trim()) as T;
+	} catch {
+		return fallback;
+	}
+}
 
 // ---------------------------------------------------------------------------
 // AI curation + gap-fill — Claude Haiku with OpenAI fallback.
@@ -212,7 +247,13 @@ async function callAICuration(
 	dfsKeywords: Array<{ keyword: string; volume: number; kd: number; cpc: number }>,
 	paaQuestions: string[],
 	relatedSearches: string[],
-	needed: number
+	needed: number,
+	siteContext?: {
+		name?: string | null;
+		niche?: string | null;
+		customer_description?: string | null;
+		domain_authority?: number | null;
+	}
 ): Promise<AICurationResult> {
 	// Extract what actually makes this topic specific (not generic stopwords/industry words)
 	const differentiators = extractDifferentiatingQualifiers(topicKeyword);
@@ -226,7 +267,21 @@ async function callAICuration(
 			? `"${topicKeyword.replace(/\b(seo|optimization|marketing|strategy)\b/i, 'basics')}" (drops the core subject)`
 			: `a generic version of this topic without "${differentiatorPhrase}"`;
 
-	const system = `You are a senior SEO content strategist building a topical cluster. You think exactly like a human analyst in SEMrush: you judge whether a keyword is truly ON-TOPIC for the cluster's core subject, not just vaguely related. You are strict about topical relevance — a keyword that shares words with the topic but covers a DIFFERENT subject is WRONG. Return ONLY valid JSON. No markdown, no explanations.`;
+	const da = siteContext?.domain_authority ?? 0;
+	const authNote =
+		da <= 5
+			? `New site (DA ${da}). Prioritise low-competition angles (KD ≤ 15).`
+			: `DA ${da}. Achievable KD ≤ ${da + 10}. Avoid KD > ${da + 25}.`;
+
+	const system = `You are a senior SEO content strategist building a topical cluster for ${siteContext?.name ?? 'a business'} — ${siteContext?.niche ?? 'a specialist brand'} serving ${siteContext?.customer_description ?? 'their target audience'}.
+
+You think exactly like a human editor at an SEO agency: you commission writers to cover the REAL questions people have about a topic, using keyword research as signal — not as a shopping list.
+
+AUTHORITY CONTEXT: ${authNote}
+
+Your job is to design ToFu supporting articles that surround the focus page with topical depth, each answering a genuinely different user question, each rankable independently.
+
+Return ONLY valid JSON. No markdown, no explanations.`;
 
 	const dfsLines = dfsKeywords
 		.slice(0, 100)
@@ -236,14 +291,22 @@ async function callAICuration(
 	const paaLines = paaQuestions.length > 0 ? paaQuestions.join('\n') : 'none';
 	const relatedLines = relatedSearches.length > 0 ? relatedSearches.join('\n') : 'none';
 
-	const user = `CONTENT CLUSTER BRIEF
-Main topic keyword: "${topicKeyword}"
-Topic title: "${topicTitle}"
-Focus page (money page, already being written): "${focusPageTitle}"
+	const siteName = siteContext?.name ?? 'this business';
+	const siteNiche = siteContext?.niche ?? 'this industry';
+	const siteCustomer = siteContext?.customer_description ?? 'their target audience';
+	const maxKd = da <= 5 ? 15 : da + 10;
 
-RESEARCH DATA — use this to understand what people are actually asking. Do not treat it as a selection list.
+	const user = `CLUSTER BRIEF — ${siteName} | ${siteNiche}
+Customer: ${siteCustomer} | ${authNote}
 
-DataForSEO keyword suggestions (keyword | monthly searches | difficulty | CPC):
+Cluster topic keyword: "${topicKeyword}"
+Cluster topic title: "${topicTitle}"
+Focus page (MoFu — already being written): "${focusPageTitle}"
+
+RESEARCH DATA — multi-zone keyword research across the full question landscape of this topic.
+This is signal for understanding what people search, not a keyword shopping list.
+
+DataForSEO keywords (keyword | monthly searches | KD | CPC):
 ${dfsLines || 'No keyword data available'}
 
 Google People Also Ask:
@@ -252,43 +315,42 @@ ${paaLines}
 Google Related Searches:
 ${relatedLines}
 
-YOUR TASK — EDITORIAL ARTICLE DESIGN:
-Design exactly ${needed} supporting articles for this cluster. Think like an editor commissioning writers, not like a system selecting keywords.
+YOUR TASK — DESIGN ${needed} ToFu SUPPORTING ARTICLES:
+Think like a senior editor at an SEO agency commissioning writers, not like a system selecting keywords.
 
-Step 1: Read the research and identify the genuinely DIFFERENT questions people have related to this topic.
-Step 2: For each distinct question, design one article. Pick the best matching keyword from the research as the primary keyword. If the research has no good match, invent a natural-sounding search phrase.
-Step 3: Before finalising, do a final check — ask yourself: "Could a writer produce article N without looking at any other article in this list?" If two articles would significantly overlap in content, replace one with something genuinely different.
+Step 1: Read the research. Identify the genuinely DIFFERENT questions people have about "${topicKeyword}". The multi-zone research above covers the full landscape — use it to find angles a single keyword search would miss.
+Step 2: For each distinct question, design one article. Use the best matching keyword from research as the primary keyword. If no good match exists, invent a natural search phrase ${siteName} could realistically rank for.
+Step 3: Apply IGS thinking [US20190155948A1]: for each article — can ${siteName} add something original that content farms can't? First-hand experience, specific data, practitioner insight? Prefer these angles.
+Step 4: Prefer winnable keywords. ${authNote} Target KD ≤ ${maxKd} where possible.
+Step 5: Final check — could a writer produce each article completely independently? If two articles answer the same question with different wording → replace one with a genuinely different angle.
 
 NON-NEGOTIABLE RULES:
-1. Every article must be ToFu (informational/educational). The focus page is already MoFu (it covers comparisons, best options, overview). Never produce: "best X", "top X", "X comparison", "X vs Y", "X review" — those duplicate the focus page.
+0. CROSS-CLUSTER REJECTION: If a keyword from the research belongs to a DIFFERENT topic cluster (e.g. "shopify seo" in a "link building" cluster), REJECT it. Do not use it. Invent a topically correct replacement. You are the firewall against keyword cannibalization.
 
-2. Never produce an article that is just the focus keyword with 1-2 words swapped or added:
+1. Every article must be ToFu (informational/educational). The focus page covers comparisons, overviews, options — never produce: "best X", "top X", "X vs Y", "X review", "X comparison". Those duplicate the focus page.
+
+2. Never produce a near-duplicate of the focus page:
    Focus keyword: "${topicKeyword}"
-   ❌ WRONG: add an adjective → "gentle ${topicKeyword}", "deep ${topicKeyword}", "facial ${topicKeyword}"
-   ❌ WRONG: add a modifier → "best ${topicKeyword}", "top ${topicKeyword}", "${topicKeyword} routine"
-   ❌ WRONG: swap a synonym → "face" for "facial", "cream" for "moisturizer"
-   These are all the same article as the focus page. Reject all of them.
+   ❌ Add adjective → "gentle ${topicKeyword}", "deep ${topicKeyword}"
+   ❌ Add modifier → "best ${topicKeyword}", "${topicKeyword} guide"
+   ❌ Swap synonym → minor word replacement covering the same intent
+   Test: if a writer would research the same competitor pages → it's a duplicate.
 
-3. No two articles in your list should answer the same underlying question with different wording.
-   Before adding an article, check: does any other article in my list already answer this?
-   If yes — replace it with a genuinely different question.
+3. Every article must answer a DIFFERENT underlying question. No two articles cover the same intent with different wording.
 
-4. Use the research to inform your article ideas — but don't be limited by it. If the research only
-   contains keyword variants of the focus page (common for specific product keywords), look beyond
-   the literal keywords and think: what educational content would help someone considering this topic?
-   What do they need to know before, during, or after using/choosing this type of product or service?
+4. If research is thin, go beyond the literal keywords. Think: what does someone need to know before, during, and after dealing with "${topicKeyword}"? What does ${siteName} know from direct experience that a generic content farm doesn't?
 
 Return a JSON array — one object per article:
 [
   {
-    "title": "Natural article title a human writer would use",
-    "keyword": "primary keyword from research or invented search phrase",
-    "rationale": "one sentence: what specific question this answers that NO other article in this list answers",
+    "title": "Natural article title a human writer would pitch",
+    "keyword": "primary keyword from research or invented natural search phrase",
+    "rationale": "one sentence: what specific question this answers that NO other article in this list covers",
     "source": "research or ai"
   }
 ]
 
-Return exactly ${needed} items. Each must be editorially distinct — a different writer, a different question, a different reader.`;
+Return exactly ${needed} items. Each must be editorially distinct — a different writer, different question, different reader.`;
 
 	const parseResult = (text: string): AICurationResult | null => {
 		try {
@@ -831,8 +893,11 @@ async function generateInternalLinkSuggestions(
 }
 
 export const createCluster = async (req: Request, res: Response) => {
+	let userId: string | undefined;
+	let orgId: string | undefined;
+	let creditsDeducted = false;
 	try {
-		const userId = req.user?.id;
+		userId = req.user?.id;
 		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
 		const { topicId, maxArticles } = req.body as { topicId: string; maxArticles?: number };
@@ -850,7 +915,7 @@ export const createCluster = async (req: Request, res: Response) => {
 			return res.status(400).json({ error: 'No organization. Complete onboarding first.' });
 		}
 
-		const orgId = userOrg.organization_id;
+		orgId = userOrg.organization_id;
 
 		const { data: org } = await supabase
 			.from('organizations')
@@ -867,6 +932,21 @@ export const createCluster = async (req: Request, res: Response) => {
 			});
 		}
 
+		// Charge credits before any API calls (DataForSEO, Serper, AI)
+		const creditsAfterCreate = Math.max(0, creditsRemaining - CREDIT_COSTS.CLUSTER_GENERATION);
+		const { error: deductErr } = await supabase
+			.from('organizations')
+			.update({
+				included_credits_remaining: creditsAfterCreate,
+				...(org?.included_credits != null && { included_credits: creditsAfterCreate })
+			})
+			.eq('id', orgId);
+		if (deductErr) {
+			console.error('[Clusters] Failed to deduct credits:', deductErr);
+			return res.status(500).json({ error: 'Failed to deduct credits' });
+		}
+		creditsDeducted = true;
+
 		const { data: topic, error: topicErr } = await supabase
 			.from('topics')
 			.select(
@@ -880,6 +960,13 @@ export const createCluster = async (req: Request, res: Response) => {
 		}
 
 		const siteId = topic.site_id;
+
+		// Fetch site for business context — used in zone mapping + AI curation
+		const { data: site } = await supabase
+			.from('sites')
+			.select('name, niche, customer_description, domain_authority')
+			.eq('id', siteId)
+			.single();
 
 		// Phase 5: Pre-fill cluster destination from target (target's destination is default)
 		let clusterInsert: Record<string, unknown> = {
@@ -916,50 +1003,137 @@ export const createCluster = async (req: Request, res: Response) => {
 			return res.status(500).json({ error: 'Failed to create cluster' });
 		}
 
-		// ── Phase 1: Raw keyword research dump ──────────────────────────────────
-		// Gather ALL real data first — DFS keyword suggestions, Google PAA, related
-		// searches. This mirrors what a human SEO analyst sees in SEMrush before
-		// deciding what to write about. No filtering yet — send everything to AI.
-		const dfsLimit = Math.min(200, Math.max(50, articleLimit * 8));
-		console.log(
-			`[Clusters] Phase 1: DFS + Serper research for "${topic.keyword}" (dfs limit: ${dfsLimit})`
+		// ── Phase 0: Topic zone mapping ─────────────────────────────────────────
+		// Mirror strategy.ts's multi-zone parallel research, scoped to one topic.
+		// A single DFS call on the focus keyword only returns keyword variants of
+		// that one phrase — missing the full question landscape around the topic.
+		// Zone mapping generates 4-8 distinct sub-angles, each searched separately,
+		// producing a keyword pool that's 4-8× richer and covers all article angles.
+		console.log(`[Clusters] Phase 0: topic zone mapping for "${topic.keyword}"`);
+
+		const zoneRaw = await callClaudeForZones(
+			`You are a senior SEO strategist generating DataForSEO search seeds.
+These seeds are NOT article titles — they are short keyword phrases used to pull keyword data from a database.
+Short, common phrases return hundreds of results. Long, specific phrases return zero.
+Return ONLY valid JSON, no markdown.`,
+			`Business: ${site?.name ?? 'Unknown'} | Niche: ${site?.niche ?? 'Unknown'}
+Focus topic keyword: "${topic.keyword}"
+
+Generate 5-7 DataForSEO seed keywords that cover the distinct sub-angles of this topic.
+
+CRITICAL RULES FOR SEEDS — this is about getting real data, not describing articles:
+- Seeds must be SHORT: 2-3 words maximum. 4+ word seeds almost always return 0 results.
+- Seeds must be COMMON: phrases people actually type into Google as a category search, not long-tail questions
+- Seeds must be DISTINCT: each seed covers a different angle, not a variation of the same phrase
+- Do NOT include the focus keyword itself — it's already covered as the primary zone
+
+BAD seeds (too long/specific → 0 DFS results):
+❌ "broken link building ecommerce" → too specific, 0 results
+❌ "supplier partnership link acquisition" → nobody searches this
+❌ "ecommerce PR link building strategy" → too long
+❌ "competitor backlink analysis ecommerce" → too specific
+
+GOOD seeds (short, common → real DFS data):
+✓ "link building" → thousands of keywords
+✓ "backlink strategy" → hundreds of keywords
+✓ "digital PR SEO" → solid data
+✓ "guest posting SEO" → real data
+✓ "broken link building" → real data (2 words, common phrase)
+
+EXAMPLE — focus topic: "ecommerce link building"
+Good zones: ["link building", "backlink strategy", "digital PR SEO", "guest posting SEO", "broken link building", "domain authority"]
+
+EXAMPLE — focus topic: "moisturizer with benzoyl peroxide"
+Good zones: ["benzoyl peroxide", "acne moisturizer", "acne skincare routine", "dry skin acne", "skin barrier repair"]
+
+EXAMPLE — focus topic: "shopify product page seo"
+Good zones: ["product page SEO", "shopify SEO", "ecommerce meta tags", "product description SEO", "schema markup ecommerce"]
+
+Return:
+{
+  "zone_seeds": ["5-7 short seeds, 2-3 words each, that will return real DFS data"],
+  "reasoning": "one sentence on what angles you mapped"
+}`
 		);
 
-		const [dfsResult, serperResult] = await Promise.all([
-			getKeywordSuggestions(topic.keyword, { limit: dfsLimit }),
-			serperSearch(topic.keyword, 10)
+		const zoneData = parseJSONSafe<{ zone_seeds: string[]; reasoning?: string }>(zoneRaw, {
+			zone_seeds: []
+		});
+
+		// Always include the topic keyword itself as the primary zone
+		const allZoneSeeds = [
+			topic.keyword,
+			...(zoneData.zone_seeds ?? []).filter((z: string) => z && z.trim().length > 0)
+		].slice(0, 9); // cap at 9 zones (1 primary + up to 8 sub-angles)
+
+		console.log(
+			`[Clusters] Phase 0: ${allZoneSeeds.length} zones mapped — ${allZoneSeeds.join(' | ')}`
+		);
+
+		// ── Phase 1: Parallel keyword research across all zones ──────────────────
+		// Fire DFS + Serper simultaneously for every zone — same pattern as strategy.ts.
+		// This produces a keyword pool 4-8× richer than a single DFS call.
+		console.log(`[Clusters] Phase 1: parallel research across ${allZoneSeeds.length} zones`);
+
+		const [dfsZoneResults, serpZoneResults] = await Promise.all([
+			Promise.allSettled(allZoneSeeds.map((seed) => getKeywordSuggestions(seed, { limit: 50 }))),
+			Promise.allSettled(allZoneSeeds.map((seed) => serperSearch(seed, 10)))
 		]);
 
-		// DFS pre-filter: quality gates + topical relevance gate
-		// The topical gate extracts the differentiating qualifiers from the topic keyword
-		// (e.g. "best ecommerce platform for seo" → ["seo"]) and requires every DFS keyword
-		// to contain at least one of them. This removes "best ecommerce platform for beginners"
-		// type pollutants that share the base phrase but are about a completely different subject.
-		const topicQualifiers = extractDifferentiatingQualifiers(topic.keyword);
+		// Merge DFS results — deduplicate globally (keyword assigned to first zone it appears in)
+		const globalSeenKws = new Set<string>();
+		const allDfsKeywords: DfsKeyword[] = [];
+		dfsZoneResults.forEach((r) => {
+			if (r.status !== 'fulfilled') return;
+			for (const kw of r.value.keywords) {
+				if (!globalSeenKws.has(kw.keyword)) {
+					globalSeenKws.add(kw.keyword);
+					allDfsKeywords.push(kw);
+				}
+			}
+		});
+
+		// Merge Serper PAA + related across all zones
+		const allPAASignals: string[] = [];
+		const allRelatedSignals: string[] = [];
+		serpZoneResults.forEach((r) => {
+			if (r.status !== 'fulfilled') return;
+			const data = r.value;
+			(data.peopleAlsoAsk ?? []).forEach((p) => {
+				if (p.question) allPAASignals.push(p.question);
+			});
+			(data.relatedSearches ?? []).forEach((s) => {
+				if (s.query) allRelatedSignals.push(s.query);
+			});
+		});
+
+		const uniquePAA = [...new Set(allPAASignals)];
+		const uniqueRelated = [...new Set(allRelatedSignals)];
+
 		console.log(
-			`[Clusters] Topic qualifiers for "${topic.keyword}": [${topicQualifiers.join(', ')}]`
+			`[Clusters] Phase 1: ${allDfsKeywords.length} DFS keywords across ${allZoneSeeds.length} zones | PAA: ${uniquePAA.length} | Related: ${uniqueRelated.length}`
 		);
 
-		const qualifyingDfs = dfsResult.keywords.filter((k) => {
+		// ── Phase 2: Quality filter on merged pool ────────────────────────────────
+		// Zone seeds were AI-curated for topical relevance — no need to re-apply a
+		// qualifier gate here. That gate was designed for single-zone DFS dumps where
+		// unrelated keywords bleed in. With multi-zone research the pool is already scoped.
+		// We only filter for basic quality: difficulty, volume, minimum word count.
+		const qualifyingDfs = allDfsKeywords.filter((k) => {
 			const kLower = k.keyword.toLowerCase();
 			if (kLower === topic.keyword.toLowerCase()) return false;
-			if (k.keyword.split(/\s+/).length < 3) return false;
-			if (k.keyword_difficulty > 55) return false;
-			if (k.monthly_searches < 30) return false;
-			// Topical relevance gate: if we have differentiating qualifiers, require at least one
-			// to appear in the DFS keyword. Falls back to allowing all if no qualifiers extracted.
-			if (topicQualifiers.length > 0) {
-				return topicQualifiers.some((q) => kLower.includes(q));
-			}
+			if (k.keyword.split(/\s+/).length < 2) return false; // allow 2+ words (not just 3+)
+			if (k.keyword_difficulty > 65) return false; // slightly higher ceiling than before
+			if (k.monthly_searches < 20) return false; // slightly lower floor to keep more data
 			return true;
 		});
-		// Sort by score so AI sees the best candidates first
-		const rankedDfs = [...qualifyingDfs].sort((a, b) => scoreKw(b) - scoreKw(a));
 
-		const paaQuestions = (serperResult.peopleAlsoAsk ?? []).map((p) => p.question).filter(Boolean);
-		const related = (serperResult.relatedSearches ?? []).map((r) => r.query).filter(Boolean);
+		const rankedDfs = [...qualifyingDfs].sort((a, b) => scoreKw(b) - scoreKw(a));
+		const paaQuestions = uniquePAA.slice(0, 20);
+		const related = uniqueRelated.slice(0, 20);
+
 		console.log(
-			`[Clusters] Phase 1: ${rankedDfs.length} DFS qualifying, ${paaQuestions.length} PAA, ${related.length} related`
+			`[Clusters] Phase 2: ${rankedDfs.length} qualifying DFS, ${paaQuestions.length} PAA, ${related.length} related`
 		);
 
 		// ── Phase 2: AI curation + gap-fill ─────────────────────────────────────
@@ -976,9 +1150,9 @@ export const createCluster = async (req: Request, res: Response) => {
 			cpc: k.cpc
 		}));
 
-		// Request a buffer above the target so intent-dedup losses don't leave us short.
-		// e.g. for 7 articles → ask for 12; after dedup we pick the top 7.
-		const aiRequestCount = articleLimit + Math.max(5, Math.ceil(articleLimit * 0.6));
+		// 2× buffer gives intent-dedup enough candidates — with multi-zone research
+		// the pool is large enough that gap-fill is rarely needed.
+		const aiRequestCount = articleLimit * 2 + 5;
 		console.log(
 			`[Clusters] Phase 2: AI curation — requesting ${aiRequestCount} (target: ${articleLimit}) from ${dfsForAI.length} DFS + ${paaQuestions.length} PAA + ${related.length} related`
 		);
@@ -989,7 +1163,8 @@ export const createCluster = async (req: Request, res: Response) => {
 			dfsForAI,
 			paaQuestions,
 			related,
-			aiRequestCount
+			aiRequestCount,
+			site ?? undefined
 		);
 		console.log(
 			`[Clusters] Phase 2: AI selected ${aiResult.selected.length} from research, generated ${aiResult.generated.length} new ideas`
@@ -998,11 +1173,11 @@ export const createCluster = async (req: Request, res: Response) => {
 		// ── Phase 3: Build final candidate list ──────────────────────────────────
 		// Map AI-selected keywords back to DFS data for real metrics.
 		// AI-generated gap-fill ideas get metrics via fuzzy DFS lookup.
-		const dfsMap = new Map(dfsResult.keywords.map((k) => [normalizeKw(k.keyword), k]));
+		const dfsMap = new Map(allDfsKeywords.map((k) => [normalizeKw(k.keyword), k]));
 
 		// Build word index for fuzzy lookup (used for AI-generated keywords)
 		const dfsByWord = new Map<string, DfsKeyword[]>();
-		for (const k of dfsResult.keywords) {
+		for (const k of allDfsKeywords) {
 			for (const word of normalizeKw(k.keyword).split(' ')) {
 				if (word.length < 4) continue;
 				if (!dfsByWord.has(word)) dfsByWord.set(word, []);
@@ -1149,68 +1324,24 @@ export const createCluster = async (req: Request, res: Response) => {
 			}
 		}
 
-		// Intent-group deduplication — code-level safety net against the AI
-		// selecting multiple keywords that answer the same underlying question.
-		//
-		// Extracts the "article angle" by stripping base topic words from each
-		// keyword, then checks if two articles share the same intent signal
-		// (list/comparison/overview vs how-to vs platform-specific vs problem/fix).
-		//
-		// e.g. "ecommerce platforms list" and "best ecommerce platform for seo"
-		// both have LISTING_INTENT → we keep only the higher-scoring one.
-		const LISTING_SIGNALS =
-			/\b(list|lists|best|top|vs|versus|comparison|compare|options|alternatives|overview|ranked|ranking|reviews?)\b/i;
-		const HOWTO_SIGNALS =
-			/\b(how to|how do|how can|how should|setup|set up|configure|install|implement|optimize|improve|fix|create|build|use)\b/i;
-		const PROBLEM_SIGNALS =
-			/\b(why|problem|issue|error|not working|slow|fail|wrong|broken|penalty|hurt|affect)\b/i;
-		const WHAT_SIGNALS =
-			/\b(what is|what are|what does|define|definition|mean|means|explained|explanation)\b/i;
-
-		function getIntentGroup(kw: string, topicKw: string): string {
-			const lower = kw.toLowerCase();
-			const topicWords = new Set(
-				topicKw
-					.toLowerCase()
-					.split(/\s+/)
-					.filter((w) => w.length > 3)
-			);
-			// Extract words unique to this article (angle words, not topic words)
-			const uniqueWords = normalizeKw(kw)
-				.split(' ')
-				.filter((w) => w.length > 3 && !topicWords.has(w) && !QUALIFIER_STOPWORDS.has(w));
-
-			if (LISTING_SIGNALS.test(lower)) return `listing:${uniqueWords.slice(0, 2).join('+')}`;
-			if (HOWTO_SIGNALS.test(lower)) return `howto:${uniqueWords.slice(0, 2).join('+')}`;
-			if (PROBLEM_SIGNALS.test(lower)) return `problem:${uniqueWords.slice(0, 2).join('+')}`;
-			if (WHAT_SIGNALS.test(lower)) return `what:${uniqueWords.slice(0, 2).join('+')}`;
-			return `other:${uniqueWords.slice(0, 3).join('+')}`;
-		}
-
-		// Include the focus keyword in intent groups — prevents articles identical
-		// to the focus page's intent from slipping through
-		const usedIntentGroups = new Set<string>();
-		usedIntentGroups.add(getIntentGroup(topic.keyword, topic.keyword));
+		// Lightweight dedup — AI already did editorial dedup above.
+		// We only do a final near-duplicate string check here as a safety net.
+		// The old intent-group dedup was over-aggressive: it collapsed distinct
+		// articles into the same "other:" bucket and dropped them, destroying count.
+		const seenNormalized = new Set<string>();
+		seenNormalized.add(normalizeKw(topic.keyword));
 
 		const deduped = accepted
 			.filter((a) => a.keyword.toLowerCase() !== topic.keyword.toLowerCase())
 			.sort((a, b) => b.score - a.score)
 			.filter((a) => {
-				const group = getIntentGroup(a.keyword, topic.keyword);
-				// Allow up to 2 articles per intent group (e.g. shopify how-to + woocommerce how-to)
-				const groupCount = [...usedIntentGroups].filter((g) =>
-					g.startsWith(group.split(':')[0] + ':')
-				).length;
-				// Keep listing-intent articles limited to 1 (focus page already covers this)
-				const isListing = LISTING_SIGNALS.test(a.keyword);
-				const maxPerGroup = isListing ? 1 : 3;
-				if (groupCount >= maxPerGroup) {
-					console.log(
-						`[Clusters] Intent dedup dropped "${a.keyword}" (group: ${group}, count: ${groupCount}/${maxPerGroup})`
-					);
-					return false;
+				const n = normalizeKw(a.keyword);
+				if (seenNormalized.has(n)) return false;
+				// Also check near-duplicate against all already-accepted keywords
+				for (const seen of seenNormalized) {
+					if (isNearDuplicate(seen, a.keyword)) return false;
 				}
-				usedIntentGroups.add(group);
+				seenNormalized.add(n);
 				return true;
 			});
 
@@ -1232,10 +1363,11 @@ export const createCluster = async (req: Request, res: Response) => {
 				topic.keyword,
 				topic.title,
 				focusPgTitle,
-				dfsForAI, // full DFS data so AI can make informed suggestions
+				dfsForAI,
 				paaQuestions,
 				related,
-				remaining + 3 // small extra buffer in case some gap-fills also dedup
+				remaining + 3,
+				site ?? undefined
 			);
 
 			const gapIdeas = [...gapResult.selected, ...gapResult.generated].filter(
@@ -1392,18 +1524,9 @@ export const createCluster = async (req: Request, res: Response) => {
 			console.log(`[Clusters] Focus page inserted: ${focusPage?.id}`);
 		}
 
-		// Insert article pages — real metrics from DataForSEO/PAA where available
-		// Filter zero-volume AI articles when real data exists
-		const _hasRealMetrics = articleCandidates.some(
-			(a) => a.monthly_searches !== null && a.monthly_searches > 0
-		);
-		const _finalCandidates = _hasRealMetrics
-			? articleCandidates.filter(
-					(a) => a.source !== 'ai' || (a.monthly_searches !== null && a.monthly_searches > 0)
-				)
-			: articleCandidates;
-		const articleCandidatesFinal =
-			_finalCandidates.length >= 3 ? _finalCandidates : articleCandidates;
+		// Use all candidates — guarantee already padded to articleLimit.
+		// Do NOT filter by volume here: breaks the user-requested count.
+		const articleCandidatesFinal = articleCandidates;
 
 		const articleRows = articleCandidatesFinal.map((article, i) => {
 			// Use AI-designed title if available, otherwise capitalize keyword
@@ -1457,32 +1580,53 @@ export const createCluster = async (req: Request, res: Response) => {
 			.update({ status: 'active', cluster_id: cluster.id })
 			.eq('id', topicId);
 
-		const newCredits = Math.max(0, creditsRemaining - CREDIT_COSTS.CLUSTER_GENERATION);
-		await supabase
-			.from('organizations')
-			.update({
-				included_credits_remaining: newCredits,
-				...(org?.included_credits != null && { included_credits: newCredits })
-			})
-			.eq('id', orgId);
-
 		return res.json({ clusterId: cluster.id });
 	} catch (err) {
 		console.error('[Clusters] Error:', err);
+		// Refund credits when cluster creation fails after deduction
+		if (creditsDeducted && userId && orgId) {
+			try {
+				const { error: refundErr } = await supabase.rpc('credit_back_action', {
+					p_org_id: orgId,
+					p_action_key: 'cluster_generation',
+					p_credits: CREDIT_COSTS.CLUSTER_GENERATION,
+					p_reason: 'Cluster creation failed mid-stream'
+				});
+				if (refundErr) {
+					console.error('[Clusters] CRITICAL: Failed to refund credits:', refundErr.message);
+				} else {
+					console.log(`[Clusters] Refunded ${CREDIT_COSTS.CLUSTER_GENERATION} credits to org ${orgId}`);
+					await createNotificationForUser(userId, orgId, {
+						title: 'Cluster creation failed',
+						message: `${CREDIT_COSTS.CLUSTER_GENERATION} credits were automatically refunded. Cluster creation failed.`,
+						type: 'credit_refund',
+						priority: 'high',
+						action_url: '/clusters',
+						metadata: { credits_refunded: CREDIT_COSTS.CLUSTER_GENERATION, reason: 'cluster_creation_failed' },
+						skipToast: true
+					});
+				}
+			} catch (refundEx) {
+				console.error('[Clusters] refundCredits threw:', refundEx instanceof Error ? refundEx.message : refundEx);
+			}
+		}
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
 
 // ---------------------------------------------------------------------------
 // regenerateCluster — re-runs the full research + AI curation pipeline for an
-// existing cluster but does NOT insert pages or charge credits.
+// existing cluster. Charges credits upfront; does NOT insert pages.
 //
 // Returns a ranked list of article candidates that the user can pick and choose
 // from in the UI. The result is persisted to `cluster_runs` for history.
 // ---------------------------------------------------------------------------
 export const regenerateCluster = async (req: Request, res: Response) => {
+	let userId: string | undefined;
+	let orgId: string | undefined;
+	let creditsDeducted = false;
 	try {
-		const userId = req.user?.id;
+		userId = req.user?.id;
 		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
 		const clusterId = req.params.id;
@@ -1506,8 +1650,13 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 			return res.status(404).json({ error: 'Cluster not found' });
 		}
 
-		const sitesData = cluster.sites as { organization_id: string } | { organization_id: string }[] | null;
-		const orgId = Array.isArray(sitesData) ? sitesData[0]?.organization_id : sitesData?.organization_id;
+		const sitesData = cluster.sites as
+			| { organization_id: string }
+			| { organization_id: string }[]
+			| null;
+		orgId = Array.isArray(sitesData)
+			? sitesData[0]?.organization_id
+			: sitesData?.organization_id;
 		if (!orgId) return res.status(500).json({ error: 'Could not resolve organization' });
 
 		// Auth guard: user must belong to the cluster's org
@@ -1536,6 +1685,21 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 				available: creditsAvailable
 			});
 		}
+
+		// Charge credits before any API calls (DataForSEO, Serper, AI)
+		const newCredits = Math.max(0, creditsAvailable - CREDIT_COSTS.CLUSTER_GENERATION);
+		const { error: deductErr } = await supabase
+			.from('organizations')
+			.update({
+				included_credits_remaining: newCredits,
+				...(org?.included_credits != null && { included_credits: newCredits })
+			})
+			.eq('id', orgId);
+		if (deductErr) {
+			console.error('[Clusters/Regen] Failed to deduct credits:', deductErr);
+			return res.status(500).json({ error: 'Failed to deduct credits' });
+		}
+		creditsDeducted = true;
 
 		// Fetch existing pages so we can exclude their keywords from suggestions
 		const { data: existingPages } = await supabase
@@ -1759,22 +1923,39 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 			.select('id')
 			.single();
 
-		// Deduct credits now that the run has completed successfully
-		const newCredits = Math.max(0, creditsAvailable - CREDIT_COSTS.CLUSTER_GENERATION);
-		await supabase
-			.from('organizations')
-			.update({
-				included_credits_remaining: newCredits,
-				...(org?.included_credits != null && { included_credits: newCredits })
-			})
-			.eq('id', orgId);
-
 		console.log(
 			`[Clusters/Regen] Done — ${suggestions.length} suggestions, runId: ${savedRun?.id}, credits deducted: ${CREDIT_COSTS.CLUSTER_GENERATION}`
 		);
 		return res.json({ suggestions, runId: savedRun?.id ?? null });
 	} catch (err) {
 		console.error('[Clusters/Regen] Error:', err);
+		// Refund credits when regeneration fails after deduction
+		if (creditsDeducted && userId && orgId) {
+			try {
+				const { error: refundErr } = await supabase.rpc('credit_back_action', {
+					p_org_id: orgId,
+					p_action_key: 'cluster_generation',
+					p_credits: CREDIT_COSTS.CLUSTER_GENERATION,
+					p_reason: 'Cluster regeneration failed mid-stream'
+				});
+				if (refundErr) {
+					console.error('[Clusters/Regen] CRITICAL: Failed to refund credits:', refundErr.message);
+				} else {
+					console.log(`[Clusters/Regen] Refunded ${CREDIT_COSTS.CLUSTER_GENERATION} credits to org ${orgId}`);
+					await createNotificationForUser(userId, orgId, {
+						title: 'Cluster regeneration failed',
+						message: `${CREDIT_COSTS.CLUSTER_GENERATION} credits were automatically refunded. Cluster regeneration failed.`,
+						type: 'credit_refund',
+						priority: 'high',
+						action_url: '/clusters',
+						metadata: { credits_refunded: CREDIT_COSTS.CLUSTER_GENERATION, reason: 'cluster_regeneration_failed' },
+						skipToast: true
+					});
+				}
+			} catch (refundEx) {
+				console.error('[Clusters/Regen] Refund threw:', refundEx instanceof Error ? refundEx.message : refundEx);
+			}
+		}
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -1814,8 +1995,13 @@ export const generateArticleBrief = async (req: Request, res: Response) => {
 			return res.status(404).json({ error: 'Cluster not found' });
 		}
 
-		const sitesData = cluster.sites as { organization_id: string } | { organization_id: string }[] | null;
-		const orgId = Array.isArray(sitesData) ? sitesData[0]?.organization_id : sitesData?.organization_id;
+		const sitesData = cluster.sites as
+			| { organization_id: string }
+			| { organization_id: string }[]
+			| null;
+		const orgId = Array.isArray(sitesData)
+			? sitesData[0]?.organization_id
+			: sitesData?.organization_id;
 		if (!orgId) return res.status(500).json({ error: 'Could not resolve organization' });
 
 		// Auth guard
@@ -1945,7 +2131,9 @@ export const getClusterIntelligence = async (req: Request, res: Response): Promi
 		// Fetch pages with content for link extraction (W1, W4) and cro_checklist (W5, W6), keyword (W7)
 		const { data: pages } = await supabase
 			.from('pages')
-			.select('id, title, type, keyword, page_type, funnel_stage, content, published_url, cro_checklist')
+			.select(
+				'id, title, type, keyword, page_type, funnel_stage, content, published_url, cro_checklist'
+			)
 			.eq('cluster_id', clusterId);
 
 		// S2-3: Fetch ALL site pages for keyword cannibalization detection
@@ -1992,7 +2180,10 @@ export const getClusterIntelligence = async (req: Request, res: Response): Promi
 				funnel_stage: p.funnel_stage,
 				content: p.content,
 				published_url: p.published_url,
-				cro_checklist: p.cro_checklist as { items?: Record<string, { status?: string }>; funnel_mismatch?: string } | null
+				cro_checklist: p.cro_checklist as {
+					items?: Record<string, { status?: string }>;
+					funnel_mismatch?: string;
+				} | null
 			})),
 			(internalLinks ?? []).map((l) => ({
 				from_page_id: l.from_page_id,
@@ -2004,10 +2195,7 @@ export const getClusterIntelligence = async (req: Request, res: Response): Promi
 		);
 
 		// Persist to cluster_intelligence
-		await supabase
-			.from('clusters')
-			.update({ cluster_intelligence: result })
-			.eq('id', clusterId);
+		await supabase.from('clusters').update({ cluster_intelligence: result }).eq('id', clusterId);
 
 		res.json(result);
 	} catch (err) {

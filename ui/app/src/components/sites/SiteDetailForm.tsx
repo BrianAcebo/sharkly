@@ -1,11 +1,22 @@
 import React, { useState, useRef } from 'react';
-import { Upload, X, Plus, Trash2 } from 'lucide-react';
+import {
+	Upload,
+	X,
+	Plus,
+	Trash2,
+	Settings,
+	Palette,
+	Building2,
+	FileText,
+	Plug
+} from 'lucide-react';
 import { isYMYLNiche } from '../../lib/ymyl';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
 import TextArea from '../form/input/TextArea';
 import { Button } from '../ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { validateUrl } from '../../utils/validation';
 import { GSCConnectionManager } from '../gsc/GSCConnectionManager';
 import { ShopifyConnectionStatus } from '../shopify/ShopifyConnectionStatus';
@@ -107,6 +118,7 @@ interface SiteDetailFormProps {
 	onCancel: () => void;
 	disabled?: boolean;
 	onDelete: () => void;
+	variant?: 'sheet' | 'page';
 }
 
 export default function SiteDetailForm({
@@ -114,7 +126,8 @@ export default function SiteDetailForm({
 	onSubmit,
 	onCancel,
 	disabled = false,
-	onDelete
+	onDelete,
+	variant = 'sheet'
 }: SiteDetailFormProps) {
 	const [name, setName] = useState(initial?.name ?? '');
 	const [description, setDescription] = useState(initial?.description ?? '');
@@ -241,7 +254,9 @@ export default function SiteDetailForm({
 			targetRegion: targetRegion || 'United States',
 			authorBio: authorBio.trim() || null,
 			googleReviewCount: googleReviewCount.trim() ? parseInt(googleReviewCount, 10) || null : null,
-			googleAverageRating: googleAverageRating.trim() ? parseFloat(googleAverageRating) || null : null,
+			googleAverageRating: googleAverageRating.trim()
+				? parseFloat(googleAverageRating) || null
+				: null,
 			gbpUrl: gbpUrl.trim() || null,
 			facebookUrl: facebookUrl.trim() || null,
 			linkedinUrl: linkedinUrl.trim() || null,
@@ -253,9 +268,95 @@ export default function SiteDetailForm({
 		});
 	};
 
-	return (
-		<form onSubmit={handleSubmit} className="space-y-6">
-			{/* Logo */}
+	const generalFields = (
+		<>
+			<div>
+				<Label htmlFor="site-name">
+					Name <span className="text-error-500">*</span>
+				</Label>
+				<Input
+					id="site-name"
+					type="text"
+					value={name}
+					onChange={(e) => {
+						setName(e.target.value);
+						clearError('name');
+					}}
+					placeholder="My Website"
+					required
+					error={!!errors.name}
+					hint={errors.name}
+				/>
+			</div>
+			<div>
+				<Label htmlFor="site-url">URL</Label>
+				<Input
+					id="site-url"
+					type="url"
+					value={url}
+					onChange={(e) => {
+						setUrl(e.target.value);
+						clearError('url');
+					}}
+					placeholder="https://example.com"
+					error={!!errors.url}
+					hint={errors.url}
+				/>
+			</div>
+			<div>
+				<Label htmlFor="site-description">Description</Label>
+				<TextArea
+					placeholder="Brief description of this website..."
+					rows={3}
+					value={description}
+					onChange={(e) => setDescription(e.target.value)}
+				/>
+			</div>
+			<div>
+				<Label>Platform</Label>
+				<Select
+					value={platform || '__empty__'}
+					onValueChange={(v) => setPlatform(v === '__empty__' ? '' : v)}
+				>
+					<SelectTrigger className="h-11 border-gray-300 dark:border-gray-700">
+						<SelectValue placeholder="Select platform" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="__empty__">Select platform</SelectItem>
+						{PLATFORM_OPTIONS.map((opt) => (
+							<SelectItem key={opt.value} value={opt.value}>
+								{opt.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+			<div>
+				<Label htmlFor="site-niche">Niche</Label>
+				<Input
+					id="site-niche"
+					type="text"
+					value={niche}
+					onChange={(e) => setNiche(e.target.value)}
+					placeholder="e.g. Fashion, Tech, Health"
+				/>
+				{isYMYLNiche(niche, name, description) && (
+					<div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+						<p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+							YMYL niche detected
+						</p>
+						<p className="mt-0.5 text-[11px] text-amber-700/90 dark:text-amber-400/90">
+							Google applies stricter EEAT to health, legal, and financial content. Article
+							generation will include citation, credential, and disclaimer requirements.
+						</p>
+					</div>
+				)}
+			</div>
+		</>
+	);
+
+	const brandingFields = (
+		<>
 			<div className="flex flex-col items-start space-y-4">
 				<Label>Logo</Label>
 				<div className="flex items-center gap-4">
@@ -306,112 +407,6 @@ export default function SiteDetailForm({
 					</div>
 				</div>
 			</div>
-
-			{/* Name */}
-			<div>
-				<Label htmlFor="site-name">
-					Name <span className="text-error-500">*</span>
-				</Label>
-				<Input
-					id="site-name"
-					type="text"
-					value={name}
-					onChange={(e) => {
-						setName(e.target.value);
-						clearError('name');
-					}}
-					placeholder="My Website"
-					required
-					error={!!errors.name}
-					hint={errors.name}
-				/>
-			</div>
-
-			{/* URL */}
-			<div>
-				<Label htmlFor="site-url">URL</Label>
-				<Input
-					id="site-url"
-					type="url"
-					value={url}
-					onChange={(e) => {
-						setUrl(e.target.value);
-						clearError('url');
-					}}
-					placeholder="https://example.com"
-					error={!!errors.url}
-					hint={errors.url}
-				/>
-			</div>
-
-			{/* Description */}
-			<div>
-				<Label htmlFor="site-description">Description</Label>
-				<TextArea
-					placeholder="Brief description of this website..."
-					rows={3}
-					value={description}
-					onChange={(e) => setDescription(e.target.value)}
-				/>
-			</div>
-
-			{/* Platform */}
-			<div>
-				<Label>Platform</Label>
-				<Select
-					value={platform || '__empty__'}
-					onValueChange={(v) => setPlatform(v === '__empty__' ? '' : v)}
-				>
-					<SelectTrigger className="h-11 border-gray-300 dark:border-gray-700">
-						<SelectValue placeholder="Select platform" />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="__empty__">Select platform</SelectItem>
-						{PLATFORM_OPTIONS.map((opt) => (
-							<SelectItem key={opt.value} value={opt.value}>
-								{opt.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-
-			{/* Niche */}
-			<div>
-				<Label htmlFor="site-niche">Niche</Label>
-				<Input
-					id="site-niche"
-					type="text"
-					value={niche}
-					onChange={(e) => setNiche(e.target.value)}
-					placeholder="e.g. Fashion, Tech, Health"
-				/>
-				{isYMYLNiche(niche, name, description) && (
-					<div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-						<p className="text-xs font-semibold text-amber-700 dark:text-amber-400">
-							YMYL niche detected
-						</p>
-						<p className="mt-0.5 text-[11px] text-amber-700/90 dark:text-amber-400/90">
-							Google applies stricter EEAT to health, legal, and financial content. Article generation will
-							include citation, credential, and disclaimer requirements.
-						</p>
-					</div>
-				)}
-			</div>
-
-			{/* Customer description */}
-			<div>
-				<Label htmlFor="site-customer-description">Customer description</Label>
-				<TextArea
-					placeholder="Describe your target customer for content generation..."
-					rows={3}
-					value={typeof customerDescription === 'string' ? customerDescription : ''}
-					onChange={(e) => setCustomerDescription(e.target.value)}
-				/>
-			</div>
-
-			{/* Domain Authority is shown on the Performance page, auto-fetched from Moz */}
-
 			{/* Brand voice section */}
 			<div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-600">
 				<h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -467,128 +462,6 @@ export default function SiteDetailForm({
 					</p>
 				</div>
 
-				{/* Author / EEAT — default for all content; can be overridden per page in the Workspace */}
-				<div>
-					<Label htmlFor="author-bio">Default author bio (EEAT)</Label>
-					<TextArea
-						id="author-bio"
-						placeholder="e.g. Sarah Chen, 10+ years in digital marketing. Former Head of Content at Acme Corp."
-						rows={2}
-						value={typeof authorBio === 'string' ? authorBio : ''}
-						onChange={(e) => setAuthorBio(e.target.value)}
-					/>
-					<p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-						Inject into briefs and articles for EEAT. Can be overridden per page in the Workspace.
-					</p>
-				</div>
-
-				{/* Your business profiles (S1-5) — sameAs + AggregateRating */}
-				<div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-600">
-					<h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-						Your business profiles
-					</h3>
-					<p className="text-xs text-gray-500 dark:text-gray-400">
-						These help Google confirm your business is real and connect all your online presence
-						together. Used in LocalBusiness schema (sameAs) and AggregateRating.
-					</p>
-
-					<div className="grid gap-3 sm:grid-cols-2">
-						<div>
-							<Label htmlFor="gbp-url">Google Business Profile URL</Label>
-							<Input
-								id="gbp-url"
-								type="url"
-								value={gbpUrl}
-								onChange={(e) => setGbpUrl(e.target.value)}
-								placeholder="https://www.google.com/maps/place/..."
-							/>
-						</div>
-						<div>
-							<Label htmlFor="facebook-url">Facebook</Label>
-							<Input
-								id="facebook-url"
-								type="url"
-								value={facebookUrl}
-								onChange={(e) => setFacebookUrl(e.target.value)}
-								placeholder="https://facebook.com/yourbusiness"
-							/>
-						</div>
-						<div>
-							<Label htmlFor="linkedin-url">LinkedIn</Label>
-							<Input
-								id="linkedin-url"
-								type="url"
-								value={linkedinUrl}
-								onChange={(e) => setLinkedinUrl(e.target.value)}
-								placeholder="https://linkedin.com/company/yourbusiness"
-							/>
-						</div>
-						<div>
-							<Label htmlFor="twitter-url">Twitter / X</Label>
-							<Input
-								id="twitter-url"
-								type="url"
-								value={twitterUrl}
-								onChange={(e) => setTwitterUrl(e.target.value)}
-								placeholder="https://twitter.com/yourbusiness"
-							/>
-						</div>
-						<div>
-							<Label htmlFor="yelp-url">Yelp</Label>
-							<Input
-								id="yelp-url"
-								type="url"
-								value={yelpUrl}
-								onChange={(e) => setYelpUrl(e.target.value)}
-								placeholder="https://yelp.com/biz/yourbusiness"
-							/>
-						</div>
-						<div>
-							<Label htmlFor="wikidata-url">Wikidata (optional)</Label>
-							<Input
-								id="wikidata-url"
-								type="url"
-								value={wikidataUrl}
-								onChange={(e) => setWikidataUrl(e.target.value)}
-								placeholder="https://www.wikidata.org/wiki/..."
-							/>
-						</div>
-					</div>
-
-					<div className="grid gap-3 sm:grid-cols-2">
-						<div>
-							<Label htmlFor="google-review-count">Google review count</Label>
-							<Input
-								id="google-review-count"
-								type="number"
-								min={0}
-								value={googleReviewCount}
-								onChange={(e) => setGoogleReviewCount(e.target.value)}
-								placeholder="127"
-							/>
-							<p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-								For AggregateRating schema (stars in search)
-							</p>
-						</div>
-						<div>
-							<Label htmlFor="google-average-rating">Google average rating</Label>
-							<Input
-								id="google-average-rating"
-								type="number"
-								min={0}
-								max={5}
-								step={0.1}
-								value={googleAverageRating}
-								onChange={(e) => setGoogleAverageRating(e.target.value)}
-								placeholder="4.8"
-							/>
-							<p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-								1–5 scale
-							</p>
-						</div>
-					</div>
-				</div>
-
 				{/* Language & Region */}
 				<div className="grid grid-cols-2 gap-4">
 					<div>
@@ -623,12 +496,145 @@ export default function SiteDetailForm({
 					</div>
 				</div>
 				<p className="text-[11px] text-gray-500 dark:text-gray-400">
-					All AI-generated articles and briefs will be written in this language for this region's
-					spelling and conventions (e.g. UK English uses "colour" not "color").
+					All AI-generated articles and briefs will be written in this language for this
+					region&apos;s spelling and conventions.
 				</p>
 			</div>
+		</>
+	);
 
-			{/* Competitor URLs */}
+	const businessFields = (
+		<>
+			<div>
+				<Label htmlFor="author-bio">Default author bio (EEAT)</Label>
+				<TextArea
+					id="author-bio"
+					placeholder="e.g. Sarah Chen, 10+ years in digital marketing. Former Head of Content at Acme Corp."
+					rows={2}
+					value={typeof authorBio === 'string' ? authorBio : ''}
+					onChange={(e) => setAuthorBio(e.target.value)}
+				/>
+				<p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+					Inject into briefs and articles for EEAT. Can be overridden per page in the Workspace.
+				</p>
+			</div>
+			<div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-600">
+				<h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+					Your business profiles
+				</h3>
+				<p className="text-xs text-gray-500 dark:text-gray-400">
+					These help Google confirm your business is real and connect all your online presence
+					together. Used in LocalBusiness schema (sameAs) and AggregateRating.
+				</p>
+
+				<div className="grid gap-3 sm:grid-cols-2">
+					<div>
+						<Label htmlFor="gbp-url">Google Business Profile URL</Label>
+						<Input
+							id="gbp-url"
+							type="url"
+							value={gbpUrl}
+							onChange={(e) => setGbpUrl(e.target.value)}
+							placeholder="https://www.google.com/maps/place/..."
+						/>
+					</div>
+					<div>
+						<Label htmlFor="facebook-url">Facebook</Label>
+						<Input
+							id="facebook-url"
+							type="url"
+							value={facebookUrl}
+							onChange={(e) => setFacebookUrl(e.target.value)}
+							placeholder="https://facebook.com/yourbusiness"
+						/>
+					</div>
+					<div>
+						<Label htmlFor="linkedin-url">LinkedIn</Label>
+						<Input
+							id="linkedin-url"
+							type="url"
+							value={linkedinUrl}
+							onChange={(e) => setLinkedinUrl(e.target.value)}
+							placeholder="https://linkedin.com/company/yourbusiness"
+						/>
+					</div>
+					<div>
+						<Label htmlFor="twitter-url">Twitter / X</Label>
+						<Input
+							id="twitter-url"
+							type="url"
+							value={twitterUrl}
+							onChange={(e) => setTwitterUrl(e.target.value)}
+							placeholder="https://twitter.com/yourbusiness"
+						/>
+					</div>
+					<div>
+						<Label htmlFor="yelp-url">Yelp</Label>
+						<Input
+							id="yelp-url"
+							type="url"
+							value={yelpUrl}
+							onChange={(e) => setYelpUrl(e.target.value)}
+							placeholder="https://yelp.com/biz/yourbusiness"
+						/>
+					</div>
+					<div>
+						<Label htmlFor="wikidata-url">Wikidata (optional)</Label>
+						<Input
+							id="wikidata-url"
+							type="url"
+							value={wikidataUrl}
+							onChange={(e) => setWikidataUrl(e.target.value)}
+							placeholder="https://www.wikidata.org/wiki/..."
+						/>
+					</div>
+				</div>
+
+				<div className="grid gap-3 sm:grid-cols-2">
+					<div>
+						<Label htmlFor="google-review-count">Google review count</Label>
+						<Input
+							id="google-review-count"
+							type="number"
+							min={0}
+							value={googleReviewCount}
+							onChange={(e) => setGoogleReviewCount(e.target.value)}
+							placeholder="127"
+						/>
+						<p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+							For AggregateRating schema (stars in search)
+						</p>
+					</div>
+					<div>
+						<Label htmlFor="google-average-rating">Google average rating</Label>
+						<Input
+							id="google-average-rating"
+							type="number"
+							min={0}
+							max={5}
+							step={0.1}
+							value={googleAverageRating}
+							onChange={(e) => setGoogleAverageRating(e.target.value)}
+							placeholder="4.8"
+						/>
+						<p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">1–5 scale</p>
+					</div>
+				</div>
+			</div>
+		</>
+	);
+
+	const contentFields = (
+		<>
+			<div>
+				<Label htmlFor="site-customer-description">Customer description</Label>
+				<TextArea
+					placeholder="Describe your target customer for content generation..."
+					rows={3}
+					value={typeof customerDescription === 'string' ? customerDescription : ''}
+					onChange={(e) => setCustomerDescription(e.target.value)}
+				/>
+			</div>
 			<div>
 				<Label>Competitor URLs</Label>
 				<div className="space-y-2">
@@ -679,38 +685,100 @@ export default function SiteDetailForm({
 					)}
 				</div>
 			</div>
+		</>
+	);
 
-			{/* GSC — edit only */}
-			{initial && (
-				<div className="space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
-					<h3 className="mb-3 font-medium text-gray-900 dark:text-white">Google Search Console</h3>
-					<GSCConnectionManager siteId={initial.id} siteName={initial.name} />
-				</div>
-			)}
+	const integrationsFields = initial ? (
+		<div className="space-y-6">
+			<div>
+				<h3 className="mb-3 font-medium text-gray-900 dark:text-white">Google Search Console</h3>
+				<GSCConnectionManager siteId={initial.id} siteName={initial.name} />
+			</div>
+			<div>
+				<h3 className="mb-3 font-medium text-gray-900 dark:text-white">Shopify</h3>
+				<ShopifyConnectionStatus siteId={initial.id} siteName={initial.name} />
+			</div>
+		</div>
+	) : null;
 
-			{/* Shopify — edit only */}
-			{initial && (
-				<div className="space-y-3 border-t border-gray-200 pt-6 dark:border-gray-700">
-					<h3 className="mb-3 font-medium text-gray-900 dark:text-white">Shopify</h3>
-					<ShopifyConnectionStatus siteId={initial.id} siteName={initial.name} />
-				</div>
-			)}
+	const formContent =
+		variant === 'page' ? (
+			<Tabs defaultValue="general" className="w-full">
+				<TabsList className="mb-6 flex h-auto flex-wrap gap-1 border-b border-gray-200 bg-transparent p-0 dark:border-gray-700">
+					<TabsTrigger
+						value="general"
+						className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
+					>
+						<Settings className="mr-2 size-4" />
+						General
+					</TabsTrigger>
+					<TabsTrigger
+						value="branding"
+						className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
+					>
+						<Palette className="mr-2 size-4" />
+						Branding
+					</TabsTrigger>
+					<TabsTrigger
+						value="business"
+						className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
+					>
+						<Building2 className="mr-2 size-4" />
+						Business / E-E-A-T
+					</TabsTrigger>
+					<TabsTrigger
+						value="content"
+						className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
+					>
+						<FileText className="mr-2 size-4" />
+						Content
+					</TabsTrigger>
+					{initial && (
+						<TabsTrigger
+							value="integrations"
+							className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
+						>
+							<Plug className="mr-2 size-4" />
+							Integrations
+						</TabsTrigger>
+					)}
+				</TabsList>
+				<TabsContent value="general" className="mt-0 space-y-6">
+					{generalFields}
+				</TabsContent>
+				<TabsContent value="branding" className="mt-0 space-y-6">
+					{brandingFields}
+				</TabsContent>
+				<TabsContent value="business" className="mt-0 space-y-6">
+					{businessFields}
+				</TabsContent>
+				<TabsContent value="content" className="mt-0 space-y-6">
+					{contentFields}
+				</TabsContent>
+				{initial && (
+					<TabsContent value="integrations" className="mt-0">
+						{integrationsFields}
+					</TabsContent>
+				)}
+			</Tabs>
+		) : (
+			<div className="space-y-6">
+				{/* Sheet: flat layout for Add site */}
+				{generalFields}
+				{brandingFields}
+				{businessFields}
+				{contentFields}
+				{integrationsFields}
+			</div>
+		);
 
+	return (
+		<form onSubmit={handleSubmit} className="space-y-6">
+			{formContent}
 			{/* Delete */}
-			{initial && (
-				<Button
-					variant="outline"
-					size="sm"
-					className="border-error-200 text-error-600 hover:bg-error-50 dark:border-error-900 dark:text-error-400 dark:hover:bg-error-900/20"
-					onClick={onDelete}
-					startIcon={<Trash2 className="size-4" />}
-				>
-					Delete
-				</Button>
-			)}
 
 			{/* Submit */}
-			<div className="flex gap-2 pt-4">
+			<div className="flex max-w-sm gap-3 pt-4">
 				<Button
 					type="submit"
 					className="bg-brand-500 hover:bg-brand-600 flex-1 text-white"
@@ -718,9 +786,18 @@ export default function SiteDetailForm({
 				>
 					{initial ? 'Save Changes' : 'Add Site'}
 				</Button>
-				<Button type="button" variant="outline" onClick={onCancel} disabled={disabled}>
-					Cancel
-				</Button>
+				{initial && (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="border-error-200 text-error-600 hover:bg-error-50 dark:border-error-900 dark:text-error-400 dark:hover:bg-error-900/20"
+						onClick={onDelete}
+						startIcon={<Trash2 className="size-4" />}
+					>
+						Delete
+					</Button>
+				)}
 			</div>
 		</form>
 	);

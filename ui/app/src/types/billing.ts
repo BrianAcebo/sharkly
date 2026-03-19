@@ -65,8 +65,9 @@ export interface OrganizationRow {
 	included_ai_credits?: number | null;
 	ai_credits_remaining?: number | null;
 	ai_credit_balance?: number | null;
-	has_ai_addon?: boolean | null;
-	ai_addon_started_at?: string | null;
+	/** CRO Studio add-on ($29/month). When true, CRO Studio nav and destination pages are unlocked. */
+	has_cro_addon?: boolean | null;
+	cro_addon_started_at?: string | null;
 	/** Fin (AI Assistant): included when plan has chat messages. Use included_chat_messages_monthly > 0. */
 	included_chat_messages_monthly?: number | null;
 	chat_messages_remaining?: number | null;

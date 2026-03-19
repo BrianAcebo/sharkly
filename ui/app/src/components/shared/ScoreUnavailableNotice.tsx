@@ -21,6 +21,8 @@ type Props = {
 	onGenerateBrief?: () => void;
 	/** If true, show loading state on button */
 	generating?: boolean;
+	/** When true, hide the Generate button — parent provides one (avoids duplicate CTA) */
+	hideGenerateButton?: boolean;
 };
 
 export function ScoreUnavailableNotice({
@@ -29,7 +31,8 @@ export function ScoreUnavailableNotice({
 	hasCreditsForBrief = false,
 	briefCost = CREDIT_COSTS.MONEY_PAGE_BRIEF,
 	onGenerateBrief,
-	generating = false
+	generating = false,
+	hideGenerateButton = false
 }: Props) {
 	const message =
 		"We can't accurately assess this page without a content brief. Our score relies on key concepts, related topics, and question coverage from search results — without that data, a score would be misleading and could steer your content the wrong way.";
@@ -48,7 +51,7 @@ export function ScoreUnavailableNotice({
 					<p className="text-[12px] font-medium text-amber-800 dark:text-amber-200">
 						Score unavailable — generate a brief for accurate assessment
 					</p>
-					{canGenerateBrief && onGenerateBrief && (
+					{canGenerateBrief && onGenerateBrief && !hideGenerateButton && (
 						<Button
 							size="sm"
 							className="bg-brand-500 hover:bg-brand-600 mt-1.5 text-white"

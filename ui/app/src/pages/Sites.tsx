@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Globe, Pencil, ExternalLink, Check, RefreshCw } from 'lucide-react';
+import { useNavigate, Link } from 'react-router';
+import { Plus, Globe, Pencil, ExternalLink, Check } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Button } from '../components/ui/button';
@@ -10,55 +11,50 @@ import {
 	SheetTitle,
 	SheetDescription
 } from '../components/ui/sheet';
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle
-} from '../components/ui/alert-dialog';
 import SiteDetailForm from '../components/sites/SiteDetailForm';
 import type { Site } from '../types/site';
 import type { SiteFormData } from '../components/sites/SiteDetailForm';
 import { useSites } from '../hooks/useSites';
 import { useSiteContext } from '../contexts/SiteContext';
-import { CreditBadge } from '../components/shared/CreditBadge';
 import { toast } from 'sonner';
 
 export default function Sites() {
-	const { sites, loading, error, createSite, updateSite, deleteSite } = useSites();
+	const navigate = useNavigate();
+	const { sites, loading, error, createSite } = useSites();
 	const { selectedSite, setSelectedSite } = useSiteContext();
 	const [sheetOpen, setSheetOpen] = useState(false);
-	const [editingSite, setEditingSite] = useState<Site | null>(null);
-	const [siteToDelete, setSiteToDelete] = useState<Site | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 
-	// Check for GSC errors in URL query params
+	// Check for GSC/Shopify callback params in URL — redirect to site detail when shopify_success
 	useEffect(() => {
 		const params = new URLSearchParams(window.location.search);
 		const gscError = params.get('gsc_error');
-		if (gscError) {
-			toast.error(`GSC Connection Failed: ${gscError}`);
-			// Clean up URL
+		const shopifySuccess = params.get('shopify_success');
+		const shopifyError = params.get('shopify_error');
+		const siteIdParam = params.get('siteId');
+
+		if (gscError) toast.error(`GSC Connection Failed: ${gscError}`);
+		if (shopifySuccess) {
+			toast.success('Shopify store connected!');
+			if (siteIdParam) navigate(`/sites/${siteIdParam}`, { replace: true });
+		}
+		if (shopifyError) {
+			const msg =
+				shopifyError === 'invalid_state'
+					? 'Session expired. Please try connecting again.'
+					: shopifyError === 'hmac_invalid'
+						? 'Invalid request'
+						: shopifyError.replace(/_/g, ' ');
+			toast.error(`Shopify: ${msg}`);
+		}
+
+		if (gscError || shopifyError || shopifySuccess) {
 			window.history.replaceState({}, document.title, window.location.pathname);
 		}
-	}, []);
+	}, [sites, navigate]);
 
 	const handleAdd = () => {
-		setEditingSite(null);
 		setSheetOpen(true);
-	};
-
-	const handleEdit = (site: Site) => {
-		setEditingSite(site);
-		setSheetOpen(true);
-	};
-
-	const handleDeleteClick = (site: Site | null) => {
-		if (!site) return;
-		setSiteToDelete(site);
 	};
 
 	const handleReAudit = async (site: Site) => {
@@ -66,8 +62,8 @@ export default function Sites() {
 			setSubmitting(true);
 			// TODO: wire to re-audit API (10 credits)
 			toast.info(`Re-audit queued for "${site.name}" (10 credits)`);
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to start re-audit');
+		} catch {
+			// TODO: wire re-audit
 		} finally {
 			setSubmitting(false);
 		}
@@ -85,60 +81,13 @@ export default function Sites() {
 		}
 	};
 
-	const handleDeleteConfirm = async () => {
-		if (!siteToDelete) return;
-		try {
-			setSubmitting(true);
-			await deleteSite(siteToDelete.id);
-			setSiteToDelete(null);
-			toast.success('Site deleted');
-			setSheetOpen(false);
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Failed to delete site');
-		} finally {
-			setSubmitting(false);
-		}
-	};
-
 	const handleSheetClose = (open: boolean) => {
-		if (!open) {
-			setSheetOpen(false);
-			setEditingSite(null);
-		}
+		if (!open) setSheetOpen(false);
 	};
 
 	const handleFormSubmit = async (data: SiteFormData) => {
 		try {
 			setSubmitting(true);
-			if (editingSite) {
-			await updateSite(editingSite.id, {
-				name: data.name,
-				description: data.description,
-				url: data.url,
-				platform: data.platform,
-				niche: data.niche,
-				customerDescription: data.customerDescription,
-				competitorUrls: data.competitorUrls,
-				domainAuthority: data.domainAuthority,
-				tone: data.tone,
-				includeTerms: data.includeTerms,
-				avoidTerms: data.avoidTerms,
-				targetLanguage: data.targetLanguage,
-				targetRegion: data.targetRegion,
-				authorBio: data.authorBio,
-				googleReviewCount: data.googleReviewCount,
-				googleAverageRating: data.googleAverageRating,
-				gbpUrl: data.gbpUrl,
-				facebookUrl: data.facebookUrl,
-				linkedinUrl: data.linkedinUrl,
-				twitterUrl: data.twitterUrl,
-				yelpUrl: data.yelpUrl,
-				wikidataUrl: data.wikidataUrl,
-				logoFile: data.logoFile,
-				removeLogo: data.removeLogo
-			});
-				toast.success('Site updated');
-			} else {
 			await createSite({
 				name: data.name,
 				description: data.description,
@@ -164,13 +113,9 @@ export default function Sites() {
 				wikidataUrl: data.wikidataUrl,
 				logoFile: data.logoFile ?? null
 			});
-				toast.success('Site added');
-				setTimeout(() => {
-					window.location.reload();
-				}, 1000);
-			}
+			toast.success('Site added');
 			setSheetOpen(false);
-			setEditingSite(null);
+			setTimeout(() => window.location.reload(), 500);
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Failed to save site');
 		} finally {
@@ -277,10 +222,12 @@ export default function Sites() {
 									variant="outline"
 									size="sm"
 									className="border-gray-200 dark:border-gray-700"
-									onClick={() => handleEdit(site)}
-									startIcon={<Pencil className="size-4" />}
+									asChild
 								>
-									Edit
+									<Link to={`/sites/${site.id}`} className="inline-flex items-center gap-2">
+										<Pencil className="size-4" />
+										Edit
+									</Link>
 								</Button>
 								{/* <Button
 									variant="outline"
@@ -302,47 +249,19 @@ export default function Sites() {
 			<Sheet open={sheetOpen} onOpenChange={handleSheetClose}>
 				<SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
 					<SheetHeader>
-						<SheetTitle>{editingSite ? 'Edit Site' : 'Add Site'}</SheetTitle>
-						<SheetDescription>
-							{editingSite
-								? 'Update the website details below.'
-								: 'Add a new website to track and optimize.'}
-						</SheetDescription>
+						<SheetTitle>Add Site</SheetTitle>
+						<SheetDescription>Add a new website to track and optimize.</SheetDescription>
 					</SheetHeader>
 					<div className="mt-6">
 						<SiteDetailForm
-							initial={editingSite ?? undefined}
-						onSubmit={handleFormSubmit}
-						onCancel={() => handleSheetClose(false)}
-						onDelete={() => handleDeleteClick(editingSite)}
-						disabled={submitting}
-					/>
+							onSubmit={handleFormSubmit}
+							onCancel={() => handleSheetClose(false)}
+							onDelete={() => {}}
+							disabled={submitting}
+						/>
 					</div>
 				</SheetContent>
 			</Sheet>
-
-			<AlertDialog open={!!siteToDelete} onOpenChange={(o) => !o && setSiteToDelete(null)}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete site?</AlertDialogTitle>
-						{siteToDelete && (
-							<p className="text-sm text-gray-600 dark:text-gray-400">
-								This will remove &quot;{siteToDelete.name}&quot;. This action cannot be undone.
-							</p>
-						)}
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel disabled={submitting}>Cancel</AlertDialogCancel>
-						<AlertDialogAction
-							onClick={handleDeleteConfirm}
-							disabled={submitting}
-							variant="destructive"
-						>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 		</>
 	);
 }

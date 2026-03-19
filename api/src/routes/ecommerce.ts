@@ -8,8 +8,16 @@ import { requireAuth } from '../middleware/auth.js';
 import {
 	listEcommercePages,
 	getEcommercePage,
+	createEcommercePage,
+	updateEcommercePage,
+	deleteEcommercePage,
+	bulkDeleteEcommercePages,
+	syncEcommercePage,
+	syncAllEcommercePages,
 	generateProduct,
 	generateCollection,
+	generateEcommerceMeta,
+	runSeoChecks,
 	publishToShopify,
 	importFromShopify,
 	getShopifyProducts,
@@ -26,14 +34,28 @@ router.get('/shopify-products', getShopifyProducts);
 router.get('/shopify-collections', getShopifyCollections);
 router.get('/:id', getEcommercePage);
 
-// Generate (10 credits each)
+// CRUD
+router.post('/', createEcommercePage);
+router.post('/bulk-delete', bulkDeleteEcommercePages);
+router.patch('/:id', updateEcommercePage);
+router.delete('/:id', deleteEcommercePage);
+
+// Generate (3 credits each)
 router.post('/:id/generate-product', generateProduct);
 router.post('/:id/generate-collection', generateCollection);
+router.post('/:id/generate-meta', generateEcommerceMeta);
+
+// SEO checks (no credits)
+router.post('/:id/run-seo-checks', runSeoChecks);
 
 // Publish to Shopify (no credits)
 router.post('/:id/publish-shopify', publishToShopify);
 
 // Import from Shopify (no credits)
 router.post('/import-shopify', importFromShopify);
+
+// Sync from Shopify (no credits) — sync-all must come before /:id
+router.post('/sync-all', syncAllEcommercePages);
+router.post('/:id/sync', syncEcommercePage);
 
 export default router;

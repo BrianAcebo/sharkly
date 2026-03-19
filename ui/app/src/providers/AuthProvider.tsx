@@ -687,16 +687,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 	const signInWithGoogle = useCallback(async () => {
 		try {
 			const searchParams = new URLSearchParams(window.location.search);
-			const next = searchParams.get('next') ?? '/dashboard';
+			const next = searchParams.get('next') ?? searchParams.get('return_to') ?? '/dashboard';
 			const inviteId = searchParams.get('invite');
 
 			setLoadingState(AuthLoadingState.LOADING);
+			const nextEnc = encodeURIComponent(next);
 			const { error } = await supabase.auth.signInWithOAuth({
 				provider: 'google',
 				options: {
 					redirectTo: inviteId
-						? `${window.location.origin}/oauth/callback?invite=${inviteId}&next=${next}`
-						: `${window.location.origin}/oauth/callback?next=${next}`,
+						? `${window.location.origin}/oauth/callback?invite=${inviteId}&next=${nextEnc}`
+						: `${window.location.origin}/oauth/callback?next=${nextEnc}`,
 					// scopes: 'https://www.googleapis.com/auth/webmasters.readonly',
 					queryParams: {
 						access_type: 'offline',

@@ -99,6 +99,7 @@ export function useOrganization() {
         chat_messages_remaining: (data.organization as unknown as { chat_messages_remaining?: number | null })?.chat_messages_remaining ?? null,
         trial_end: data.subscription.trial_end,
         stripe_trial_end: data.subscription.trial_end ?? null,
+        has_cro_addon: (data.organization as unknown as { has_cro_addon?: boolean | null })?.has_cro_addon ?? false,
         payment_action_required: null,
         dunning_enabled: null,
         last_payment_failed_at: null,

@@ -19,7 +19,7 @@ The strategy layer uses a Targets architecture. `/strategy` is a Targets overvie
 
 **Partially built (needs completing, not rebuilding):**
 
-- 🔶 CRO checklist — skeleton exists, wire up the detection engine (this is L1)
+- 🔶 CRO Studio — `cro_audits` table + audit backend not yet built (this is L1 — see updated spec)
 - 🔶 Shopify companion app — OAuth + embedded UI needed (this is L6)
 - 🔶 Content calendar — shell exists, leave for V2, don't touch
 - 🔶 Usage analytics chart — leave for post-launch
@@ -37,13 +37,11 @@ V2 and beyond expand the product into new capability areas.
 
 **Source documents referenced:**
 
-- `system-1-cro-layer.md` — System 1 CRO build spec
-- `system-2-cro-product.md` — System 2 CRO (CRO Studio) build spec
+- `cro-studio.md` — CRO Studio full spec (covers both SEO page light CRO and destination page full CRO — replaces system-1-cro-layer.md and system-2-cro-product.md which are deleted)
 - `cluster-intelligence-layer.md` — 7-warning cluster audit system
 - `architecture-b-downstream-product-page.md` — Destination page data model
 - `reverse-silo-architecture.md` — Linking architecture + nav/footer dilution
 - `funnel-visualizer.md` — Customer journey map UI spec
-- `cro-studio.md` — CRO Studio product space spec
 - `product-gaps-master.md` — 34-item gap register
 
 ---
@@ -77,7 +75,7 @@ V2 and beyond expand the product into new capability areas.
 ### Partially Built
 
 ```
-🔶 CRO checklist — skeleton only, not functional
+🔶 CRO Studio — cro_audits table + audit backend not yet built. Workspace CRO tab skeleton exists but is being removed (CRO now lives in CRO Studio only — see cro-studio.md)
 🔶 Content calendar — shell exists, no functionality
 🔶 Shopify companion app — OAuth + embedded UI needed
 🔶 Usage analytics chart — table exists, chart missing
@@ -95,23 +93,37 @@ V2 and beyond expand the product into new capability areas.
 
 ### BUILDER TIER GAPS (must ship at launch)
 
-#### L1. System 1 CRO Checklist — 8-Item Scored List
+#### L1. CRO Studio — Live Page Audit Tool
 
-**Spec:** `system-1-cro-layer.md`
-**What it is:** Functional 8-item conversion checklist on all content pages. Currently a skeleton. Needs the full detection engine and scoring.
-**Tier:** Builder (base subscription — all plans)
+**Spec:** `cro-studio.md` — single source of truth. `system-1-cro-layer.md` and `system-2-cro-product.md` are deleted.
+**What it is:** A live URL audit tool for two page types — SEO pages (focus pages + articles, light CRO) and destination pages (product/service/signup pages, full CRO). Fetches rendered HTML via URL fetch. Completely separate from the Workspace. The Workspace CRO tab skeleton is removed as part of this build.
+**Tier:** CRO Add-on ($29/month, any plan) — post-launch
+**Key architectural decisions:**
+
+- CRO Studio audits live pages only — it reads rendered HTML, not Tiptap content
+- SEO pages get a 5-item light CRO audit focused on destination handoff and CTA fit
+- Destination pages get the full 10-step Optimal Selling Journey audit + cognitive bias inventory
+- The critical handoff check: first in-body link in first 400 words must be the destination URL
+- Entry from Workspace via "Optimize CRO" button (context pre-filled) or standalone URL entry
+
 **Build order from spec:**
 
-1. DB migration — `page_type`, `cro_checklist`, `cro_score` on pages table
-2. `classifyPageType()` — wire into brief generation
-3. `extractPlainText()` helper
-4. `evaluateCROChecklist()` — all 8 detection functions
-5. `calculateCROScore()`
-6. `detectFunnelMismatch()`
-7. Wire to content save trigger
-8. Update CRO tab UI
-9. Update Section 8.6 prompt
-10. Inject CRO context blocks into brief generation
+1. DB migration — `cro_audits` table
+2. `fetchAndParseURL()` utility
+3. `checkDestinationHandoff()` — first-link-in-400-words
+4. `evaluateSEOPageCRO()` — 5-item SEO page checklist
+5. `evaluateOptimalSellingJourney()` — 10-step destination page audit
+6. `detectArchitectureSequence()` — structural violation checks
+7. `detectCognitiveBiases()` — 11-bias inventory
+8. `runCROAudit()` orchestrator
+9. AI fix generation endpoint (two prompts — SEO page / destination page)
+10. Frontend — nav item with gate, home screen (two tabs), Add Page modal
+11. Frontend — SEO page audit view
+12. Frontend — Destination page audit view
+13. Frontend — Generated fixes panel (inline, copy-to-clipboard)
+14. Frontend — "Optimize CRO" button in Workspace
+15. Frontend — "Open in CRO Studio" wiring from Cluster Detail
+16. Remove Workspace CRO tab skeleton
 
 ---
 
@@ -186,6 +198,7 @@ Once the destination is set on a Target, two things happen automatically as part
 **This is non-negotiable for Shopify app store launch.** Everything else can be imperfect. This cannot.
 
 **Status:**
+
 - ✅ OAuth flow built
 - ✅ Shopify Admin API (blogs, articles, products, collections)
 - 🔶 Embedded UI (App Bridge) — still needed for app store submission
@@ -199,11 +212,13 @@ Nothing except OAuth connection and a link to Sharkly. All SEO work, content gen
 **Embedded UI — two states only:**
 
 **Not connected:**
+
 > Connect your Shopify store to Sharkly to start optimizing your content and product pages.
 >
 > `[Connect to Sharkly]` — triggers OAuth, stores access token, redirects to app.sharkly.co
 
 **Connected:**
+
 > Your store is connected to Sharkly.
 > [store-name].myshopify.com · Connected as [account email]
 >
@@ -233,6 +248,7 @@ The `shopify_store` param on signup pre-fills the store URL and auto-completes O
 - No external redirects without App Bridge navigation API
 
 **GDPR webhooks — required by Shopify or the app will be rejected:**
+
 - `POST /webhooks/shopify/customers-redact` — Sharkly stores no customer data, respond 200
 - `POST /webhooks/shopify/shop-redact` — fires on uninstall, clear `shopify_access_token` and `shopify_store_domain` from sites table
 - `POST /webhooks/shopify/customers-data-request` — respond with what is stored: store domain + access token only, no customer PII
@@ -257,13 +273,14 @@ UPDATES
 
 #### L6. Shopify Companion App
 
-**What it is:** Minimal embedded panel inside Shopify Admin — OAuth connection 
-and a link to Sharkly. All SEO work happens in app.sharkly.co. Also serves as 
+**What it is:** Minimal embedded panel inside Shopify Admin — OAuth connection
+and a link to Sharkly. All SEO work happens in app.sharkly.co. Also serves as
 a Shopify App Store discovery channel.
 **Tier:** Builder (all plans)
 **This is non-negotiable for app store submission.**
 
 **Status:**
+
 - ✅ OAuth flow built
 - ✅ Uninstall webhook (tokens cleared)
 - ✅ REST → GraphQL migration (all Shopify API calls use GraphQL Admin API)
@@ -275,25 +292,29 @@ a Shopify App Store discovery channel.
 **Embedded UI — two states only:**
 
 Not connected:
+
 > Connect your Shopify store to Sharkly.
 > [Connect to Sharkly] — OAuth flow → tokens saved → redirect to app.sharkly.co
 
 Connected:
+
 > [store].myshopify.com · Connected as [email]
 > [Open Sharkly →]
 
 **Discovery flow (new users from App Store):**
-Install → embedded app → Connect → no account: redirect to 
-sharkly.co/signup?shopify_store={domain} → signup → OAuth completes 
+Install → embedded app → Connect → no account: redirect to
+sharkly.co/signup?shopify_store={domain} → signup → OAuth completes
 automatically → lands in Sharkly with store connected.
 
 **Remaining build — in order:**
+
 1. App listing: 1200×1200 icon, screenshots, English screencast,
    privacy policy URL, help docs, 5 search terms
 2. Partner Dashboard: emergency contact email + phone; register webhook URLs; set App URL to embed
 3. Test credentials: provide Sharkly account with credits for reviewers
 
 **Not needed:**
+
 - Theme extension — Sharkly doesn't inject into the storefront
 - Deep linking — no theme blocks to activate
 - Billing API — keep subscriptions on Stripe/Sharkly, app is free to install
@@ -311,6 +332,7 @@ automatically → lands in Sharkly with store connected.
 **This feature is isolated.** No changes to Workspace.tsx, pages.ts, or any existing controller. New files only.
 
 **New files:**
+
 - `sql/migrations/ecommerce_pages.sql`
 - `api/src/controllers/ecommerce.ts`
 - `api/src/routes/ecommerce.ts`
@@ -320,6 +342,7 @@ automatically → lands in Sharkly with store connected.
 **DB:** New `ecommerce_pages` table. Target connection uses existing `targets.destination_page_url` field — no schema change.
 
 **Build order (14 steps — see spec):**
+
 1. DB migration
 2. API controller — 6 endpoints
 3. API routes + register in app.ts
@@ -333,6 +356,7 @@ automatically → lands in Sharkly with store connected.
 **Credit costs:** SERP check = 5, product description = 10, collection intro = 10, import/publish/re-check = free
 
 **Key design decisions:**
+
 - Nav item always visible — no platform gating. Empty state handles onboarding.
 - Products and collections are destination pages — attaching one to a Target writes the URL to `targets.destination_page_url`
 - Six basic SEO checks only — same level as supporting articles, not UPSA
@@ -956,7 +980,7 @@ Complete map of every feature to its pricing tier.
 | Tiptap content editor                                   | Builder        |
 | Real-time UPSA score (0-115)                            | Builder        |
 | Skyscraper / IGS warning                                | Builder        |
-| Conversion checklist — 8-item System 1 CRO              | Builder        |
+| CRO Studio "Optimize CRO" entry from Workspace          | CRO Add-on     |
 | Meta title + description generator                      | Builder        |
 | Schema markup generator                                 | Builder        |
 | FAQ section generator                                   | Builder        |
@@ -1051,12 +1075,13 @@ Complete map of every feature to its pricing tier.
 | Digital PR / linkable asset strategy                    | Pro (V2)       |
 | Scheduled client reports                                | Pro (V3)       |
 | Zapier / webhook support                                | Pro (V3)       |
-| CRO Studio — destination page audit                     | CRO Add-on     |
-| System 2 full audit (5 dimensions)                      | CRO Add-on     |
-| Conversion score on destination pages                   | CRO Add-on     |
+| CRO Studio — SEO page audit (handoff + CTA fit)         | CRO Add-on     |
+| CRO Studio — destination page full audit                | CRO Add-on     |
+| 10-step Optimal Selling Journey audit                   | CRO Add-on     |
+| Destination handoff check (first link in 400 words)     | CRO Add-on     |
 | Exact copy fixes + placement instructions               | CRO Add-on     |
-| Psychological triggers audit (15 signals)               | CRO Add-on     |
-| Objection removal audit                                 | CRO Add-on     |
+| Cognitive bias inventory (11 signals)                   | CRO Add-on     |
+| Page architecture violation detection                   | CRO Add-on     |
 | AI chat assistant                                       | V2             |
 | Bulk article generation queue                           | V2             |
 | WooCommerce integration                                 | V2             |

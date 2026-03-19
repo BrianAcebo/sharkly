@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { extractFromPdf } from './documentExtract.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 
@@ -364,33 +365,20 @@ async function extractFileContent(fileId: string, buffer: Buffer, mimeType: stri
       // Plain text files
       extractedText = buffer.toString('utf-8').slice(0, 50000); // Limit to 50k chars
     } else if (mimeType === 'application/pdf') {
-      // For PDF, we'd need a library like pdf-parse
-      // For now, just mark as needing extraction
-      await supabase
-        .from('chat_files')
-        .update({ status: 'processing' })
-        .eq('id', fileId);
-      
-      // TODO: Add PDF text extraction
-      // const pdfParse = require('pdf-parse');
-      // const data = await pdfParse(buffer);
-      // extractedText = data.text.slice(0, 50000);
-      
-      return;
+      const { text } = await extractFromPdf(buffer);
+      extractedText = (text ?? '').slice(0, 50000);
     } else {
       // Images and other files - no text extraction for now
       return;
     }
 
-    if (extractedText) {
-      await supabase
-        .from('chat_files')
-        .update({ 
-          extracted_text: extractedText,
-          status: 'processed',
-        })
-        .eq('id', fileId);
-    }
+    await supabase
+      .from('chat_files')
+      .update({
+        extracted_text: extractedText ?? '',
+        status: 'processed',
+      })
+      .eq('id', fileId);
   } catch (error) {
     console.error('[ChatFiles] Text extraction error:', error);
     await supabase

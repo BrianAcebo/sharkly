@@ -6,7 +6,9 @@
 import { Request, Response } from 'express';
 import { crawlerService } from '../services/crawlerService.js';
 import { crawlabilityChecker } from '../services/crawlabilityChecker.js';
+import { createNotificationForUser } from '../utils/notifications.js';
 import { supabase } from '../utils/supabaseClient.js';
+import { CREDIT_COSTS } from '../utils/credits.js';
 
 /**
  * POST /api/crawler/check-crawlability
@@ -38,6 +40,7 @@ export async function checkCrawlability(req: Request, res: Response): Promise<vo
  * Start a site crawl (10 credits)
  */
 export async function startCrawl(req: Request, res: Response): Promise<void> {
+	let creditsDeducted = false;
 	try {
 		const { organizationId, siteId, siteUrl, userId, maxPages = 100 } = req.body;
 
@@ -59,8 +62,7 @@ export async function startCrawl(req: Request, res: Response): Promise<void> {
 			// non-fatal
 		}
 
-		// Check credits (10 credits for full crawl) — prefer included plan credits first
-		const CRAWL_CREDITS = 10;
+		// Check credits and charge upfront (consistent with createCluster/regenerateCluster)
 		const { data: org } = await supabase
 			.from('organizations')
 			.select('included_credits_remaining, included_credits')
@@ -68,15 +70,31 @@ export async function startCrawl(req: Request, res: Response): Promise<void> {
 			.single();
 
 		const creditsRemaining = Number(org?.included_credits_remaining ?? org?.included_credits ?? 0);
-		if (creditsRemaining < CRAWL_CREDITS) {
+		if (creditsRemaining < CREDIT_COSTS.SITE_CRAWL) {
 			res.status(402).json({
 				error: 'Insufficient credits',
-				required: CRAWL_CREDITS,
+				required: CREDIT_COSTS.SITE_CRAWL,
 				available: creditsRemaining,
 				needs_topup: true
 			});
 			return;
 		}
+
+		// Deduct credits before crawl (refund on failure in catch)
+		const newCredits = Math.max(0, creditsRemaining - CREDIT_COSTS.SITE_CRAWL);
+		const { error: deductErr } = await supabase
+			.from('organizations')
+			.update({
+				included_credits_remaining: newCredits,
+				...(org?.included_credits != null && { included_credits: newCredits })
+			})
+			.eq('id', organizationId);
+		if (deductErr) {
+			console.error('[Crawler] Failed to deduct credits:', deductErr);
+			res.status(500).json({ error: 'Failed to deduct credits' });
+			return;
+		}
+		creditsDeducted = true;
 
 		// Start crawl
 		const results = await crawlerService.crawlSite(
@@ -87,16 +105,6 @@ export async function startCrawl(req: Request, res: Response): Promise<void> {
 			maxPages,
 			platform
 		);
-
-		// Deduct credits from included plan balance
-		const newCredits = Math.max(0, creditsRemaining - CRAWL_CREDITS);
-		await supabase
-			.from('organizations')
-			.update({
-				included_credits_remaining: newCredits,
-				...(org?.included_credits != null && { included_credits: newCredits })
-			})
-			.eq('id', organizationId);
 
 		// Aggregate issues
 		const allIssues = results.flatMap((r) => r.issues);
@@ -112,11 +120,41 @@ export async function startCrawl(req: Request, res: Response): Promise<void> {
 				warnings: warningCount,
 				avgResponseTime: Math.round(results.reduce((a, b) => a + b.responseTime, 0) / results.length),
 				results,
-				creditsUsed: CRAWL_CREDITS
+				creditsUsed: CREDIT_COSTS.SITE_CRAWL
 			}
 		});
 	} catch (error) {
 		console.error('Error starting crawl:', error);
+		// Refund credits when crawl fails after deduction
+		if (creditsDeducted) {
+			const { organizationId, userId } = req.body as { organizationId?: string; userId?: string };
+			if (organizationId && userId) {
+				try {
+					const { error: refundErr } = await supabase.rpc('credit_back_action', {
+						p_org_id: organizationId,
+						p_action_key: 'site_crawl',
+						p_credits: CREDIT_COSTS.SITE_CRAWL,
+						p_reason: 'Site crawl failed mid-stream'
+					});
+					if (refundErr) {
+						console.error('[Crawler] CRITICAL: Failed to refund credits:', refundErr.message);
+					} else {
+						console.log(`[Crawler] Refunded ${CREDIT_COSTS.SITE_CRAWL} credits to org ${organizationId}`);
+						await createNotificationForUser(userId, organizationId, {
+							title: 'Site crawl failed',
+							message: `${CREDIT_COSTS.SITE_CRAWL} credits were automatically refunded. Site crawl failed.`,
+							type: 'credit_refund',
+							priority: 'high',
+							action_url: '/technical',
+							metadata: { credits_refunded: CREDIT_COSTS.SITE_CRAWL, reason: 'site_crawl_failed' },
+							skipToast: true
+						});
+					}
+				} catch (refundEx) {
+					console.error('[Crawler] Refund threw:', refundEx instanceof Error ? refundEx.message : refundEx);
+				}
+			}
+		}
 		res.status(500).json({ error: 'Failed to start crawl' });
 	}
 }

@@ -28,8 +28,10 @@ export function useSites() {
 
 	const fetchSites = useCallback(async () => {
 		if (!organizationId) {
+			// Don't set loading=false — keep loading until we have an org and can actually fetch.
+			// Otherwise AuthShopify sees loading=false + sites=[] and wrongly auto-creates a site.
 			setSites([]);
-			setLoading(false);
+			setLoading(true);
 			return;
 		}
 		try {

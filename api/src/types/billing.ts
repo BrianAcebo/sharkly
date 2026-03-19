@@ -69,6 +69,10 @@ export interface OrganizationRow {
 	initial_top_up_required?: boolean | null;
 	current_period_start?: string | null;
 	max_seats?: number | null;
+	/** CRO Studio add-on: whether org has the add-on */
+	has_cro_addon?: boolean | null;
+	/** CRO Studio add-on: when the add-on was first activated */
+	cro_addon_started_at?: string | null;
 	created_at: string;
 	updated_at: string;
 }

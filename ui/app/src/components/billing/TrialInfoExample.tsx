@@ -83,7 +83,10 @@ export const TrialInfoExample: React.FC = () => {
         {isEndingSoon && (
           <div className="rounded-md bg-amber-50 p-3 dark:bg-amber-900/20">
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              ⚠️ Your trial is ending soon. Consider upgrading to continue using all features.
+              <span className="flex items-center gap-1.5">
+              <AlertTriangle className="size-4 shrink-0" />
+              Your trial is ending soon. Consider upgrading to continue using all features.
+            </span>
             </p>
           </div>
         )}

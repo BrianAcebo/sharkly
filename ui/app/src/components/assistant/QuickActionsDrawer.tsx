@@ -13,6 +13,7 @@ import {
 	BarChart3
 } from 'lucide-react';
 import { cn } from '../../utils/common';
+import { CreditCost } from '../shared/CreditBadge';
 
 interface QuickAction {
 	id: string;
@@ -250,7 +251,7 @@ export function QuickActionsDrawer({
 																: 'text-amber-600 dark:text-amber-400'
 														)}
 													>
-														{action.credits === 0 ? 'Free' : `${action.credits}c`}
+														{action.credits === 0 ? 'Free' : <CreditCost amount={action.credits} />}
 													</span>
 												</div>
 												<p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
