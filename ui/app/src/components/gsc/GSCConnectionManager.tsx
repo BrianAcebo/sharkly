@@ -117,31 +117,31 @@ export function GSCConnectionManager({ siteId, siteName }: Props) {
 								<h3 className="text-sm font-medium text-green-900 dark:text-green-200">
 									Connected
 								</h3>
-								{/* <p className="mt-1 text-sm text-green-800 dark:text-green-300">
+								<p className="mt-1 text-sm text-green-800 dark:text-green-300">
 									<span className="font-mono text-xs">{gscToken.gsc_property_url}</span>
 								</p>
 								{gscToken.last_synced_at && (
 									<p className="mt-1 text-xs text-green-700 dark:text-green-400">
 										Last synced: {new Date(gscToken.last_synced_at).toLocaleString()}
 									</p>
-								)} */}
+								)}
 							</div>
 						</div>
 
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setShowConfirmDialog(true)}
-						disabled={disconnecting}
-						className="border-green-300 text-sm hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
-					>
-						{disconnecting ? (
-							<Loader2 className="mr-1.5 size-3.5 animate-spin" />
-						) : (
-							<Trash2 className="mr-1.5 size-3.5" />
-						)}
-						Disconnect
-					</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowConfirmDialog(true)}
+							disabled={disconnecting}
+							className="border-green-300 text-sm hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+						>
+							{disconnecting ? (
+								<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+							) : (
+								<Trash2 className="mr-1.5 size-3.5" />
+							)}
+							Disconnect
+						</Button>
 					</div>
 				</div>
 			) : (
@@ -153,7 +153,11 @@ export function GSCConnectionManager({ siteId, siteName }: Props) {
 							<h3 className="text-sm font-medium text-gray-900 dark:text-white">Not connected</h3>
 						</div>
 
-						<Button onClick={handleConnect} size="sm" className="shrink-0 bg-blue-600 hover:bg-blue-700">
+						<Button
+							onClick={handleConnect}
+							size="sm"
+							className="shrink-0 bg-blue-600 hover:bg-blue-700"
+						>
 							<svg
 								className="mr-2 size-4"
 								width="20"
@@ -195,8 +199,8 @@ export function GSCConnectionManager({ siteId, siteName }: Props) {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Disconnect Google Search Console?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This will remove the Google Search Console connection for {gscToken?.gsc_property_url}. You can reconnect 
-							another property at any time.
+							This will remove the Google Search Console connection for {gscToken?.gsc_property_url}
+							. You can reconnect another property at any time.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

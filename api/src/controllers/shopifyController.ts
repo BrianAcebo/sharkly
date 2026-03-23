@@ -21,6 +21,17 @@ import { generateRandomString } from '../utils/helpers.js';
 
 const STATE_TTL_MS = 20 * 60 * 1000; // 20 minutes (covers slow install, cold starts)
 
+/** Normalize shop param to *.myshopify.com (lowercase) for DB lookups */
+function normalizeShopifyShopDomain(shop: string): string {
+	const shopDomain = (shop || '')
+		.replace(/^https?:\/\//, '')
+		.replace(/\/.*$/, '')
+		.toLowerCase();
+	return shopDomain.endsWith('.myshopify.com')
+		? shopDomain
+		: `${shopDomain}.myshopify.com`;
+}
+
 function getShopifyRedirectUri(): string {
 	const uri = process.env.SHOPIFY_REDIRECT_URI;
 	if (uri) return uri;
@@ -186,6 +197,110 @@ export async function shopifyAppRedirect(req: Request, res: Response): Promise<v
 		? `${marketingUrl.replace(/\/$/, '')}/signup?shopify_store=${encodeURIComponent(shop)}`
 		: `${marketingUrl.replace(/\/$/, '')}/signup`;
 	res.redirect(302, signupUrl);
+}
+
+/**
+ * GET /api/shopify/site-for-shop?shop=store.myshopify.com
+ * If the user's org already has a site linked to this Shopify domain, return its id (skip OAuth / site picker).
+ */
+export async function getShopifySiteForShop(req: Request, res: Response): Promise<void> {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			res.status(401).json({ error: 'Unauthorized' });
+			return;
+		}
+
+		const shop = (req.query.shop as string)?.trim();
+		const finalDomain = normalizeShopifyShopDomain(shop);
+		if (!finalDomain) {
+			res.status(400).json({ error: 'Missing shop' });
+			return;
+		}
+
+		const { data: userOrg } = await supabase
+			.from('user_organizations')
+			.select('organization_id')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (!userOrg?.organization_id) {
+			res.json({ siteId: null });
+			return;
+		}
+
+		const { data: site } = await supabase
+			.from('sites')
+			.select('id')
+			.eq('organization_id', userOrg.organization_id)
+			.ilike('shopify_domain', finalDomain)
+			.maybeSingle();
+
+		res.json({ siteId: site ? (site as { id: string }).id : null });
+	} catch (error) {
+		console.error('[Shopify] site-for-shop error:', error);
+		res.status(500).json({ error: error instanceof Error ? error.message : 'Failed' });
+	}
+}
+
+/**
+ * POST /api/shopify/reconcile-companion
+ * After companion OAuth: if this shop is already linked to a site in the user's org, apply pending token (if any) and return siteId.
+ * Otherwise { siteId: null } — client shows site picker for a new shop.
+ */
+export async function reconcileCompanionShopify(req: Request, res: Response): Promise<void> {
+	try {
+		const userId = req.user?.id;
+		if (!userId) {
+			res.status(401).json({ error: 'Unauthorized' });
+			return;
+		}
+
+		const { shop } = req.body as { shop?: string };
+		const finalDomain = normalizeShopifyShopDomain(shop || '');
+		if (!finalDomain) {
+			res.status(400).json({ error: 'Missing shop' });
+			return;
+		}
+
+		const { data: userOrg } = await supabase
+			.from('user_organizations')
+			.select('organization_id')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (!userOrg?.organization_id) {
+			res.json({ siteId: null });
+			return;
+		}
+
+		const { data: site } = await supabase
+			.from('sites')
+			.select('id')
+			.eq('organization_id', userOrg.organization_id)
+			.ilike('shopify_domain', finalDomain)
+			.maybeSingle();
+
+		if (!site) {
+			res.json({ siteId: null });
+			return;
+		}
+
+		const siteId = (site as { id: string }).id;
+		const accessToken = await getAndConsumePendingShopifyToken(finalDomain);
+		if (accessToken) {
+			const { error } = await saveShopifyConnection(siteId, finalDomain, accessToken);
+			if (error) {
+				res.status(500).json({ error });
+				return;
+			}
+		}
+
+		res.json({ siteId });
+	} catch (error) {
+		console.error('[Shopify] reconcile-companion error:', error);
+		res.status(500).json({ error: error instanceof Error ? error.message : 'Failed' });
+	}
 }
 
 /**

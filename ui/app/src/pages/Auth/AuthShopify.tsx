@@ -2,11 +2,13 @@
  * AuthShopify — handles two Shopify redirect cases:
  *
  * 1. Initial install (hmac, host, shop, timestamp): Shopify uses app_url and sends users here.
- *    Redirect to backend install to start OAuth.
+ *    If the shop is already linked to a site in the user’s org → go to that site (skip OAuth).
+ *    Otherwise → backend install to start OAuth.
  *
  * 2. Post-OAuth (shop only): Backend callback redirects here after storing pending token.
- *    If authed: show site picker (or attach if single path), then call attach-pending.
- *    If not: redirect to signin with return_to.
+ *    If this shop is already linked → apply pending token and go to that site.
+ *    Else if authed: site picker (or auto-attach if zero sites), then attach-pending.
+ *    If not authed: redirect to signin with return_to.
  */
 import { useCallback, useEffect, useState, useLayoutEffect } from 'react';
 import { useSearchParams } from 'react-router';
@@ -41,6 +43,8 @@ export default function AuthShopify() {
 		} catch {}
 		return null;
 	});
+	/** Post-OAuth: wait for reconcile API before site picker / auto-attach */
+	const [reconcileDone, setReconcileDone] = useState(false);
 
 	const shop = searchParams.get('shop');
 	const hmac = searchParams.get('hmac');
@@ -60,12 +64,71 @@ export default function AuthShopify() {
 		}
 	}, [shop]);
 
-	// Case 2: Initial Shopify redirect (hmac+host) — redirect immediately, before any other hooks that might block
-	useLayoutEffect(() => {
-		if (!shop || !shopDomain || !hmac || !host) return;
-		const installUrl = getInstallUrl(shopDomain);
-		window.location.replace(installUrl);
-	}, [shop, shopDomain, hmac, host]);
+	const isInitialInstall = Boolean(shop && hmac && host);
+	const isPostOAuth = Boolean(shop && !hmac && !host);
+
+	// Case 2: Initial Shopify redirect (hmac+host) — if shop already linked to a site, go there; else OAuth install
+	useEffect(() => {
+		if (!isInitialInstall || !shopDomain) return;
+		if (loadingState === AuthLoadingState.LOADING) return;
+		if (!user || !session?.access_token) {
+			window.location.replace(getInstallUrl(shopDomain));
+			return;
+		}
+		let cancelled = false;
+		(async () => {
+			try {
+				const res = await fetch(
+					buildApiUrl(`/api/shopify/site-for-shop?shop=${encodeURIComponent(shopDomain)}`),
+					{ headers: { Authorization: `Bearer ${session.access_token}` } }
+				);
+				const data = (await res.json()) as { siteId?: string | null };
+				if (cancelled) return;
+				if (data.siteId) {
+					window.location.replace(`/sites/${data.siteId}`);
+				} else {
+					window.location.replace(getInstallUrl(shopDomain));
+				}
+			} catch {
+				if (!cancelled) window.location.replace(getInstallUrl(shopDomain));
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [isInitialInstall, shopDomain, loadingState, user, session?.access_token]);
+
+	// Post-OAuth: if this shop is already linked, apply pending token and go to site
+	useEffect(() => {
+		if (!isPostOAuth || !shopDomain) return;
+		if (loadingState === AuthLoadingState.LOADING) return;
+		if (!user || !session?.access_token) return;
+		let cancelled = false;
+		(async () => {
+			try {
+				const res = await fetch(buildApiUrl('/api/shopify/reconcile-companion'), {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${session.access_token}`
+					},
+					body: JSON.stringify({ shop: shopDomain })
+				});
+				const data = (await res.json()) as { siteId?: string | null };
+				if (cancelled) return;
+				if (data.siteId) {
+					window.location.replace(`/sites/${data.siteId}`);
+					return;
+				}
+			} catch {
+				// fall through to site picker
+			}
+			if (!cancelled) setReconcileDone(true);
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [isPostOAuth, shopDomain, loadingState, user, session?.access_token]);
 
 	// handleAttach and auto-attach effect — must be at top level (hooks rules)
 	const handleAttach = useCallback(
@@ -129,14 +192,13 @@ export default function AuthShopify() {
 
 	// Auto-attach ONLY when: user has org, sites have loaded, and there are truly 0 sites.
 	// Never auto-attach when user lacks organization_id — useSites returns [] without fetching, which would wrongly create a new site.
-	const isPostOAuth = Boolean(shop && !hmac && !host);
 	useEffect(() => {
-		if (!isPostOAuth || sitesLoading || attaching || !user || !session?.access_token) return;
+		if (!isPostOAuth || !reconcileDone || sitesLoading || attaching || !user || !session?.access_token) return;
 		if (!user.organization_id) return; // Org not loaded yet — don't assume 0 sites
 		if (sites.length === 0) {
 			handleAttach(null);
 		}
-	}, [isPostOAuth, sitesLoading, sites, attaching, user, session, handleAttach]);
+	}, [isPostOAuth, reconcileDone, sitesLoading, sites, attaching, user, session, handleAttach]);
 
 	// Validate stored siteId when sites load — clear if not in list
 	useEffect(() => {
@@ -147,9 +209,17 @@ export default function AuthShopify() {
 		}
 	}, [sitesLoading, sites, selectedSiteId]);
 
-	// Early render for Case 2: show redirect UI with fallback link (useLayoutEffect will fire before paint)
-	const isInitialInstall = Boolean(shop && hmac && host);
+	// Early render for Case 2: show redirect UI while auth loads or routing runs
 	if (isInitialInstall) {
+		if (loadingState === AuthLoadingState.LOADING) {
+			return (
+				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950 px-4">
+					<Logo width={140} height="auto" className="mb-2" />
+					<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+					<p className="text-muted-foreground">Loading...</p>
+				</div>
+			);
+		}
 		const installUrl = getInstallUrl(shopDomain || shop || '');
 		return (
 			<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950 px-4">
@@ -184,8 +254,8 @@ export default function AuthShopify() {
 			return null;
 		}
 
-		// Still loading sites
-		if (sitesLoading) {
+		// Still loading sites or reconciling an existing connection
+		if (sitesLoading || !reconcileDone) {
 			return (
 				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950 px-4">
 					<Logo width={140} height="auto" />

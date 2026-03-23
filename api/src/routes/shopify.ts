@@ -8,6 +8,8 @@ import {
 	startShopifyOAuth,
 	handleShopifyOAuthCallback,
 	shopifyAppRedirect,
+	getShopifySiteForShop,
+	reconcileCompanionShopify,
 	attachPendingShopifyToken,
 	getShopifyStatus,
 	postShopifyDisconnect,
@@ -25,6 +27,10 @@ router.get('/oauth/callback', handleShopifyOAuthCallback);
 
 // App redirect: when merchant opens app in Shopify Admin (no embedded UI), redirect to signup
 router.get('/app-redirect', shopifyAppRedirect);
+
+// Companion app: resolve shop → existing site (skip OAuth / picker when already linked)
+router.get('/site-for-shop', requireAuth, getShopifySiteForShop);
+router.post('/reconcile-companion', requireAuth, reconcileCompanionShopify);
 
 // Attach pending token (companion app: after OAuth, user logs in, we consume token and attach to site)
 router.post('/attach-pending', requireAuth, attachPendingShopifyToken);

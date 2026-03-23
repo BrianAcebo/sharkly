@@ -29,11 +29,12 @@ stop:
 lint:
 	cd ui/app && npx eslint ../../api/src ../../ui/app/src ../../ui/marketing/src
 
-# Install deps in each project
+# Install deps in each project (one shell so ulimit applies; avoids ENFILE on macOS when limit is low)
 install:
-	cd api && npm install
-	cd ui/app && npm install
-	cd ui/marketing && npm install
+	ulimit -n 65536 2>/dev/null || true; \
+	cd api && npm install && \
+	cd ../ui/app && npm install && \
+	cd ../marketing && npm install
 
 install-all: install
 	

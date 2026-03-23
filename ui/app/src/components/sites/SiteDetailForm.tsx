@@ -704,7 +704,7 @@ export default function SiteDetailForm({
 	const formContent =
 		variant === 'page' ? (
 			<Tabs defaultValue="general" className="w-full">
-				<TabsList className="mb-6 flex h-auto flex-wrap gap-1 border-b border-gray-200 bg-transparent p-0 dark:border-gray-700">
+				<TabsList className="mb-6 flex h-auto flex-wrap gap-1 rounded-none border-b border-gray-200 bg-transparent p-0 pb-2 dark:border-gray-700">
 					<TabsTrigger
 						value="general"
 						className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
@@ -773,7 +773,10 @@ export default function SiteDetailForm({
 		);
 
 	return (
-		<form onSubmit={handleSubmit} className="space-y-6">
+		<form
+			onSubmit={handleSubmit}
+			className="space-y-6 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
+		>
 			{formContent}
 			{/* Delete */}
 

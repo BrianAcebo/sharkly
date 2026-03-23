@@ -4,10 +4,10 @@
  * "Connect" stores siteId so when user returns from Shopify install, we pre-select this site.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { buildApiUrl } from '../../utils/urls';
-import { AlertCircle, Check, Loader2 } from 'lucide-react';
+import { AlertCircle, Check, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 
@@ -27,7 +27,9 @@ export function ShopifyConnectionStatus({ siteId, siteName }: Props) {
 		let cancelled = false;
 		const fetchStatus = async () => {
 			try {
-				const { data: { session } } = await supabase.auth.getSession();
+				const {
+					data: { session }
+				} = await supabase.auth.getSession();
 				const token = session?.access_token;
 				if (!token) {
 					setConnected(false);
@@ -37,7 +39,10 @@ export function ShopifyConnectionStatus({ siteId, siteName }: Props) {
 				const res = await fetch(buildApiUrl(`/api/shopify/status/${siteId}`), {
 					headers: { Authorization: `Bearer ${token}` }
 				});
-				const data = (await res.json().catch(() => ({}))) as { connected?: boolean; shopDomain?: string | null };
+				const data = (await res.json().catch(() => ({}))) as {
+					connected?: boolean;
+					shopDomain?: string | null;
+				};
 				if (!cancelled) {
 					setConnected(!!data.connected);
 					setShopDomain(data.shopDomain ?? null);
@@ -49,8 +54,16 @@ export function ShopifyConnectionStatus({ siteId, siteName }: Props) {
 			}
 		};
 		fetchStatus();
-		return () => { cancelled = true; };
+		return () => {
+			cancelled = true;
+		};
 	}, [siteId]);
+
+	const shopifyAppUrl = useMemo(
+		() =>
+			`https://admin.shopify.com/store/${shopDomain?.replace('.myshopify.com', '')}/settings/apps/app_installations/app/sharkly`,
+		[shopDomain]
+	);
 
 	if (loading) {
 		return (
@@ -65,12 +78,28 @@ export function ShopifyConnectionStatus({ siteId, siteName }: Props) {
 		<div className="space-y-4">
 			{connected && shopDomain ? (
 				<div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-900/20">
-					<div className="flex items-center gap-3">
-						<Check className="size-5 shrink-0 text-green-600 dark:text-green-400" />
-						<div>
-							<h3 className="text-sm font-medium text-green-900 dark:text-green-200">Connected</h3>
-							<p className="mt-0.5 text-xs text-green-800 dark:text-green-300 font-mono">{shopDomain}</p>
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-3">
+							<Check className="size-5 shrink-0 text-green-600 dark:text-green-400" />
+							<div>
+								<h3 className="text-sm font-medium text-green-900 dark:text-green-200">
+									Connected
+								</h3>
+								<p className="mt-0.5 font-mono text-xs text-green-800 dark:text-green-300">
+									{shopDomain}
+								</p>
+							</div>
 						</div>
+
+						<a href={shopifyAppUrl} target="_blank" rel="noopener noreferrer">
+							<Button
+								variant="outline"
+								size="sm"
+								className="border-green-300 text-sm hover:border-red-300 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+							>
+								Manage
+							</Button>
+						</a>
 					</div>
 				</div>
 			) : (
@@ -80,7 +109,8 @@ export function ShopifyConnectionStatus({ siteId, siteName }: Props) {
 						<div className="min-w-0 flex-1">
 							<h3 className="text-sm font-medium text-gray-900 dark:text-white">Not connected</h3>
 							<p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
-								Install the Sharkly app from the Shopify App Store to connect and manage ecommerce SEO for &quot;{siteName}&quot;.
+								Install the Sharkly app from the Shopify App Store to connect and manage ecommerce
+								SEO for &quot;{siteName}&quot;.
 							</p>
 							<Button
 								size="sm"
@@ -88,7 +118,9 @@ export function ShopifyConnectionStatus({ siteId, siteName }: Props) {
 								onClick={() => {
 									try {
 										sessionStorage.setItem('sharkly_connect_site_id', siteId);
-										toast.success(`We'll connect to "${siteName}" when you return. Install the app from Shopify.`);
+										toast.success(
+											`We'll connect to "${siteName}" when you return. Install the app from Shopify.`
+										);
 										window.open(SHOPIFY_APP_URL, '_blank', 'noopener,noreferrer');
 									} catch {
 										window.open(SHOPIFY_APP_URL, '_blank', 'noopener,noreferrer');
