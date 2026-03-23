@@ -24,6 +24,8 @@ export interface AboveFoldResult {
 	cta_present: boolean;
 	visual_relevant: boolean;
 	score: number;
+	/** True when page uses JS rendering but was fetched statically — results may be incomplete */
+	renderWarning?: boolean;
 }
 
 /** Objection coverage per page subtype */
@@ -89,15 +91,71 @@ const MAIN_CONTENT_SELECTORS = [
 ];
 
 const STRIP_SELECTORS = [
+	// Standard chrome
 	'nav',
 	'header',
 	'footer',
 	'[role="navigation"]',
 	'[role="banner"]',
+	'[role="contentinfo"]',
 	'.nav',
 	'.navbar',
 	'.header',
-	'.footer'
+	'.footer',
+	'.site-header',
+	'.site-footer',
+	// Shopify off-canvas elements — in DOM but never visible at page load.
+	// These inject fake CTAs ("Log in", "Check out", "Added ✓ Add to cart")
+	// and inflate word counts, skewing the fold boundary.
+	'cart-drawer',
+	'cart-notification',
+	'#cart-drawer',
+	'#CartDrawer',
+	'.cart-drawer',
+	'.cart-notification',
+	'predictive-search',
+	'#predictive-search',
+	'.predictive-search',
+	'search-modal',
+	'#search-modal',
+	'.search-modal',
+	'mobile-facets',
+	'.mobile-facets',
+	// Generic off-canvas patterns used by most Shopify themes
+	'[id*="cart-drawer"]',
+	'[id*="CartDrawer"]',
+	'[class*="cart-drawer"]',
+	'[id*="mobile-menu"]',
+	'[id*="MobileMenu"]',
+	'[class*="mobile-menu"]',
+	'[id*="offcanvas"]',
+	'[class*="offcanvas"]',
+	// Shopify sticky ATC — transform: translateY(200%) off-screen until scroll.
+	// Contains a duplicate "Add to cart" button + price + variant selectors.
+	// In the DOM but never visible at page load — must be excluded or it
+	// inflates CTA counts and distorts above-fold boundary.
+	'.sticky-atc',
+	'[class*="sticky-atc"]',
+	'[id*="sticky_atc"]',
+	'[id*="sticky-atc"]',
+	// Announcement bars — promo text, not page content
+	'.announcement-bar',
+	'.announcement-bar-section',
+	'[id*="announcement"]',
+	// Cookie / consent banners
+	'.cookie-banner',
+	'.consent-banner',
+	'#cookie-banner',
+	'#cookieConsent',
+	// Age gates
+	'[id*="age-verification"]',
+	'[class*="age-gate"]',
+	// Live chat widgets (inject their own CTAs)
+	'#intercom-frame',
+	'#hubspot-messages-iframe-container',
+	'[id*="gorgias"]',
+	'[id*="tidio"]',
+	'[id*="zendesk"]'
 ];
 
 function wordCount(s: string): number {
@@ -110,13 +168,15 @@ function matchesAny(text: string, patterns: RegExp[]): boolean {
 
 /**
  * Evaluates the first 20% of body content for above-fold essentials.
- * Checks structural presence — image, CTA, trust signal, value prop.
- * These are DOM/regex checks — AI is not needed here.
+ * Uses the DOM pipeline (same as detectCognitiveLoad) rather than slicing
+ * raw bodyText by word count — avoids hidden drawer/modal content inflating
+ * the fold boundary and checks for CSS background-image hero patterns.
+ * Sets renderWarning when the page is JS-rendered but was fetched statically.
  */
 export function evaluateAboveFold(content: ParsedPageContent): AboveFoldResult {
-	const words = content.bodyText.split(/\s+/).filter(Boolean);
-	const first20Pct = Math.max(100, Math.floor(words.length * 0.2));
-	const aboveFoldText = words.slice(0, first20Pct).join(' ');
+	// Use aboveFoldText (first 300 visible words) for text-based checks —
+	// it was extracted from the clean DOM in fetchAndParseURL after hidden-element stripping.
+	const aboveFoldText = content.aboveFoldText;
 
 	const headline_value_prop = matchesAny(aboveFoldText, VALUE_PROP_PATTERNS);
 	const trust_signal = matchesAny(aboveFoldText, TRUST_PATTERNS);
@@ -129,13 +189,23 @@ export function evaluateAboveFold(content: ParsedPageContent): AboveFoldResult {
 		for (const sel of STRIP_SELECTORS) $body.find(sel).remove();
 		let $content = $body.find(MAIN_CONTENT_SELECTORS.join(',')).first();
 		if ($content.length === 0) $content = $body;
-		visual_relevant = $content.find('img').length > 0;
+
+		// Check for <img> tags and CSS background-image hero patterns
+		const hasImg = $content.find('img').length > 0;
+		// CSS background-image heroes have no <img> — detect via inline style or common hero class
+		const hasCssBg =
+			$content.find('[style*="background-image"], [style*="background:"]').length > 0 ||
+			$content.find('[class*="hero"], [class*="banner"], [class*="cover"]').length > 0;
+
+		visual_relevant = hasImg || hasCssBg;
 	}
 
 	const score = [headline_value_prop, trust_signal, cta_present, visual_relevant].filter(
 		Boolean
 	).length;
-	return { headline_value_prop, trust_signal, cta_present, visual_relevant, score };
+	const renderWarning = content.renderConfidence === 'static' && content.isJsRendered;
+
+	return { headline_value_prop, trust_signal, cta_present, visual_relevant, score, renderWarning };
 }
 
 // ─── Objection coverage — AI assessment ──────────────────────────────────────
@@ -182,7 +252,9 @@ export async function evaluateObjectionCoverage(
 ): Promise<ObjectionCoverageResult> {
 	const objectionSet = OBJECTION_SETS[page_subtype] ?? OBJECTION_SETS.saas_signup;
 
-	// Cap body text for token efficiency — objections are usually addressed in the main copy
+	// bodyText is visibility-clean (hidden/sr-only elements stripped in fetchAndParseURL).
+	// Slice to 4000 chars for token efficiency — use the clean text so hidden popups,
+	// cookie banners, and age-gate modals don't make the AI think objections are addressed.
 	const bodyText = content.bodyText.slice(0, 4000);
 
 	try {
@@ -247,8 +319,55 @@ Respond with ONLY valid JSON — an array in the same order as above:
 function isCTAElement($: CheerioAPI, el: Element): boolean {
 	const tagName = el.name?.toLowerCase();
 	const $el = $(el);
-	if (tagName === 'button') return true;
+
+	if (tagName === 'button') {
+		// Not all buttons are conversion CTAs. Exclude:
+		// 1. Accordion / disclosure toggles — they expand content, not convert.
+		//    Identified by: aria-expanded attribute, aria-controls, data-toggle,
+		//    or a parent with class patterns matching accordion/collapsible/disclosure.
+		if (
+			$el.attr('aria-expanded') !== undefined ||
+			$el.attr('aria-controls') !== undefined ||
+			$el.attr('data-toggle') !== undefined ||
+			$el.attr('data-target') !== undefined
+		) {
+			return false;
+		}
+		// Class-based accordion patterns (Shopify Atlas/Dawn themes)
+		const cls = ($el.attr('class') ?? '').toLowerCase();
+		if (
+			/accordion|collapsible|disclosure|details|toggle|expand/i.test(cls) ||
+			// Slider/carousel navigation
+			/slider-button|slider-arrow|slick-arrow|swiper-button|carousel-btn/i.test(cls) ||
+			// Modal/overlay closers
+			/drawer__close|modal__close|close-btn|close-button/i.test(cls) ||
+			// Menu drawer triggers
+			/menu-drawer|header__icon/i.test(cls)
+		) {
+			return false;
+		}
+		// Parent-based: button inside an accordion container
+		const parentCls = ($el.parent().attr('class') ?? '').toLowerCase();
+		if (/accordion|collapsible|singleaccordian|disclosure/i.test(parentCls)) {
+			return false;
+		}
+		// Only count a button as a CTA if it has meaningful visible text
+		// that matches conversion patterns, OR if it's a named submit button.
+		const text = getCTAText($, el);
+		const cleanText = text.replace(/\s+/g, ' ').trim();
+		if (!cleanText || cleanText.length <= 2) return false;
+		// Slider navigation buttons and icon-only buttons (empty or single char)
+		if (/^[\s<>‹›←→▸▹◂◃«»]+$/.test(cleanText)) return false;
+		// Must match a conversion pattern OR be a form submit
+		return (
+			matchesAny(cleanText, CTA_PATTERNS) ||
+			$el.attr('type')?.toLowerCase() === 'submit' ||
+			$el.attr('name') === 'add' // Shopify add-to-cart button
+		);
+	}
+
 	if (tagName === 'input' && $el.attr('type')?.toLowerCase() === 'submit') return true;
+
 	if (tagName === 'a') {
 		const text = $el.text().replace(/\s+/g, ' ').trim();
 		if (matchesAny(text, CTA_PATTERNS)) return true;
@@ -273,6 +392,118 @@ interface CognitiveWalkState {
 	allCTATexts: string[];
 }
 
+/**
+ * UI chrome, auth links, cart state labels, and off-canvas triggers that are
+ * present in the DOM but are never visible persuasion CTAs on the page.
+ * Applied at walk time so choice_count and isHighLoad are not polluted.
+ */
+const CTA_NOISE_DETECTION = new RegExp(
+	'^(' +
+		[
+			// Auth chrome (Shopify header icons with sr-only labels)
+			'log in',
+			'log out',
+			'sign in',
+			'sign out',
+			'login',
+			'logout',
+			'create account',
+			'register',
+			'my account',
+			// Cart state labels — status text, not conversion CTAs
+			'check out',
+			'checkout',
+			'view cart',
+			'your cart',
+			'added',
+			'added ✓',
+			'added to cart',
+			// Media / gallery controls
+			'open media',
+			'close media',
+			'play',
+			'pause',
+			'mute',
+			'unmute',
+			'fullscreen',
+			'zoom in',
+			'zoom out',
+			'next slide',
+			'prev slide',
+			'next',
+			'prev',
+			'previous',
+			// Generic UI chrome
+			'close',
+			'open',
+			'menu',
+			'search',
+			'back',
+			'skip',
+			'skip to content',
+			'more',
+			'less',
+			'show',
+			'hide',
+			'toggle',
+			'expand',
+			'collapse',
+			// Social / share
+			'share',
+			'tweet',
+			'pin it',
+			'copy link',
+			// Rewards / loyalty widgets
+			'rewards',
+			'points',
+			'redeem',
+			// Policy links mistaken for CTAs via href detection
+			'our standard',
+			'shipping policy',
+			'return policy',
+			'refund policy',
+			// Modal / drawer triggers
+			'modal',
+			'overlay',
+			'popup',
+			'drawer',
+			// Accessibility
+			'accessibility',
+			'enable accessibility',
+			// Shopify accordion section headings — collapsible panel triggers, not CTAs.
+			// These fire as <button> elements but only expand/collapse content panels.
+			'how to use',
+			'shipping & returns',
+			'shipping and returns',
+			'ingredients',
+			'directions',
+			'faq',
+			'details',
+			'description',
+			'questions',
+			// Shopify image gallery navigation controls
+			'load image',
+			'slide left',
+			'slide right',
+			// Scroll utilities / page navigation chrome
+			'continue shopping',
+			'scroll to top',
+			'load more',
+			'view all',
+			'view full details',
+			'see all',
+			// Pickup / shipping availability chrome
+			'refresh',
+			'check availability',
+			// Newsletter/form submit chrome
+			'dream now',
+			'submit',
+			'subscribe now'
+		].join('|') +
+		')$',
+	'i'
+);
+
 function walkForCognitiveLoad($: CheerioAPI, element: ChildNode, state: CognitiveWalkState): void {
 	if (element.type === 'text') {
 		const text = 'data' in element ? String((element as { data?: string }).data ?? '') : '';
@@ -285,15 +516,23 @@ function walkForCognitiveLoad($: CheerioAPI, element: ChildNode, state: Cognitiv
 	const $el = $(element);
 	if (tagName === 'script' || tagName === 'style' || tagName === 'noscript') return;
 
-	if ((tagName === 'h1' || tagName === 'h2') && state.wordPos < state.aboveFoldLimit) {
+	// Only H1 counts as competing headline above fold.
+	// Use visible text only (sr-only children already stripped from DOM before walk).
+	if (tagName === 'h1' && state.wordPos < state.aboveFoldLimit) {
 		const text = $el.text().replace(/\s+/g, ' ').trim();
 		if (text) state.competingHeadlines.push(`"${text}"`);
 	}
 
 	if (isCTAElement($, element as Element)) {
 		const text = getCTAText($, element as Element);
-		if (text && state.wordPos < state.aboveFoldLimit) state.ctasAboveFold.push(`"${text}"`);
-		if (text) state.allCTATexts.push(text.toLowerCase());
+		const cleanText = text.replace(/\s+/g, ' ').trim();
+		// Filter UI chrome — don't count auth links, cart state, media controls, etc.
+		// This keeps choice_count and isHighLoad based on real persuasion CTAs only.
+		const isNoise = !cleanText || cleanText.length <= 2 || CTA_NOISE_DETECTION.test(cleanText);
+		if (!isNoise) {
+			if (state.wordPos < state.aboveFoldLimit) state.ctasAboveFold.push(`"${cleanText}"`);
+			state.allCTATexts.push(cleanText.toLowerCase());
+		}
 	}
 
 	$el.contents().each((_, child) => {
@@ -307,12 +546,71 @@ function walkForCognitiveLoad($: CheerioAPI, element: ChildNode, state: Cognitiv
 }
 
 /**
- * Counts CTAs above fold, competing headlines (h1/h2 only), and distinct CTA types.
+ * Counts CTAs above fold, competing headlines (H1 only, above fold), and distinct CTA types.
+ * H2/H3 are section headings — only H1 counts as a "competing headline".
  * Returns actual detected text so the AI explanation endpoint can name elements specifically.
+ *
+ * aboveFoldLimit is derived from the VISIBLE word count of the stripped DOM —
+ * not from bodyText which may include hidden drawers/modals inflating the boundary.
  */
 export function detectCognitiveLoad(content: ParsedPageContent): CognitiveLoadResult {
-	const totalWords = content.bodyText.split(/\s+/).filter(Boolean).length;
-	const aboveFoldLimit = Math.max(150, Math.floor(totalWords * 0.2));
+	// Derive aboveFoldLimit from the same visible DOM we're about to walk,
+	// NOT from content.bodyText which includes hidden cart drawers, modals, etc.
+	// content.aboveFoldText is already the first 300 clean visible words —
+	// use the full visible word count from the DOM for the 20% calculation.
+	let visibleTotalWords = 0;
+
+	if (content.html) {
+		const $ = cheerio.load(content.html);
+		const $body = $('body').clone();
+		for (const sel of STRIP_SELECTORS) $body.find(sel).remove();
+		let $content = $body.find(MAIN_CONTENT_SELECTORS.join(',')).first();
+		if ($content.length === 0) $content = $body;
+		$content.find('script, style, noscript, svg, iframe').remove();
+		// Strip hidden elements before counting — same as fetchAndParseURL
+		$content
+			.find(
+				[
+					'.visually-hidden',
+					'.visuallyhidden',
+					'.sr-only',
+					'.screen-reader-text',
+					'.screen-reader-only',
+					'.offscreen',
+					'[aria-hidden="true"]'
+				].join(',')
+			)
+			.remove();
+		$content.find('[style]').each((_, el) => {
+			const style = (
+				$($content)
+					.find(el as never)
+					.attr?.('style') ??
+				$(el).attr('style') ??
+				''
+			)
+				.toLowerCase()
+				.replace(/\s/g, '');
+			if (
+				/display:none/.test(style) ||
+				/visibility:hidden/.test(style) ||
+				// Sticky ATC and similar elements hidden via CSS transform off-screen.
+				// translateY(100%) or more moves element completely below viewport.
+				/transform:translatey\(1[0-9]{2}%\)/.test(style) ||
+				/transform:translatey\([2-9]\d{2}%\)/.test(style) ||
+				/transform:translatey\(\d{4,}%\)/.test(style)
+			)
+				$(el).remove();
+		});
+		visibleTotalWords = wordCount($content.text());
+	}
+
+	// Fall back to aboveFoldText word count * 5 (aboveFoldText = ~20% of page) if DOM unavailable
+	if (visibleTotalWords === 0) {
+		visibleTotalWords = wordCount(content.aboveFoldText) * 5;
+	}
+
+	const aboveFoldLimit = Math.max(150, Math.floor(visibleTotalWords * 0.2));
 
 	const state: CognitiveWalkState = {
 		wordPos: 0,
@@ -329,6 +627,40 @@ export function detectCognitiveLoad(content: ParsedPageContent): CognitiveLoadRe
 		let $content = $body.find(MAIN_CONTENT_SELECTORS.join(',')).first();
 		if ($content.length === 0) $content = $body;
 		$content.find('script, style, noscript, svg, iframe').remove();
+		// Strip hidden elements before walking — prevents hidden text inflating wordPos
+		$content
+			.find(
+				[
+					'.visually-hidden',
+					'.visuallyhidden',
+					'.sr-only',
+					'.screen-reader-text',
+					'.screen-reader-only',
+					'.offscreen',
+					'[aria-hidden="true"]'
+				].join(',')
+			)
+			.remove();
+		$content.find('[style]').each((_, el) => {
+			const style = (
+				$($content)
+					.find(el as never)
+					.attr?.('style') ??
+				$(el).attr('style') ??
+				''
+			)
+				.toLowerCase()
+				.replace(/\s/g, '');
+			if (
+				/display:none/.test(style) ||
+				/visibility:hidden/.test(style) ||
+				// Sticky ATC and similar off-screen elements hidden via CSS transform.
+				/transform:translatey\(1[0-9]{2}%\)/.test(style) ||
+				/transform:translatey\([2-9]\d{2}%\)/.test(style) ||
+				/transform:translatey\(\d{4,}%\)/.test(style)
+			)
+				$(el).remove();
+		});
 
 		$content.contents().each((_, child) => {
 			if (child.type === 'text') {

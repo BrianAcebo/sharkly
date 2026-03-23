@@ -981,7 +981,13 @@ export async function getConversationHistory(req: Request, res: Response) {
   const messages = await loadSessionMessages(conversation_id);
 
   // Filter out system messages and tool messages (tool messages contain raw JSON that shouldn't be displayed)
-  const visibleMessages = messages.filter((m: ChatMessage) => m.role !== 'system' && m.role !== 'tool');
+  // Also hide assistant rows with no visible text — those are tool-call stubs / "thinking" placeholders
+  // persisted with empty content; reloading would otherwise show empty bubbles.
+  const visibleMessages = messages.filter((m: ChatMessage) => {
+    if (m.role === 'system' || m.role === 'tool') return false;
+    if (m.role === 'assistant' && !(m.content || '').trim()) return false;
+    return true;
+  });
 
   return res.json({
     conversation_id,

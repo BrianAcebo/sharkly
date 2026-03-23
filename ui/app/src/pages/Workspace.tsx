@@ -700,6 +700,7 @@ export default function Workspace() {
 			let briefData: Record<string, unknown> | null = null;
 
 			if (reader) {
+				let streamDone = false;
 				while (true) {
 					const { done, value } = await reader.read();
 					if (done) break;
@@ -709,7 +710,13 @@ export default function Workspace() {
 					for (const line of lines) {
 						if (!line.trim()) continue;
 						try {
-							const ev = JSON.parse(line) as { type: string; id?: string; message?: string; briefData?: Record<string, unknown> };
+							const ev = JSON.parse(line) as {
+								type: string;
+								id?: string;
+								message?: string;
+								briefData?: Record<string, unknown>;
+							};
+							if (ev.type === 'ping') continue;
 							if (ev.type === 'step' && ev.id) {
 								const stepIdx = BRIEF_TASK_STEPS.findIndex((st) => st.id === ev.id);
 								if (stepIdx >= 0) {
@@ -723,6 +730,8 @@ export default function Workspace() {
 								}
 							} else if (ev.type === 'done') {
 								briefData = ev.briefData ?? null;
+								streamDone = true;
+								break;
 							} else if (ev.type === 'error') {
 								throw new Error(ev.message ?? 'Failed to generate brief');
 							}
@@ -733,6 +742,7 @@ export default function Workspace() {
 							throw parseErr;
 						}
 					}
+					if (streamDone) break;
 				}
 			}
 
@@ -804,7 +814,9 @@ export default function Workspace() {
 						`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`
 					);
 					setTaskWidgetStatus('error');
-					setTaskWidgetError(`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`);
+					setTaskWidgetError(
+						`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`
+					);
 					return;
 				}
 				throw new Error(data?.error || 'Failed to generate article');
@@ -817,6 +829,7 @@ export default function Workspace() {
 			let buffer = '';
 
 			if (reader) {
+				let streamDone = false;
 				while (true) {
 					const { done, value } = await reader.read();
 					if (done) break;
@@ -827,6 +840,7 @@ export default function Workspace() {
 						if (!line.trim()) continue;
 						try {
 							const ev = JSON.parse(line) as { type: string; id?: string; message?: string };
+							if (ev.type === 'ping') continue;
 							if (ev.type === 'step' && ev.id) {
 								setTaskWidgetSteps((prev) => {
 									const stepIdx = steps.findIndex((st) => st.id === ev.id);
@@ -838,6 +852,7 @@ export default function Workspace() {
 									});
 								});
 							} else if (ev.type === 'done') {
+								streamDone = true;
 								break;
 							} else if (ev.type === 'error') {
 								throw new Error(ev.message ?? 'Failed to generate article');
@@ -846,6 +861,7 @@ export default function Workspace() {
 							if (!(parseErr instanceof SyntaxError)) throw parseErr;
 						}
 					}
+					if (streamDone) break;
 				}
 			}
 
@@ -920,6 +936,7 @@ export default function Workspace() {
 			let briefData: Record<string, unknown> | null = null;
 
 			if (reader) {
+				let streamDone = false;
 				while (true) {
 					const { done, value } = await reader.read();
 					if (done) break;
@@ -929,18 +946,29 @@ export default function Workspace() {
 					for (const line of lines) {
 						if (!line.trim()) continue;
 						try {
-							const ev = JSON.parse(line) as { type: string; briefData?: Record<string, unknown>; message?: string };
-							if (ev.type === 'done') briefData = ev.briefData ?? null;
-							else if (ev.type === 'error') throw new Error(ev.message ?? 'Failed to generate brief');
+							const ev = JSON.parse(line) as {
+								type: string;
+								briefData?: Record<string, unknown>;
+								message?: string;
+							};
+							if (ev.type === 'ping') continue;
+							if (ev.type === 'done') {
+								briefData = ev.briefData ?? null;
+								streamDone = true;
+								break;
+							} else if (ev.type === 'error')
+								throw new Error(ev.message ?? 'Failed to generate brief');
 						} catch (parseErr) {
 							if (!(parseErr instanceof SyntaxError)) throw parseErr;
 						}
 					}
+					if (streamDone) break;
 				}
 			}
 
 			// Validate the brief actually has sections before advancing
-			const briefSectionCount = briefData && Array.isArray(briefData.sections) ? briefData.sections.length : 0;
+			const briefSectionCount =
+				briefData && Array.isArray(briefData.sections) ? briefData.sections.length : 0;
 			if (briefSectionCount === 0) {
 				const msg = 'Brief generated no sections — please try again.';
 				toast.error(msg);
@@ -995,12 +1023,17 @@ export default function Workspace() {
 						if (!line.trim()) continue;
 						try {
 							const ev = JSON.parse(line) as { type: string; message?: string };
-							if (ev.type === 'done') articleDone = true;
-							else if (ev.type === 'error') throw new Error(ev.message ?? 'Failed to generate article');
+							if (ev.type === 'ping') continue;
+							if (ev.type === 'done') {
+								articleDone = true;
+								break;
+							} else if (ev.type === 'error')
+								throw new Error(ev.message ?? 'Failed to generate article');
 						} catch (parseErr) {
 							if (!(parseErr instanceof SyntaxError)) throw parseErr;
 						}
 					}
+					if (articleDone) break;
 				}
 			}
 

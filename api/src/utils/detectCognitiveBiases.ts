@@ -141,7 +141,7 @@ function matchesAny(text: string, patterns: RegExp[]): boolean {
 }
 
 function detectRecencyEffect(content: ParsedPageContent): { present: boolean; evidence?: string } {
-	// Key offer (discount, free, % off) visible in both first and last portion of content
+	// bodyText is visibility-clean (sr-only/hidden stripped in fetchAndParseURL)
 	const body = content.bodyText;
 	const words = body.split(/\s+/).filter(Boolean);
 	if (words.length < 50) return { present: false };
@@ -165,26 +165,47 @@ function detectRecencyEffect(content: ParsedPageContent): { present: boolean; ev
 }
 
 function detectDefaultBias(content: ParsedPageContent): { present: boolean; evidence?: string } {
-	// Check HTML for pre-selected form elements
 	const html = content.html ?? '';
 	if (!html) return { present: false };
 
 	const $ = cheerio.load(html);
 
-	// selected attribute on option/input
+	// Static HTML: selected/checked attributes
 	const hasSelectedOption = $('option[selected], select option[selected]').length > 0;
-	const hasCheckedInput = $('input[type="checkbox"][checked], input[type="radio"][checked]').length > 0;
+	const hasCheckedInput =
+		$('input[type="checkbox"][checked], input[type="radio"][checked]').length > 0;
 
-	// "recommended" / "most popular" near form elements
+	// JS-rendered pre-selection patterns:
+	// Shopify subscribe-save: the subscription option is visually selected on load
+	// Detected via aria-checked="true", data-selected, or "selected" class on non-native elements
+	const hasAriaChecked = $('[aria-checked="true"], [aria-selected="true"]').length > 0;
+	const hasDataSelected = $('[data-selected="true"], [data-active="true"]').length > 0;
+	// Shopify subscribe/save widget uses a specific active class pattern
+	const hasSubscribeActive =
+		$('[class*="subscribe"][class*="active"], [class*="selling-plan"][class*="selected"]').length >
+		0;
+
+	// "recommended" / "most popular" label near any form or pricing element
 	const bodyText = content.bodyText.toLowerCase();
-	const hasRecommendedNearForm =
-		/(recommended|most popular|best value)\s*(option|plan|choice)?/i.test(bodyText);
+	const hasRecommendedLabel = /(recommended|most popular|best value)\s*(option|plan|choice)?/i.test(
+		bodyText
+	);
 
-	if (hasSelectedOption || hasCheckedInput || hasRecommendedNearForm) {
+	if (
+		hasSelectedOption ||
+		hasCheckedInput ||
+		hasAriaChecked ||
+		hasDataSelected ||
+		hasSubscribeActive ||
+		hasRecommendedLabel
+	) {
 		const parts: string[] = [];
-		if (hasSelectedOption) parts.push('pre-selected option');
+		if (hasSelectedOption) parts.push('pre-selected <option>');
 		if (hasCheckedInput) parts.push('pre-checked input');
-		if (hasRecommendedNearForm) parts.push('recommended option label');
+		if (hasAriaChecked) parts.push('aria-checked element');
+		if (hasDataSelected) parts.push('data-selected element');
+		if (hasSubscribeActive) parts.push('active subscribe/save option');
+		if (hasRecommendedLabel) parts.push('"recommended" label');
 		return { present: true, evidence: `Detected: ${parts.join(', ')}.` };
 	}
 	return { present: false };
@@ -196,9 +217,7 @@ function detectDefaultBias(content: ParsedPageContent): { present: boolean; evid
  *
  * @param content - Parsed page content from fetchAndParseURL (null = fetch failed)
  */
-export function detectCognitiveBiases(
-	content: ParsedPageContent | null
-): CognitiveBiasResult[] {
+export function detectCognitiveBiases(content: ParsedPageContent | null): CognitiveBiasResult[] {
 	if (!content) {
 		return BIAS_DEFINITIONS.map((b) => ({
 			bias_id: b.id,

@@ -74,6 +74,13 @@ const TOOL_CONFIG: Record<
 	}
 };
 
+/** Hide assistant bubbles with no text (tool-call stubs); avoids empty bubbles after reload. */
+function shouldShowChatBubble(msg: ChatMessage): boolean {
+	if (msg.role === 'tool') return false;
+	if (msg.role === 'assistant' && !msg.content?.trim() && !msg.isLoading) return false;
+	return true;
+}
+
 // File type icons
 function getFileIcon(mimeType: string) {
 	if (mimeType.startsWith('image/')) return Image;
@@ -465,7 +472,10 @@ const AIAssistant: React.FC = () => {
 	};
 
 	return (
-		<div className="flex overflow-hidden" style={{ height: 'calc(100vh - 140px)' }}>
+		<div
+			className="flex overflow-hidden border border-gray-200 dark:border-gray-700"
+			style={{ height: 'calc(100vh - 140px)' }}
+		>
 			{/* Chat History Sidebar */}
 			<ChatHistorySidebar
 				currentSessionId={conversationId}
@@ -477,12 +487,12 @@ const AIAssistant: React.FC = () => {
 			/>
 
 			{/* Main Content */}
-			<div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+			<div className="scrollbar-branded relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-scroll">
 				{/* Header */}
-				<div className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
+				<div className="sticky top-0 shrink-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-4">
-							<div className="to-brand-600 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500">
+							<div className="to-brand-600 flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-blue-500">
 								<Bot className="h-7 w-7 text-white" />
 							</div>
 							<div>
@@ -509,11 +519,11 @@ const AIAssistant: React.FC = () => {
 				</div>
 
 				{/* Chat Area */}
-				<div className="min-h-0 flex-1 overflow-y-auto px-6">
+				<div className="px-6 py-12">
 					{messages.length === 0 ? (
-						<div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center py-12 text-center">
-							<div className="to-brand-600 mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20">
-								<Sparkles className="h-10 w-10 text-indigo-500" />
+						<div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center text-center">
+							<div className="to-brand-600 from-brand-500/20 mb-6 flex items-center justify-center rounded-2xl bg-linear-to-br p-4">
+								<Sparkles className="size-8 text-white" />
 							</div>
 							<h2 className="mb-3 text-2xl font-bold text-gray-900 dark:text-white">
 								How can I help?
@@ -567,9 +577,9 @@ const AIAssistant: React.FC = () => {
 						</div>
 					) : (
 						<div className="mx-auto max-w-4xl py-4">
-							{/* Filter out tool messages - they contain raw JSON and shouldn't display as bubbles */}
+							{/* Filter out tool messages and empty assistant placeholders (tool-call rows from history) */}
 							{messages
-								.filter((msg) => msg.role !== 'tool')
+								.filter(shouldShowChatBubble)
 								.map((msg) => (
 									<MessageBubble key={msg.id} message={msg} />
 								))}
@@ -627,7 +637,7 @@ const AIAssistant: React.FC = () => {
 				/>
 
 				{/* Input Area */}
-				<div className="flex-shrink-0 border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
+				<div className="sticky bottom-0 shrink-0 border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
 					<div className="mx-auto max-w-4xl">
 						{/* Attached Files Preview */}
 						{attachedFiles.length > 0 && (

@@ -120,27 +120,63 @@ function matchesAny(text: string, patterns: RegExp[]): boolean {
 	return patterns.some((p) => p.test(text));
 }
 
-function isCTAElement($: CheerioAPI, el: Element): boolean {
-	const tagName = (el as Element).name?.toLowerCase();
+const VISUALLY_HIDDEN_SELECTORS = [
+	'.visually-hidden',
+	'.visuallyhidden',
+	'.sr-only',
+	'.screen-reader-text',
+	'.screen-reader-only',
+	'.offscreen',
+	'[aria-hidden="true"]'
+].join(',');
+
+/** True if the element itself is visually hidden from sighted users */
+function isVisuallyHidden($: CheerioAPI, el: Element): boolean {
 	const $el = $(el);
+	if ($el.attr('aria-hidden') === 'true') return true;
+	const cls = ($el.attr('class') ?? '').toLowerCase();
+	if (/\b(visually-?hidden|sr-only|screen-reader-?text|offscreen)\b/.test(cls)) return true;
+	const style = ($el.attr('style') ?? '').toLowerCase().replace(/\s/g, '');
+	if (
+		/position:absolute/.test(style) &&
+		(/clip:rect\(0/.test(style) || /width:1px/.test(style) || /height:1px/.test(style))
+	)
+		return true;
+	return false;
+}
 
-	if (tagName === 'button') return true;
-	if (tagName === 'input' && $el.attr('type')?.toLowerCase() === 'submit') return true;
+/**
+ * Get visible text of an element — strips sr-only/visually-hidden children first.
+ * Prevents "Log in", "Open media", "Cart" sr-only labels from being counted.
+ */
+function getVisibleText($: CheerioAPI, el: Element): string {
+	if (el.name?.toLowerCase() === 'input') return $(el).attr('value')?.trim() || '';
+	const $clone = $(el).clone();
+	$clone.find(VISUALLY_HIDDEN_SELECTORS).remove();
+	$clone.find('[aria-hidden="true"]').remove();
+	$clone.find('[style]').each((_, child) => {
+		const style = ($(child).attr('style') ?? '').toLowerCase().replace(/\s/g, '');
+		if (/position:absolute/.test(style) && (/clip:rect\(0/.test(style) || /width:1px/.test(style)))
+			$(child).remove();
+	});
+	return $clone.text().replace(/\s+/g, ' ').trim();
+}
 
-	if (tagName === 'a') {
-		const text = $el.text().replace(/\s+/g, ' ').trim();
-		if (matchesAny(text, CTA_PATTERNS)) return true;
-		// Links to checkout, cart, signup etc often have CTA intent
-		const href = ($el.attr('href') ?? '').toLowerCase();
-		if (
-			/checkout|cart|signup|register|buy|subscribe|start|get-started|try/.test(
-				href
-			)
-		) {
-			return true;
-		}
+function isCTAElement($: CheerioAPI, el: Element): boolean {
+	if (isVisuallyHidden($, el)) return false;
+
+	const tagName = el.name?.toLowerCase();
+	if (tagName === 'button') {
+		return getVisibleText($, el).length > 0;
 	}
-
+	if (tagName === 'input' && $(el).attr('type')?.toLowerCase() === 'submit') return true;
+	if (tagName === 'a') {
+		const visibleText = getVisibleText($, el);
+		if (!visibleText) return false;
+		if (matchesAny(visibleText, CTA_PATTERNS)) return true;
+		const href = ($(el).attr('href') ?? '').toLowerCase();
+		if (/checkout|cart|signup|register|buy|subscribe|start|get-started|try/.test(href)) return true;
+	}
 	return false;
 }
 
@@ -155,11 +191,7 @@ interface WalkState {
 	firstTrustPos: number | null;
 }
 
-function walkContent(
-	$: CheerioAPI,
-	element: ChildNode,
-	state: WalkState
-): void {
+function walkContent($: CheerioAPI, element: ChildNode, state: WalkState): void {
 	const el = element;
 
 	if (el.type === 'text') {
@@ -172,19 +204,21 @@ function walkContent(
 	const tagName = (el as Element).name?.toLowerCase();
 	const $el = $(el);
 
-	if (tagName === 'script' || tagName === 'style' || tagName === 'noscript')
-		return;
+	if (tagName === 'script' || tagName === 'style' || tagName === 'noscript') return;
 
-	// Check CTA before descending (element position = current word pos)
+	// Skip visually-hidden elements entirely — their text is not seen by users
+	if (isVisuallyHidden($, el as Element)) return;
+
+	// Check CTA using visible text only (no sr-only children)
 	if (isCTAElement($, el as Element)) {
 		if (state.firstCtaPos === null) {
 			state.firstCtaPos = state.wordPos;
 		}
 	}
 
-	// Check credibility (reviews, testimonials, etc.) — risk-reversal doesn't count
-	const text = $el.text().replace(/\s+/g, ' ').trim();
-	if (text.length >= 15 && hasCredibilitySignal(text)) {
+	// Check credibility using visible text only
+	const visibleText = getVisibleText($, el as Element);
+	if (visibleText.length >= 15 && hasCredibilitySignal(visibleText)) {
 		if (state.firstTrustPos === null) {
 			state.firstTrustPos = state.wordPos;
 		}
@@ -192,12 +226,11 @@ function walkContent(
 
 	$el.contents().each((_, child) => {
 		if (child.type === 'text') {
-			const t =
-				'data' in child ? String((child as { data?: string }).data ?? '') : '';
+			const t = 'data' in child ? String((child as { data?: string }).data ?? '') : '';
 			const w = wordCount(t);
 			state.wordPos += w;
 			if (t.length >= 15 && hasCredibilitySignal(t) && state.firstTrustPos === null) {
-				state.firstTrustPos = state.wordPos - w; // position at start of this text
+				state.firstTrustPos = state.wordPos - w;
 			}
 		} else if (child.type === 'tag') {
 			walkContent($, child as Element, state);
@@ -234,6 +267,29 @@ export function detectArchitectureSequence(
 
 	$content.find('script, style, noscript, svg, iframe').remove();
 
+	// Strip visually-hidden elements before walking — prevents sr-only labels
+	// from being counted as visible CTAs or credibility signals
+	$content
+		.find(
+			[
+				'.visually-hidden',
+				'.visuallyhidden',
+				'.sr-only',
+				'.screen-reader-text',
+				'.screen-reader-only',
+				'.offscreen',
+				'[aria-hidden="true"]'
+			].join(',')
+		)
+		.remove();
+	// Strip inline display:none and visibility:hidden
+	$content.find('[style]').each((_, el) => {
+		const style = ($content.find(el as never).attr?.('style') ?? $(el).attr('style') ?? '')
+			.toLowerCase()
+			.replace(/\s/g, '');
+		if (/display:none/.test(style) || /visibility:hidden/.test(style)) $(el).remove();
+	});
+
 	const state: WalkState = {
 		wordPos: 0,
 		firstCtaPos: null,
@@ -242,8 +298,7 @@ export function detectArchitectureSequence(
 
 	$content.contents().each((_, child) => {
 		if (child.type === 'text') {
-			const t =
-				'data' in child ? String((child as { data?: string }).data ?? '') : '';
+			const t = 'data' in child ? String((child as { data?: string }).data ?? '') : '';
 			state.wordPos += wordCount(t);
 		} else if (child.type === 'tag') {
 			walkContent($, child as Element, state);
@@ -252,6 +307,25 @@ export function detectArchitectureSequence(
 
 	const totalWords = wordCount(content.bodyText) || 1;
 
+	// CSS ordering guard — CSS Grid/Flexbox `order`, `position:absolute/fixed/sticky`
+	// can make DOM order diverge from visual order. A trust signal that is visually
+	// above the CTA may be later in the DOM due to CSS reordering.
+	// If we detect these patterns on the page, we soften trust_after_cta to a warning
+	// rather than a hard violation when the gap is small (within 20% of page).
+	const hasCSSReordering = (() => {
+		if (!content.html) return false;
+		const html = content.html;
+		// Inline order: N CSS property on flex/grid children
+		if (/order\s*:\s*-?\d/.test(html)) return true;
+		// Sticky/fixed/absolute positioned elements that could contain trust signals
+		const stickyOrAbsoluteCount = (html.match(/position\s*:\s*(sticky|fixed|absolute)/g) ?? [])
+			.length;
+		if (stickyOrAbsoluteCount >= 2) return true;
+		// Flexbox/grid layout with reverse direction (row-reverse, column-reverse)
+		if (/flex-direction\s*:\s*(row|column)-reverse/.test(html)) return true;
+		return false;
+	})();
+
 	// Violation 1: Credibility signals after CTA (reviews, testimonials, trusted-by)
 	// Risk-reversal (guarantee, refund, cancel anytime) at/below CTA = pass
 	if (
@@ -259,27 +333,31 @@ export function detectArchitectureSequence(
 		state.firstTrustPos !== null &&
 		state.firstTrustPos > state.firstCtaPos
 	) {
-		violations.push({
-			type: 'trust_after_cta',
-			message:
-				'Credibility signals (reviews, testimonials, trusted-by) appear after your CTA. You are asking for commitment before establishing trust.',
-			suggestion:
-				'Move social proof or credentials above your primary CTA.',
-			evidence: `First CTA at ~${Math.round((state.firstCtaPos / totalWords) * 100)}% of page; first credibility signal at ~${Math.round((state.firstTrustPos / totalWords) * 100)}%.`
-		});
+		const gap = (state.firstTrustPos - state.firstCtaPos) / totalWords;
+		// If CSS reordering is detected and the gap is small, this may be a visual-vs-DOM
+		// ordering false positive. Skip the hard violation — the trust signal may be
+		// visually above the CTA even though it's later in the DOM.
+		if (hasCSSReordering && gap < 0.2) {
+			// Suppress — likely a CSS layout false positive
+		} else {
+			violations.push({
+				type: 'trust_after_cta',
+				message:
+					'Credibility signals (reviews, testimonials, trusted-by) appear after your CTA. You are asking for commitment before establishing trust.',
+				suggestion: 'Move social proof or credentials above your primary CTA.',
+				evidence: `First CTA at ~${Math.round((state.firstCtaPos / totalWords) * 100)}% of page; first credibility signal at ~${Math.round((state.firstTrustPos / totalWords) * 100)}%.`
+			});
+		}
 	}
 
 	// Violation 2: No credibility before CTA (CTA exists but no reviews/testimonials before it)
-	if (
-		state.firstCtaPos !== null &&
-		state.firstTrustPos === null
-	) {
+	// Skip when CSS reordering is present — trust signals may exist visually above CTA via CSS.
+	if (state.firstCtaPos !== null && state.firstTrustPos === null && !hasCSSReordering) {
 		violations.push({
 			type: 'trust_after_cta',
 			message:
 				'No credibility signals detected before your CTA. You are asking for commitment before establishing trust.',
-			suggestion:
-				'Add reviews, testimonials, or credentials above your primary CTA.'
+			suggestion: 'Add reviews, testimonials, or credentials above your primary CTA.'
 		});
 	}
 

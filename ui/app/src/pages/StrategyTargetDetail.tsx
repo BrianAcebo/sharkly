@@ -621,7 +621,10 @@ export default function StrategyTargetDetail() {
 		setStartingTopicId(topicId);
 		// Open widget — first step active, others pending
 		setClusterWidgetSteps(
-			CLUSTER_STEPS.map((s, i) => ({ ...s, status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending' }))
+			CLUSTER_STEPS.map((s, i) => ({
+				...s,
+				status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
+			}))
 		);
 		setClusterWidgetStatus('running');
 		setClusterWidgetError(undefined);
@@ -655,56 +658,12 @@ export default function StrategyTargetDetail() {
 				throw new Error(data?.error || 'Failed to create cluster');
 			}
 
-			// Consume NDJSON stream — steps advance only when backend actually completes each phase
-			const reader = res.body?.getReader();
-			const decoder = new TextDecoder();
-			let buffer = '';
-			let clusterId: string | null = null;
+			// createCluster returns plain JSON { clusterId }
+			const data = await res.json().catch(() => ({}));
+			const clusterId: string | null = data?.clusterId ?? null;
 
-			if (reader) {
-				while (true) {
-					const { done, value } = await reader.read();
-					if (value) {
-						buffer += decoder.decode(value, { stream: true });
-						const lines = buffer.split('\n');
-						buffer = lines.pop() ?? '';
-						for (const line of lines) {
-							if (!line.trim()) continue;
-							try {
-								const ev = JSON.parse(line) as { type: string; id?: string; clusterId?: string; message?: string };
-								if (ev.type === 'step' && ev.id) {
-									setClusterWidgetSteps((prev) => {
-										const stepIdx = CLUSTER_STEPS.findIndex((st) => st.id === ev.id);
-										if (stepIdx === -1) return prev;
-										return prev.map((s, i) => {
-											if (i <= stepIdx) return { ...s, status: 'complete' as const };
-											if (i === stepIdx + 1) return { ...s, status: 'active' as const };
-											return s;
-										});
-									});
-								} else if (ev.type === 'done') {
-									clusterId = ev.clusterId ?? null;
-								} else if (ev.type === 'error') {
-									throw new Error(ev.message ?? 'Failed to create cluster');
-								}
-							} catch (parseErr) {
-								if (!(parseErr instanceof SyntaxError)) throw parseErr;
-							}
-						}
-					}
-					if (done) break;
-				}
-				// Process any remaining buffer (final chunk may not end with newline)
-				if (buffer.trim()) {
-					try {
-						const ev = JSON.parse(buffer) as { type: string; clusterId?: string; message?: string };
-						if (ev.type === 'done') clusterId = ev.clusterId ?? null;
-					} catch {
-						// ignore parse errors on trailing partial data
-					}
-				}
-			}
-
+			// Mark all steps complete now that the response is back
+			setClusterWidgetSteps((prev) => prev.map((s) => ({ ...s, status: 'complete' as const })));
 			setClusterWidgetStatus('done');
 			if (!clusterId) {
 				toast.error('Cluster created but missing ID');
@@ -1054,7 +1013,12 @@ export default function StrategyTargetDetail() {
 		setSeedModalOpen(false);
 
 		// Reset and open the progress widget
-		setTaskSteps(STRATEGY_STEPS.map((s, i) => ({ ...s, status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending' })));
+		setTaskSteps(
+			STRATEGY_STEPS.map((s, i) => ({
+				...s,
+				status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
+			}))
+		);
 		setTaskStatus('running');
 		setTaskError(undefined);
 		setTaskWidgetOpen(true);
@@ -1115,7 +1079,16 @@ export default function StrategyTargetDetail() {
 					for (const line of lines) {
 						if (!line.trim()) continue;
 						try {
-							const ev = JSON.parse(line) as { type: string; id?: string; message?: string; suggestions?: TopicSuggestion[]; strategyRationale?: string; researchContext?: unknown; trafficTier?: string | null; runId?: string | null };
+							const ev = JSON.parse(line) as {
+								type: string;
+								id?: string;
+								message?: string;
+								suggestions?: TopicSuggestion[];
+								strategyRationale?: string;
+								researchContext?: unknown;
+								trafficTier?: string | null;
+								runId?: string | null;
+							};
 							if (ev.type === 'step' && ev.id) {
 								setTaskSteps((prev) => {
 									const stepIdx = STRATEGY_STEPS.findIndex((st) => st.id === ev.id);

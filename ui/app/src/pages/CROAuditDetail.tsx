@@ -58,6 +58,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { CreditCost } from '../components/shared/CreditBadge';
 import { CREDIT_COSTS } from '../lib/credits';
 import { toast } from 'sonner';
+import { scrollIntoView } from '../utils/common';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -355,6 +356,8 @@ interface CROAudit {
 	audit_error_message: string | null;
 	cognitive_load_explanation?: string | null;
 	emotional_arc_result?: string | null;
+	faq_result?: Array<{ q: string; a: string }> | null;
+	testimonial_result?: { subject: string; body: string } | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -980,7 +983,16 @@ export default function CROAuditDetail() {
 	const [cogLoadExplanation, setCogLoadExplanation] = useState<string | null>(null);
 	const [deepAnalysisGenerating, setDeepAnalysisGenerating] = useState(false);
 	const [deepAnalysisResult, setDeepAnalysisResult] = useState<string | null>(null);
-	const [activeTab, setActiveTab] = useState('journey');
+	const [activeTab, setActiveTab] = useState('start');
+	// #5: track items user has marked done (local — resets on page reload)
+	const [doneItems, setDoneItems] = useState<Set<string>>(new Set());
+	const toggleDone = (key: string) =>
+		setDoneItems((prev) => {
+			const n = new Set(prev);
+			if (n.has(key)) n.delete(key);
+			else n.add(key);
+			return n;
+		});
 	const [seoChecks, setSeoChecks] = useState<{
 		checks?: Record<string, { status: string; message: string }>;
 		fetch_error?: boolean;
@@ -1015,9 +1027,22 @@ export default function CROAuditDetail() {
 		if (audit) {
 			setCogLoadExplanation(audit.cognitive_load_explanation ?? null);
 			setDeepAnalysisResult(audit.emotional_arc_result ?? null);
+			setFaqResult(
+				Array.isArray(audit.faq_result) && audit.faq_result.length > 0 ? audit.faq_result : null
+			);
+			setTestimonialResult(
+				audit.testimonial_result?.subject || audit.testimonial_result?.body
+					? {
+							subject: audit.testimonial_result.subject ?? '',
+							body: audit.testimonial_result.body ?? ''
+						}
+					: null
+			);
 		} else {
 			setCogLoadExplanation(null);
 			setDeepAnalysisResult(null);
+			setFaqResult(null);
+			setTestimonialResult(null);
 		}
 	}, [audit]);
 
@@ -1107,7 +1132,6 @@ export default function CROAuditDetail() {
 	const handleGenerateFAQ = async () => {
 		if (!id || !session?.access_token) return;
 		setFaqLoading(true);
-		setFaqResult(null);
 		try {
 			const res = await fetch(`/api/cro-studio/audits/${id}/faq`, {
 				method: 'POST',
@@ -1132,7 +1156,6 @@ export default function CROAuditDetail() {
 	const handleGenerateTestimonial = async () => {
 		if (!id || !session?.access_token) return;
 		setTestimonialLoading(true);
-		setTestimonialResult(null);
 		try {
 			const res = await fetch(`/api/cro-studio/audits/${id}/testimonial-email`, {
 				method: 'POST',
@@ -1162,6 +1185,7 @@ export default function CROAuditDetail() {
 
 	const handleCognitiveLoadExpand = async () => {
 		if (!id || !session?.access_token) return;
+		const wasExisting = Boolean(cogLoadExplanation?.trim());
 		setCogLoadExpanding(true);
 		try {
 			const res = await fetch(`/api/cro-studio/audits/${id}/cognitive-load`, {
@@ -1170,7 +1194,11 @@ export default function CROAuditDetail() {
 			});
 			const data = await res.json();
 			if (res.ok && data.success) {
-				toast.success('Cognitive load analysis complete');
+				toast.success(
+					wasExisting
+						? 'Cognitive load explanation regenerated'
+						: 'Cognitive load analysis complete'
+				);
 				setCogLoadExplanation(data.explanation ?? '');
 				setActiveTab('ai');
 			} else if (res.status === 402) {
@@ -1189,6 +1217,7 @@ export default function CROAuditDetail() {
 
 	const handleDeepAnalysis = async () => {
 		if (!id || !session?.access_token) return;
+		const wasExisting = Boolean(deepAnalysisResult?.trim());
 		setDeepAnalysisGenerating(true);
 		try {
 			const res = await fetch(`/api/cro-studio/audits/${id}/emotional-arc`, {
@@ -1198,6 +1227,9 @@ export default function CROAuditDetail() {
 			const data = await res.json();
 			if (res.ok && data.success && data.analysis) {
 				setDeepAnalysisResult(data.analysis);
+				toast.success(
+					wasExisting ? 'Emotional arc analysis regenerated' : 'Emotional arc analysis complete'
+				);
 			} else if (res.status === 402) {
 				toast.error(
 					`Insufficient credits. Need ${data.required ?? CREDIT_COSTS.CRO_STUDIO_EMOTIONAL_ARC}.`
@@ -1412,111 +1444,376 @@ export default function CROAuditDetail() {
 
 					{audit.cluster_journey && <ClusterJourneyPanel journey={audit.cluster_journey} />}
 
-					{/* Score strip */}
+					{/* Score strip — all cards are clickable and navigate to the relevant tab+section */}
 					<div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-						<StatCard
-							label="CRO Score"
-							value={`${scorePct}%`}
-							delta={`${audit.cro_score} / ${audit.max_score} steps passing`}
-							deltaDirection="neutral"
-							icon={<Target className="text-brand-500 dark:text-brand-400 size-5" />}
-						/>
-						<StatCard
-							label="Above-fold"
-							value={aboveFold ? `${aboveFold.score}/4` : '—'}
-							delta={
-								aboveFold && aboveFold.score < 3 ? 'First screen needs work' : 'First screen strong'
-							}
-							deltaDirection={aboveFold && aboveFold.score < 3 ? 'down' : 'neutral'}
-						/>
-						<StatCard
-							label="Objections"
-							value={
-								objectionCoverage
+						{/* CRO Score → Journey tab */}
+						<button
+							type="button"
+							className="group hover:border-brand-300 hover:bg-brand-50/40 dark:hover:border-brand-700 dark:hover:bg-brand-900/10 rounded-xl border border-gray-200 bg-white p-4 text-left transition-colors dark:border-gray-700 dark:bg-gray-900"
+							onClick={() => {
+								setActiveTab('journey');
+								setTimeout(
+									() =>
+										document
+											.getElementById('journey-section')
+											?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+									50
+								);
+							}}
+						>
+							<p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">
+								<Target className="text-brand-500 dark:text-brand-400 size-3.5" />
+								CRO Score
+							</p>
+							<p className="text-xl font-semibold text-gray-900 dark:text-white">{scorePct}%</p>
+							<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+								{audit.cro_score} / {audit.max_score} steps passing
+							</p>
+							<p className="text-brand-500 dark:text-brand-400 mt-1.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
+								→ Journey tab
+							</p>
+						</button>
+
+						{/* Above-fold → Journey tab, above-fold section */}
+						<button
+							type="button"
+							className="group hover:border-brand-300 hover:bg-brand-50/40 dark:hover:border-brand-700 dark:hover:bg-brand-900/10 rounded-xl border border-gray-200 bg-white p-4 text-left transition-colors dark:border-gray-700 dark:bg-gray-900"
+							onClick={() => {
+								setActiveTab('journey');
+								setTimeout(
+									() =>
+										document
+											.getElementById('above-fold-section')
+											?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+									50
+								);
+							}}
+						>
+							<p className="mb-1 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">
+								Above-fold
+							</p>
+							<p
+								className={`text-xl font-semibold ${aboveFold && aboveFold.score < 3 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'}`}
+							>
+								{aboveFold ? `${aboveFold.score}/4` : '—'}
+							</p>
+							<p
+								className={`mt-1 text-xs ${aboveFold && aboveFold.score < 3 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'}`}
+							>
+								{aboveFold && aboveFold.score < 3
+									? 'First screen needs work'
+									: 'First screen strong'}
+							</p>
+							<p className="text-brand-500 dark:text-brand-400 mt-1.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
+								→ Journey tab
+							</p>
+						</button>
+
+						{/* Objections → Structure tab, objections section */}
+						<button
+							type="button"
+							className={`group rounded-xl border p-4 text-left transition-colors dark:bg-gray-900 ${
+								objectionCoverage && objectionCoverage.addressed < objectionCoverage.total
+									? 'border-amber-200 bg-amber-50/60 hover:border-amber-300 hover:bg-amber-50 dark:border-amber-900/40 dark:bg-amber-900/10 dark:hover:bg-amber-900/20'
+									: 'hover:border-brand-300 hover:bg-brand-50/40 dark:hover:border-brand-700 dark:hover:bg-brand-900/10 border-gray-200 bg-white dark:border-gray-700'
+							}`}
+							onClick={() => {
+								setActiveTab('structure');
+								setTimeout(() => scrollIntoView('#objections-section', 100), 50);
+							}}
+						>
+							<p className="mb-1 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">
+								Objections
+							</p>
+							<p
+								className={`text-xl font-semibold ${objectionCoverage && objectionCoverage.addressed < objectionCoverage.total ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-white'}`}
+							>
+								{objectionCoverage
 									? `${objectionCoverage.addressed}/${objectionCoverage.total}`
-									: '—'
-							}
-							delta={
-								objectionCoverage && objectionCoverage.addressed < objectionCoverage.total
+									: '—'}
+							</p>
+							<p
+								className={`mt-1 text-xs font-medium ${objectionCoverage && objectionCoverage.addressed < objectionCoverage.total ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'}`}
+							>
+								{objectionCoverage && objectionCoverage.addressed < objectionCoverage.total
 									? `${objectionCoverage.total - objectionCoverage.addressed} unanswered`
-									: 'All addressed'
-							}
-							deltaDirection={
-								objectionCoverage && objectionCoverage.addressed < objectionCoverage.total
-									? 'down'
-									: 'neutral'
-							}
-						/>
-						<StatCard
-							label="Structure violations"
-							value={archViolations.length}
-							delta={archViolations.length > 0 ? 'Fix before journey steps' : 'None detected'}
-							deltaDirection="neutral"
-						/>
-						<StatCard
-							label="Persuasion signals"
-							value={`${biasInventory.filter((b) => b.present).length} / ${biasInventory.length}`}
-							delta={
-								missingBiases.length > 0 ? `${missingBiases.length} signals missing` : 'All active'
-							}
-							deltaDirection="neutral"
-						/>
-						{/* Cognitive load — clickable when High (1 credit for explanation) */}
-						<div
-							className={`rounded-xl border p-4 ${
+									: 'All addressed'}
+							</p>
+							<p className="text-brand-500 dark:text-brand-400 mt-1.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
+								→ Structure tab
+							</p>
+						</button>
+
+						{/* Structure violations → Structure tab, arch violations section */}
+						<button
+							type="button"
+							className={`group rounded-xl border p-4 text-left transition-colors dark:bg-gray-900 ${
+								archViolations.length > 0
+									? 'border-red-200 bg-red-50/60 hover:border-red-300 hover:bg-red-50 dark:border-red-900/40 dark:bg-red-900/10 dark:hover:bg-red-900/20'
+									: 'hover:border-brand-300 hover:bg-brand-50/40 dark:hover:border-brand-700 dark:hover:bg-brand-900/10 border-gray-200 bg-white dark:border-gray-700'
+							}`}
+							onClick={() => {
+								setActiveTab('structure');
+								setTimeout(
+									() =>
+										document
+											.getElementById('arch-violations-section')
+											?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+									50
+								);
+							}}
+						>
+							<p className="mb-1 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">
+								Structure violations
+							</p>
+							<p
+								className={`text-xl font-semibold ${archViolations.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}
+							>
+								{archViolations.length}
+							</p>
+							<p
+								className={`mt-1 text-xs ${archViolations.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}
+							>
+								{archViolations.length > 0 ? 'Fix before journey steps' : 'None detected'}
+							</p>
+							<p className="text-brand-500 dark:text-brand-400 mt-1.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
+								→ Structure tab
+							</p>
+						</button>
+
+						{/* Persuasion signals → Persuasion tab */}
+						<button
+							type="button"
+							className="group hover:border-brand-300 hover:bg-brand-50/40 dark:hover:border-brand-700 dark:hover:bg-brand-900/10 rounded-xl border border-gray-200 bg-white p-4 text-left transition-colors dark:border-gray-700 dark:bg-gray-900"
+							onClick={() => {
+								setActiveTab('persuasion');
+								setTimeout(
+									() =>
+										document
+											.getElementById('persuasion-section')
+											?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+									50
+								);
+							}}
+						>
+							<p className="mb-1 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">
+								Persuasion signals
+							</p>
+							<p className="text-xl font-semibold text-gray-900 dark:text-white">
+								{biasInventory.filter((b) => b.present).length} / {biasInventory.length}
+							</p>
+							<p
+								className={`mt-1 text-xs ${missingBiases.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-500 dark:text-gray-400'}`}
+							>
+								{missingBiases.length > 0
+									? `${missingBiases.length} signals missing`
+									: 'All active'}
+							</p>
+							<p className="text-brand-500 dark:text-brand-400 mt-1.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
+								→ Persuasion tab
+							</p>
+						</button>
+
+						{/* Cognitive load — navigates to AI tab, cognitive load section */}
+						<button
+							type="button"
+							className={`group rounded-xl border p-4 text-left transition-colors ${
 								cogLoad?.level === 'high'
 									? 'cursor-pointer border-amber-200 bg-amber-50 hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-900/10 dark:hover:bg-amber-900/20'
-									: 'border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
+									: 'hover:border-brand-300 hover:bg-brand-50/40 dark:hover:border-brand-700 dark:hover:bg-brand-900/10 border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900'
 							}`}
-							onClick={cogLoad?.level === 'high' ? handleCognitiveLoadExpand : undefined}
-							title={
-								cogLoad?.level === 'high'
-									? 'Click to get a detailed cognitive load explanation (1 credit)'
-									: undefined
-							}
+							onClick={() => {
+								setActiveTab('ai');
+								setTimeout(() => scrollIntoView('#cognitive-load-section', 100), 50);
+							}}
 						>
-							<p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+							<p className="mb-1 text-xs font-medium text-gray-500 uppercase dark:text-gray-400">
 								Cognitive load
 							</p>
 							<p
-								className={`text-xl font-semibold ${
-									cogLoad?.level === 'high'
-										? 'text-amber-700 dark:text-amber-400'
-										: 'text-gray-900 dark:text-white'
-								}`}
+								className={`text-xl font-semibold ${cogLoad?.level === 'high' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-900 dark:text-white'}`}
 							>
 								{cogLoad ? (cogLoad.level === 'high' ? 'High' : 'Normal') : '—'}
 							</p>
-							{cogLoad?.level === 'high' && (
-								<p className="mt-1 flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400">
-									{cogLoadExpanding ? (
-										<RefreshCw className="size-3 animate-spin" />
-									) : (
-										<Brain className="size-3" />
-									)}
-									{cogLoadExpanding
-										? 'Analyzing…'
-										: 'Tap to explain (1 credit) — see AI Analysis tab'}
-								</p>
-							)}
-						</div>
+							<p className="text-brand-500 dark:text-brand-400 mt-1.5 text-[10px] font-medium opacity-0 transition-opacity group-hover:opacity-100">
+								→ Deep Analysis tab
+							</p>
+						</button>
 					</div>
 
 					{/* Two-column studio layout */}
 					<div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px] lg:items-start">
 						{/* LEFT: Tabbed content */}
 						<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-							<TabsList className="grid w-full grid-cols-4">
+							<TabsList className="grid w-full grid-cols-5">
+								<TabsTrigger value="start" className="relative">
+									Start Here
+									{allFailingKeys.length > 0 && (
+										<span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+											{Math.min(allFailingKeys.length, 3)}
+										</span>
+									)}
+								</TabsTrigger>
 								<TabsTrigger value="journey">Journey</TabsTrigger>
 								<TabsTrigger value="structure">Structure</TabsTrigger>
-
-								<TabsTrigger value="persuasion">Persuasion</TabsTrigger>
-								<TabsTrigger value="ai">AI Analysis</TabsTrigger>
+								<TabsTrigger value="persuasion">Signals</TabsTrigger>
+								<TabsTrigger value="ai" className={hasAnyFailing ? 'opacity-60' : ''}>
+									Deep Analysis
+								</TabsTrigger>
 							</TabsList>
+
+							<TabsContent value="start" className="mt-0 space-y-4">
+								{/* #1: Start Here — 3 highest-impact problems only */}
+								{allFailingKeys.length === 0 && missingBiases.length === 0 ? (
+									<div className="rounded-xl border border-green-200 bg-green-50 px-6 py-10 text-center dark:border-green-900/40 dark:bg-green-900/10">
+										<CheckCircle2 className="mx-auto mb-3 size-10 text-green-500" />
+										<h2 className="text-base font-semibold text-green-900 dark:text-green-200">
+											All critical checks passing
+										</h2>
+										<p className="mt-1.5 text-sm text-green-700 dark:text-green-400">
+											Use the Journey, Signals, and Deep Analysis tabs to find further optimisation
+											opportunities.
+										</p>
+									</div>
+								) : (
+									<>
+										<div className="rounded-xl border border-gray-200 bg-gray-50 px-5 py-3 dark:border-gray-700 dark:bg-gray-800/50">
+											<p className="text-xs text-gray-600 dark:text-gray-400">
+												<strong className="text-gray-900 dark:text-white">
+													Fix these first — in order.
+												</strong>{' '}
+												Each fix is worth more than any persuasion tweak. Once these are resolved,
+												use the other tabs to go deeper.
+											</p>
+										</div>
+										{[
+											...archViolations.map((v, i) => ({
+												key: `arch_${i}`,
+												title: v.message,
+												subtitle: `→ ${v.suggestion}`,
+												impact: IMPACT_STATEMENTS[v.type],
+												tab: 'structure' as const,
+												anchor: 'arch-violations-section'
+											})),
+											...failingSteps.slice(0, Math.max(0, 3 - archViolations.length)).map((s) => ({
+												key: String(s.step),
+												title: s.name,
+												subtitle: s.evidence,
+												impact: IMPACT_STATEMENTS[s.type],
+												tab: 'journey' as const,
+												anchor: 'journey-section'
+											})),
+											...(allFailingKeys.length < 3 &&
+											objectionCoverage &&
+											objectionCoverage.addressed < objectionCoverage.total
+												? [
+														{
+															key: 'objections',
+															title: `${objectionCoverage.total - objectionCoverage.addressed} unanswered visitor objections`,
+															subtitle: "Visitors are leaving with questions you haven't answered",
+															impact: IMPACT_STATEMENTS.objection_unaddressed,
+															tab: 'structure' as const,
+															anchor: 'objections-section'
+														}
+													]
+												: [])
+										]
+											.slice(0, 3)
+											.map((item, i) => (
+												<div
+													key={item.key}
+													className={`overflow-hidden rounded-xl border bg-white transition-all dark:bg-gray-900 ${doneItems.has(item.key) ? 'border-green-200 opacity-60 dark:border-green-900/40' : 'border-red-200 dark:border-red-900/50'}`}
+												>
+													<div
+														className={`flex items-center gap-3 px-5 py-3 ${doneItems.has(item.key) ? 'bg-green-50 dark:bg-green-900/10' : 'bg-red-50 dark:bg-red-900/10'}`}
+													>
+														<div
+															className={`flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${doneItems.has(item.key) ? 'bg-green-200 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-200 text-red-800 dark:bg-red-900/40 dark:text-red-300'}`}
+														>
+															{doneItems.has(item.key) ? '✓' : i + 1}
+														</div>
+														<p className="flex-1 text-sm font-semibold text-gray-900 dark:text-white">
+															{item.title}
+														</p>
+														<div className="flex items-center gap-2">
+															<button
+																type="button"
+																onClick={() => {
+																	setActiveTab(item.tab);
+																	setTimeout(
+																		() =>
+																			document
+																				.getElementById(item.anchor)
+																				?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+																		50
+																	);
+																}}
+																className="text-brand-600 dark:text-brand-400 text-xs hover:underline"
+															>
+																See detail →
+															</button>
+															{/* #5: Mark as done */}
+															<button
+																type="button"
+																onClick={() => toggleDone(item.key)}
+																className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${doneItems.has(item.key) ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400' : 'bg-white text-gray-600 ring-1 ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700'}`}
+															>
+																{doneItems.has(item.key) ? (
+																	<>
+																		<Check className="size-3" /> Done
+																	</>
+																) : (
+																	'Mark done'
+																)}
+															</button>
+														</div>
+													</div>
+													{!doneItems.has(item.key) && (
+														<div className="space-y-3 px-5 py-4">
+															<p className="text-sm text-gray-600 dark:text-gray-400">
+																{item.subtitle}
+															</p>
+															{item.impact && (
+																<p className="text-xs font-medium text-red-700 dark:text-red-400">
+																	{item.impact}
+																</p>
+															)}
+															<FixPanelInline
+																itemKey={item.key}
+																fixesByItem={fixesByItem}
+																fixGenerating={fixGenerating}
+																onGenerate={handleGenerateFix}
+															/>
+														</div>
+													)}
+												</div>
+											))}
+										{allFailingKeys.length === 0 && missingBiases.length > 0 && (
+											<div className="rounded-xl border border-amber-200 bg-amber-50/60 px-5 py-4 dark:border-amber-900/40 dark:bg-amber-900/10">
+												<p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+													Structure and journey checks passing ✓
+												</p>
+												<p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
+													Your next focus is persuasion signals — {missingBiases.length} missing.
+													Open the Signals tab to add them.
+												</p>
+												<button
+													type="button"
+													onClick={() => setActiveTab('persuasion')}
+													className="text-brand-600 dark:text-brand-400 mt-2 text-xs hover:underline"
+												>
+													Go to Signals →
+												</button>
+											</div>
+										)}
+									</>
+								)}
+							</TabsContent>
 
 							<TabsContent value="structure" className="mt-0 space-y-6">
 								{/* Architecture violations — always shown (success state when none) */}
 								<section
+									id="arch-violations-section"
 									className={`overflow-hidden rounded-xl border bg-white dark:bg-gray-900 ${
 										archViolations.length > 0
 											? 'border-red-200 dark:border-red-900/50'
@@ -1580,18 +1877,23 @@ export default function CROAuditDetail() {
 
 								{/* Unanswered questions — objection coverage */}
 								{objectionCoverage && (
-									<UnansweredQuestionsPanel
-										data={objectionCoverage}
-										fixesByItem={fixesByItem}
-										fixGenerating={fixGenerating}
-										onGenerate={handleGenerateFix}
-									/>
+									<div id="objections-section">
+										<UnansweredQuestionsPanel
+											data={objectionCoverage}
+											fixesByItem={fixesByItem}
+											fixGenerating={fixGenerating}
+											onGenerate={handleGenerateFix}
+										/>
+									</div>
 								)}
 							</TabsContent>
 
 							<TabsContent value="journey" className="mt-0 space-y-6">
 								{/* Journey map */}
-								<section className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+								<section
+									id="journey-section"
+									className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+								>
 									<div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
 										<div>
 											<h2 className="text-base font-semibold text-gray-900 dark:text-white">
@@ -1604,6 +1906,11 @@ export default function CROAuditDetail() {
 										<span className="text-sm font-medium text-gray-700 dark:text-gray-300">
 											{passingSteps.length} / 11 passing
 										</span>
+										{failingSteps.length > 0 && (
+											<p className="mt-0.5 text-[10px] text-gray-400 dark:text-gray-500">
+												Fix in step order — earlier steps matter more
+											</p>
+										)}
 									</div>
 
 									{/* Phase strip */}
@@ -1611,90 +1918,143 @@ export default function CROAuditDetail() {
 										<JourneyPhaseStrip journey={journey} />
 									</div>
 
-									{/* Step rows */}
+									{/* Step rows — phase dividers (#2) + mark done (#5) */}
 									<ul className="divide-y divide-gray-100 dark:divide-gray-800">
-										{journey.map((step) => {
+										{journey.map((step, stepIdx) => {
 											const isFailing = step.status === 'fail';
+											const isDone = doneItems.has(String(step.step));
+											// Insert phase label row before step 1, 6, 9
+											const phaseLabel =
+												step.step === 1
+													? {
+															label: 'Emotional hook',
+															color:
+																'bg-teal-50 text-teal-700 dark:bg-teal-900/10 dark:text-teal-300'
+														}
+													: step.step === 6
+														? {
+																label: 'Logical justification',
+																color:
+																	'bg-blue-50 text-blue-700 dark:bg-blue-900/10 dark:text-blue-300'
+															}
+														: step.step === 9
+															? {
+																	label: 'Emotional close',
+																	color:
+																		'bg-teal-50 text-teal-700 dark:bg-teal-900/10 dark:text-teal-300'
+																}
+															: null;
 											return (
-												<li
-													key={step.step}
-													className={`px-5 py-4 ${
-														isFailing
-															? 'bg-red-50/60 dark:bg-red-900/10'
-															: step.status === 'partial'
-																? 'bg-amber-50/50 dark:bg-amber-900/5'
-																: ''
-													}`}
-												>
-													<div className="flex items-start gap-3">
-														<div
-															className={`flex size-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-																step.status === 'fail'
-																	? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-																	: step.status === 'partial'
-																		? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-																		: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-															}`}
+												<React.Fragment key={step.step}>
+													{phaseLabel && (
+														<li
+															className={`border-b border-gray-100 px-5 py-1.5 text-[10px] font-semibold tracking-widest uppercase dark:border-gray-800 ${phaseLabel.color}`}
 														>
-															{step.stepDisplay ?? step.step}
-														</div>
-														<div className="min-w-0 flex-1">
-															<div className="flex flex-wrap items-center gap-2">
-																<p
-																	className={`font-medium ${
-																		isFailing
-																			? 'text-gray-900 dark:text-white'
-																			: 'text-gray-800 dark:text-gray-200'
-																	}`}
-																>
-																	{step.name}
-																</p>
-																<span
-																	className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
-																		step.type === 'logical'
-																			? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-																			: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
-																	}`}
-																>
-																	{step.type}
-																</span>
-															</div>
-															<p
-																className={`mt-1 text-sm ${
-																	isFailing
-																		? 'text-red-700 dark:text-red-300'
-																		: 'text-gray-500 dark:text-gray-400'
+															{phaseLabel.label}
+														</li>
+													)}
+													<li
+														className={`px-5 py-4 transition-opacity ${
+															isDone
+																? 'opacity-50'
+																: isFailing
+																	? 'bg-red-50/60 dark:bg-red-900/10'
+																	: step.status === 'partial'
+																		? 'bg-amber-50/50 dark:bg-amber-900/5'
+																		: ''
+														}`}
+													>
+														<div className="flex items-start gap-3">
+															<div
+																className={`flex size-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+																	isDone
+																		? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+																		: step.status === 'fail'
+																			? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+																			: step.status === 'partial'
+																				? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+																				: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
 																}`}
 															>
-																{step.evidence}
-															</p>
-															{(isFailing || step.status === 'partial') &&
-																IMPACT_STATEMENTS[step.type] && (
-																	<p className="mt-1.5 text-xs font-medium text-red-700 dark:text-red-400">
-																		{IMPACT_STATEMENTS[step.type]}
-																	</p>
+																{isDone ? (
+																	<Check className="size-3" />
+																) : (
+																	(step.stepDisplay ?? step.step)
 																)}
-															{(isFailing || step.status === 'partial') && (
-																<FixPanel
-																	itemKey={String(step.step)}
-																	options={fixesByItem[String(step.step)] ?? []}
-																	generating={fixGenerating === String(step.step)}
-																	onGenerate={handleGenerateFix}
-																	creditCost={CREDIT_COSTS.CRO_STUDIO_SINGLE_FIX}
-																/>
-															)}
+															</div>
+															<div className="min-w-0 flex-1">
+																<div className="flex flex-wrap items-center gap-2">
+																	<p
+																		className={`font-medium ${isFailing && !isDone ? 'text-gray-900 dark:text-white' : 'text-gray-800 dark:text-gray-200'}`}
+																	>
+																		{step.name}
+																	</p>
+																	<span
+																		className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${step.type === 'logical' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' : 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'}`}
+																	>
+																		{step.type}
+																	</span>
+																</div>
+																<p
+																	className={`mt-1 text-sm ${isFailing && !isDone ? 'text-red-700 dark:text-red-300' : 'text-gray-500 dark:text-gray-400'}`}
+																>
+																	{step.evidence}
+																</p>
+																{(isFailing || step.status === 'partial') &&
+																	!isDone &&
+																	IMPACT_STATEMENTS[step.type] && (
+																		<p className="mt-1.5 text-xs font-medium text-red-700 dark:text-red-400">
+																			{IMPACT_STATEMENTS[step.type]}
+																		</p>
+																	)}
+																{(isFailing || step.status === 'partial') && !isDone && (
+																	<FixPanel
+																		itemKey={String(step.step)}
+																		options={fixesByItem[String(step.step)] ?? []}
+																		generating={fixGenerating === String(step.step)}
+																		onGenerate={handleGenerateFix}
+																		creditCost={CREDIT_COSTS.CRO_STUDIO_SINGLE_FIX}
+																	/>
+																)}
+																{/* #5 Mark as done */}
+																{(isFailing || step.status === 'partial') && (
+																	<button
+																		type="button"
+																		onClick={() => toggleDone(String(step.step))}
+																		className={`mt-2 flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${isDone ? 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400' : 'bg-white text-gray-500 ring-1 ring-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700'}`}
+																	>
+																		{isDone ? (
+																			<>
+																				<Check className="size-3" />
+																				&#32;Marked done — undo
+																			</>
+																		) : (
+																			'Mark as done'
+																		)}
+																	</button>
+																)}
+															</div>
 														</div>
-													</div>
-												</li>
+													</li>
+												</React.Fragment>
 											);
 										})}
 									</ul>
 								</section>
+
+								{aboveFold && (
+									<div id="above-fold-section">
+										<AboveFoldPanel data={aboveFold} />
+									</div>
+								)}
 							</TabsContent>
 
 							<TabsContent value="persuasion" className="mt-0 space-y-6">
 								{/* Persuasion profile — full list, expandable */}
-								<section className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+								<section
+									id="persuasion-section"
+									className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+								>
 									<div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700">
 										<div className="flex items-center gap-2">
 											<Brain className="text-brand-500 size-4" />
@@ -1775,11 +2135,13 @@ export default function CROAuditDetail() {
 											</p>
 										</div>
 									)}
-									<div className="space-y-2 p-4">
-										{/* Missing biases first */}
-										{[...biasInventory]
-											.sort((a, b) => Number(a.present) - Number(b.present))
-											.map((bias) => (
+									{/* Add these — missing signals */}
+									{missingBiases.length > 0 && (
+										<div className="space-y-2 p-4">
+											<p className="px-1 pb-1 text-[10px] font-semibold tracking-widest text-amber-700 uppercase dark:text-amber-400">
+												Add these — {missingBiases.length} missing
+											</p>
+											{missingBiases.map((bias) => (
 												<BiasCard
 													key={bias.bias_id}
 													bias={bias}
@@ -1788,13 +2150,58 @@ export default function CROAuditDetail() {
 													generating={fixGenerating === `bias_${bias.bias_id}`}
 												/>
 											))}
-									</div>
+										</div>
+									)}
+									{/* Already working */}
+									{biasInventory.filter((b) => b.present).length > 0 && (
+										<div
+											className={`space-y-2 p-4 ${missingBiases.length > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''}`}
+										>
+											<p className="px-1 pb-1 text-[10px] font-semibold tracking-widest text-green-700 uppercase dark:text-green-400">
+												Already working — keep these
+											</p>
+											{biasInventory
+												.filter((b) => b.present)
+												.map((bias) => (
+													<BiasCard
+														key={bias.bias_id}
+														bias={bias}
+														onGenerate={handleGenerateFix}
+														fixes={fixesByItem[`bias_${bias.bias_id}`] ?? []}
+														generating={fixGenerating === `bias_${bias.bias_id}`}
+													/>
+												))}
+										</div>
+									)}
 								</section>
 							</TabsContent>
 
-							<TabsContent value="ai" className="mt-0 space-y-6">
+							<TabsContent value="ai" id="ai-section" className="mt-0 space-y-6">
+								{/* #6 Advisory banner when critical issues remain */}
+								{hasAnyFailing && (
+									<div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/40 dark:bg-amber-900/10">
+										<AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+										<div>
+											<p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+												Recommended: fix structure and journey issues first
+											</p>
+											<p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
+												Deep analysis is most useful after critical issues are resolved — otherwise
+												you're optimizing the wrong layer.{' '}
+												<button
+													type="button"
+													onClick={() => setActiveTab('start')}
+													className="font-medium underline"
+												>
+													Go to Start Here →
+												</button>
+											</p>
+										</div>
+									</div>
+								)}
 								{/* Cognitive load — plain-English explanation (always shown so users can run it) */}
 								<section
+									id="cognitive-load-section"
 									className={`overflow-hidden rounded-xl border bg-white dark:bg-gray-900 ${
 										cogLoad?.level === 'high'
 											? 'border-amber-200 bg-amber-50/50 dark:border-amber-900/40 dark:bg-amber-900/10'
@@ -1822,33 +2229,38 @@ export default function CROAuditDetail() {
 												Cognitive load — plain-English explanation
 											</h2>
 										</div>
-										{!cogLoadExplanation && (
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={handleCognitiveLoadExpand}
-												disabled={cogLoadExpanding}
-												className={`flex-shrink-0 gap-2 ${
-													cogLoad?.level === 'high'
-														? 'border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/30'
-														: ''
-												}`}
-											>
-												{cogLoadExpanding ? (
-													<RefreshCw className="size-4 animate-spin" />
-												) : (
-													<Brain className="size-4" />
-												)}
-												{cogLoadExpanding ? (
-													'Analyzing…'
-												) : (
-													<>
-														Get explanation —{' '}
-														<CreditCost amount={CREDIT_COSTS.CRO_STUDIO_SINGLE_FIX} />
-													</>
-												)}
-											</Button>
-										)}
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={handleCognitiveLoadExpand}
+											disabled={cogLoadExpanding}
+											className={`flex-shrink-0 gap-2 ${
+												cogLoad?.level === 'high'
+													? 'border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-900/30'
+													: ''
+											}`}
+										>
+											{cogLoadExpanding ? (
+												<RefreshCw className="size-4 animate-spin" />
+											) : cogLoadExplanation?.trim() ? (
+												<RefreshCw className="size-4" />
+											) : (
+												<Brain className="size-4" />
+											)}
+											{cogLoadExpanding ? (
+												'Analyzing…'
+											) : cogLoadExplanation?.trim() ? (
+												<>
+													Regenerate explanation —{' '}
+													<CreditCost amount={CREDIT_COSTS.CRO_STUDIO_SINGLE_FIX} />
+												</>
+											) : (
+												<>
+													Get explanation —{' '}
+													<CreditCost amount={CREDIT_COSTS.CRO_STUDIO_SINGLE_FIX} />
+												</>
+											)}
+										</Button>
 									</div>
 									<div className="p-5">
 										{cogLoadExplanation ? (
@@ -1879,27 +2291,34 @@ export default function CROAuditDetail() {
 												</p>
 											</div>
 										</div>
-										{!deepAnalysisResult && (
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={handleDeepAnalysis}
-												disabled={deepAnalysisGenerating}
-												className="flex-shrink-0 gap-2"
-											>
-												<Sparkles
-													className={`size-4 ${deepAnalysisGenerating ? 'animate-pulse' : ''}`}
-												/>
-												{deepAnalysisGenerating ? (
-													'Analyzing…'
-												) : (
-													<>
-														Run analysis —{' '}
-														<CreditCost amount={CREDIT_COSTS.CRO_STUDIO_EMOTIONAL_ARC} />
-													</>
-												)}
-											</Button>
-										)}
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={handleDeepAnalysis}
+											disabled={deepAnalysisGenerating}
+											className="flex-shrink-0 gap-2"
+										>
+											{deepAnalysisGenerating ? (
+												<RefreshCw className="size-4 animate-spin" />
+											) : deepAnalysisResult?.trim() ? (
+												<RefreshCw className="size-4" />
+											) : (
+												<Sparkles className="size-4" />
+											)}
+											{deepAnalysisGenerating ? (
+												'Analyzing…'
+											) : deepAnalysisResult?.trim() ? (
+												<>
+													Regenerate analysis —{' '}
+													<CreditCost amount={CREDIT_COSTS.CRO_STUDIO_EMOTIONAL_ARC} />
+												</>
+											) : (
+												<>
+													Run analysis —{' '}
+													<CreditCost amount={CREDIT_COSTS.CRO_STUDIO_EMOTIONAL_ARC} />
+												</>
+											)}
+										</Button>
 									</div>
 									{deepAnalysisResult ? (
 										<div className="border-t border-gray-200 px-5 py-4 dark:border-gray-700">
@@ -1948,13 +2367,37 @@ export default function CROAuditDetail() {
 								{priorityItems.length > 0 ? (
 									<ul className="divide-y divide-gray-100 dark:divide-gray-800">
 										{priorityItems.map((item, i) => (
-											<li key={item.key} className="flex items-start gap-3 px-4 py-3">
-												<div className="flex size-5 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-[10px] font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">
-													{i + 1}
-												</div>
-												<p className="text-xs leading-relaxed text-gray-700 dark:text-gray-300">
-													{item.text}
-												</p>
+											<li key={item.key}>
+												<button
+													type="button"
+													className="flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50"
+													onClick={() => {
+														const tab = item.isArch ? 'structure' : 'journey';
+														const anchor = item.isArch
+															? 'arch-violations-section'
+															: 'journey-section';
+														setActiveTab(tab);
+														setTimeout(
+															() =>
+																document
+																	.getElementById(anchor)
+																	?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+															50
+														);
+													}}
+												>
+													<div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-[10px] font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300">
+														{i + 1}
+													</div>
+													<div className="min-w-0 flex-1">
+														<p className="text-xs leading-relaxed text-gray-700 dark:text-gray-300">
+															{item.text}
+														</p>
+														<p className="text-brand-500 dark:text-brand-400 mt-0.5 text-[10px]">
+															{item.isArch ? 'Structure tab →' : 'Journey tab →'}
+														</p>
+													</div>
+												</button>
 											</li>
 										))}
 									</ul>
@@ -1993,8 +2436,18 @@ export default function CROAuditDetail() {
 										disabled={seoChecking || !audit?.page_url || !seoKeyword?.trim()}
 										className="w-full gap-2"
 									>
-										<Search className={`size-4 ${seoChecking ? 'animate-pulse' : ''}`} />
-										{seoChecking ? 'Running…' : 'Run SEO checks'}
+										{seoChecking ? (
+											<RefreshCw className="size-4 animate-spin" />
+										) : seoChecks ? (
+											<RefreshCw className="size-4" />
+										) : (
+											<Search className="size-4" />
+										)}
+										{seoChecking
+											? 'Running…'
+											: seoChecks
+												? 'Run SEO checks again'
+												: 'Run SEO checks'}
 									</Button>
 									{seoChecks && <SeoChecksDisplay seoChecks={seoChecks} />}
 								</div>
@@ -2019,8 +2472,17 @@ export default function CROAuditDetail() {
 											disabled={faqLoading}
 											className="w-full gap-2"
 										>
-											<Wand2 className={`size-4 ${faqLoading ? 'animate-pulse' : ''}`} />
-											Generate FAQ (5 Q&A) — <CreditCost amount={CREDIT_COSTS.CRO_STUDIO_FAQ} />
+											{faqLoading ? (
+												<Wand2 className="size-4 animate-pulse" />
+											) : faqResult && faqResult.length > 0 ? (
+												<RefreshCw className="size-4" />
+											) : (
+												<Wand2 className="size-4" />
+											)}
+											{faqResult && faqResult.length > 0
+												? 'Regenerate FAQ (5 Q&A)'
+												: 'Generate FAQ (5 Q&A)'}{' '}
+											— <CreditCost amount={CREDIT_COSTS.CRO_STUDIO_FAQ} />
 										</Button>
 										{faqResult && faqResult.length > 0 && (
 											<div className="mt-3 space-y-2">
@@ -2055,8 +2517,14 @@ export default function CROAuditDetail() {
 											disabled={testimonialLoading}
 											className="w-full gap-2"
 										>
-											<Wand2 className={`size-4 ${testimonialLoading ? 'animate-pulse' : ''}`} />
-											Testimonial email —{' '}
+											{testimonialLoading ? (
+												<Wand2 className="size-4 animate-pulse" />
+											) : testimonialResult ? (
+												<RefreshCw className="size-4" />
+											) : (
+												<Wand2 className="size-4" />
+											)}
+											{testimonialResult ? 'Regenerate testimonial email' : 'Testimonial email'} —{' '}
 											<CreditCost amount={CREDIT_COSTS.CRO_STUDIO_TESTIMONIAL_EMAIL} />
 										</Button>
 										{testimonialResult && (

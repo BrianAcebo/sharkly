@@ -8,6 +8,7 @@
  */
 
 import type { ParsedPageContent } from './fetchAndParseURL.js';
+import type { RenderConfidence } from './fetchAndParseURL.js';
 
 /** Result for a single journey step */
 export interface JourneyStepResult {
@@ -279,7 +280,8 @@ function step3_Credibility(content: ParsedPageContent): JourneyStepResult {
 			name: STEP_NAMES[3],
 			type: 'emotional',
 			status: 'pass',
-			evidence: 'Credibility signals present before the CTA — visitors see why they should trust you first.'
+			evidence:
+				'Credibility signals present before the CTA — visitors see why they should trust you first.'
 		};
 	}
 
@@ -314,7 +316,7 @@ function step4_ProblemIdentification(content: ParsedPageContent): JourneyStepRes
 		type: 'emotional',
 		status: 'fail',
 		evidence:
-			'The visitor\'s pain is not clearly named. Problem identification creates emotional resonance — name the challenge, frustration, or need specifically before presenting the solution.'
+			"The visitor's pain is not clearly named. Problem identification creates emotional resonance — name the challenge, frustration, or need specifically before presenting the solution."
 	};
 }
 
@@ -384,7 +386,8 @@ function step7_Pricing(content: ParsedPageContent): JourneyStepResult {
 			name: STEP_NAMES[7],
 			type: 'logical',
 			status: 'pass',
-			evidence: 'Pricing present with emotional framing (anchoring, daily cost, decoy, or risk-reversal).'
+			evidence:
+				'Pricing present with emotional framing (anchoring, daily cost, decoy, or risk-reversal).'
 		};
 	}
 	if (hasPricing) {
@@ -394,7 +397,21 @@ function step7_Pricing(content: ParsedPageContent): JourneyStepResult {
 			name: STEP_NAMES[7],
 			type: 'logical',
 			status: 'partial',
-			evidence: 'Pricing present but lacks emotional framing. Add anchoring, daily cost, decoy, or risk-reversal.'
+			evidence:
+				'Pricing present but lacks emotional framing. Add anchoring, daily cost, decoy, or risk-reversal.'
+		};
+	}
+	// Static fetch on a JS-rendered page: price is almost certainly injected by JS.
+	// Return partial rather than fail to avoid a false negative.
+	if (content.renderConfidence === 'static' && content.isJsRendered) {
+		return {
+			step: 7,
+			stepDisplay: '6b',
+			name: STEP_NAMES[7],
+			type: 'logical',
+			status: 'partial',
+			evidence:
+				'Pricing not detected in static HTML — this page uses JavaScript rendering and prices may have been injected after page load. Re-audit with full rendering for an accurate result.'
 		};
 	}
 	return {
@@ -409,22 +426,34 @@ function step7_Pricing(content: ParsedPageContent): JourneyStepResult {
 
 function step8_SocialProof(content: ParsedPageContent): JourneyStepResult {
 	const hasProof = matchesAny(content.bodyText, SOCIAL_PROOF_PATTERNS);
-	return hasProof
-		? {
-				step: 8,
-				name: STEP_NAMES[8],
-				type: 'logical',
-				status: 'pass',
-				evidence: 'Social proof present after pricing — others have converted and got results.'
-		  }
-		: {
-				step: 8,
-				name: STEP_NAMES[8],
-				type: 'logical',
-				status: 'fail',
-				evidence:
-					'Social proof missing or weak. Place testimonials, reviews, or case studies after pricing to ease tension.'
-		  };
+	if (hasProof) {
+		return {
+			step: 8,
+			name: STEP_NAMES[8],
+			type: 'logical',
+			status: 'pass',
+			evidence: 'Social proof present after pricing — others have converted and got results.'
+		};
+	}
+	// Review widgets (Yotpo, Okendo, Judge.me) load via JS — may be absent in static fetch
+	if (content.renderConfidence === 'static' && content.isJsRendered) {
+		return {
+			step: 8,
+			name: STEP_NAMES[8],
+			type: 'logical',
+			status: 'partial',
+			evidence:
+				'Social proof not detected in static HTML — review widgets often load via JavaScript and may not have been captured. Re-audit with full rendering for accuracy.'
+		};
+	}
+	return {
+		step: 8,
+		name: STEP_NAMES[8],
+		type: 'logical',
+		status: 'fail',
+		evidence:
+			'Social proof missing or weak. Place testimonials, reviews, or case studies after pricing to ease tension.'
+	};
 }
 
 function step9_Offer(content: ParsedPageContent): JourneyStepResult {
@@ -436,14 +465,14 @@ function step9_Offer(content: ParsedPageContent): JourneyStepResult {
 				type: 'emotional',
 				status: 'pass',
 				evidence: 'Offer or value incentive present — discount, bonus, or trial.'
-		  }
+			}
 		: {
 				step: 9,
 				name: STEP_NAMES[9],
 				type: 'emotional',
 				status: 'fail',
 				evidence: 'Offer/value incentive missing. Add discount, bonus, or trial to close the loop.'
-		  };
+			};
 }
 
 function step10_Urgency(content: ParsedPageContent): JourneyStepResult {
@@ -455,33 +484,45 @@ function step10_Urgency(content: ParsedPageContent): JourneyStepResult {
 				type: 'emotional',
 				status: 'pass',
 				evidence: 'Urgency signal present — reason to act now.'
-		  }
+			}
 		: {
 				step: 10,
 				name: STEP_NAMES[10],
 				type: 'emotional',
 				status: 'fail',
 				evidence: 'Urgency missing. Add a genuine reason to act now, not later.'
-		  };
+			};
 }
 
 function step11_FrictionRemoval(content: ParsedPageContent): JourneyStepResult {
 	const hasConversion = matchesAny(content.bodyText, CONVERSION_PATTERNS);
-	return hasConversion
-		? {
-				step: 11,
-				name: STEP_NAMES[11],
-				type: 'emotional',
-				status: 'pass',
-				evidence: 'Clear CTA and conversion path.'
-		  }
-		: {
-				step: 11,
-				name: STEP_NAMES[11],
-				type: 'emotional',
-				status: 'fail',
-				evidence: 'No clear CTA or conversion path. Make checkout/signup fast and obvious.'
-		  };
+	if (hasConversion) {
+		return {
+			step: 11,
+			name: STEP_NAMES[11],
+			type: 'emotional',
+			status: 'pass',
+			evidence: 'Clear CTA and conversion path.'
+		};
+	}
+	// Add-to-cart buttons are often JS-rendered on Shopify/headless — avoid hard fail on static fetch
+	if (content.renderConfidence === 'static' && content.isJsRendered) {
+		return {
+			step: 11,
+			name: STEP_NAMES[11],
+			type: 'emotional',
+			status: 'partial',
+			evidence:
+				'CTA not detected in static HTML — add-to-cart and checkout buttons are often rendered by JavaScript and may not have been captured. Re-audit with full rendering for accuracy.'
+		};
+	}
+	return {
+		step: 11,
+		name: STEP_NAMES[11],
+		type: 'emotional',
+		status: 'fail',
+		evidence: 'No clear CTA or conversion path. Make checkout/signup fast and obvious.'
+	};
 }
 
 /**

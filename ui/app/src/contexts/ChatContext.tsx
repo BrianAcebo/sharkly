@@ -407,8 +407,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       
       // Convert loaded messages to our format, filtering out tool messages
       // (tool messages contain raw JSON results that shouldn't be displayed as chat bubbles)
+      // and assistant rows with empty content (DB stores tool-call / thinking placeholders that aren't real replies)
       const loadedMessages: ChatMessage[] = (data.messages || [])
-        .filter((m: any) => m.role !== 'tool')
+        .filter(
+          (m: any) =>
+            m.role !== 'tool' &&
+            !(m.role === 'assistant' && !(String(m.content ?? '').trim()))
+        )
         .map((m: any, i: number) => ({
           id: `loaded-${i}-${Date.now()}`,
           role: m.role as 'user' | 'assistant',

@@ -10,6 +10,7 @@ import {
 	getCROAudit,
 	addCROAudit,
 	reauditCROAudit,
+	deleteCROAudit,
 	generateCROStudioFixes,
 	generateCROStudioFAQ,
 	generateCROStudioTestimonialEmail,
@@ -32,6 +33,9 @@ router.post('/audits', addCROAudit);
 
 /** POST /api/cro-studio/audits/:id/reaudit — Re-run audit (1 credit) */
 router.post('/audits/:id/reaudit', reauditCROAudit);
+
+/** DELETE /api/cro-studio/audits/:id — Permanently delete a CRO audit */
+router.delete('/audits/:id', deleteCROAudit);
 
 /** POST /api/cro-studio/audits/:id/faq — Generate 5 Q&A FAQs for destination page (2 credits) */
 router.post('/audits/:id/faq', generateCROStudioFAQ);

@@ -699,6 +699,31 @@ function writeNdjson(res: Response, obj: object): void {
 	res.write(JSON.stringify(obj) + '\n');
 }
 
+/**
+ * Calls Claude while writing a keepalive ping to the response every 20s.
+ * Prevents Fly.io / nginx from killing long-running streaming connections
+ * mid-generation. The client ignores { type: 'ping' } events.
+ */
+async function callClaudeWithKeepalive(
+	res: Response,
+	system: string,
+	user: string,
+	maxTokens = 8192
+): Promise<string> {
+	const pingInterval = setInterval(() => {
+		try {
+			res.write(JSON.stringify({ type: 'ping' }) + '\n');
+		} catch {
+			// response already closed — ignore
+		}
+	}, 20_000);
+	try {
+		return await callClaude(system, user, maxTokens);
+	} finally {
+		clearInterval(pingInterval);
+	}
+}
+
 export const generateBrief = async (req: Request, res: Response) => {
 	let streamOrgId: string | undefined;
 	let streamCreditCost: number = 25;
@@ -1041,7 +1066,8 @@ Requirements:
 
 		let rawContent: string;
 		try {
-			rawContent = await callClaude(
+			rawContent = await callClaudeWithKeepalive(
+				res,
 				`You are an expert SEO content strategist. You create detailed content briefs adapted to the specific page type — different page types have fundamentally different on-page SEO rules. ${pageTypeInstr.systemNote} Return only valid JSON — no markdown fences, no extra text.`,
 				userPrompt,
 				8192
@@ -1561,7 +1587,8 @@ Output HTML only (h1, h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, a 
 
 		let htmlContent: string;
 		try {
-			htmlContent = await callClaude(
+			htmlContent = await callClaudeWithKeepalive(
+				res,
 				`You are a content writer for ${siteCtx.name}, a brand in ${siteCtx.niche}. Write for ${siteCtx.audience}. Tone: ${siteCtx.tone} — ${siteCtx.toneGuidance} Adapt structure completely by page type. ${articlePageTypeInstr.systemNote} Every sentence must sound like a real human at ${siteCtx.name} wrote it. Vary sentence length. Avoid filler phrases. Insert every internal link as an HTML <a> tag — mandatory. Output HTML only — no markdown, no wrappers.`,
 				userPrompt,
 				8192
@@ -1597,7 +1624,8 @@ Output HTML only (h1, h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, a 
 		try {
 			const keyword = page.keyword || page.title;
 			const plainText = stripTags(htmlWithSpaces).slice(0, 3000);
-			const metaRaw = await callClaude(
+			const metaRaw = await callClaudeWithKeepalive(
+				res,
 				'You are an SEO metadata extractor. Analyse the provided article and return ONLY valid JSON with no markdown fences.',
 				`Primary keyword: "${keyword}"
 Page type: ${page.page_type || 'Blog Post / Article'}

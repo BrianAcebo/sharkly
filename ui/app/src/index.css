@@ -636,6 +636,10 @@
 	html {
 		scroll-behavior: smooth;
 	}
+	/* Offset scroll targets so they appear below the sticky header */
+	[id$="-section"] {
+		scroll-margin-top: var(--header-height, 0);
+	}
 	body {
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;

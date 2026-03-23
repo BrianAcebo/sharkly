@@ -18,6 +18,18 @@ import { checkDestinationHandoff } from '../utils/checkDestinationHandoff.js';
 import { buildClusterJourneyData } from '../utils/buildClusterJourneyData.js';
 import { detectCognitiveLoad } from '../utils/croAuditDetections.js';
 
+/** Normalize site.url to a hostname for matching page_url (legacy audits with null site_id). */
+function hostnameFromSiteUrl(siteUrl: string | null | undefined): string | null {
+	if (!siteUrl?.trim()) return null;
+	try {
+		const u = new URL(siteUrl.startsWith('http') ? siteUrl.trim() : `https://${siteUrl.trim()}`);
+		const h = u.hostname.replace(/^www\./i, '');
+		return h || null;
+	} catch {
+		return null;
+	}
+}
+
 const GPT_MODEL = process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini';
 const CLAUDE_HAIKU_MODEL = process.env.CLAUDE_HAIKU_MODEL || 'claude-3-haiku-20240307';
 const openai = process.env.OPENAI_API_KEY
@@ -162,7 +174,8 @@ const SEO_ITEM_LABELS: Record<string, string> = {
 /**
  * GET /api/cro-studio/audits
  * List CRO audits for the user's organization.
- * Query: page_type (optional) — 'seo_page' | 'destination_page' to filter
+ * Query: page_type (optional) — 'seo_page' | 'destination_page'
+ * Query: site_id (optional) — when set, only audits for that site (by cro_audits.site_id, plus legacy rows with null site_id whose page_url matches the site hostname)
  */
 export const listCROAudits = async (req: Request, res: Response) => {
 	try {
@@ -170,6 +183,7 @@ export const listCROAudits = async (req: Request, res: Response) => {
 		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
 		const pageType = req.query.page_type as string | undefined;
+		const siteIdParam = typeof req.query.site_id === 'string' ? req.query.site_id.trim() : '';
 
 		const { data: userOrg } = await supabase
 			.from('user_organizations')
@@ -189,30 +203,92 @@ export const listCROAudits = async (req: Request, res: Response) => {
 			return res.status(403).json({ error: 'CRO Studio add-on required' });
 		}
 
-		let query = supabase
-			.from('cro_audits')
-			.select(
-				'id, page_url, page_type, page_label, destination_url, cro_score, max_score, audited_at, checklist, architecture_violations, cluster_id'
-			)
-			.eq('organization_id', userOrg.organization_id)
-			.order('updated_at', { ascending: false });
+		const selectCols =
+			'id, page_url, page_type, page_label, destination_url, cro_score, max_score, audited_at, checklist, architecture_violations, cluster_id, site_id, updated_at';
 
-		if (pageType === 'seo_page' || pageType === 'destination_page') {
-			query = query.eq('page_type', pageType);
+		const buildBaseQuery = () => {
+			let q = supabase
+				.from('cro_audits')
+				.select(selectCols)
+				.eq('organization_id', userOrg.organization_id)
+				.order('updated_at', { ascending: false });
+
+			if (pageType === 'seo_page' || pageType === 'destination_page') {
+				q = q.eq('page_type', pageType);
+			}
+			return q;
+		};
+
+		type CroAuditListRow = {
+			id: string;
+			page_url: string;
+			page_type: string;
+			page_label: string | null;
+			destination_url: string | null;
+			cro_score: number | null;
+			max_score: number | null;
+			audited_at: string | null;
+			checklist: unknown;
+			architecture_violations: unknown;
+			cluster_id: string | null;
+			site_id: string | null;
+			updated_at: string | null;
+		};
+
+		let audits: CroAuditListRow[] | null = null;
+		let listError: { message?: string } | null = null;
+
+		if (siteIdParam) {
+			const { data: siteRow } = await supabase
+				.from('sites')
+				.select('id, url')
+				.eq('id', siteIdParam)
+				.eq('organization_id', userOrg.organization_id)
+				.maybeSingle();
+
+			if (!siteRow) {
+				return res.status(400).json({ error: 'Invalid site_id' });
+			}
+
+			const host = hostnameFromSiteUrl(siteRow.url);
+			const qBySite = buildBaseQuery().eq('site_id', siteIdParam);
+
+			const qLegacy =
+				host !== null ? buildBaseQuery().is('site_id', null).ilike('page_url', `%${host}%`) : null;
+
+			const [r1, r2] = await Promise.all([
+				qBySite,
+				qLegacy ?? Promise.resolve({ data: [] as CroAuditListRow[], error: null })
+			]);
+
+			if (r1.error) listError = r1.error;
+			else if (r2 && 'error' in r2 && r2.error) listError = r2.error as { message?: string };
+			else {
+				const rows = [...(r1.data ?? []), ...(r2 && 'data' in r2 ? (r2.data ?? []) : [])];
+				const byId = new Map<string, CroAuditListRow>();
+				for (const row of rows) {
+					byId.set(row.id, row as CroAuditListRow);
+				}
+				audits = Array.from(byId.values()).sort((a, b) => {
+					const ta = a.updated_at ? new Date(String(a.updated_at)).getTime() : 0;
+					const tb = b.updated_at ? new Date(String(b.updated_at)).getTime() : 0;
+					return tb - ta;
+				});
+			}
+		} else {
+			const { data, error } = await buildBaseQuery();
+			audits = (data ?? null) as CroAuditListRow[] | null;
+			listError = error;
 		}
 
-		const { data: audits, error } = await query;
-
-		if (error) {
-			console.error('[CRO Studio] List audits error:', error);
+		if (listError) {
+			console.error('[CRO Studio] List audits error:', listError);
 			return res.status(500).json({ error: 'Failed to list audits' });
 		}
 
 		// Resolve cluster names for destination pages
 		const clusterIds = [
-			...(audits ?? [])
-				.map((a) => a.cluster_id)
-				.filter((id): id is string => !!id)
+			...(audits ?? []).map((a) => a.cluster_id).filter((id): id is string => !!id)
 		];
 		const clusterNames: Record<string, string> = {};
 		if (clusterIds.length > 0) {
@@ -237,8 +313,7 @@ export const listCROAudits = async (req: Request, res: Response) => {
 			}
 
 			const handoffPass =
-				a.page_type === 'seo_page' &&
-				(checklist.handoff as { status?: string })?.status === 'pass';
+				a.page_type === 'seo_page' && (checklist.handoff as { status?: string })?.status === 'pass';
 
 			if (a.page_type === 'destination_page') {
 				const journey = (checklist.journey_checklist as Array<{ status?: string }>) ?? [];
@@ -257,7 +332,7 @@ export const listCROAudits = async (req: Request, res: Response) => {
 				max_score: a.max_score ?? (a.page_type === 'seo_page' ? 5 : 10),
 				audited_at: a.audited_at,
 				issue_count: issueCount,
-				cluster_name: a.cluster_id ? clusterNames[a.cluster_id] ?? null : null,
+				cluster_name: a.cluster_id ? (clusterNames[a.cluster_id] ?? null) : null,
 				handoff_pass: a.page_type === 'seo_page' ? handoffPass : null
 			};
 		});
@@ -300,7 +375,7 @@ export const getCROAudit = async (req: Request, res: Response) => {
 		}
 
 		const extendedSelect =
-			'id, page_url, page_type, page_label, destination_url, cro_score, max_score, audited_at, checklist, architecture_violations, bias_inventory, bias_coherence, headline_insight, above_fold, objection_coverage, cognitive_load, cognitive_load_explanation, emotional_arc_result, page_subtype, cluster_id, audit_error, audit_error_message';
+			'id, page_url, page_type, page_label, destination_url, cro_score, max_score, audited_at, checklist, architecture_violations, bias_inventory, bias_coherence, headline_insight, above_fold, objection_coverage, cognitive_load, cognitive_load_explanation, emotional_arc_result, page_subtype, cluster_id, audit_error, audit_error_message, faq_result, testimonial_result';
 		const baseSelect =
 			'id, page_url, page_type, page_label, destination_url, cro_score, max_score, audited_at, checklist, architecture_violations, bias_inventory, bias_coherence, page_subtype, cluster_id, audit_error, audit_error_message';
 
@@ -327,7 +402,9 @@ export const getCROAudit = async (req: Request, res: Response) => {
 						objection_coverage: null,
 						cognitive_load: null,
 						cognitive_load_explanation: null,
-						emotional_arc_result: null
+						emotional_arc_result: null,
+						faq_result: null,
+						testimonial_result: null
 					}
 				: null;
 			error = fallback.error;
@@ -376,7 +453,9 @@ export const getCROAudit = async (req: Request, res: Response) => {
 			cluster_name,
 			cluster_journey,
 			audit_error: audit.audit_error ?? false,
-			audit_error_message: audit.audit_error_message ?? null
+			audit_error_message: audit.audit_error_message ?? null,
+			faq_result: audit.faq_result ?? null,
+			testimonial_result: audit.testimonial_result ?? null
 		});
 	} catch (error) {
 		console.error('[CRO Studio] Get audit error:', error);
@@ -438,7 +517,8 @@ export const reauditCROAudit = async (req: Request, res: Response) => {
 			page_type: audit.page_type,
 			destination_url: audit.page_type === 'seo_page' ? audit.destination_url : null,
 			page_label: audit.page_label,
-			page_subtype: audit.page_type === 'destination_page' ? (audit.page_subtype ?? 'saas_signup') : undefined
+			page_subtype:
+				audit.page_type === 'destination_page' ? (audit.page_subtype ?? 'saas_signup') : undefined
 		});
 
 		const { error: updateErr } = await supabase
@@ -590,7 +670,7 @@ export const addCROAudit = async (req: Request, res: Response) => {
 			page_url: page_url.trim(),
 			page_type,
 			page_label: page_label?.trim() || null,
-			destination_url: page_type === 'seo_page' ? (destination_url?.trim() || null) : null,
+			destination_url: page_type === 'seo_page' ? destination_url?.trim() || null : null,
 			cro_score: result.cro_score,
 			max_score: result.max_score,
 			checklist: result.checklist,
@@ -637,7 +717,11 @@ export const generateCROStudioFixes = async (req: Request, res: Response) => {
 		const userId = req.user?.id;
 		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-		const { audit_id, mode = 'single', failing_item_key } = req.body as {
+		const {
+			audit_id,
+			mode = 'single',
+			failing_item_key
+		} = req.body as {
 			audit_id?: string;
 			mode?: 'single' | 'all';
 			failing_item_key?: string;
@@ -710,10 +794,7 @@ export const generateCROStudioFixes = async (req: Request, res: Response) => {
 		let failingItems: Array<{ key: string; label: string; evidence: string }> = [];
 
 		if (audit.page_type === 'seo_page') {
-			const seoChecklist = checklist as Record<
-				string,
-				{ status?: string; evidence?: string }
-			>;
+			const seoChecklist = checklist as Record<string, { status?: string; evidence?: string }>;
 			for (const [key, item] of Object.entries(seoChecklist)) {
 				if (item?.status === 'fail') {
 					failingItems.push({
@@ -728,7 +809,12 @@ export const generateCROStudioFixes = async (req: Request, res: Response) => {
 			}
 		} else {
 			// Architecture violations first (arch_0, arch_1, ...)
-			const archViolations = (audit.architecture_violations as Array<{ message: string; suggestion: string; evidence?: string }>) ?? [];
+			const archViolations =
+				(audit.architecture_violations as Array<{
+					message: string;
+					suggestion: string;
+					evidence?: string;
+				}>) ?? [];
 			archViolations.forEach((v, i) => {
 				failingItems.push({
 					key: `arch_${i}`,
@@ -748,7 +834,13 @@ export const generateCROStudioFixes = async (req: Request, res: Response) => {
 				}
 			}
 			// Missing biases (persuasion signals) — cro-studio.md Build Order #19
-			const biasInventory = (audit.bias_inventory as Array<{ bias_id: string; label: string; present: boolean; evidence?: string }>) ?? [];
+			const biasInventory =
+				(audit.bias_inventory as Array<{
+					bias_id: string;
+					label: string;
+					present: boolean;
+					evidence?: string;
+				}>) ?? [];
 			for (const b of biasInventory) {
 				if (!b.present) {
 					failingItems.push({
@@ -791,9 +883,7 @@ export const generateCROStudioFixes = async (req: Request, res: Response) => {
 						? 'MoFu comparison'
 						: 'Focus page';
 
-			const failingBlock = failingItems
-				.map((f) => `• ${f.label}: ${f.evidence}`)
-				.join('\n');
+			const failingBlock = failingItems.map((f) => `• ${f.label}: ${f.evidence}`).join('\n');
 
 			systemPrompt = `You are a conversion rate optimization expert. You are writing copy fixes for an SEO page — a page whose PRIMARY job is to rank in Google, not to convert. Every fix you suggest MUST preserve the page's ranking potential. Never suggest shortening content, removing keyword mentions, or adding high-commitment sales language. Your fixes improve conversion without compromising SEO. Write in plain English. Give exact copy — not generic advice.`;
 			userPrompt = `Page type: ${pageTypeLabel}
@@ -941,7 +1031,17 @@ async function loadDestinationAuditForGeneration(
 	req: Request,
 	res: Response,
 	id: string
-): Promise<{ audit: { id: string; organization_id: string; page_url: string; page_label?: string | null; site_id?: string | null; cluster_id?: string | null }; content: ParsedPageContent } | null> {
+): Promise<{
+	audit: {
+		id: string;
+		organization_id: string;
+		page_url: string;
+		page_label?: string | null;
+		site_id?: string | null;
+		cluster_id?: string | null;
+	};
+	content: ParsedPageContent;
+} | null> {
 	const userId = req.user?.id;
 	if (!userId) {
 		res.status(401).json({ error: 'Unauthorized' });
@@ -960,7 +1060,9 @@ async function loadDestinationAuditForGeneration(
 	}
 
 	if (audit.page_type !== 'destination_page') {
-		res.status(400).json({ error: 'FAQ and testimonial generation are only available for destination page audits' });
+		res.status(400).json({
+			error: 'FAQ and testimonial generation are only available for destination page audits'
+		});
 		return null;
 	}
 
@@ -1001,7 +1103,15 @@ async function loadAuditForGeneration(
 	res: Response,
 	id: string
 ): Promise<{
-	audit: { id: string; organization_id: string; page_url: string; page_label?: string | null; site_id?: string | null; cognitive_load?: Record<string, unknown> | null; page_subtype?: string | null };
+	audit: {
+		id: string;
+		organization_id: string;
+		page_url: string;
+		page_label?: string | null;
+		site_id?: string | null;
+		cognitive_load?: Record<string, unknown> | null;
+		page_subtype?: string | null;
+	};
 	content: ParsedPageContent;
 } | null> {
 	const userId = req.user?.id;
@@ -1075,26 +1185,127 @@ export const generateCognitiveLoadExplanation = async (req: Request, res: Respon
 			});
 		}
 
-		// Use stored cognitive_load if it has text arrays; otherwise re-detect (older audits)
-		const cogLoad = audit.cognitive_load as {
-			cta_count_above_fold?: number;
-			competing_headlines?: number;
-			choice_count?: number;
-			competing_headline_texts?: string[];
-			cta_texts_above_fold?: string[];
-		} | null;
-		let detected = cogLoad?.competing_headline_texts != null && cogLoad?.cta_texts_above_fold != null
-			? null
-			: detectCognitiveLoad(content);
-		const metrics = detected ?? {
-			cta_count_above_fold: cogLoad?.cta_count_above_fold ?? 0,
-			competing_headlines: cogLoad?.competing_headlines ?? 0,
-			choice_count: cogLoad?.choice_count ?? 0,
-			competing_headline_texts: cogLoad?.competing_headline_texts ?? [],
-			cta_texts_above_fold: cogLoad?.cta_texts_above_fold ?? []
-		};
-		const competing_headline_texts = detected?.competing_headline_texts ?? metrics.competing_headline_texts;
-		const cta_texts_above_fold = detected?.cta_texts_above_fold ?? metrics.cta_texts_above_fold;
+		// Always re-detect from live content — never trust stored text arrays.
+		// Stored arrays may have been captured before the H1-only fix was applied,
+		// meaning they can contain H2/H3 navigation/cart fragments (e.g. "Cart",
+		// "Subtotal", "Your cart is empty") which cause the AI to hallucinate
+		// "competing headlines" that don't exist on the real page.
+		const metrics = detectCognitiveLoad(content);
+		const competing_headline_texts = metrics.competing_headline_texts;
+
+		// Filter noise CTAs — UI chrome, auth links, cart state labels, and
+		// off-canvas triggers that are in the DOM but not visible page CTAs.
+		// These cause the AI to hallucinate "competing CTAs" that don't exist.
+		const CTA_NOISE = new RegExp(
+			'^(' +
+				[
+					// Auth chrome (Shopify header icons with sr-only labels)
+					'log in',
+					'log out',
+					'sign in',
+					'sign out',
+					'login',
+					'logout',
+					'create account',
+					'register',
+					'my account',
+					// Cart state labels — status text, not conversion CTAs
+					'check out',
+					'checkout',
+					'view cart',
+					'your cart',
+					'added',
+					'added ✓',
+					'added to cart',
+					// Media / gallery controls
+					'open media',
+					'close media',
+					'play',
+					'pause',
+					'mute',
+					'unmute',
+					'fullscreen',
+					'zoom in',
+					'zoom out',
+					'next slide',
+					'prev slide',
+					'next',
+					'prev',
+					'previous',
+					// Generic UI chrome
+					'close',
+					'open',
+					'menu',
+					'search',
+					'back',
+					'skip',
+					'skip to content',
+					'more',
+					'less',
+					'show',
+					'hide',
+					'toggle',
+					'expand',
+					'collapse',
+					// Social / share
+					'share',
+					'tweet',
+					'pin it',
+					'copy link',
+					// Rewards / loyalty widgets
+					'rewards',
+					'points',
+					'redeem',
+					// Policy links mistaken for CTAs via href detection
+					'our standard',
+					'shipping policy',
+					'return policy',
+					'refund policy',
+					// Modal / drawer triggers
+					'modal',
+					'overlay',
+					'popup',
+					'drawer',
+					// Accessibility
+					'accessibility',
+					'enable accessibility',
+					// Shopify accordion headings — collapsible triggers, not CTAs
+					'how to use',
+					'shipping & returns',
+					'shipping and returns',
+					'ingredients',
+					'directions',
+					'faq',
+					'details',
+					'description',
+					'questions',
+					// Shopify gallery navigation controls
+					'load image',
+					'slide left',
+					'slide right',
+					// Navigation / scroll chrome
+					'continue shopping',
+					'scroll to top',
+					'load more',
+					'view all',
+					'view full details',
+					'see all',
+					// Availability / form chrome
+					'refresh',
+					'check availability',
+					'dream now',
+					'submit',
+					'subscribe now'
+				].join('|') +
+				')$',
+			'i'
+		);
+		const cta_texts_above_fold = metrics.cta_texts_above_fold
+			.filter((t) => {
+				const clean = t.replace(/^"|"$/g, '').trim();
+				return clean.length > 2 && !CTA_NOISE.test(clean);
+			})
+			.slice(0, 6);
 
 		if (!openai) {
 			return res.status(500).json({ error: 'CRO cognitive load service not configured' });
@@ -1117,7 +1328,15 @@ Be specific — name the actual elements you were given. Never give generic advi
 Write like you're talking to a small business owner who is not technical.
 Max 3 short paragraphs. Plain English only.
 DO NOT say "use visuals to break up text" or any other generic UX advice.
-DO NOT mention things that weren't in the detected elements above.`
+DO NOT mention things that weren't in the detected elements above.
+
+CRITICAL RULES FOR ACCURACY:
+- The detected CTAs come from a DOM scan, not a screenshot. Some may be UI controls, not visible conversion buttons.
+- On an ecommerce product page, the primary visible CTA is almost always "Add to cart". If that is the only or main one above the fold, the page is NOT overloaded.
+- Accordion section titles ("How to Use", "Our Standard", "Shipping & Returns") are collapsible content panels — they are NOT competing CTAs. Never describe them as CTAs.
+- Slider navigation arrows, close buttons, and form submit labels are UI chrome — not competing CTAs.
+- Only flag cognitive overload if there are genuinely 3+ distinct conversion actions competing for attention at the same time (e.g., "Add to cart" AND "Subscribe" AND "Book a call" all equally prominent above the fold).
+- If the CTA list above fold shows only 1 or 2 real conversion actions, say the page load is normal and explain what IS working well.`
 				},
 				{
 					role: 'user',
@@ -1213,7 +1432,11 @@ export const generateEmotionalArcAnalysis = async (req: Request, res: Response) 
 
 		if (!resApi.ok) {
 			const errText = await resApi.text();
-			console.error('[CRO Studio] Emotional arc Claude error:', resApi.status, errText.slice(0, 200));
+			console.error(
+				'[CRO Studio] Emotional arc Claude error:',
+				resApi.status,
+				errText.slice(0, 200)
+			);
 			return res.status(500).json({ error: 'Failed to generate emotional arc analysis' });
 		}
 
@@ -1306,7 +1529,9 @@ Exactly 5 items.`
 		try {
 			const jsonMatch = rawText.match(/\{[\s\S]*\}/);
 			if (jsonMatch) {
-				const parsed = JSON.parse(jsonMatch[0]) as { questions?: Array<{ q?: string; a?: string }> };
+				const parsed = JSON.parse(jsonMatch[0]) as {
+					questions?: Array<{ q?: string; a?: string }>;
+				};
 				if (Array.isArray(parsed.questions)) {
 					questions = parsed.questions
 						.filter((x) => x && (x.q || x.a))
@@ -1317,6 +1542,12 @@ Exactly 5 items.`
 		} catch {
 			// Fallback: treat as raw Q&A pairs
 		}
+
+		await supabase
+			.from('cro_audits')
+			.update({ faq_result: questions, updated_at: new Date().toISOString() })
+			.eq('id', id)
+			.eq('organization_id', audit.organization_id);
 
 		res.json({ success: true, data: { questions } });
 	} catch (error) {
@@ -1402,9 +1633,55 @@ Return JSON: { "subject": "Email subject line", "body": "Plain text email body" 
 			// Fallback
 		}
 
+		const testimonialResult = { subject, body };
+		await supabase
+			.from('cro_audits')
+			.update({ testimonial_result: testimonialResult, updated_at: new Date().toISOString() })
+			.eq('id', id)
+			.eq('organization_id', audit.organization_id);
+
 		res.json({ success: true, data: { subject, body } });
 	} catch (error) {
 		console.error('[CRO Studio] Testimonial email generation error:', error);
 		res.status(500).json({ error: 'Failed to generate testimonial email' });
+	}
+};
+
+/**
+ * DELETE /api/cro-studio/audits/:id
+ * Permanently delete a CRO audit and all its data.
+ * Scoped to the caller's organization — cannot delete audits belonging to another org.
+ */
+export const deleteCROAudit = async (req: Request, res: Response) => {
+	try {
+		const userId = req.user?.id;
+		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+		const { id } = req.params;
+		if (!id) return res.status(400).json({ error: 'audit id required' });
+
+		const { data: userOrg } = await supabase
+			.from('user_organizations')
+			.select('organization_id')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (!userOrg) return res.status(403).json({ error: 'No organization' });
+
+		const { error } = await supabase
+			.from('cro_audits')
+			.delete()
+			.eq('id', id)
+			.eq('organization_id', userOrg.organization_id);
+
+		if (error) {
+			console.error('[CRO Studio] Delete audit error:', error);
+			return res.status(500).json({ error: 'Failed to delete audit' });
+		}
+
+		res.json({ success: true });
+	} catch (error) {
+		console.error('[CRO Studio] Delete audit error:', error);
+		res.status(500).json({ error: 'Failed to delete audit' });
 	}
 };

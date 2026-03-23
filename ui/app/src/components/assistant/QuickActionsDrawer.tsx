@@ -272,7 +272,7 @@ export function QuickActionsDrawer({
 				</div>
 
 				{/* Footer - Credits Display */}
-				<div className="border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+				{/* <div className="border-t border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
 					<div className="mb-2 flex items-center justify-between">
 						<span className="text-sm text-gray-600 dark:text-gray-400">AI Credits</span>
 						<span className="text-lg font-semibold text-green-600 dark:text-green-400">
@@ -291,7 +291,7 @@ export function QuickActionsDrawer({
 						<span>{creditsIncluded} included</span>
 						<span>{Math.max(0, creditsAvailable - creditsIncluded)} purchased</span>
 					</div>
-				</div>
+				</div> */}
 			</div>
 		</>
 	);
