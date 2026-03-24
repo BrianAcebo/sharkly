@@ -43,10 +43,11 @@ Content is managed through the **admin CMS at `app.sharkly.co/admin/blog`**.
 ## Setup
 
 ```bash
-cp .env.example .env
-# Fill in MARKETING_URL, PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY
-# Optional for local dev: FRONTEND_URL=http://localhost:5173 (so CTAs link to local app from marketing site)
-# For the Shopify app landing page (sharkly.co/shopify-seo-app): set PUBLIC_SHOPIFY_APP_URL to your Shopify app install URL so CTAs send users to install the app
+# Env is loaded from the monorepo root (see astro.config.mjs envDir). Copy or merge into the repo-root .env:
+# MARKETING_URL, PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY
+# Optional: FRONTEND_URL=http://localhost:5173 (CTAs to local app)
+# Optional: PUBLIC_SHOPIFY_APP_URL — Shopify landing CTAs (e.g. sharkly.co/shopify-seo-app)
+# Optional: PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXX — Google Analytics 4 (omit to disable GA + cookie banner)
 
 npm install
 npm run dev      # http://localhost:4321 (when run from repo root: npm run dev)

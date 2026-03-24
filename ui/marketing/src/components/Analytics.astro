@@ -1,0 +1,35 @@
+---
+import { getGaMeasurementId } from '../lib/gaConfig';
+
+const measurementId = getGaMeasurementId();
+if (!measurementId) {
+	return;
+}
+---
+<!-- Google tag (gtag.js) — Consent Mode default denied; update after cookie banner accept -->
+<script async src={`https://www.googletagmanager.com/gtag/js?id=${measurementId}`}></script>
+<script is:inline define:vars={{ measurementId }}>
+	window.dataLayer = window.dataLayer || [];
+	function gtag() {
+		dataLayer.push(arguments);
+	}
+	gtag('consent', 'default', {
+		analytics_storage: 'denied',
+		ad_storage: 'denied',
+		ad_user_data: 'denied',
+		ad_personalization: 'denied',
+		wait_for_update: 500
+	});
+	try {
+		if (localStorage.getItem('sharkly_cookie_consent') === 'accepted') {
+			gtag('consent', 'update', {
+				analytics_storage: 'granted',
+				ad_storage: 'granted',
+				ad_user_data: 'granted',
+				ad_personalization: 'granted'
+			});
+		}
+	} catch (_) {}
+	gtag('js', new Date());
+	gtag('config', measurementId);
+</script>

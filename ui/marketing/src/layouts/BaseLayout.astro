@@ -2,6 +2,8 @@
 import '../styles/global.css';
 import Logo from '../components/Logo.astro';
 import ThemeToggle from '../components/ThemeToggle.astro';
+import Analytics from '../components/Analytics.astro';
+import CookieConsent from '../components/CookieConsent.astro';
 
 interface Props {
   title?: string;
@@ -46,11 +48,12 @@ const navLinks = [
 <!doctype html>
 <html lang="en">
   <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script is:inline>
       (function(){var t=localStorage.getItem("theme");if(t==="dark")document.documentElement.classList.add("dark");else document.documentElement.classList.remove("dark");})();
     </script>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <Analytics />
 
     <!-- Favicon & Webclip -->
     <link rel="shortcut icon" href=`${appUrl}/images/favicon.ico` type="image/x-icon" />
@@ -249,5 +252,7 @@ const navLinks = [
         </div>
       </div>
     </footer>
+
+    <CookieConsent />
   </body>
 </html>

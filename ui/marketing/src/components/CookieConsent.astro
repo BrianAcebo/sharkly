@@ -1,0 +1,75 @@
+---
+import { getFrontendBaseUrl, getGaMeasurementId } from '../lib/gaConfig';
+
+/** Cookie consent banner — pairs with Analytics.astro (Consent Mode). Only relevant when GA is enabled. */
+const hasGa = Boolean(getGaMeasurementId());
+if (!hasGa) {
+	return;
+}
+const privacyUrl = `${getFrontendBaseUrl()}/privacy`;
+---
+<div
+	id="cookie-consent-banner"
+	class="fixed bottom-0 left-0 right-0 z-100 hidden border-t border-black/10 bg-stone-100 px-4 py-4 shadow-lg dark:border-white/15 dark:bg-neutral-900 md:px-6"
+	role="dialog"
+	aria-label="Cookie consent"
+>
+	<div class="mx-auto flex max-w-[1200px] flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+		<p class="text-sm text-neutral-700 dark:text-stone-300">
+			We use cookies and similar technologies to measure traffic and improve your experience. By clicking Accept, you
+			agree to analytics as described in our{' '}
+			<a href={privacyUrl} class="font-medium text-neutral-900 underline dark:text-white">
+				Privacy Policy
+			</a>
+			.
+		</p>
+		<div class="flex shrink-0 flex-wrap gap-2">
+			<button
+				type="button"
+				id="cookie-consent-reject"
+				class="rounded-xl border border-black/15 px-4 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-black/5 dark:border-white/20 dark:text-stone-100 dark:hover:bg-white/10"
+			>
+				Reject
+			</button>
+			<button
+				type="button"
+				id="cookie-consent-accept"
+				class="rounded-xl bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-gray-200"
+			>
+				Accept
+			</button>
+		</div>
+	</div>
+</div>
+<script is:inline>
+	(function () {
+		var key = 'sharkly_cookie_consent';
+		var banner = document.getElementById('cookie-consent-banner');
+		if (!banner) return;
+		if (localStorage.getItem(key)) return;
+		banner.classList.remove('hidden');
+		var accept = document.getElementById('cookie-consent-accept');
+		var reject = document.getElementById('cookie-consent-reject');
+		function hide() {
+			banner.classList.add('hidden');
+		}
+		accept &&
+			accept.addEventListener('click', function () {
+				localStorage.setItem(key, 'accepted');
+				if (typeof gtag === 'function') {
+					gtag('consent', 'update', {
+						analytics_storage: 'granted',
+						ad_storage: 'granted',
+						ad_user_data: 'granted',
+						ad_personalization: 'granted'
+					});
+				}
+				hide();
+			});
+		reject &&
+			reject.addEventListener('click', function () {
+				localStorage.setItem(key, 'rejected');
+				hide();
+			});
+	})();
+</script>
