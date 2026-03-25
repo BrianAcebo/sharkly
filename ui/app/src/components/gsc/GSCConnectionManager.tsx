@@ -159,7 +159,7 @@ export function GSCConnectionManager({ siteId, siteName }: Props) {
 							className="shrink-0 bg-blue-600 hover:bg-blue-700"
 						>
 							<svg
-								className="mr-2 size-4"
+								className="size-5"
 								width="20"
 								height="20"
 								viewBox="0 0 20 20"

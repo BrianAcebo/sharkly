@@ -46,6 +46,8 @@ import {
 	customersDataRequest,
 	appUninstalled
 } from './controllers/shopifyWebhooks.js';
+import { handleSupabaseAuthEmailHook } from './controllers/supabaseAuthEmailHook.js';
+import { isServerWebhookPath } from './utils/webhookPaths.js';
 
 const app = express();
 const isFly = Boolean(process.env.FLY_APP_NAME);
@@ -60,15 +62,6 @@ const allowedOrigins: string[] = [
 // Support comma-separated list e.g. FRONTEND_URL=https://app.sharkly.co,https://sharkly.co
 if (process.env.FRONTEND_URL) {
 	allowedOrigins.push(...process.env.FRONTEND_URL.split(',').map((u) => u.trim()));
-}
-
-/** Server-to-server hooks: never apply browser CORS (Shopify/Stripe may send Origin; strict CORS would reject before HMAC runs). */
-function isServerWebhookPath(path: string): boolean {
-	return (
-		path.startsWith('/webhooks/') ||
-		path === '/api/billing/stripe/webhook' ||
-		path === '/api/payments/webhook'
-	);
 }
 
 const corsMiddleware = cors({
@@ -118,6 +111,11 @@ app.post(
 	'/webhooks/shopify/app-uninstalled',
 	express.raw({ type: '*/*' }),
 	(req, res) => appUninstalled(req, res)
+);
+
+// Supabase Auth — Send Email hook (Standard Webhooks + Resend). No JWT; verified via SUPABASE_AUTH_EMAIL_HOOK_SECRET.
+app.post('/webhooks/supabase/auth-email', express.raw({ type: '*/*' }), (req, res) =>
+	handleSupabaseAuthEmailHook(req, res)
 );
 
 app.use(express.urlencoded({ extended: false }));

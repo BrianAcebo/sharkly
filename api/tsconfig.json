@@ -5,6 +5,7 @@
 		"moduleResolution": "NodeNext",
 		"rootDir": "src",
 		"outDir": "dist",
+		"jsx": "react-jsx",
 		"esModuleInterop": true,
 		"allowSyntheticDefaultImports": true,
 		"strict": true,

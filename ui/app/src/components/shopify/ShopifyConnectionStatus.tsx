@@ -10,6 +10,7 @@ import { buildApiUrl } from '../../utils/urls';
 import { AlertCircle, Check, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
+import { ShopifyIcon } from '../brands/Shopify';
 
 const SHOPIFY_APP_URL = import.meta.env.VITE_SHOPIFY_APP_URL ?? 'https://apps.shopify.com/sharkly';
 
@@ -104,33 +105,34 @@ export function ShopifyConnectionStatus({ siteId, siteName }: Props) {
 				</div>
 			) : (
 				<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-700">
-					<div className="flex items-center gap-3">
-						<AlertCircle className="mt-0.5 size-5 shrink-0 text-gray-600 dark:text-gray-400" />
-						<div className="min-w-0 flex-1">
+					<div className="mb-4 flex items-center justify-between">
+						<div className="flex items-center gap-3">
+							<AlertCircle className="mt-0.5 size-5 shrink-0 text-gray-600 dark:text-gray-400" />
 							<h3 className="text-sm font-medium text-gray-900 dark:text-white">Not connected</h3>
-							<p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
-								Install the Sharkly app from the Shopify App Store to connect and manage ecommerce
-								SEO for &quot;{siteName}&quot;.
-							</p>
-							<Button
-								size="sm"
-								className="mt-3"
-								onClick={() => {
-									try {
-										sessionStorage.setItem('sharkly_connect_site_id', siteId);
-										toast.success(
-											`We'll connect to "${siteName}" when you return. Install the app from Shopify.`
-										);
-										window.open(SHOPIFY_APP_URL, '_blank', 'noopener,noreferrer');
-									} catch {
-										window.open(SHOPIFY_APP_URL, '_blank', 'noopener,noreferrer');
-									}
-								}}
-							>
-								Connect Shopify
-							</Button>
 						</div>
+						<Button
+							size="sm"
+							className="mt-3"
+							onClick={() => {
+								try {
+									sessionStorage.setItem('sharkly_connect_site_id', siteId);
+									toast.success(
+										`We'll connect to "${siteName}" when you return. Install the app from Shopify.`
+									);
+									window.open(SHOPIFY_APP_URL, '_blank', 'noopener,noreferrer');
+								} catch {
+									window.open(SHOPIFY_APP_URL, '_blank', 'noopener,noreferrer');
+								}
+							}}
+						>
+							<ShopifyIcon className="size-5" />
+							Connect
+						</Button>
 					</div>
+					<p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
+						Install the Sharkly app from the Shopify App Store to connect and manage ecommerce SEO
+						for &quot;{siteName}&quot;.
+					</p>
 				</div>
 			)}
 		</div>

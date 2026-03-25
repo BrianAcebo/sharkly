@@ -406,7 +406,7 @@ export default function OrganizationRequired() {
 					</Button>
 				</div>
 
-				<div className="space-y-6">
+				{/* <div className="space-y-6">
 					<p className="text-center text-sm text-gray-600 dark:text-gray-400">
 						Already have an invitation?{' '}
 						<a
@@ -417,7 +417,7 @@ export default function OrganizationRequired() {
 						</a>
 					</p>
 					<UpfrontBillingDisclaimer />
-				</div>
+				</div> */}
 			</div>
 
 			<Modal isOpen={isOpen} onClose={closeModal} className="m-4 max-w-[500px]">

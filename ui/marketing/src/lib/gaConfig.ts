@@ -6,3 +6,8 @@ export function getGaMeasurementId(): string | undefined {
 export function getFrontendBaseUrl(): string {
 	return (import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co').replace(/\/$/, '');
 }
+
+/** Marketing site (sharkly.co) — legal pages, blog, etc. */
+export function getMarketingBaseUrl(): string {
+	return (import.meta.env.MARKETING_URL ?? 'https://sharkly.co').replace(/\/$/, '');
+}

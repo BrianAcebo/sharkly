@@ -1,8 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { isServerWebhookPath } from '../utils/webhookPaths.js';
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
+    // Never require JWT on provider webhooks (Stripe, Shopify, Supabase Auth email hook, etc.)
+    if (isServerWebhookPath(req.path)) {
+      next();
+      return;
+    }
+
     // Get the authorization header (Bearer token)
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {

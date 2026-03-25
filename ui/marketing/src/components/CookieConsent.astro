@@ -1,12 +1,14 @@
 ---
-import { getFrontendBaseUrl, getGaMeasurementId } from '../lib/gaConfig';
+import { getMarketingBaseUrl, getGaMeasurementId } from '../lib/gaConfig';
 
 /** Cookie consent banner — pairs with Analytics.astro (Consent Mode). Only relevant when GA is enabled. */
 const hasGa = Boolean(getGaMeasurementId());
 if (!hasGa) {
 	return;
 }
-const privacyUrl = `${getFrontendBaseUrl()}/privacy`;
+const siteBase = getMarketingBaseUrl();
+const privacyUrl = `${siteBase}/privacy`;
+const cookiesUrl = `${siteBase}/cookies`;
 ---
 <div
 	id="cookie-consent-banner"
@@ -18,10 +20,9 @@ const privacyUrl = `${getFrontendBaseUrl()}/privacy`;
 		<p class="text-sm text-neutral-700 dark:text-stone-300">
 			We use cookies and similar technologies to measure traffic and improve your experience. By clicking Accept, you
 			agree to analytics as described in our{' '}
-			<a href={privacyUrl} class="font-medium text-neutral-900 underline dark:text-white">
-				Privacy Policy
-			</a>
-			.
+			<a href={cookiesUrl} class="font-medium text-neutral-900 underline dark:text-white">Cookie Policy</a>
+			{' '}and{' '}
+			<a href={privacyUrl} class="font-medium text-neutral-900 underline dark:text-white">Privacy Policy</a>.
 		</p>
 		<div class="flex shrink-0 flex-wrap gap-2">
 			<button

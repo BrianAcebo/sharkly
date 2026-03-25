@@ -9,6 +9,7 @@ import { crawlerService, CrawlResult } from './crawlerService.js';
 import { supabase } from '../utils/supabaseClient.js';
 import axios from 'axios';
 import { getKeywordDensity } from '../utils/keywordDensity.js';
+import { fetchDomainAuthority } from '../utils/moz.js';
 
 export interface TechnicalAuditResult {
 	siteId: string;
@@ -119,21 +120,11 @@ export class TechnicalAuditService {
 			// Continue with other checks even if crawl fails
 		}
 
-		// 3. Get Domain Authority from Moz API
+		// 3. Get Domain Authority — same Moz url_metrics helper as onboarding / site refresh
 		console.log('[TechnicalAudit] Step 3: Fetching domain authority from Moz...');
-		let daEstimate;
-		try {
-			daEstimate = await this.estimateDomainAuthority(siteUrl);
-		} catch (e) {
-			const errorMsg = e instanceof Error ? e.message : 'Unknown error';
-			console.error('[TechnicalAudit] DA fetch failed:', errorMsg);
-			apiErrors['domainAuthority'] = errorMsg;
-			daEstimate = {
-				estimated: 0,
-				method: 'error',
-				confidence: 'low' as const,
-				error: errorMsg
-			};
+		const daEstimate = await this.estimateDomainAuthority(siteUrl);
+		if (daEstimate.error) {
+			apiErrors['domainAuthority'] = daEstimate.error;
 		}
 
 		// 4. Get Real Core Web Vitals from Google PSI
@@ -283,79 +274,32 @@ export class TechnicalAuditService {
 	}
 
 	/**
-	 * Get domain authority from Moz API
-	 * Uses real data from Moz, required for accurate audits
+	 * Domain Authority via shared Moz url_metrics client (POST + Basic auth).
+	 * The old top-pages GET endpoint returns 404 on current Moz API.
 	 */
-	private async estimateDomainAuthority(
-		siteUrl: string
-	): Promise<{ estimated: number; method: string; confidence: 'low' | 'medium' | 'high' }> {
-		const mozApiKey = process.env.MOZ_API_KEY;
-		if (!mozApiKey) {
-			console.warn('[TechnicalAudit] MOZ_API_KEY not configured, cannot get real DA');
+	private async estimateDomainAuthority(siteUrl: string): Promise<{
+		estimated: number;
+		method: string;
+		confidence: 'low' | 'medium' | 'high';
+		error?: string;
+	}> {
+		const result = await fetchDomainAuthority(siteUrl);
+		const confidence: 'low' | 'medium' | 'high' =
+			result.confidence === 'high' ? 'high' : 'low';
+		const estimated = Math.max(0, Math.min(100, result.da));
+		if (result.method === 'error') {
 			return {
-				estimated: 0,
-				method: 'not_configured',
-				confidence: 'low'
+				estimated,
+				method: 'error',
+				confidence: 'low',
+				error: 'Moz API request failed; using DA 0 for scoring'
 			};
 		}
-
-		try {
-			const daEstimate = await this.fetchFromMozApi(siteUrl, mozApiKey);
-			if (daEstimate) {
-				return daEstimate;
-			}
-		} catch (e) {
-			console.error('[TechnicalAudit] Moz API error:', e);
-			throw new Error(`Failed to fetch Domain Authority: ${e instanceof Error ? e.message : 'Unknown error'}`);
-		}
-
-		throw new Error('Failed to get Domain Authority from Moz');
-	}
-
-	/**
-	 * Fetch DA from Moz API v2
-	 * Uses real Domain Authority data from Moz
-	 */
-	private async fetchFromMozApi(
-		siteUrl: string,
-		apiKey: string
-	): Promise<{ estimated: number; method: string; confidence: 'low' | 'medium' | 'high' }> {
-		try {
-			const domain = new URL(siteUrl).hostname.replace(/^www\./, '');
-			
-			console.log('[TechnicalAudit] Fetching DA from Moz for:', domain);
-			
-			// Moz API v2 endpoint
-			const response = await axios.get('https://api.moz.com/v2/link/top-pages', {
-				params: {
-					target: domain,
-					cols: 'DA,UID',
-					limit: 1,
-					access_token: apiKey
-				},
-				timeout: 10000,
-				headers: {
-					'Accept': 'application/json'
-				}
-			});
-
-			// Extract DA from response
-			let da = 0;
-			if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-				da = response.data[0].da || 0;
-			}
-
-			console.log('[TechnicalAudit] Got DA from Moz:', da);
-
-			return {
-				estimated: Math.round(da),
-				method: 'moz_api',
-				confidence: 'high'
-			};
-		} catch (e) {
-			console.error('[TechnicalAudit] Moz API error:', e instanceof Error ? e.message : String(e));
-			throw e;
-		}
+		return {
+			estimated,
+			method: result.method,
+			confidence
+		};
 	}
 
 
@@ -701,8 +645,8 @@ export class TechnicalAuditService {
 					// Overall
 					overall_score: auditResult.overallScore,
 					health_status: auditResult.healthStatus,
-					recommendations: auditResult.recommendations,
-					api_errors: auditResult.apiErrors || {}
+					recommendations: auditResult.recommendations
+					// api_errors: optional column — omit so inserts work before migration 2025-03-02 runs
 				});
 
 			if (auditError) {

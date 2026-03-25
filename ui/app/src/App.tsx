@@ -11,6 +11,7 @@ import GSCSelectProperty from './pages/GSCSelectProperty';
 import { Toaster } from 'sonner';
 import AuthLayout from './layout/AuthLayout';
 import Onboarding from './pages/Onboarding';
+import SiteSetup from './pages/SiteSetup';
 import Assistant from './pages/Assistant';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import OrganizationRequired from './pages/Organization/OrganizationRequired';
@@ -26,8 +27,6 @@ import SettingsNotifications from './pages/SettingsNotifications';
 import SettingsProfile from './pages/SettingsProfile';
 import SettingsOrganization from './pages/SettingsOrganization';
 import Notifications from './pages/Notifications';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfService from './pages/TermsOfService';
 import ForgotPassword from './pages/Auth/ForgotPassword';
 import ResetPassword from './pages/Auth/ResetPassword';
 import Billing from './pages/Billing';
@@ -67,8 +66,6 @@ export default function App() {
 				<Routes>
 					<Route element={<MarketingLayout />}>
 						<Route index path="/" element={<Home />} />
-						<Route path="/privacy" element={<PrivacyPolicy />} />
-						<Route path="/terms" element={<TermsOfService />} />
 					</Route>
 
 					<Route element={<AppLayout />}>
@@ -106,6 +103,7 @@ export default function App() {
 						<Route path="/assistant" element={<Assistant />} />
 						<Route path="/assistant/:chatId" element={<Assistant />} />
 						<Route path="/onboarding" element={<Onboarding />} />
+						<Route path="/site-setup" element={<SiteSetup />} />
 						{/* <Route path="/billing" element={<Billing />} /> */}
 						<Route path="/billing-onboarding" element={<BillingOnboarding />} />
 						<Route path="/organization-required" element={<OrganizationRequired />} />

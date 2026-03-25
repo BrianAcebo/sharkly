@@ -21,23 +21,45 @@ import { OrganizationRow } from '../types/billing';
 import Backdrop from './Backdrop';
 import ChatWidget from '../components/chat/ChatWidget';
 import { ChatProvider } from '../contexts/ChatContext';
-import { SiteProvider } from '../contexts/SiteContext';
+import { SiteProvider, useSiteContext } from '../contexts/SiteContext';
 import { CROStudioUpgradeProvider } from '../contexts/CROStudioUpgradeContext';
 import { TierUpgradeProvider } from '../contexts/TierUpgradeContext';
 
-/** Site audit / profile onboarding (OnboardingForm) — paused; use org-first flow. Set false to re-enable. */
-const SITE_AUDIT_ONBOARDING_PAUSED = true;
+/** When true, blocks the first-site wizard at `/site-setup`. */
+const SITE_SETUP_PAUSED = false;
 
-const PATHS_ALLOWED_WITHOUT_ORGAN = ['/organization-required', '/billing-onboarding'] as const;
+const PATHS_ALLOWED_WITHOUT_ORGAN = [
+	'/organization-required',
+	'/billing-onboarding',
+	'/onboarding'
+] as const;
+
+function isSiteSetupExemptPath(pathname: string): boolean {
+	if (
+		pathname === '/site-setup' ||
+		pathname === '/onboarding' ||
+		pathname === '/organization-required' ||
+		pathname === '/billing-onboarding'
+	) {
+		return true;
+	}
+	if (pathname.startsWith('/settings')) {
+		return true;
+	}
+	return false;
+}
 
 const LayoutContent: React.FC = () => {
 	const { pathname } = useLocation();
 	const navigate = useNavigate();
 	const { isExpanded, isMobileOpen } = useSidebar();
 	const { user, loadingState, session } = useAuth();
+	const { sites, loading: sitesLoading } = useSiteContext();
 	const trialInfo = useTrial();
 	const { organization: currentOrg, loading: orgLoading } = useOrganization();
 	const { isPaused, isDisabled, status: orgStatus } = useOrganizationStatus();
+	/** Until status loads, allow onboarding redirect; after load, only when subscription is in good standing */
+	const orgAllowsSiteSetup = orgStatus === null || orgStatus === 'active';
 
 	const [hasCheckedOrg, setHasCheckedOrg] = useState(false);
 	const { isScreenTooSmall } = useScreenSize();
@@ -70,8 +92,12 @@ const LayoutContent: React.FC = () => {
 	const isStripeExpired =
 		currentOrg?.stripe_status === 'canceled' || currentOrg?.stripe_status === 'incomplete_expired';
 
-	// Paused site-audit onboarding: /onboarding → create org first
-	if (SITE_AUDIT_ONBOARDING_PAUSED && pathname === '/onboarding') {
+	// 1) Profile onboarding (name + avatar) — `profiles.completed_onboarding`
+	if (user && !user.completed_onboarding && pathname !== '/onboarding') {
+		return <Navigate to="/onboarding" replace />;
+	}
+
+	if (SITE_SETUP_PAUSED && pathname === '/site-setup') {
 		return <Navigate to="/organization-required" replace />;
 	}
 
@@ -88,19 +114,85 @@ const LayoutContent: React.FC = () => {
 		}
 	}
 
-	// Safety fallback: if we're on organization-required but user has organization AND payment is complete, redirect to dashboard
+	// 2) Finished org billing but still on org page — profile → first site → dashboard
 	if (
 		pathname === '/organization-required' &&
 		hasOrganization &&
 		!isStripeIncomplete &&
 		!isStripeExpired
 	) {
+		if (!user?.completed_onboarding) {
+			return <Navigate to="/onboarding" replace />;
+		}
+		if (sitesLoading) {
+			return <AuthLoading state={AuthLoadingState.LOADING} />;
+		}
+		if (sites.length === 0) {
+			return <Navigate to="/site-setup" replace />;
+		}
 		return <Navigate to="/dashboard" replace />;
 	}
 
-	// When site onboarding is re-enabled: finished users shouldn't see /onboarding
-	if (!SITE_AUDIT_ONBOARDING_PAUSED && pathname === '/onboarding' && user?.completed_onboarding) {
+	// Profile page only makes sense without an org billing block; with org + bad stripe, send to billing
+	if (
+		pathname === '/onboarding' &&
+		hasOrganization &&
+		(isStripeIncomplete || isStripeExpired)
+	) {
+		return <Navigate to="/organization-required" replace />;
+	}
+
+	// First-site wizard only when subscription is usable
+	if (
+		pathname === '/site-setup' &&
+		hasOrganization &&
+		(isStripeIncomplete || isStripeExpired)
+	) {
+		return <Navigate to="/organization-required" replace />;
+	}
+
+	// Already have sites — skip first-site wizard
+	if (
+		pathname === '/site-setup' &&
+		hasOrganization &&
+		!sitesLoading &&
+		sites.length > 0
+	) {
 		return <Navigate to="/dashboard" replace />;
+	}
+
+	// Wait for site list before rendering app routes that depend on it (avoids flash before `/site-setup` redirect)
+	if (
+		hasOrganization &&
+		user?.completed_onboarding &&
+		sitesLoading &&
+		!isStripeIncomplete &&
+		!isStripeExpired &&
+		orgAllowsSiteSetup
+	) {
+		const waitExempt =
+			pathname === '/site-setup' ||
+			pathname === '/onboarding' ||
+			pathname === '/organization-required' ||
+			pathname === '/billing-onboarding' ||
+			pathname.startsWith('/settings');
+		if (!waitExempt) {
+			return <AuthLoading state={AuthLoadingState.LOADING} />;
+		}
+	}
+
+	// 3) Org has no sites — require `/site-setup` (unless exempt e.g. settings)
+	const needsFirstSite =
+		hasOrganization &&
+		Boolean(user?.completed_onboarding) &&
+		!sitesLoading &&
+		sites.length === 0 &&
+		!isStripeIncomplete &&
+		!isStripeExpired &&
+		orgAllowsSiteSetup;
+
+	if (needsFirstSite && !isSiteSetupExemptPath(pathname)) {
+		return <Navigate to="/site-setup" replace />;
 	}
 
 	// Show screen size warning if screen is too small

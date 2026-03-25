@@ -1,6 +1,5 @@
 /**
- * Site audit / profile onboarding (OnboardingForm).
- * When paused in AppLayout (SITE_AUDIT_ONBOARDING_PAUSED), users are redirected to /organization-required instead.
+ * Profile onboarding (name + avatar). Runs first; `completed_onboarding` on profiles.
  */
 import PageMeta from '../components/common/PageMeta';
 import OnboardingForm from '../components/auth/OnboardingForm';
@@ -11,12 +10,16 @@ export default function Onboarding() {
 	const { setTitle } = useBreadcrumbs();
 
 	useEffect(() => {
-		setTitle('Finish Profile');
+		setTitle('Complete your profile');
 	}, [setTitle]);
 
 	return (
 		<>
-			<PageMeta noIndex title="Complete your profile" description="Complete your profile to get started" />
+			<PageMeta
+				noIndex
+				title="Complete your profile"
+				description="Add your name and optional avatar"
+			/>
 			<OnboardingForm />
 		</>
 	);

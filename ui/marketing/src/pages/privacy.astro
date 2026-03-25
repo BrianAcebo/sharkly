@@ -1,0 +1,165 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const siteUrl = import.meta.env.MARKETING_URL ?? 'https://sharkly.co';
+const canonicalUrl = `${siteUrl}/privacy`;
+const LAST_UPDATED = 'March 25, 2026';
+
+const pageTitle = 'Privacy Policy';
+const metaDescription =
+	'How Sharkly collects, uses, and protects your information when you use our SEO platform at app.sharkly.co and sharkly.co.';
+---
+
+<BaseLayout title={pageTitle} description={metaDescription} canonical={canonicalUrl}>
+  <section class="bg-stone-100 px-4 py-12 sm:px-6 dark:bg-neutral-900">
+    <div class="mx-auto max-w-3xl">
+      <a
+        href="/"
+        class="mb-6 inline-flex items-center text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+      >
+        ← Back to home
+      </a>
+      <h1 class="mb-2 text-3xl font-bold text-neutral-900 dark:text-stone-100">Privacy Policy</h1>
+      <p class="mb-8 text-gray-600 dark:text-gray-400">Last updated: {LAST_UPDATED}</p>
+
+      <div
+        class="prose prose-neutral max-w-none rounded-xl border border-black/10 bg-white p-6 sm:p-8 dark:prose-invert dark:border-white/10 dark:bg-neutral-800"
+      >
+        <p>
+          Sharkly ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we
+          collect, use, disclose, and safeguard your information when you use our AI-powered SEO assistant and related
+          services at app.sharkly.co and sharkly.co.
+        </p>
+
+        <h2>Information We Collect</h2>
+
+        <h3>Account and profile</h3>
+        <p>When you create an account or use our services, we collect:</p>
+        <ul>
+          <li>Name, email address, and contact information</li>
+          <li>Organization and site details (e.g., website URLs you add)</li>
+          <li>Account credentials and profile/settings (e.g., brand voice, notifications)</li>
+        </ul>
+
+        <h3>SEO and content data</h3>
+        <p>To provide our SEO assistant, we process data you store or generate in Sharkly:</p>
+        <ul>
+          <li>SEO strategy, targets, topics, and keyword research</li>
+          <li>Generated or edited content (articles, meta titles/descriptions, product/collection copy)</li>
+          <li>Ranking and performance data (including from connected Google Search Console)</li>
+          <li>Crawl and audit results for your sites</li>
+        </ul>
+
+        <h3>Usage and technical data</h3>
+        <p>We automatically collect information necessary to operate and improve the service:</p>
+        <ul>
+          <li>Log data, device and browser information, IP address</li>
+          <li>Usage patterns and feature interactions</li>
+          <li>Performance and error data</li>
+        </ul>
+
+        <h2>How We Use Your Information</h2>
+        <p>We use the information we collect to:</p>
+        <ul>
+          <li>Provide, maintain, and improve our SEO and content services</li>
+          <li>Process payments and manage your subscription and credits</li>
+          <li>Sync and display data from integrations (e.g., Google Search Console, Shopify) when you connect them</li>
+          <li>Send service-related notifications and support</li>
+          <li>Analyze usage to improve the product and security</li>
+          <li>Comply with legal obligations</li>
+        </ul>
+
+        <h2>Third-Party Services and Data</h2>
+        <p>We use trusted service providers to run Sharkly. Data may be processed or stored by:</p>
+        <ul>
+          <li><strong>Supabase</strong> — Authentication, database, and storage (see Supabase privacy policy)</li>
+          <li><strong>Stripe</strong> — Payment and subscription billing (we do not store full card numbers; see Stripe privacy policy)</li>
+          <li>
+            <strong>Google</strong> — When you connect Google Search Console in the app, we use OAuth to access GSC data on
+            your behalf; we do not sell that data or use it for advertising. On our public website (sharkly.co), we may use
+            <strong>Google Analytics</strong> to understand traffic and product interest; see our
+            <a href="/cookies">Cookie Policy</a> for how we obtain consent and what is collected.
+          </li>
+          <li>
+            <strong>Shopify</strong> — When you connect a store, we store only the connection (domain and access token)
+            to publish content; we do not access or store your store's customer PII
+          </li>
+          <li>
+            <strong>AI/LLM providers</strong> — Content generation may involve sending prompts and your content to
+            third-party AI services under our data processing agreements
+          </li>
+        </ul>
+        <p>
+          If you use the Sharkly app from the Shopify App Store, Shopify may collect data as described in their
+          policies; our use of Shopify data is limited to providing the SEO and publishing features you request.
+        </p>
+
+        <h2>Data Storage and Security</h2>
+        <p>
+          We implement appropriate technical and organizational measures to protect your data, including encryption in
+          transit and at rest, access controls, and secure infrastructure. We do not sell your personal information.
+        </p>
+
+        <h2>Data Sharing and Disclosure</h2>
+        <p>We do not sell or rent your personal information. We may share information only:</p>
+        <ul>
+          <li>With your consent (e.g., when you connect an integration)</li>
+          <li>With service providers who assist in operating our service (under strict obligations)</li>
+          <li>To comply with law or protect rights and safety</li>
+          <li>In connection with a merger, sale, or transfer of assets</li>
+        </ul>
+
+        <h2>Your Rights and Retention</h2>
+        <p>We retain your information as long as needed to provide the service and comply with law. You have the right to:</p>
+        <ul>
+          <li>Access and correct your personal information</li>
+          <li>Request deletion of your personal information</li>
+          <li>Export your data in a portable format</li>
+          <li>Opt out of marketing communications</li>
+          <li>Lodge a complaint with a supervisory authority (e.g., in the EU/UK under GDPR)</li>
+        </ul>
+        <p>
+          If you are in the European Economic Area or UK, our legal basis for processing includes contract performance,
+          consent where required, and legitimate interests. For California residents, we do not sell personal information;
+          you may have additional rights under the CCPA.
+        </p>
+
+        <h2>Cookies and similar technologies</h2>
+        <p>
+          We use cookies, local storage, and similar technologies in line with this policy and our
+          <a href="/cookies">Cookie Policy</a>.
+        </p>
+        <p>
+          <strong>Sharkly app (app.sharkly.co).</strong> We use first-party cookies and storage for authentication (e.g.
+          Supabase session), security, and core product functionality. These are necessary to run the service.
+        </p>
+        <p>
+          <strong>Public marketing site (sharkly.co).</strong> When enabled, we load <strong>Google Analytics 4</strong> (Google
+          LLC) and use <strong>Google Consent Mode</strong>: analytics and related storage stay off until you interact with
+          our cookie banner and choose Accept. If you reject or dismiss without accepting, we do not enable optional
+          analytics measurement. Your choice is stored in your browser (e.g. localStorage). Details of categories, vendors,
+          and how to change your choice are in the <a href="/cookies">Cookie Policy</a>.
+        </p>
+        <p>
+          We do not operate third-party ad networks or sell your data for cross-site advertising on our sites. Accepting
+          analytics on the marketing site uses Google&apos;s tags under Consent Mode; that may include consent flags Google
+          associates with measurement (as configured in our implementation), not Sharkly-run retargeting ads.
+        </p>
+
+        <h2>Contact</h2>
+        <p>For privacy-related requests or questions:</p>
+        <div class="not-prose rounded-lg bg-stone-50 p-4 dark:bg-neutral-700/50">
+          <p class="text-neutral-800 dark:text-stone-200">
+            <strong>Email:</strong> hello@sharkly.co<br />
+            <strong>Website:</strong> https://sharkly.co
+          </p>
+        </div>
+
+        <p class="mt-8 border-t border-black/10 pt-6 text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+          This Privacy Policy is effective as of {LAST_UPDATED}. We may update it from time to time; the current version
+          will always be on this page. Continued use of the service after changes constitutes acceptance.
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

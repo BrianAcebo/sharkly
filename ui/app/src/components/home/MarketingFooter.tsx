@@ -39,12 +39,15 @@ const Footer: React.FC = () => {
 					<div>
 						<div className="text-sm font-semibold mb-4 text-white/90 dark:text-gray-200">Company</div>
 						<div className="flex flex-col gap-2">
-							<Link to="/privacy" className="text-white/80 dark:text-gray-400 text-sm hover:text-white dark:hover:text-gray-200">
+							<a href={`${MARKETING_URL}/privacy`} className="text-white/80 dark:text-gray-400 text-sm hover:text-white dark:hover:text-gray-200">
 								Privacy
-							</Link>
-							<Link to="/terms" className="text-white/80 dark:text-gray-400 text-sm hover:text-white dark:hover:text-gray-200">
+							</a>
+							<a href={`${MARKETING_URL}/cookies`} className="text-white/80 dark:text-gray-400 text-sm hover:text-white dark:hover:text-gray-200">
+								Cookies
+							</a>
+							<a href={`${MARKETING_URL}/terms`} className="text-white/80 dark:text-gray-400 text-sm hover:text-white dark:hover:text-gray-200">
 								Terms
-							</Link>
+							</a>
 							<a href={`${MARKETING_URL}/blog/rss.xml`} className="text-white/80 dark:text-gray-400 text-sm hover:text-white dark:hover:text-gray-200">
 								RSS
 							</a>

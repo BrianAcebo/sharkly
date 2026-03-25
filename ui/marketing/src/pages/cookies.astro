@@ -1,0 +1,117 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const siteUrl = import.meta.env.MARKETING_URL ?? 'https://sharkly.co';
+const canonicalUrl = `${siteUrl}/cookies`;
+const LAST_UPDATED = 'March 25, 2026';
+
+const pageTitle = 'Cookie Policy';
+const metaDescription =
+	'How Sharkly uses cookies, local storage, and Google Analytics on sharkly.co, and how you can control your choices.';
+---
+
+<BaseLayout title={pageTitle} description={metaDescription} canonical={canonicalUrl}>
+  <section class="bg-stone-100 px-4 py-12 sm:px-6 dark:bg-neutral-900">
+    <div class="mx-auto max-w-3xl">
+      <a
+        href="/"
+        class="mb-6 inline-flex items-center text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+      >
+        ← Back to home
+      </a>
+      <h1 class="mb-2 text-3xl font-bold text-neutral-900 dark:text-stone-100">Cookie Policy</h1>
+      <p class="mb-8 text-gray-600 dark:text-gray-400">Last updated: {LAST_UPDATED}</p>
+
+      <div
+        class="prose prose-neutral max-w-none rounded-xl border border-black/10 bg-white p-6 sm:p-8 dark:prose-invert dark:border-white/10 dark:bg-neutral-800"
+      >
+        <p>
+          This Cookie Policy explains how Sharkly (&quot;we,&quot; &quot;our,&quot; or &quot;us&quot;) uses cookies and similar
+          technologies on <strong>sharkly.co</strong> (our marketing site) and how that relates to the
+          <strong>app at app.sharkly.co</strong>. It should be read together with our
+          <a href="/privacy">Privacy Policy</a>.
+        </p>
+
+        <h2>Your choices (marketing site)</h2>
+        <p>
+            When Google Analytics is enabled on sharkly.co, we show a <strong>cookie banner</strong> until you make a
+            choice. You can:
+        </p>
+        <ul>
+          <li>
+            <strong>Accept</strong> — We record your choice in your browser (localStorage key
+            <code class="text-sm">sharkly_cookie_consent</code> with value <code class="text-sm">accepted</code>) and
+            update Google Consent Mode so analytics and related measurement can run as described below.
+          </li>
+          <li>
+            <strong>Reject</strong> — We record <code class="text-sm">rejected</code> and do not enable optional analytics
+            measurement via Consent Mode. The banner closes; your preference is stored locally.
+          </li>
+        </ul>
+        <p>
+          If you have already chosen, you can clear site data for sharkly.co in your browser settings to see the banner
+          again, or remove the <code class="text-sm">sharkly_cookie_consent</code> entry from localStorage for this site.
+          We do not currently offer a separate in-page &quot;cookie settings&quot; dashboard.
+        </p>
+
+        <h2>Technologies we use</h2>
+
+        <h3>sharkly.co (marketing)</h3>
+        <ul>
+          <li>
+            <strong>Google Analytics 4 (GA4)</strong> — When our analytics measurement ID is configured and you have
+            accepted analytics, we load Google&apos;s tag (gtag.js) to measure page views and usage. Google may set
+            <strong>cookies</strong> and use <strong>similar storage</strong> (e.g. <code class="text-sm">_ga</code>,
+            <code class="text-sm">_ga_*</code>) as documented by Google.
+          </li>
+          <li>
+            <strong>Google Consent Mode</strong> — Before you accept, we default <code class="text-sm">analytics_storage</code>
+            and related consent types to <strong>denied</strong> so optional measurement does not run. After Accept, we
+            update consent to <strong>granted</strong> for analytics and the Consent Mode categories we pass to Google
+            (including analytics and the ad-related consent flags required by our GA4 integration). We use GA for traffic
+            and product insight; we do not run separate ad network campaigns on the marketing site.
+          </li>
+          <li>
+            <strong>Theme and UI</strong> — We store dark/light preference in <code class="text-sm">localStorage</code>
+            under the key <code class="text-sm">theme</code>. This is not used for cross-site tracking.
+          </li>
+        </ul>
+        <p>
+          For how Google uses data, see
+          <a href="https://policies.google.com/privacy" rel="noopener noreferrer" target="_blank">Google&apos;s Privacy Policy</a>
+          and
+          <a href="https://policies.google.com/technologies/cookies" rel="noopener noreferrer" target="_blank"
+            >Google&apos;s Cookie Policy</a
+          >.
+        </p>
+
+        <h3>app.sharkly.co (product)</h3>
+        <p>
+          The logged-in application uses <strong>first-party cookies and storage</strong> required for
+          authentication (e.g. Supabase session), security, and core features. These are necessary for the service
+          and are not controlled by the same marketing-site banner. See the <a href="/privacy">Privacy Policy</a> for
+          account data.
+        </p>
+
+        <h2>Updates</h2>
+        <p>
+          We may update this Cookie Policy when we change analytics tools or consent mechanics. The &quot;Last
+          updated&quot; date at the top reflects the latest revision.
+        </p>
+
+        <h2>Contact</h2>
+        <p>Questions about cookies or this policy:</p>
+        <div class="not-prose rounded-lg bg-stone-50 p-4 dark:bg-neutral-700/50">
+          <p class="text-neutral-800 dark:text-stone-200">
+            <strong>Email:</strong> hello@sharkly.co<br />
+            <strong>Website:</strong> https://sharkly.co
+          </p>
+        </div>
+
+        <p class="mt-8 border-t border-black/10 pt-6 text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+          This Cookie Policy is effective as of {LAST_UPDATED}.
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

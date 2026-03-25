@@ -27,11 +27,14 @@ import {
 	SiJcb
 } from 'react-icons/si';
 import { api } from '../../utils/api';
+import { waitForOrganizationMembership } from '../../utils/waitForOrganizationMembership';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 
 /** Creates DB org from Stripe when webhooks are missing (local dev); safe to call in prod too. */
-async function syncDeferredOrganizationAfterPayment(accessToken: string): Promise<{ ok: boolean; org?: { id: string } }> {
+async function syncDeferredOrganizationAfterPayment(
+	accessToken: string
+): Promise<{ ok: boolean; org?: { id: string } }> {
 	const maxAttempts = 45;
 	for (let i = 0; i < maxAttempts; i++) {
 		const resp = await api.post(
@@ -286,10 +289,12 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 			<div className="space-y-6">
 				<PlanSummary orgName={orgName} selectedPlan={selectedPlan} trialSelected={trialSelected} />
 				<PaymentElement
-					options={{
-						layout: { type: 'tabs', defaultCollapsed: false },
-						...(import.meta.env.DEV ? { appearance: { theme: 'night' as const } } : {})
-					} as React.ComponentProps<typeof PaymentElement>['options']}
+					options={
+						{
+							layout: { type: 'tabs', defaultCollapsed: false },
+							...(import.meta.env.DEV ? { appearance: { theme: 'night' as const } } : {})
+						} as React.ComponentProps<typeof PaymentElement>['options']
+					}
 				/>
 				{isLoading && <div className="text-sm text-blue-500">Processing payment...</div>}
 			</div>
@@ -482,7 +487,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 	onClose,
 	existingOrganization
 }) => {
-	const { user, refreshUser } = useAuth();
+	const { user, updateUser } = useAuth();
 	// const navigate = useNavigate();
 	const { setTitle } = useBreadcrumbs();
 	const { refetch: refetchOrganization } = useOrganization();
@@ -742,10 +747,12 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 			setLoading(true);
 			try {
 				if (mode === 'renewal' && !useExistingPaymentMethod) {
-					// Renewal with new card: prepare SetupIntent
+					// Renewal with new card: prepare a SetupIntent on the existing customer
 					await createSetupOnly();
 				} else if (mode === 'new') {
-					// New org: create pending org + subscription first to get PaymentIntent client secret
+					// New org: call /prepare to create Stripe customer + SetupIntent only.
+					// NO subscription is created here — the subscription is created AFTER the
+					// card is confirmed in the next step, so it never ends up incomplete.
 					const {
 						data: { session }
 					} = await supabase.auth.getSession();
@@ -756,8 +763,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 							name: orgName,
 							planCode: selectedPlan.plan_code,
 							trialDays: trialSelected ? 7 : 0,
-							tz: 'America/New_York',
-							address: { street: '', city: '', state: '', zip: '', country: 'US' }
+							tz: 'America/New_York'
 						},
 						{
 							headers: {
@@ -768,24 +774,23 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 					);
 					if (!resp.ok) {
 						const err = await resp.json().catch(() => ({}));
-						throw new Error(err.error || 'Failed to start subscription');
+						throw new Error(err.error || 'Failed to prepare payment session');
 					}
 					const data = await resp.json();
-					if (data?.org?.id) setOrgId(data.org.id);
-					if (data?.subscriptionClientSecret) setClientSecret(data.subscriptionClientSecret);
+					// /onboard without a paymentMethodId returns setupClientSecret for card collection
 					if (data?.setupClientSecret) setSetupSecret(data.setupClientSecret);
+					if (data?.subscriptionClientSecret) setClientSecret(data.subscriptionClientSecret);
+					if (data?.org?.id) setOrgId(data.org.id);
 
-					// Deterministic step transition for new orgs: proceed when we have either PI or SI secret
-					if (data?.subscriptionClientSecret || data?.setupClientSecret) {
+					if (data?.setupClientSecret || data?.subscriptionClientSecret) {
 						setCurrentStep('payment');
 						setError(null);
 						return;
 					}
-					// No secret returned: treat as an error; user must confirm payment before proceeding
 					setError('We couldn’t prepare your payment. Please try again.');
 					return;
 				} else {
-					// Renewal using saved card path - no client-side intent required
+					// Renewal using saved card path — no intent needed, go straight to payment step
 				}
 				if (mode === 'renewal') {
 					setCompletedSteps((prev) => Array.from(new Set([...prev, 'payment'])));
@@ -825,24 +830,33 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 		if (mode === 'renewal') {
 			setCompletedSteps(['organization', 'plan', 'payment', 'success']);
 			setCurrentStep('success');
-			await refreshUser();
+			await waitForOrganizationMembership(updateUser);
 			return;
 		}
 
 		setCompletedSteps(['organization', 'plan', 'payment', 'success']);
 		setCurrentStep('success');
-		await refreshUser();
+		await waitForOrganizationMembership(updateUser);
 		toast.success('Organization created successfully!');
 	};
 
 	const handleGoToDashboard = async () => {
 		try {
-			await Promise.all([refreshUser(), getOrganizationStatus(), refetchOrganization()]);
+			await waitForOrganizationMembership(updateUser);
+			await Promise.all([getOrganizationStatus(), refetchOrganization()]);
 		} catch {
 			// no-op; we'll hard refresh regardless
 		}
 		onClose();
 		window.location.assign('/dashboard');
+	};
+
+	const handleCloseOverlay = () => {
+		if (currentStep === 'success') {
+			void handleGoToDashboard();
+			return;
+		}
+		onClose();
 	};
 
 	const renderSavedCardOptions = () => {
@@ -1114,7 +1128,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 					<div className="mb-6 flex items-center justify-between">
 						<h2 className="text-2xl font-bold text-gray-900 dark:text-white">Get Started</h2>
 						<button
-							onClick={onClose}
+							onClick={handleCloseOverlay}
 							className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
 						>
 							✕

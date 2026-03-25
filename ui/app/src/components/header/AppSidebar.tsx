@@ -511,7 +511,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 				)}
 
 			<div className="border-t border-gray-200 py-2 dark:border-gray-600">
-				<div className="mb-4 flex items-center justify-center space-x-2 border-b border-gray-200 pb-2 dark:border-gray-600">
+				<div className="mb-4 flex items-center justify-start space-x-2 border-b border-gray-200 px-4 pb-2 dark:border-gray-600">
 					<div className="rounded-full border border-gray-200 dark:border-gray-600">
 						<UserAvatar
 							user={{

@@ -16,7 +16,7 @@ interface ProfileData {
 	completed_onboarding: boolean;
 }
 
-/** Always resolve org membership for gating (org-first flow). Site audit onboarding may run before or after. */
+/** Resolve org membership for gating. Order: profile (`completed_onboarding`) → org → first site (site count). */
 async function fetchUserOrganizationRow(
 	userId: string
 ): Promise<{ organization_id: string; role: string } | null> {

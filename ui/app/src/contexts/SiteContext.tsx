@@ -8,6 +8,8 @@ interface SiteContextValue {
 	selectedSite: Site | null;
 	sites: Site[];
 	loading: boolean;
+	/** Reload sites list from the server (e.g. after creating a site). */
+	refetchSites: () => Promise<void>;
 	setSelectedSite: (siteId: string | null) => Promise<void>;
 	refetchSelectedSite: () => Promise<void>;
 }
@@ -16,7 +18,7 @@ const SiteContext = createContext<SiteContextValue | null>(null);
 
 export function SiteProvider({ children }: { children: React.ReactNode }) {
 	const { user } = useAuth();
-	const { sites, loading: sitesLoading } = useSites();
+	const { sites, loading: sitesLoading, refetch: refetchSites } = useSites();
 	const [selectedSite, setSelectedSiteState] = useState<Site | null>(null);
 	const [loadingSelected, setLoadingSelected] = useState(true);
 
@@ -110,6 +112,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 				selectedSite,
 				sites,
 				loading,
+				refetchSites,
 				setSelectedSite,
 				refetchSelectedSite: fetchSelectedSite
 			}}
