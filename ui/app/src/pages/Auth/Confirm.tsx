@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../../utils/supabaseClient';
-import { EmailOtpType } from '@supabase/supabase-js';
+import { EmailOtpType, type User } from '@supabase/supabase-js';
 import { useAuth } from '../../hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -23,84 +23,116 @@ export default function AuthConfirm() {
 
 		const confirmEmail = async () => {
 			try {
-				// Mark as executed immediately
 				setHasExecuted(true);
-				
-				console.log("1")
 
-				const token_hash = searchParams.get('token_hash');
-				const type = searchParams.get('type');
 				const inviteId = searchParams.get('invite');
 
-				if (!token_hash || !type) {
+				const oauthError = searchParams.get('error');
+				const oauthErrDesc = searchParams.get('error_description');
+				if (oauthError) {
 					setStatus('error');
-					setErrorMessage('Missing confirmation parameters');
+					setErrorMessage(oauthErrDesc || oauthError);
 					return;
 				}
 
-				console.log("2")
+				let confirmedUser: User | null = null;
 
-				// Try different verification approaches
-				let verificationResult;
-				
-				// First, try the standard verifyOtp
-				try {
-					console.log("3")
-					verificationResult = await supabase.auth.verifyOtp({
-						type: type as EmailOtpType,
-						token_hash,
-					});
-				} catch {
-					console.log("4")
-					// If verifyOtp fails, try using the token directly
-					try {
-						verificationResult = await supabase.auth.verifyOtp({
-							type: 'email',
-							token_hash: token_hash,
-						});
-					} catch {
-						// If both fail, try using the token as a confirmation token
-						try {
-							console.log("5")
-							verificationResult = await supabase.auth.verifyOtp({
-								type: 'signup',
-								token_hash: token_hash,
-							});
-						} catch (confirmError) {
-							console.log("6")
-							verificationResult = { error: confirmError };
+				// PKCE: email links go to /auth/v1/verify first; Supabase redirects here with ?code=...
+				const code = searchParams.get('code');
+				if (code) {
+					const { data: exchanged, error: exchangeErr } =
+						await supabase.auth.exchangeCodeForSession(code);
+					if (exchangeErr) {
+						// Code may already be consumed by detectSessionInUrl on the client
+						const {
+							data: { session: fallbackSession }
+						} = await supabase.auth.getSession();
+						if (fallbackSession?.user) {
+							confirmedUser = fallbackSession.user;
+						} else {
+							setStatus('error');
+							setErrorMessage(exchangeErr.message);
+							return;
 						}
+					} else {
+						confirmedUser = exchanged.user ?? exchanged.session?.user ?? null;
 					}
 				}
 
-				console.log("7")
+				// Legacy magic-link style: ?token_hash=&type= (before generic getSession so we don't skip OTP)
+				if (!confirmedUser) {
+					const token_hash = searchParams.get('token_hash');
+					const type = searchParams.get('type');
+					if (token_hash && type) {
+						let verificationResult;
+						try {
+							verificationResult = await supabase.auth.verifyOtp({
+								type: type as EmailOtpType,
+								token_hash
+							});
+						} catch {
+							try {
+								verificationResult = await supabase.auth.verifyOtp({
+									type: 'email',
+									token_hash
+								});
+							} catch {
+								try {
+									verificationResult = await supabase.auth.verifyOtp({
+										type: 'signup',
+										token_hash
+									});
+								} catch (confirmError) {
+									verificationResult = { error: confirmError };
+								}
+							}
+						}
 
-				const { data, error } = verificationResult || { data: null, error: null };
+						const { data, error } = verificationResult || { data: null, error: null };
 
-				if (error) {
-					console.log("8")
-					console.error('OTP verification error:', error);
-					
-					// If OTP verification fails, redirect to signup with error
-					console.log("9")
+						if (error) {
+							console.error('OTP verification error:', error);
+							setStatus('error');
+							setErrorMessage(
+								typeof error === 'object' && error !== null && 'message' in error
+									? String(error.message)
+									: 'Failed to verify email'
+							);
+							setTimeout(() => navigate('/signup?error=otp_failed'), 3000);
+							return;
+						}
+
+						confirmedUser = data?.user ?? null;
+					}
+				}
+
+				// Session may already exist if the client parsed the URL (hash / PKCE) before this effect ran
+				if (!confirmedUser) {
+					const {
+						data: { session: existing }
+					} = await supabase.auth.getSession();
+					if (existing?.user) {
+						confirmedUser = existing.user;
+					}
+				}
+
+				if (!confirmedUser) {
+					const hadCode = Boolean(searchParams.get('code'));
+					const token_hash = searchParams.get('token_hash');
+					const type = searchParams.get('type');
+					if (!hadCode && (!token_hash || !type)) {
+						setStatus('error');
+						setErrorMessage('Missing confirmation parameters');
+						return;
+					}
 					setStatus('error');
-					setErrorMessage(typeof error === 'object' && error !== null && 'message' in error ? String(error.message) : 'Failed to verify email');
-					
-					// Redirect to signup page with error after a delay
-					setTimeout(() => {
-						console.log("10")
-						navigate('/signup?error=otp_failed');
-					}, 3000);
+					setErrorMessage('Could not confirm email');
 					return;
 				}
 
-				console.log("11.1")
-				if (data?.user) {
-					console.log("11")
-					// Check if this is an invitation-based signup
-					if (inviteId) {
+				// Check if this is an invitation-based signup
+				if (inviteId) {
 						try {
-							console.log("12")
 							// Get the invitation details
 							const { data: invite, error: inviteError } = await supabase
 								.from('organization_invites')
@@ -108,17 +140,14 @@ export default function AuthConfirm() {
 								.eq('id', inviteId)
 								.eq('status', 'pending')
 								.single();
-							console.log("13")
 
 							if (inviteError || !invite) {
-								console.log("14")
 								// If invitation is invalid, redirect to signup with error
 								setStatus('error');
 								setErrorMessage('Invalid or expired invitation');
 								
 								// Redirect to signup page with error after a delay
 								setTimeout(() => {
-									console.log("15")
 									navigate('/signup?error=invalid_invite');
 								}, 3000);
 								return;
@@ -127,24 +156,20 @@ export default function AuthConfirm() {
 							// Check if invitation is expired
 							if (new Date(invite.expires_at) < new Date()) {
 								// If invitation is expired, redirect to signup with error
-								console.log("16")
 								setStatus('error');
 								setErrorMessage('Invitation has expired');
 								
 								// Redirect to signup page with error after a delay
 								setTimeout(() => {
-									console.log("17")
 									navigate('/signup?error=expired_invite');
 								}, 3000);
 								return;
 							}
 
 							// Add user to the organization
-							console.log("18")
 							// Validate the role before inserting
 							const validRoles = ['owner', 'admin', 'member'];
 							if (!validRoles.includes(invite.role)) {
-								console.log("19")
 								console.error('Invalid role in invitation:', invite.role);
 								console.error('Valid roles are:', validRoles);
 								setStatus('error');
@@ -152,7 +177,6 @@ export default function AuthConfirm() {
 								
 								// Redirect to signup page with error after a delay
 								setTimeout(() => {
-									console.log("20")
 									navigate('/signup?error=invalid_role');
 								}, 3000);
 								return;
@@ -162,7 +186,7 @@ export default function AuthConfirm() {
 							const { data: existingMember } = await supabase
 								.from('user_organizations')
 								.select('id')
-								.eq('user_id', data.user.id)
+								.eq('user_id', confirmedUser.id)
 								.eq('organization_id', invite.organization_id)
 								.single();
 
@@ -172,7 +196,7 @@ export default function AuthConfirm() {
 								const { error: orgError } = await supabase
 									.from('user_organizations')
 									.insert({
-										user_id: data.user.id,
+										user_id: confirmedUser.id,
 										organization_id: invite.organization_id,
 										role: invite.role
 									});
@@ -235,7 +259,6 @@ export default function AuthConfirm() {
 					} else {
 						navigate('/organization-required');
 					}
-				}
 			} catch (error) {
 				console.error('Confirmation error:', error);
 				
