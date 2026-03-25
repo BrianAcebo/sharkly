@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
+import { cn } from '../utils/common';
 
 interface ProfileFormData {
 	first_name: string;
@@ -820,8 +821,10 @@ export default function SettingsPage() {
 								<div className="space-y-4">
 									<div className="flex items-center justify-between">
 										<div>
-											<h4 className="font-medium">Browser Push Notifications</h4>
-											<p className="text-sm text-gray-500">
+											<h4 className="font-medium text-gray-900 dark:text-gray-100">
+												Browser Push Notifications
+											</h4>
+											<p className="text-sm text-gray-500 dark:text-gray-400">
 												{pushPermission === 'granted'
 													? 'Push notifications are enabled'
 													: pushPermission === 'denied'
@@ -880,8 +883,10 @@ export default function SettingsPage() {
 								<div className="space-y-4">
 									<div className="flex items-center justify-between">
 										<div>
-											<h4 className="font-medium">Email Notifications</h4>
-											<p className="text-sm text-gray-500">Receive notifications via email</p>
+											<h4 className="font-medium text-gray-900 dark:text-gray-100">Email Notifications</h4>
+											<p className="text-sm text-gray-500 dark:text-gray-400">
+												Receive notifications via email
+											</p>
 										</div>
 										<label className="relative inline-flex cursor-pointer items-center">
 											<input
@@ -900,8 +905,10 @@ export default function SettingsPage() {
 										<div className="ml-6 space-y-3">
 											<div className="flex items-center justify-between">
 												<div>
-													<h5 className="text-sm font-medium">Case Management</h5>
-													<p className="text-xs text-gray-500">
+													<h5 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+														Case Management
+													</h5>
+													<p className="text-xs text-gray-500 dark:text-gray-400">
 														New cases, status changes, follow-ups
 													</p>
 												</div>
@@ -930,8 +937,10 @@ export default function SettingsPage() {
 
 											<div className="flex items-center justify-between">
 												<div>
-													<h5 className="text-sm font-medium">Fin</h5>
-													<p className="text-xs text-gray-500">Insights, summaries, suggestions</p>
+													<h5 className="text-sm font-medium text-gray-900 dark:text-gray-100">Fin</h5>
+													<p className="text-xs text-gray-500 dark:text-gray-400">
+														Insights, summaries, suggestions
+													</p>
 												</div>
 												<label className="relative inline-flex cursor-pointer items-center">
 													<input
@@ -958,8 +967,12 @@ export default function SettingsPage() {
 
 											<div className="flex items-center justify-between">
 												<div>
-													<h5 className="text-sm font-medium">Team Communication</h5>
-													<p className="text-xs text-gray-500">Messages, meetings, mentions</p>
+													<h5 className="text-sm font-medium text-gray-900 dark:text-gray-100">
+														Team Communication
+													</h5>
+													<p className="text-xs text-gray-500 dark:text-gray-400">
+														Messages, meetings, mentions
+													</p>
 												</div>
 												<label className="relative inline-flex cursor-pointer items-center">
 													<input
@@ -1002,8 +1015,10 @@ export default function SettingsPage() {
 								<div className="space-y-4">
 									<div className="flex items-center justify-between">
 										<div>
-											<h4 className="font-medium">Marketing Communications</h4>
-											<p className="text-sm text-gray-500">
+											<h4 className="font-medium text-gray-900 dark:text-gray-100">
+												Marketing Communications
+											</h4>
+											<p className="text-sm text-gray-500 dark:text-gray-400">
 												Receive updates about new features and promotions
 											</p>
 										</div>
@@ -1126,27 +1141,32 @@ export default function SettingsPage() {
 				</div>
 
 				<div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
-					{/* Sidebar Navigation */}
+					{/* Sidebar — match AppSidebar: brand active state, subtle dark surfaces */}
 					<div className="lg:col-span-1">
-						<nav className="space-y-2">
-							{tabs.map((tab) => {
-								const Icon = tab.icon;
-								return (
-									<button
-										key={tab.id}
-										onClick={() => setActiveTab(tab.id)}
-										className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left transition-colors ${
-											activeTab === tab.id
-												? 'border border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300'
-												: 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'
-										}`}
-									>
-										<Icon className="h-5 w-5" />
-										{tab.label}
-									</button>
-								);
-							})}
-						</nav>
+						<div className="rounded-xl border border-gray-200 bg-white p-2 shadow-sm dark:border-gray-800 dark:bg-white/3">
+							<nav className="space-y-1" aria-label="Settings sections">
+								{tabs.map((tab) => {
+									const Icon = tab.icon;
+									const isActive = activeTab === tab.id;
+									return (
+										<button
+											key={tab.id}
+											type="button"
+											onClick={() => setActiveTab(tab.id)}
+											className={cn(
+												'flex w-full items-center gap-3 rounded-lg px-4 py-3 text-left text-sm font-medium transition-colors',
+												isActive
+													? 'bg-brand-50 text-brand-700 shadow-sm ring-1 ring-brand-200/70 dark:bg-brand-900/25 dark:text-brand-300 dark:ring-brand-500/25'
+													: 'text-gray-700 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/6 dark:hover:text-gray-100'
+											)}
+										>
+											<Icon className="h-5 w-5 shrink-0 opacity-90" aria-hidden />
+											{tab.label}
+										</button>
+									);
+								})}
+							</nav>
+						</div>
 					</div>
 
 					{/* Main Content */}
