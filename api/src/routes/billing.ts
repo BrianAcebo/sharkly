@@ -11,6 +11,7 @@ import {
 	cancelCROAddon
 } from '../utils/croAddon.js';
 import billingPublicRoutes from './billingPublic.js';
+import { createOrganizationFromDeferredSubscription } from '../utils/deferredOrgSignup.js';
 
 const router = express.Router();
 const stripe = getStripeClient();
@@ -37,27 +38,23 @@ router.post('/test/confirm-payment', async (req, res) => {
 			return res.status(401).json({ error: 'Unauthorized' });
 		}
 
-		// Get the user's most recent payment_pending organization
-		const { data: org, error: orgError } = await supabase
-			.from('organizations')
+		const { data: deferred, error: defErr } = await supabase
+			.from('stripe_deferred_org_signups')
 			.select('*')
-			.eq('owner_id', userId)
-			.eq('status', 'payment_pending')
-			.order('created_at', { ascending: false })
-			.limit(1)
+			.eq('user_id', userId)
 			.maybeSingle();
 
-		if (orgError || !org) {
-			return res.status(404).json({ error: 'No pending organization found' });
+		if (defErr || !deferred) {
+			return res.status(404).json({ error: 'No pending organization signup (complete plan + payment steps first)' });
+		}
+		if (!deferred.stripe_subscription_id) {
+			return res.status(400).json({
+				error: 'Subscription not created yet — finish entering your card on the payment step first.'
+			});
 		}
 
-		// Verify the subscription exists and get its latest invoice
-		if (!org.stripe_subscription_id) {
-			return res.status(400).json({ error: 'Organization has no subscription' });
-		}
-
-		const subscription = await stripe.subscriptions.retrieve(org.stripe_subscription_id, {
-			expand: ['latest_invoice.payment_intent']
+		const subscription = await stripe.subscriptions.retrieve(deferred.stripe_subscription_id, {
+			expand: ['latest_invoice.payment_intent', 'items.data.price']
 		});
 
 		const invoice = subscription.latest_invoice as Stripe.Invoice | null;
@@ -69,30 +66,47 @@ router.post('/test/confirm-payment', async (req, res) => {
 			});
 		}
 
-		// Manually trigger the status update that would normally come from webhook
-		console.log('[TEST] Manually confirming payment for org:', org.id);
+		const createdOrg = await createOrganizationFromDeferredSubscription(stripe, subscription);
+		let orgIdToActivate = createdOrg?.id ?? null;
+		if (!orgIdToActivate) {
+			const { data: existing } = await supabase
+				.from('organizations')
+				.select('id')
+				.eq('stripe_subscription_id', subscription.id)
+				.maybeSingle();
+			orgIdToActivate = existing?.id ?? null;
+		}
+
+		if (!orgIdToActivate) {
+			return res.status(400).json({
+				error: 'Could not create organization (subscription must be active or trialing)',
+				subscriptionStatus: subscription.status
+			});
+		}
+
+		console.log('[TEST] Manually confirming payment for org:', orgIdToActivate);
 		const { error: updateError } = await supabase
 			.from('organizations')
 			.update({
 				status: 'active',
-				stripe_status: 'active',
+				stripe_status: subscription.status,
 				stripe_latest_invoice_id: invoice.id,
 				stripe_latest_invoice_status: invoice.status,
 				payment_action_required: false,
 				updated_at: new Date().toISOString()
 			})
-			.eq('id', org.id);
+			.eq('id', orgIdToActivate);
 
 		if (updateError) {
 			console.error('[TEST] Failed to update org status:', updateError);
 			return res.status(500).json({ error: 'Failed to update organization' });
 		}
 
-		console.log('[TEST] ✓ Organization activated:', org.id);
+		console.log('[TEST] ✓ Organization activated:', orgIdToActivate);
 		return res.json({
 			ok: true,
 			message: 'Organization activated',
-			orgId: org.id,
+			orgId: orgIdToActivate,
 			status: 'active'
 		});
 	} catch (error) {

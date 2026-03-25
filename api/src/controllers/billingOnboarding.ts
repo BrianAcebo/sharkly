@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import Stripe from 'stripe';
@@ -13,8 +14,145 @@ import {
 } from '../types/billing.js';
 import { getStripeClient } from '../utils/stripe.js';
 import { ensureWallet } from '../utils/wallet.js';
+import {
+	DEFERRED_ORG_SIGNUP_META,
+	DEFERRED_ORG_SIGNUP_VALUE,
+	cancelDeferredIncompleteSubscriptionsExcept,
+	createOrganizationFromDeferredSubscription
+} from '../utils/deferredOrgSignup.js';
 
 const stripe = getStripeClient();
+
+/**
+ * Newer Stripe API puts the invoice PaymentIntent client secret on `invoice.confirmation_secret`.
+ * Older payloads use expanded `payment_intent`. If we miss both, we fall back to SetupIntent — that only
+ * saves the card and leaves `default_incomplete` subscriptions stuck in `incomplete` (no invoice.paid).
+ */
+function syncInvoicePaymentClientSecret(sub: Stripe.Subscription): string | null {
+	const li = sub.latest_invoice;
+	if (!li || typeof li === 'string') return null;
+	const inv = li as Stripe.Invoice;
+	const fromConfirm = inv.confirmation_secret?.client_secret;
+	if (fromConfirm) return fromConfirm;
+	const piRaw = (inv as unknown as { payment_intent?: string | Stripe.PaymentIntent | null }).payment_intent;
+	if (piRaw && typeof piRaw === 'object' && 'client_secret' in piRaw) {
+		return (piRaw as Stripe.PaymentIntent).client_secret ?? null;
+	}
+	return null;
+}
+
+async function ensureSubscriptionPaymentClientSecret(
+	stripeClient: Stripe,
+	subscription: Stripe.Subscription
+): Promise<string | null> {
+	const sync = syncInvoicePaymentClientSecret(subscription);
+	if (sync) return sync;
+
+	const li = subscription.latest_invoice;
+	if (!li) return null;
+	const invoiceId = typeof li === 'string' ? li : li.id;
+	if (!invoiceId) return null;
+
+	try {
+		const inv = await stripeClient.invoices.retrieve(invoiceId, {
+			expand: ['payment_intent']
+		});
+		const fromConfirm = inv.confirmation_secret?.client_secret;
+		if (fromConfirm) return fromConfirm;
+		const piRaw = (inv as unknown as { payment_intent?: string | Stripe.PaymentIntent | null }).payment_intent;
+		if (piRaw && typeof piRaw === 'object' && 'client_secret' in piRaw) {
+			return (piRaw as Stripe.PaymentIntent).client_secret ?? null;
+		}
+		if (typeof piRaw === 'string') {
+			const pi = await stripeClient.paymentIntents.retrieve(piRaw);
+			return pi.client_secret ?? null;
+		}
+	} catch (e) {
+		console.warn('[ONBOARD] could not resolve subscription invoice PaymentIntent client secret', e);
+	}
+	return null;
+}
+
+/**
+ * Charge the subscription's first invoice after we have a payment method on file.
+ * Sets subscription default PM, finalizes draft invoices, then invoices.pay; if that fails, confirms the invoice PI.
+ * (Client-only SetupIntent never pays the invoice — this is what actually moves `incomplete` → `active`/`trialing`.)
+ */
+async function completeDeferredSubscriptionPayment(
+	stripeClient: Stripe,
+	subscriptionId: string,
+	paymentMethodId: string
+): Promise<void> {
+	try {
+		await stripeClient.subscriptions.update(subscriptionId, {
+			default_payment_method: paymentMethodId
+		});
+	} catch (e) {
+		console.warn('[ONBOARD] subscription.update default_payment_method failed', e);
+	}
+
+	const sub = await stripeClient.subscriptions.retrieve(subscriptionId, {
+		expand: ['latest_invoice']
+	});
+	if (sub.status !== 'incomplete' && sub.status !== 'incomplete_expired') return;
+
+	const li = sub.latest_invoice;
+	const invoiceId = typeof li === 'string' ? li : li?.id;
+	if (!invoiceId) {
+		console.warn('[ONBOARD] completeDeferred: missing invoice id', { subscriptionId });
+		return;
+	}
+
+	let inv = await stripeClient.invoices.retrieve(invoiceId, {
+		expand: ['payment_intent']
+	});
+
+	if (inv.status === 'draft') {
+		try {
+			inv = await stripeClient.invoices.finalizeInvoice(invoiceId, { auto_advance: true });
+		} catch (e) {
+			console.warn('[ONBOARD] finalizeInvoice failed (may already be open)', e);
+			inv = await stripeClient.invoices.retrieve(invoiceId, { expand: ['payment_intent'] });
+		}
+	}
+
+	if (inv.status === 'paid' || (inv.amount_due ?? 0) <= 0) return;
+
+	try {
+		await stripeClient.invoices.pay(invoiceId, { payment_method: paymentMethodId });
+		return;
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : String(e);
+		console.warn('[ONBOARD] invoices.pay failed, will try PaymentIntent.confirm', msg);
+	}
+
+	inv = await stripeClient.invoices.retrieve(invoiceId, { expand: ['payment_intent'] });
+	const piRaw = (inv as unknown as { payment_intent?: string | Stripe.PaymentIntent | null }).payment_intent;
+	const piId = typeof piRaw === 'string' ? piRaw : piRaw?.id;
+	if (!piId) {
+		console.warn('[ONBOARD] completeDeferred: no payment_intent on invoice after pay failure');
+		return;
+	}
+
+	const piBefore = await stripeClient.paymentIntents.retrieve(piId);
+	if (piBefore.status === 'succeeded') return;
+
+	try {
+		await stripeClient.paymentIntents.confirm(piId, {
+			payment_method: paymentMethodId
+		});
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : String(e);
+		console.warn('[ONBOARD] paymentIntents.confirm failed (3DS or decline may require client)', msg);
+	}
+}
+
+function defaultPaymentMethodIdFromCustomer(cust: Stripe.Customer): string | null {
+	const d = cust.invoice_settings?.default_payment_method;
+	if (typeof d === 'string') return d;
+	if (d && typeof d === 'object' && 'id' in d) return (d as Stripe.PaymentMethod).id;
+	return null;
+}
 
 async function createSetupIntentForCustomer(opts: { customerId: string; organizationId?: string | null; userId?: string | null; }) {
   const si = await stripe.setupIntents.create({
@@ -28,6 +166,37 @@ async function createSetupIntentForCustomer(opts: { customerId: string; organiza
     },
   });
   return si.client_secret || null;
+}
+
+/** Attach PM to customer and set default — shared by deferred signup paths. */
+async function attachPaymentMethodToDeferredCustomer(
+	paymentMethodId: string,
+	customerId: string,
+	userId: string,
+	reqUserEmail: string | undefined
+): Promise<void> {
+	const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
+	const pmCustomer = typeof pm.customer === 'string' ? pm.customer : null;
+	if (!pmCustomer) {
+		await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+	} else if (pmCustomer !== customerId) {
+		const prevCustomer = (await stripe.customers.retrieve(pmCustomer)) as Stripe.Customer;
+		const prevUserId =
+			(prevCustomer.metadata as Record<string, string> | undefined)?.user_id || null;
+		const sameOwner = prevUserId
+			? prevUserId === userId
+			: Boolean(prevCustomer.email && reqUserEmail && prevCustomer.email === reqUserEmail);
+		if (!sameOwner) {
+			const e = new Error('Payment method belongs to another account. Please use a different card.');
+			(e as Error & { code?: string }).code = 'pm_wrong_customer';
+			throw e;
+		}
+		await stripe.paymentMethods.detach(paymentMethodId);
+		await stripe.paymentMethods.attach(paymentMethodId, { customer: customerId });
+	}
+	await stripe.customers.update(customerId, {
+		invoice_settings: { default_payment_method: paymentMethodId }
+	});
 }
 
 export const onboardOrganization = async (req: Request, res: Response) => {
@@ -78,271 +247,368 @@ export const onboardOrganization = async (req: Request, res: Response) => {
       } as ApiError);
     }
 
-    // Create organization immediately if orgId is not provided
+    // New org: Stripe customer + subscription first; DB org is created only after successful payment (webhook).
     if (!orgId) {
-      console.log('[ONBOARD] NEW ORG path - creating new organization');
-      // Reuse any existing pending org owned by this user
-      let pendingOrg: OrganizationRow | null = null;
-      try {
-        console.log('[ONBOARD] Looking for existing payment_pending org...');
-        const { data: existingPending } = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('owner_id', userId)
-          .eq('status', 'payment_pending')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        pendingOrg = (existingPending as unknown as OrganizationRow) || null;
-        console.log('[ONBOARD] Found existing pending org:', pendingOrg?.id);
-      } catch (lookupErr) {
-        console.warn('[onboard] failed to lookup existing pending org (continuing)', lookupErr);
-      }
+      console.log(
+        '[ONBOARD] NEW ORG (deferred) — customer + SetupIntent first; subscription created with default_payment_method after card'
+      );
+      const td = trialDays && trialDays > 0 ? trialDays : 0;
+      const tzResolved = typeof tz === 'string' && tz ? tz : 'America/New_York';
 
-      if (!pendingOrg) {
-        console.log('[ONBOARD] Creating NEW org with status=payment_pending');
-        const { data: created, error: pendingErr } = await supabase
-          .from('organizations')
-          .insert({
-            name,
-            owner_id: userId,
-            status: 'payment_pending',
-            stripe_status: 'incomplete',
-            plan_code: planCode,
-            included_seats: plan.included_seats,
-            // initialize new credit fields from plan
-            included_credits_monthly: plan.included_credits,
-            included_credits_remaining: plan.included_credits,
-            // legacy field maintained temporarily for compatibility
-            included_credits: plan.included_credits,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select('*')
-          .single();
+      type DeferredRow = {
+        stripe_customer_id: string;
+        stripe_subscription_id: string | null;
+        org_name: string;
+        plan_code: string;
+      };
 
-        if (pendingErr || !created) {
-          console.error('Error creating pending organization:', pendingErr);
-          return res.status(500).json({ ok: false, error: 'Failed to create organization' } as ApiError);
+      type DeferredRowWithSub = DeferredRow & { stripe_subscription_id: string };
+
+      const respondDeferred = async (row: DeferredRowWithSub): Promise<boolean> => {
+        if (paymentMethodIdFromRequest) {
+          try {
+            await attachPaymentMethodToDeferredCustomer(
+              paymentMethodIdFromRequest,
+              row.stripe_customer_id,
+              userId,
+              req.user?.email
+            );
+            await completeDeferredSubscriptionPayment(
+              stripe,
+              row.stripe_subscription_id,
+              paymentMethodIdFromRequest
+            );
+          } catch (e) {
+            const code = (e as Error & { code?: string }).code;
+            if (code === 'pm_wrong_customer') {
+              res.status(400).json({
+                ok: false,
+                error: (e as Error).message,
+                code: 'pm_wrong_customer'
+              } as ApiError);
+              return true;
+            }
+            console.error('[ONBOARD] deferred PM attach failed', e);
+            res.status(400).json({ ok: false, error: 'Failed to save payment method' } as ApiError);
+            return true;
+          }
         }
-        pendingOrg = created as unknown as OrganizationRow;
-        console.log('[ONBOARD] ✓ Created org:', pendingOrg.id, 'with status:', pendingOrg.status);
-      } else {
-        console.log('[ONBOARD] ✓ Reusing existing org:', pendingOrg.id, 'with status:', pendingOrg.status);
-      }
 
-      // Upsert owner membership
-      try {
-        await supabase
-          .from('user_organizations')
-          .upsert({ user_id: userId, organization_id: pendingOrg.id, role: 'owner' }, { onConflict: 'user_id,organization_id' });
-      } catch (mErr) {
-        console.warn('[onboard] membership upsert warning', mErr);
-      }
-
-      // If org already has a subscription from previous attempt, return it immediately
-      if (pendingOrg.stripe_subscription_id) {
-        console.log('[ONBOARD] ✓ Org already has subscription:', pendingOrg.stripe_subscription_id);
+        let existingSub: Stripe.Subscription;
         try {
-          const existingSub = await stripe.subscriptions.retrieve(pendingOrg.stripe_subscription_id, { expand: ['latest_invoice.payment_intent'] });
-          const inv = existingSub.latest_invoice as Stripe.Invoice | null;
-          let clientSecret: string | null = null;
-          if (inv) {
-            const paymentIntent = (inv as unknown as { payment_intent?: unknown }).payment_intent;
-            if (paymentIntent && typeof paymentIntent === 'object' && 'client_secret' in (paymentIntent as Record<string, unknown>)) {
-              const cs = (paymentIntent as { client_secret?: string }).client_secret;
-              clientSecret = cs || null;
+          existingSub = await stripe.subscriptions.retrieve(row.stripe_subscription_id, {
+            expand: ['latest_invoice.payment_intent']
+          });
+        } catch (e) {
+          console.warn('[ONBOARD] deferred subscription missing; clearing signup row', e);
+          await supabase.from('stripe_deferred_org_signups').delete().eq('user_id', userId);
+          return false;
+        }
+
+        if (existingSub.status === 'canceled' || existingSub.status === 'incomplete_expired') {
+          await supabase.from('stripe_deferred_org_signups').delete().eq('user_id', userId);
+          return false;
+        }
+
+        let subscriptionClientSecret = await ensureSubscriptionPaymentClientSecret(stripe, existingSub);
+        let setupClientSecret: string | null = null;
+        const stillNeedsPayment = existingSub.status === 'incomplete';
+        if (!subscriptionClientSecret && row.stripe_customer_id && stillNeedsPayment) {
+          setupClientSecret = await createSetupIntentForCustomer({
+            customerId: row.stripe_customer_id,
+            organizationId: null,
+            userId
+          });
+        }
+
+        res.json({
+          ok: true,
+          org: null,
+          subscriptionClientSecret,
+          setupClientSecret,
+          pendingPayment: true
+        } as OrgOnboardResponse);
+        return true;
+      };
+
+      const { data: deferredExistingRaw } = await supabase
+        .from('stripe_deferred_org_signups')
+        .select('stripe_customer_id, stripe_subscription_id, org_name, plan_code')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      let deferredExisting = deferredExistingRaw as DeferredRow | null;
+
+      if (deferredExisting) {
+        const sameIntent =
+          deferredExisting.org_name === name && deferredExisting.plan_code === planCode;
+        if (!sameIntent) {
+          if (deferredExisting.stripe_subscription_id) {
+            try {
+              const prevSub = await stripe.subscriptions.retrieve(deferredExisting.stripe_subscription_id);
+              if (prevSub.status === 'incomplete') {
+                await stripe.subscriptions.cancel(prevSub.id);
+              }
+            } catch (e) {
+              console.warn('[ONBOARD] cancel prior deferred subscription failed', e);
             }
           }
-          let setupClientSecret: string | null = null;
-          if (!clientSecret && pendingOrg.stripe_customer_id) {
-            setupClientSecret = await createSetupIntentForCustomer({
-              customerId: pendingOrg.stripe_customer_id,
-              organizationId: pendingOrg.id,
-              userId,
+          await supabase.from('stripe_deferred_org_signups').delete().eq('user_id', userId);
+          deferredExisting = null;
+        } else {
+          // Same org name + plan: Stripe customer exists; subscription is created only after PM is on file.
+          if (paymentMethodIdFromRequest && !deferredExisting.stripe_subscription_id) {
+            try {
+              await attachPaymentMethodToDeferredCustomer(
+                paymentMethodIdFromRequest,
+                deferredExisting.stripe_customer_id,
+                userId,
+                req.user?.email
+              );
+            } catch (e) {
+              const code = (e as Error & { code?: string }).code;
+              if (code === 'pm_wrong_customer') {
+                return res.status(400).json({
+                  ok: false,
+                  error: (e as Error).message,
+                  code: 'pm_wrong_customer'
+                } as ApiError);
+              }
+              console.error('[ONBOARD] deferred PM attach failed', e);
+              return res.status(400).json({ ok: false, error: 'Failed to save payment method' } as ApiError);
+            }
+
+            const sub = await stripe.subscriptions.create({
+              customer: deferredExisting.stripe_customer_id,
+              items: [{ price: plan.stripe_price_id }],
+              default_payment_method: paymentMethodIdFromRequest,
+              collection_method: 'charge_automatically',
+              payment_settings: { save_default_payment_method: 'on_subscription' },
+              trial_period_days: td > 0 ? td : undefined,
+              metadata: {
+                user_id: userId,
+                [DEFERRED_ORG_SIGNUP_META]: DEFERRED_ORG_SIGNUP_VALUE,
+                org_name: name,
+                plan_code: planCode,
+                trial_days: String(td)
+              },
+              expand: ['latest_invoice.payment_intent']
             });
+
+            await supabase.from('stripe_deferred_org_signups').upsert(
+              {
+                user_id: userId,
+                stripe_customer_id: deferredExisting.stripe_customer_id,
+                stripe_subscription_id: sub.id,
+                org_name: name,
+                plan_code: planCode,
+                trial_days: td,
+                tz: tzResolved,
+                updated_at: new Date().toISOString()
+              },
+              { onConflict: 'user_id' }
+            );
+
+            if (sub.status === 'active' || sub.status === 'trialing') {
+              const org = await createOrganizationFromDeferredSubscription(stripe, sub);
+              if (org?.id) {
+                return res.json({
+                  ok: true,
+                  org,
+                  pendingPayment: false
+                } as OrgOnboardResponse);
+              }
+            }
+
+            const subscriptionClientSecret = await ensureSubscriptionPaymentClientSecret(stripe, sub);
+            return res.json({
+              ok: true,
+              org: null,
+              subscriptionClientSecret: subscriptionClientSecret ?? null,
+              setupClientSecret: null,
+              pendingPayment: true
+            } as OrgOnboardResponse);
           }
-          return res.json({
-            ok: true,
-            org: pendingOrg as OrganizationRow,
-            subscriptionClientSecret: clientSecret,
-            setupClientSecret,
-            pendingPayment: true
-          } as OrgOnboardResponse);
-        } catch (e) {
-          console.warn('[ONBOARD] Failed to retrieve existing subscription, will continue to create new one:', e);
+
+          if (paymentMethodIdFromRequest && deferredExisting.stripe_subscription_id) {
+            if (await respondDeferred(deferredExisting as DeferredRowWithSub)) {
+              return;
+            }
+          }
+
+          if (!paymentMethodIdFromRequest && !deferredExisting.stripe_subscription_id) {
+            const setupOnly = await createSetupIntentForCustomer({
+              customerId: deferredExisting.stripe_customer_id,
+              organizationId: null,
+              userId
+            });
+            return res.json({
+              ok: true,
+              org: null,
+              subscriptionClientSecret: null,
+              setupClientSecret: setupOnly,
+              pendingPayment: true
+            } as OrgOnboardResponse);
+          }
+
+          if (!paymentMethodIdFromRequest && deferredExisting.stripe_subscription_id) {
+            if (await respondDeferred(deferredExisting as DeferredRowWithSub)) {
+              return;
+            }
+          }
         }
       }
 
-      // Create Stripe Customer for new org's
-      let stripeCustomerId: string | null = pendingOrg.stripe_customer_id || null;
-      if (!stripeCustomerId) {
-        const customer = await stripe.customers.create({
+      if (paymentMethodIdFromRequest && !deferredExisting) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Select your plan first, or your session expired. Go back to the plan step and continue.'
+        } as ApiError);
+      }
+
+      // Same user + same org name/plan/trial must map to one Stripe customer (retries, refresh without DB row).
+      const deferredBodyFingerprint = createHash('sha256')
+        .update(`${name.trim()}\0${planCode}\0${td}`)
+        .digest('hex')
+        .slice(0, 24);
+
+      const customer = await stripe.customers.create(
+        {
           name,
           email: req.user?.email || undefined,
-          metadata: { user_id: userId, organization_id: pendingOrg.id, plan_code: planCode }
-        });
-        stripeCustomerId = customer.id;
-      }
-
-      // Persist customer on org
-      await supabase.from('organizations').update({ stripe_customer_id: stripeCustomerId, updated_at: new Date().toISOString() }).eq('id', pendingOrg.id);
-
-      // Do not mutate customer default payment method here; rely on client confirmation
-
-      // Reuse an existing relevant subscription (same org) if one exists
-      try {
-        const existingList = await stripe.subscriptions.list({
-          customer: stripeCustomerId!,
-          status: 'all',
-          limit: 10
-        });
-        const candidate = existingList.data.find((s) =>
-          pendingOrg && s.metadata?.organization_id === pendingOrg.id &&
-          ['incomplete','trialing','active','past_due'].includes(s.status)
-        );
-        if (candidate) {
-          const reused = await stripe.subscriptions.retrieve(candidate.id, { expand: ['latest_invoice.payment_intent'] });
-          const inv = reused.latest_invoice as Stripe.Invoice | null;
-          let clientSecret: string | null = null;
-          if (inv) {
-            const paymentIntent = (inv as unknown as { payment_intent?: unknown }).payment_intent;
-            if (paymentIntent && typeof paymentIntent === 'object' && 'client_secret' in (paymentIntent as Record<string, unknown>)) {
-              const cs = (paymentIntent as { client_secret?: string }).client_secret;
-              clientSecret = cs || null;
-            }
+          metadata: {
+            user_id: userId,
+            [DEFERRED_ORG_SIGNUP_META]: DEFERRED_ORG_SIGNUP_VALUE,
+            plan_code: planCode
           }
+        },
+        { idempotencyKey: `onboard-def-cust:${userId}:${deferredBodyFingerprint}` }
+      );
+      const stripeCustomerId = customer.id;
+
+      // Recover if Stripe already has an incomplete deferred subscription but our signup row was lost (e.g. refresh).
+      try {
+        const existingSubs = await stripe.subscriptions.list({
+          customer: stripeCustomerId,
+          status: 'all',
+          limit: 20
+        });
+        const reuse = existingSubs.data.find((s) => {
+          const m = s.metadata as Record<string, string> | undefined;
+          return (
+            m?.[DEFERRED_ORG_SIGNUP_META] === DEFERRED_ORG_SIGNUP_VALUE &&
+            m?.user_id === userId &&
+            m?.org_name === name &&
+            m?.plan_code === planCode &&
+            (s.status === 'incomplete' || s.status === 'trialing')
+          );
+        });
+        if (reuse) {
+          const recovered = await stripe.subscriptions.retrieve(reuse.id, {
+            expand: ['latest_invoice.payment_intent']
+          });
+          await cancelDeferredIncompleteSubscriptionsExcept(
+            stripe,
+            stripeCustomerId,
+            userId,
+            recovered.id
+          );
+          await supabase.from('stripe_deferred_org_signups').upsert(
+            {
+              user_id: userId,
+              stripe_customer_id: stripeCustomerId,
+              stripe_subscription_id: recovered.id,
+              org_name: name,
+              plan_code: planCode,
+              trial_days: td,
+              tz: tzResolved,
+              updated_at: new Date().toISOString()
+            },
+            { onConflict: 'user_id' }
+          );
+          let subscriptionClientSecret = await ensureSubscriptionPaymentClientSecret(stripe, recovered);
           let setupClientSecret: string | null = null;
-          if (!clientSecret && stripeCustomerId) {
+          const recoveredNeedsPayment = recovered.status === 'incomplete';
+          if (!subscriptionClientSecret && stripeCustomerId && recoveredNeedsPayment) {
             setupClientSecret = await createSetupIntentForCustomer({
               customerId: stripeCustomerId,
-              organizationId: pendingOrg?.id ?? null,
-              userId,
+              organizationId: null,
+              userId
             });
           }
-
-          // Mirror on org and return without creating a new subscription
-          await supabase.from('organizations')
-            .update({ stripe_subscription_id: reused.id, stripe_status: reused.status as StripeSubStatus, updated_at: new Date().toISOString() })
-            .eq('id', pendingOrg.id);
           return res.json({
             ok: true,
-            org: pendingOrg as OrganizationRow,
-            subscriptionClientSecret: clientSecret,
+            org: null,
+            subscriptionClientSecret,
             setupClientSecret,
             pendingPayment: true
           } as OrgOnboardResponse);
         }
-      } catch (reuseErr) {
-        console.warn('[onboard] subscription reuse check failed (continuing to create new)', reuseErr);
+      } catch (listErr) {
+        console.warn('[ONBOARD] deferred subscription reuse list failed (continuing to create)', listErr);
       }
 
-      // Create subscription requiring client confirmation
-      const sub = await stripe.subscriptions.create(
+      await cancelDeferredIncompleteSubscriptionsExcept(stripe, stripeCustomerId, userId, null);
+
+      await supabase.from('stripe_deferred_org_signups').upsert(
         {
-          customer: stripeCustomerId,
-          items: [{ price: plan.stripe_price_id }],
-          collection_method: 'charge_automatically',
-          payment_behavior: 'default_incomplete',
-          payment_settings: { save_default_payment_method: 'on_subscription' },
-          trial_period_days: trialDays && trialDays > 0 ? trialDays : undefined,
-          metadata: { user_id: userId, organization_id: pendingOrg.id, plan_code: planCode },
-          expand: ['latest_invoice.payment_intent']
+          user_id: userId,
+          stripe_customer_id: stripeCustomerId,
+          stripe_subscription_id: null,
+          org_name: name,
+          plan_code: planCode,
+          trial_days: td,
+          tz: tzResolved,
+          updated_at: new Date().toISOString()
         },
-        {
-          idempotencyKey: `onboard:${pendingOrg.id}:${planCode}`
-        }
+        { onConflict: 'user_id' }
       );
 
-      // Mirror subscription id and status on org
-      try {
-        await supabase
-          .from('organizations')
-          .update({ stripe_subscription_id: sub.id, stripe_status: sub.status as StripeSubStatus, updated_at: new Date().toISOString() })
-          .eq('id', pendingOrg.id);
-      } catch (e) {
-        console.warn('[onboard] failed to mirror subscription on org', e);
-      }
+      const setupClientSecret = await createSetupIntentForCustomer({
+        customerId: stripeCustomerId,
+        organizationId: null,
+        userId
+      });
 
-      const invoice = sub.latest_invoice as Stripe.Invoice | null;
-      let clientSecret: string | null = null;
-      if (invoice) {
-        const paymentIntent = (invoice as unknown as { payment_intent?: unknown }).payment_intent;
-        if (paymentIntent && typeof paymentIntent === 'object' && 'client_secret' in (paymentIntent as Record<string, unknown>)) {
-          const cs = (paymentIntent as { client_secret?: string }).client_secret;
-          clientSecret = cs || null;
-        }
-      }
-      let setupClientSecret: string | null = null;
-      if (!clientSecret && stripeCustomerId) {
-        setupClientSecret = await createSetupIntentForCustomer({
-          customerId: stripeCustomerId,
-          organizationId: pendingOrg?.id ?? null,
-          userId,
-        });
-      }
-
-      const response: OrgOnboardResponse = {
+      return res.json({
         ok: true,
-        org: pendingOrg as OrganizationRow,
-        subscriptionClientSecret: clientSecret,
+        org: null,
+        subscriptionClientSecret: null,
         setupClientSecret,
-      };
-      // Add a hint flag for the UI to show pending state until webhook confirms
-      return res.json({ ...response, pendingPayment: true } as unknown as OrgOnboardResponse);
+        pendingPayment: true
+      } as OrgOnboardResponse);
     }
 
-    // Get or create organization (Renewal path)
+    if (!orgId) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Organization id is required'
+      } as ApiError);
+    }
+
+    // Renewal: existing organization only
     let org: OrganizationRow;
-    if (orgId) {
-      // Try to fetch existing organization
-      const { data: existingOrg, error: orgError } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', orgId)
-        .single();
+    const { data: existingOrg, error: orgError } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('id', orgId)
+      .single();
 
-      if (orgError || !existingOrg) {
-        return res.status(404).json({ 
-          ok: false, 
-          error: 'Organization not found' 
-        } as ApiError);
-      }
-
-      // Verify ownership
-      if (existingOrg.owner_id && existingOrg.owner_id !== userId) {
-        return res.status(403).json({ 
-          ok: false, 
-          error: 'Only the organization owner can onboard billing' 
-        } as ApiError);
-      }
-
-      org = existingOrg;
-    } else {
-      // Create new organization with payment_pending status - will be activated by webhook
-      const { data: newOrg, error: createError } = await supabase
-        .from('organizations')
-        .insert({
-          name,
-          owner_id: userId,
-          status: 'payment_pending',
-          stripe_status: 'incomplete',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select('*')
-        .single();
-
-      if (createError || !newOrg) {
-        console.error('Error creating organization:', createError);
-        return res.status(500).json({ 
-          ok: false, 
-          error: 'Failed to create organization' 
-        } as ApiError);
-      }
-
-      org = newOrg as unknown as OrganizationRow;
+    if (orgError || !existingOrg) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Organization not found'
+      } as ApiError);
     }
+
+    if (existingOrg.owner_id && existingOrg.owner_id !== userId) {
+      return res.status(403).json({
+        ok: false,
+        error: 'Only the organization owner can onboard billing'
+      } as ApiError);
+    }
+
+    org = existingOrg;
 
     // Create or get Stripe customer (ONE customer per org)
     let stripeCustomerId = org.stripe_customer_id;
@@ -970,5 +1236,118 @@ export const getCustomerPaymentMethods = async (req: Request, res: Response) => 
   } catch (err) {
     console.error('Error retrieving customer payment methods:', err);
     return res.status(500).json({ error: 'Failed to retrieve payment methods' });
+  }
+};
+
+/**
+ * Pulls subscription state from Stripe and creates the DB org when the subscription is active/trialing.
+ * Use after PaymentElement confirms payment when webhooks are not delivered (e.g. local dev).
+ */
+export const syncDeferredOrganizationAfterPayment = async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized' } as ApiError);
+    }
+
+    const { data: uo } = await supabase
+      .from('user_organizations')
+      .select('organization_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (uo?.organization_id) {
+      const { data: org, error } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', uo.organization_id)
+        .single();
+      if (!error && org) {
+        return res.json({ ok: true, org: org as OrganizationRow });
+      }
+    }
+
+    const { data: deferred } = await supabase
+      .from('stripe_deferred_org_signups')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!deferred) {
+      return res.status(404).json({ ok: false, error: 'No pending signup found' } as ApiError);
+    }
+    if (!deferred.stripe_subscription_id) {
+      return res.status(409).json({
+        ok: false,
+        error: 'Subscription not started yet — complete the payment step first.',
+        code: 'subscription_not_ready'
+      } as ApiError);
+    }
+
+    let sub = await stripe.subscriptions.retrieve(deferred.stripe_subscription_id, {
+      expand: ['latest_invoice.payment_intent', 'items.data.price']
+    });
+
+    const customerId =
+      typeof sub.customer === 'string' ? sub.customer : deferred.stripe_customer_id;
+
+    if (sub.status === 'incomplete') {
+      try {
+        const cust = await stripe.customers.retrieve(customerId, {
+          expand: ['invoice_settings.default_payment_method']
+        });
+        if (typeof cust !== 'string' && !cust.deleted) {
+          const pmId = defaultPaymentMethodIdFromCustomer(cust);
+          if (pmId) {
+            await completeDeferredSubscriptionPayment(stripe, sub.id, pmId);
+            sub = await stripe.subscriptions.retrieve(deferred.stripe_subscription_id, {
+              expand: ['latest_invoice.payment_intent', 'items.data.price']
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('[sync-deferred] server-side charge attempt failed', e);
+      }
+    }
+
+    if (sub.status === 'active' || sub.status === 'trialing') {
+      let org = await createOrganizationFromDeferredSubscription(stripe, sub);
+      if (!org) {
+        const { data: existing } = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('stripe_subscription_id', sub.id)
+          .maybeSingle();
+        org = (existing as OrganizationRow) ?? null;
+      }
+      if (org?.id) {
+        try {
+          await cancelDeferredIncompleteSubscriptionsExcept(stripe, customerId, userId, sub.id);
+        } catch (e) {
+          console.warn('[sync-deferred] cancel stale subs failed', e);
+        }
+        return res.json({ ok: true, org });
+      }
+      return res.status(500).json({ ok: false, error: 'Could not create organization' } as ApiError);
+    }
+
+    if (sub.status === 'incomplete') {
+      return res.status(409).json({
+        ok: false,
+        error: 'Payment still processing',
+        code: 'subscription_not_ready',
+        subscriptionStatus: sub.status
+      } as ApiError);
+    }
+
+    return res.status(409).json({
+      ok: false,
+      error: `Unexpected subscription status: ${sub.status}`,
+      code: 'unexpected_subscription_status',
+      subscriptionStatus: sub.status
+    } as ApiError);
+  } catch (e) {
+    console.error('syncDeferredOrganizationAfterPayment', e);
+    return res.status(500).json({ ok: false, error: 'Internal server error' } as ApiError);
   }
 };

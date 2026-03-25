@@ -1,3 +1,7 @@
+/**
+ * Site audit / profile onboarding (OnboardingForm).
+ * When paused in AppLayout (SITE_AUDIT_ONBOARDING_PAUSED), users are redirected to /organization-required instead.
+ */
 import PageMeta from '../components/common/PageMeta';
 import OnboardingForm from '../components/auth/OnboardingForm';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';

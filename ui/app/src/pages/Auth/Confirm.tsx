@@ -209,7 +209,7 @@ export default function AuthConfirm() {
 
 							// Success - user is now authenticated and in organization
 							// Redirect immediately to avoid race conditions
-							navigate('/onboarding?verified=true');
+							navigate('/dashboard');
 							return;
 
 						} catch (inviteError) {
@@ -233,7 +233,7 @@ export default function AuthConfirm() {
 						sessionStorage.removeItem('sharkly_return_to');
 						navigate(storedReturnTo, { replace: true });
 					} else {
-						navigate('/onboarding?verified=true');
+						navigate('/organization-required');
 					}
 				}
 			} catch (error) {

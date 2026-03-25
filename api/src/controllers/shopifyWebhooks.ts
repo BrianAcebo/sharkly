@@ -10,10 +10,38 @@ import { clearShopifyConnectionByDomain } from '../services/shopifyService.js';
 
 const secret = process.env.SHOPIFY_API_SECRET || '';
 
-function verifyShopifyWebhookHmac(rawBody: Buffer, hmacHeader: string): boolean {
-	if (!secret || !hmacHeader) return false;
-	const computed = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
-	return crypto.timingSafeEqual(Buffer.from(hmacHeader, 'base64'), Buffer.from(computed, 'base64'));
+/** Shopify sends X-Shopify-Hmac-Sha256 as base64 of HMAC-SHA256(secret, rawBody). Must never throw — invalid input → false → 401. */
+function verifyShopifyWebhookHmac(rawBody: Buffer, hmacHeader: string | string[] | undefined): boolean {
+	if (!secret || !Buffer.isBuffer(rawBody)) return false;
+	const headerVal = Array.isArray(hmacHeader) ? hmacHeader[0] : hmacHeader;
+	if (!headerVal || typeof headerVal !== 'string') return false;
+	const trimmed = headerVal.trim();
+	if (!trimmed) return false;
+
+	const computedDigest = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
+	let received: Buffer;
+	let expected: Buffer;
+	try {
+		received = Buffer.from(trimmed, 'base64');
+		expected = Buffer.from(computedDigest, 'base64');
+	} catch {
+		return false;
+	}
+	if (received.length === 0 || received.length !== expected.length) return false;
+	try {
+		return crypto.timingSafeEqual(received, expected);
+	} catch {
+		return false;
+	}
+}
+
+function shopDomainFromWebhook(req: Request, body: unknown): string {
+	const fromHeader = req.headers['x-shopify-shop-domain'];
+	const h = Array.isArray(fromHeader) ? fromHeader[0] : fromHeader;
+	if (typeof h === 'string' && h.trim()) return h.trim().toLowerCase();
+	const shop = (body as { shop_domain?: string })?.shop_domain;
+	if (typeof shop === 'string' && shop.trim()) return shop.trim().toLowerCase();
+	return '';
 }
 
 /**
@@ -21,19 +49,19 @@ function verifyShopifyWebhookHmac(rawBody: Buffer, hmacHeader: string): boolean 
  * req.body is the raw Buffer (set by express.raw() middleware).
  */
 async function handleWebhook(req: Request, res: Response, action: (shopDomain: string, body: unknown) => Promise<void>): Promise<void> {
-	const hmac = req.headers['x-shopify-hmac-sha256'] as string | undefined;
+	const hmac = req.headers['x-shopify-hmac-sha256'];
 	const rawBody = Buffer.isBuffer(req.body) ? req.body : null;
-	if (!rawBody || !verifyShopifyWebhookHmac(rawBody, hmac || '')) {
-		res.status(401).send('Invalid HMAC');
+	if (!rawBody || !verifyShopifyWebhookHmac(rawBody, hmac)) {
+		res.status(401).send('Unauthorized');
 		return;
 	}
-	const shopDomain = (req.headers['x-shopify-shop-domain'] as string) || '';
 	let body: unknown;
 	try {
 		body = JSON.parse(rawBody.toString('utf8'));
 	} catch {
 		body = {};
 	}
+	const shopDomain = shopDomainFromWebhook(req, body);
 	try {
 		await action(shopDomain, body);
 	} catch (err) {
@@ -58,6 +86,10 @@ export async function customersRedact(req: Request, res: Response): Promise<void
  */
 export async function shopRedact(req: Request, res: Response): Promise<void> {
 	await handleWebhook(req, res, async (shopDomain) => {
+		if (!shopDomain) {
+			console.warn('[Shopify Webhook] shop/redact: missing shop domain after verify');
+			return;
+		}
 		await clearShopifyConnectionByDomain(shopDomain);
 	});
 }
@@ -79,6 +111,10 @@ export async function customersDataRequest(req: Request, res: Response): Promise
  */
 export async function appUninstalled(req: Request, res: Response): Promise<void> {
 	await handleWebhook(req, res, async (shopDomain) => {
+		if (!shopDomain) {
+			console.warn('[Shopify Webhook] app/uninstalled: missing shop domain after verify');
+			return;
+		}
 		await clearShopifyConnectionByDomain(shopDomain);
 	});
 }

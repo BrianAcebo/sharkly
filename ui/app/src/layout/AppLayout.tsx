@@ -25,6 +25,11 @@ import { SiteProvider } from '../contexts/SiteContext';
 import { CROStudioUpgradeProvider } from '../contexts/CROStudioUpgradeContext';
 import { TierUpgradeProvider } from '../contexts/TierUpgradeContext';
 
+/** Site audit / profile onboarding (OnboardingForm) — paused; use org-first flow. Set false to re-enable. */
+const SITE_AUDIT_ONBOARDING_PAUSED = true;
+
+const PATHS_ALLOWED_WITHOUT_ORGAN = ['/organization-required', '/billing-onboarding'] as const;
+
 const LayoutContent: React.FC = () => {
 	const { pathname } = useLocation();
 	const navigate = useNavigate();
@@ -56,11 +61,6 @@ const LayoutContent: React.FC = () => {
 		return null;
 	}
 
-	// For newly created users, prioritize onboarding over organization check
-	if (!user?.completed_onboarding && pathname !== '/onboarding') {
-		return <Navigate to="/onboarding" replace />;
-	}
-
 	const hasOrganization = Boolean(user?.organization_id);
 	// Check if Stripe subscription is incomplete (payment required)
 	const isStripeIncomplete =
@@ -70,17 +70,20 @@ const LayoutContent: React.FC = () => {
 	const isStripeExpired =
 		currentOrg?.stripe_status === 'canceled' || currentOrg?.stripe_status === 'incomplete_expired';
 
-	// Only after onboarding is complete, check organization status
-	if (user?.completed_onboarding) {
-		// Add a small delay to allow user context to update after invitation completion
-		// This prevents race conditions where organization_id might not be immediately available
+	// Paused site-audit onboarding: /onboarding → create org first
+	if (SITE_AUDIT_ONBOARDING_PAUSED && pathname === '/onboarding') {
+		return <Navigate to="/organization-required" replace />;
+	}
+
+	const allowedWithoutOrg = PATHS_ALLOWED_WITHOUT_ORGAN.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
+	// Organization gate — runs for all signed-in users (org membership loaded in AuthProvider)
+	if (!hasOrganization) {
 		if (!hasCheckedOrg) {
 			setTimeout(() => setHasCheckedOrg(true), 100);
 			return <AuthLoading state={AuthLoadingState.LOADING} />;
 		}
-
-		// CRITICAL: If user has NO organization at all, send to organization-required
-		if (!hasOrganization && pathname !== '/organization-required') {
+		if (!allowedWithoutOrg) {
 			return <Navigate to="/organization-required" replace />;
 		}
 	}
@@ -95,8 +98,8 @@ const LayoutContent: React.FC = () => {
 		return <Navigate to="/dashboard" replace />;
 	}
 
-	// Safety fallback: if we're on onboarding but user completed it, redirect to dashboard
-	if (pathname === '/onboarding' && user?.completed_onboarding) {
+	// When site onboarding is re-enabled: finished users shouldn't see /onboarding
+	if (!SITE_AUDIT_ONBOARDING_PAUSED && pathname === '/onboarding' && user?.completed_onboarding) {
 		return <Navigate to="/dashboard" replace />;
 	}
 
@@ -108,7 +111,7 @@ const LayoutContent: React.FC = () => {
 	const organizationForBilling = (currentOrg || trialInfo.organization) as OrganizationRow | null;
 	const stripeStatus = organizationForBilling?.stripe_status;
 	const hasStripeStatus = typeof stripeStatus === 'string';
-	const shouldRequireStripeStatus = Boolean(user?.completed_onboarding && hasOrganization);
+	const shouldRequireStripeStatus = Boolean(hasOrganization);
 
 	if (shouldRequireStripeStatus && !hasStripeStatus) {
 		return <AuthLoading state={AuthLoadingState.LOADING} />;

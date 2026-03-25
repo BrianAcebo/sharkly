@@ -17,8 +17,40 @@ import type { PlanCatalogRow, OrganizationRow, StripeSubStatus } from '../types/
 import { emailService } from '../utils/email.js';
 import { createNotificationForOrgOwner, createNotificationForUser } from '../utils/notifications.js';
 import { isCROAddonPriceId } from '../utils/croAddon.js';
+import {
+	createOrganizationFromDeferredSubscription,
+	DEFERRED_ORG_SIGNUP_META,
+	DEFERRED_ORG_SIGNUP_VALUE
+} from '../utils/deferredOrgSignup.js';
 
 const stripe = getStripeClient();
+
+/** Normalize subscription id from string or expanded Subscription object. */
+function subscriptionRefId(sub: string | Stripe.Subscription | null | undefined): string | null {
+	if (sub == null) return null;
+	if (typeof sub === 'string') return sub;
+	if (typeof sub === 'object' && sub && 'id' in sub) return sub.id;
+	return null;
+}
+
+/**
+ * Stripe 2024+ Invoice puts subscription under parent.subscription_details.
+ * Webhooks may still send legacy top-level subscription — check both.
+ */
+function invoiceSubscriptionId(invoice: Stripe.Invoice): string | null {
+	const fromParent = invoice.parent?.subscription_details?.subscription;
+	if (fromParent != null) return subscriptionRefId(fromParent);
+	const legacy = (invoice as unknown as { subscription?: string | Stripe.Subscription | null }).subscription;
+	return subscriptionRefId(legacy);
+}
+
+function invoiceCustomerId(invoice: Stripe.Invoice): string | null {
+	const c = invoice.customer;
+	if (c == null || c === '') return null;
+	if (typeof c === 'string') return c;
+	if (typeof c === 'object' && c && 'id' in c) return (c as Stripe.Customer).id;
+	return null;
+}
 
 const WALLET_PI_PURPOSES = new Set(['wallet_topup', 'wallet_auto_recharge']);
 
@@ -924,20 +956,6 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
 	const subscriptionId = incoming.id;
 	const customerId = incoming.customer as string | null;
 
-	const org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
-
-	if (!org) {
-		console.warn('[WEBHOOK] Org not found for subscription event', {
-			eventType: event.type,
-			subscriptionId,
-			customerId,
-			reason: 'This may indicate a subscription created outside your app or a Stripe test event'
-		});
-		// Still log the event for audit purposes
-		await logWebhookEvent(event, 'skipped', null, 'Organization not found for subscription');
-		return;
-	}
-
 	let subscription = incoming;
 	try {
 		subscription = await stripe.subscriptions.retrieve(subscriptionId, {
@@ -948,6 +966,45 @@ const handleSubscriptionEvent = async (event: Stripe.Event) => {
 			subscriptionId,
 			error
 		});
+	}
+
+	let org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
+	if (!org) {
+		const created = await createOrganizationFromDeferredSubscription(stripe, subscription);
+		if (created) {
+			org = created;
+			console.log('[WEBHOOK] Created organization from deferred Stripe signup', {
+				orgId: org.id,
+				subscriptionId
+			});
+		}
+	}
+
+	if (!org) {
+		const meta = (subscription.metadata ?? {}) as Record<string, string>;
+		const isDeferred =
+			meta[DEFERRED_ORG_SIGNUP_META] === DEFERRED_ORG_SIGNUP_VALUE && Boolean(meta.user_id);
+		// Normal until the first invoice is paid: subscription stays incomplete; org is created only when active/trialing.
+		if (
+			isDeferred &&
+			(subscription.status === 'incomplete' || subscription.status === 'incomplete_expired')
+		) {
+			await logWebhookEvent(
+				event,
+				'skipped',
+				null,
+				'Deferred signup — waiting for successful payment (subscription not active yet)'
+			);
+			return;
+		}
+		console.warn('[WEBHOOK] Org not found for subscription event', {
+			eventType: event.type,
+			subscriptionId,
+			customerId,
+			reason: 'This may indicate a subscription created outside your app or a Stripe test event'
+		});
+		await logWebhookEvent(event, 'skipped', null, 'Organization not found for subscription');
+		return;
 	}
 
 	const now = new Date();
@@ -1230,6 +1287,10 @@ const handleSubscriptionDeleted = async (event: Stripe.Event) => {
 	const org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
 
 	if (!org) {
+		await supabase
+			.from('stripe_deferred_org_signups')
+			.delete()
+			.eq('stripe_subscription_id', subscriptionId);
 		console.warn('[WEBHOOK] Org not found for subscription deletion', {
 			subscriptionId,
 			customerId
@@ -1462,17 +1523,43 @@ const handleInvoicePaid = async (event: Stripe.Event) => {
 		subscription?: string | Stripe.Subscription | null;
 		last_payment_error?: { message?: string } | null;
 	};
-	const subscriptionId = (invoice.subscription ?? null) as string | null;
-	const customerId = invoice.customer as string | null;
+	const subscriptionId = invoiceSubscriptionId(invoice);
+	const customerId = invoiceCustomerId(invoice);
 	const billingReason = (invoice.billing_reason ?? null) as string | null;
 	console.log('[WEBHOOK] Invoice details:', {
 		invoiceId: invoice.id,
 		billingReason,
 		subscriptionId,
-		customerId
+		customerId,
+		invoiceStatus: invoice.status,
+		eventType: event.type
 	});
 
-	const org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
+	let org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
+	// First paid invoice for deferred signup (subscription_create). Requires normalized subscription/customer IDs above.
+	if (!org && subscriptionId && invoice.status === 'paid') {
+		try {
+			const sub = await stripe.subscriptions.retrieve(subscriptionId, {
+				expand: ['items.data.price']
+			});
+			const created = await createOrganizationFromDeferredSubscription(stripe, sub);
+			if (created) {
+				org = created;
+				console.log('[WEBHOOK] Created organization from deferred signup (invoice.paid)', {
+					orgId: org.id,
+					subscriptionId
+				});
+			} else {
+				console.error('[WEBHOOK] Deferred org not created after paid invoice — check subscription metadata and plan_catalog', {
+					subscriptionId,
+					subscriptionStatus: sub.status,
+					hasDeferredMeta: (sub.metadata as Record<string, string> | undefined)?.deferred_org_signup
+				});
+			}
+		} catch (e) {
+			console.warn('[WEBHOOK] Deferred org creation on invoice.paid failed', e);
+		}
+	}
 	console.log('[WEBHOOK] Found org:', org?.id, 'current status:', org?.status);
 
 	if (!org) {
@@ -1653,8 +1740,8 @@ const handleInvoicePaymentFailed = async (event: Stripe.Event) => {
 		subscription?: string | Stripe.Subscription | null;
 		last_payment_error?: { message?: string } | null;
 	};
-	const subscriptionId = (invoice.subscription ?? null) as string | null;
-	const customerId = invoice.customer as string | null;
+	const subscriptionId = invoiceSubscriptionId(invoice);
+	const customerId = invoiceCustomerId(invoice);
 
 	const org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
 
@@ -1773,8 +1860,8 @@ const handleInvoicePaymentActionRequired = async (event: Stripe.Event) => {
 		subscription?: string | Stripe.Subscription | null;
 		last_payment_error?: { message?: string } | null;
 	};
-	const subscriptionId = (invoice.subscription ?? null) as string | null;
-	const customerId = invoice.customer as string | null;
+	const subscriptionId = invoiceSubscriptionId(invoice);
+	const customerId = invoiceCustomerId(invoice);
 
 	const org = await findOrganizationBySubscriptionOrCustomer(subscriptionId, customerId);
 
@@ -1955,6 +2042,14 @@ const handleCheckoutSessionCompleted = async (event: Stripe.Event) => {
 	}
 };
 
+/**
+ * Deferred org signup (payment before DB org row):
+ * - `customer.subscription.created` — usually `incomplete` until the first invoice is paid; we skip org creation until active/trialing.
+ * - `invoice.paid` / `invoice.payment_succeeded` — first invoice paid; we activate org + run `createOrganizationFromDeferredSubscription` when needed.
+ * - `customer.subscription.updated` — incomplete → active/trialing after PaymentElement confirms; same org creation path.
+ * - `payment_intent.succeeded` on the invoice — handled only for wallet top-ups here; subscription billing does not use PI metadata for orgs.
+ * Local dev: use `stripe listen --forward-to .../api/billing/stripe/webhook` and the CLI `whsec_` as `STRIPE_WEBHOOK_SECRET`.
+ */
 export const handleStripeWebhook = async (req: Request, res: Response) => {
 	const signature = req.headers['stripe-signature'];
 	const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -1974,7 +2069,10 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
 	try {
 		event = stripe.webhooks.constructEvent(req.body, signature, webhookSecret);
 	} catch (error) {
-		console.error('[WEBHOOK] Signature verification failed', error);
+		console.error(
+			'[WEBHOOK] Signature verification failed (use the whsec_ from `stripe listen`, not the Dashboard secret, when testing locally)',
+			error
+		);
 		return res.status(400).json({ error: 'Invalid signature' });
 	}
 
@@ -2030,6 +2128,14 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
 	try {
 		// 5. Handle the event based on type
 		switch (event.type as Stripe.Event['type']) {
+			// Subscription checkout creates PIs too; we only act on wallet_* metadata in handleWalletPaymentIntent.
+			// Billing for subscriptions is driven by invoice.paid / customer.subscription.updated, not this event.
+			case 'payment_intent.created':
+				break;
+			case 'setup_intent.created':
+				break;
+			case 'setup_intent.succeeded':
+				break;
 			case 'payment_intent.succeeded':
 			case 'payment_intent.canceled':
 			case 'payment_intent.payment_failed':

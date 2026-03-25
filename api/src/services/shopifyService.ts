@@ -198,10 +198,13 @@ export async function clearShopifyConnectionByDomain(
 	const normalized = (shopDomain || '')
 		.replace(/^https?:\/\//, '')
 		.replace(/\/.*$/, '')
-		.toLowerCase();
+		.toLowerCase()
+		.trim();
+	if (!normalized) return {};
 	const withMyshopify = normalized.endsWith('.myshopify.com')
 		? normalized
 		: `${normalized}.myshopify.com`;
+	if (withMyshopify === '.myshopify.com') return {};
 
 	const { error } = await supabase
 		.from('sites')

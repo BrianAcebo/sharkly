@@ -117,6 +117,8 @@ export interface OrgOnboardResponse {
 	org: OrganizationRow | null;
 	subscriptionClientSecret?: string | null;
 	setupClientSecret?: string | null;
+	/** True while Stripe subscription is incomplete and org row does not exist yet */
+	pendingPayment?: boolean;
 }
 
 export interface WalletStatus {

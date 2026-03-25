@@ -1,22 +1,21 @@
 import express from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { onboardOrganization, getPlanCatalog, getCustomerPaymentMethodSummary, getCustomerPaymentMethods } from '../controllers/billingOnboarding.js';
-import { handleStripeWebhook } from '../controllers/stripeWebhook.js';
+import {
+  onboardOrganization,
+  getPlanCatalog,
+  getCustomerPaymentMethodSummary,
+  getCustomerPaymentMethods,
+  syncDeferredOrganizationAfterPayment
+} from '../controllers/billingOnboarding.js';
 
 const router = express.Router();
 
 const jsonParser = express.json();
 
-// Apply JSON parsing to all non-webhook routes so req.body is populated
-router.use((req, res, next) => {
-  if (req.path === '/stripe/webhook') {
-    return next();
-  }
-  return jsonParser(req, res, next);
-});
+router.use(jsonParser);
 
 router.use((req, res, next) => {
-  if (req.path === '/stripe/webhook' || req.path.startsWith('/public')) {
+  if (req.path.startsWith('/public')) {
     return next();
   }
   return requireAuth(req, res, next);
@@ -29,8 +28,6 @@ router.get('/orgs/payment-methods', getCustomerPaymentMethods);
 
 // Onboard organization to billing
 router.post('/orgs/onboard', onboardOrganization);
-
-// Stripe webhook (no auth required)
-router.post('/stripe/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+router.post('/orgs/onboard/sync-deferred', syncDeferredOrganizationAfterPayment);
 
 export default router;

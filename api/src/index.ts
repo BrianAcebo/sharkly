@@ -62,20 +62,34 @@ if (process.env.FRONTEND_URL) {
 	allowedOrigins.push(...process.env.FRONTEND_URL.split(',').map((u) => u.trim()));
 }
 
-// CORS: allow local dev + production domains via FRONTEND_URL env var
-app.use(
-	cors({
-		origin: (origin, callback) => {
-			// Allow requests with no origin (e.g. server-to-server, curl)
-			if (!origin) return callback(null, true);
-			if (allowedOrigins.includes(origin)) return callback(null, true);
-			callback(new Error(`CORS: origin ${origin} not allowed`));
-		},
-		credentials: true
-	})
-);
+/** Server-to-server hooks: never apply browser CORS (Shopify/Stripe may send Origin; strict CORS would reject before HMAC runs). */
+function isServerWebhookPath(path: string): boolean {
+	return (
+		path.startsWith('/webhooks/') ||
+		path === '/api/billing/stripe/webhook' ||
+		path === '/api/payments/webhook'
+	);
+}
+
+const corsMiddleware = cors({
+	origin: (origin, callback) => {
+		// Allow requests with no origin (e.g. server-to-server, curl)
+		if (!origin) return callback(null, true);
+		if (allowedOrigins.includes(origin)) return callback(null, true);
+		callback(new Error(`CORS: origin ${origin} not allowed`));
+	},
+	credentials: true
+});
+
+app.use((req, res, next) => {
+	if (isServerWebhookPath(req.path)) {
+		return next();
+	}
+	return corsMiddleware(req, res, next);
+});
 
 // Webhooks BEFORE JSON parsing (replace stubs with real handlers if needed)
+// Public: no JWT — verified via provider signature / HMAC only. Must stay above any future global auth.
 app.post('/api/billing/stripe/webhook', express.raw({ type: '*/*' }), (req, res) =>
 	handleStripeWebhook(req, res)
 );
@@ -83,7 +97,8 @@ app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res) =>
 	handleStripeWebhook(req, res)
 );
 
-// Shopify mandatory webhooks (GDPR + uninstall) — raw body for HMAC verification
+// Shopify mandatory webhooks (GDPR + uninstall) — raw body for HMAC verification.
+// Public: no JWT (Shopify server-to-server). CORS skipped for /webhooks/* above.
 app.post(
 	'/webhooks/shopify/customers-redact',
 	express.raw({ type: '*/*' }),

@@ -16,6 +16,26 @@ interface ProfileData {
 	completed_onboarding: boolean;
 }
 
+/** Always resolve org membership for gating (org-first flow). Site audit onboarding may run before or after. */
+async function fetchUserOrganizationRow(
+	userId: string
+): Promise<{ organization_id: string; role: string } | null> {
+	const { data, error } = await supabase
+		.from('user_organizations')
+		.select('organization_id, role')
+		.eq('user_id', userId)
+		.maybeSingle();
+	if (error) {
+		if (error.code === '406') {
+			console.log('Organization data not accessible yet, skipping');
+			return null;
+		}
+		console.error('Error fetching user organization:', error);
+		return null;
+	}
+	return data;
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 	const [user, setUser] = useState<UserProfile | null>(null);
 	const [session, setSession] = useState<Session | null>(null);
@@ -56,33 +76,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				const profileData = profile as ProfileData;
 				let updatedUser = { ...user };
 
-				// Only try to get user organization if user has completed onboarding
-				// This prevents 406 errors during onboarding when user hasn't joined org yet
-				let userOrg = null;
-				if (profileData.completed_onboarding) {
-					try {
-						const { data, error } = await supabase
-							.from('user_organizations')
-							.select('organization_id, role')
-							.eq('user_id', profileData.id)
-							.single();
-
-						if (error) {
-							if (error.code === 'PGRST116') {
-								// No rows returned - user not in organization yet (this is normal)
-								console.log('User not in organization yet (normal during onboarding)');
-							} else if (error.code === '406') {
-								// 406 error - table might not be accessible yet, skip organization data
-								console.log('Organization data not accessible yet, skipping');
-							} else {
-								console.error('Error fetching user organization:', error);
-							}
-						} else {
-							userOrg = data;
-						}
-					} catch (err) {
-						console.error('Error in organization query:', err);
-					}
+				let userOrg: { organization_id: string; role: string } | null = null;
+				try {
+					userOrg = await fetchUserOrganizationRow(profileData.id);
+				} catch (err) {
+					console.error('Error in organization query:', err);
 				}
 
 				// Handle avatar URL
@@ -155,35 +153,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 				const profileData = profile as ProfileData;
 				let updatedUser = { ...currentSession.user } as UserProfile;
 
-				// Only query user_organizations if user has completed onboarding
-				// This prevents 406 errors during onboarding when user hasn't joined org yet
-				let userOrg = null;
-				if (profileData.completed_onboarding) {
-					try {
-						const { data, error: userOrgError } = await supabase
-							.from('user_organizations')
-							.select('organization_id, role')
-							.eq('user_id', profileData.id)
-							.single();
-
-						if (userOrgError) {
-							if (userOrgError.code === 'PGRST116') {
-								// No rows returned - user not in organization yet (normal during onboarding)
-								console.log('User not in organization yet (normal during onboarding)');
-							} else if (userOrgError.code === '406') {
-								// 406 error - table might not be accessible yet, skip organization data
-								console.log('Organization data not accessible yet, skipping');
-							} else {
-								console.error('Error fetching user organization:', userOrgError);
-							}
-						} else {
-							userOrg = data;
-						}
-					} catch (err) {
-						console.error('Error in organization query:', err);
-					}
-				} else {
-					console.log('User has not completed onboarding, skipping organization query');
+				let userOrg: { organization_id: string; role: string } | null = null;
+				try {
+					userOrg = await fetchUserOrganizationRow(profileData.id);
+				} catch (err) {
+					console.error('Error in organization query:', err);
 				}
 
 				// Handle avatar URL
@@ -261,29 +235,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 						const profileData = profile as ProfileData;
 						let updatedUser = { ...session.user } as UserProfile;
 
-						// Query user_organizations table to get organization and role data
-						// Only query if user has completed onboarding to prevent 406 errors
-						let userOrg = null;
-						if (profileData.completed_onboarding) {
-							const { data, error: userOrgError } = await supabase
-								.from('user_organizations')
-								.select('organization_id, role')
-								.eq('user_id', profileData.id)
-								.single();
-
-							if (userOrgError) {
-								if (userOrgError.code === 'PGRST116') {
-									// No rows returned - user not in organization yet (normal during onboarding)
-									console.log('User not in organization yet (normal during onboarding)');
-								} else if (userOrgError.code === '406') {
-									// 406 error - table might not be accessible yet, skip organization data
-									console.log('Organization data not accessible yet, skipping');
-								} else {
-									console.error('Error fetching user organization:', userOrgError);
-								}
-							} else {
-								userOrg = data;
-							}
+						let userOrg: { organization_id: string; role: string } | null = null;
+						try {
+							userOrg = await fetchUserOrganizationRow(profileData.id);
+						} catch (err) {
+							console.error('Error in organization query:', err);
 						}
 
 						// Handle avatar URL
@@ -418,29 +374,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 						const profileData = profile as ProfileData;
 						let updatedUser = { ...currentUser } as UserProfile;
 
-						// Query user_organizations table to get organization and role data
-						// Only query if user has completed onboarding to prevent 406 errors
-						let userOrg = null;
-						if (profileData.completed_onboarding) {
-							const { data, error: userOrgError } = await supabase
-								.from('user_organizations')
-								.select('organization_id, role')
-								.eq('user_id', profileData.id)
-								.single();
-
-							if (userOrgError) {
-								if (userOrgError.code === 'PGRST116') {
-									// No rows returned - user not in organization yet (normal during onboarding)
-									console.log('User not in organization yet (normal during onboarding)');
-								} else if (userOrgError.code === '406') {
-									// 406 error - table might not be accessible yet, skip organization data
-									console.log('Organization data not accessible yet, skipping');
-								} else {
-									console.error('Error fetching user organization:', userOrgError);
-								}
-							} else {
-								userOrg = data;
-							}
+						let userOrg: { organization_id: string; role: string } | null = null;
+						try {
+							userOrg = await fetchUserOrganizationRow(profileData.id);
+						} catch (err) {
+							console.error('Error in organization query:', err);
 						}
 
 						// Handle avatar URL

@@ -30,6 +30,33 @@ import { api } from '../../utils/api';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY!);
 
+/** Creates DB org from Stripe when webhooks are missing (local dev); safe to call in prod too. */
+async function syncDeferredOrganizationAfterPayment(accessToken: string): Promise<{ ok: boolean; org?: { id: string } }> {
+	const maxAttempts = 45;
+	for (let i = 0; i < maxAttempts; i++) {
+		const resp = await api.post(
+			'/api/billing/orgs/onboard/sync-deferred',
+			{},
+			{
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+					'Content-Type': 'application/json'
+				}
+			}
+		);
+		if (resp.ok) {
+			const data = (await resp.json()) as { org?: { id: string } };
+			if (data.org?.id) return { ok: true, org: data.org };
+		}
+		if (resp.status === 409) {
+			await new Promise((r) => setTimeout(r, 600));
+			continue;
+		}
+		break;
+	}
+	return { ok: false };
+}
+
 interface SeamlessBillingFlowProps {
 	onClose: () => void;
 	existingOrganization?: {
@@ -147,14 +174,45 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 					const err = await resp.json().catch(() => ({}));
 					throw new Error(err.error || err.message || 'Failed to create organization');
 				}
-				const result = await resp.json();
-				// New policy: org may be null for new flow (created after payment via webhook)
-				// We don't update clientSecret here; parent controls it when needed
+				const result = (await resp.json()) as {
+					org?: { id: string } | null;
+					subscriptionClientSecret?: string | null;
+					setupClientSecret?: string | null;
+					pendingPayment?: boolean;
+				};
 				if (result.org?.id) setOrgId(result.org.id);
+				return result;
 			};
 
-			// PATH 1: SetupIntent ONLY
-			if (setupClientSecret && !clientSecret) {
+			// Prefer confirming the subscription invoice PaymentIntent (invoice.confirmation_secret / legacy PI).
+			// SetupIntent alone only saves the card; it does not pay the subscription invoice or leave `incomplete`.
+			if (clientSecret) {
+				const { error: piErr } = await stripe.confirmPayment({
+					elements,
+					clientSecret,
+					redirect: 'if_required'
+				});
+				if (piErr) {
+					onError(piErr.message ?? 'Payment failed');
+					return;
+				}
+				// The subscription and PI were created in the previous step.
+				// Do NOT call /onboard again here or you'll create a second subscription that auto-pays.
+
+				const synced = await syncDeferredOrganizationAfterPayment(session.access_token);
+				if (!synced.ok || !synced.org?.id) {
+					onError(
+						'Your payment went through, but we could not create your organization yet. Try again in a few seconds, or contact support if this persists.'
+					);
+					return;
+				}
+				setOrgId(synced.org.id);
+
+				await onSuccess();
+				return;
+			}
+
+			if (setupClientSecret) {
 				const { error: setupError, setupIntent } = await stripe.confirmSetup({
 					elements,
 					clientSecret: setupClientSecret,
@@ -178,50 +236,38 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 
 				// Client-side no longer blocks when PM is on a different customer; backend will safely migrate it if allowed
 
-				await onboard({ pmId, useExisting: false });
-				toast.success('Payment method saved');
-				await onSuccess();
-				return;
-			}
-
-			// PATH 2: PaymentIntent ONLY
-			if (clientSecret && !setupClientSecret) {
-				const { error: piErr } = await stripe.confirmPayment({
-					elements,
-					clientSecret,
-					redirect: 'if_required'
-				});
-				if (piErr) {
-					onError(piErr.message ?? 'Payment failed');
+				const afterOnboard = await onboard({ pmId, useExisting: false });
+				if (afterOnboard.org?.id) {
+					setOrgId(afterOnboard.org.id);
+					await onSuccess();
 					return;
 				}
-				// The subscription and PI were created in the previous step.
-				// Do NOT call /onboard again here or you'll create a second subscription that auto-pays.
-				toast.success('Payment succeeded. Finalizing organization setup...');
-
-				// In test/development, manually trigger webhook confirmation since webhooks may not fire
-				if (import.meta.env.DEV) {
-					try {
-						const {
-							data: { session }
-						} = await supabase.auth.getSession();
-						if (session?.access_token) {
-							await api.post(
-								'/api/billing/test/confirm-payment',
-								{},
-								{
-									headers: {
-										Authorization: `Bearer ${session.access_token}`
-									}
-								}
-							);
-						}
-					} catch (e) {
-						console.warn('[PaymentForm] Failed to trigger test webhook confirmation:', e);
-						// Continue anyway; webhook may still fire
+				// Legacy / 3DS: subscription created but invoice PI still needs client confirmation.
+				if (afterOnboard.subscriptionClientSecret) {
+					const { error: submitPiErr } = await elements.submit();
+					if (submitPiErr) {
+						onError(submitPiErr.message ?? 'Unable to process payment details');
+						return;
+					}
+					const { error: piErr } = await stripe.confirmPayment({
+						elements,
+						clientSecret: afterOnboard.subscriptionClientSecret,
+						redirect: 'if_required'
+					});
+					if (piErr) {
+						onError(piErr.message ?? 'Payment failed');
+						return;
 					}
 				}
 
+				const synced = await syncDeferredOrganizationAfterPayment(session.access_token);
+				if (!synced.ok || !synced.org?.id) {
+					onError(
+						'We could not finish creating your organization. Your card may be saved — try again in a moment or contact support.'
+					);
+					return;
+				}
+				setOrgId(synced.org.id);
 				await onSuccess();
 				return;
 			}
@@ -785,6 +831,7 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 
 		setCompletedSteps(['organization', 'plan', 'payment', 'success']);
 		setCurrentStep('success');
+		await refreshUser();
 		toast.success('Organization created successfully!');
 	};
 

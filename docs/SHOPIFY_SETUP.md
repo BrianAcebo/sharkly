@@ -47,18 +47,51 @@ The Shopify app has no embedded UI. When a merchant installs from the App Store 
 
 **Option B — Direct signup:** Set App URL to `https://sharkly-api.fly.dev/api/shopify/app-redirect`. Shopify appends `?shop=store.myshopify.com`; the endpoint redirects to `https://sharkly.co/signup?shopify_store=store.myshopify.com` so the merchant can create a Sharkly account and connect from Settings → Integrations.
 
-## Mandatory webhooks (GDPR + uninstall)
+## Mandatory webhooks (GDPR + App Store compliance)
 
-Register these in Shopify Partner Dashboard (or via API). **Base URL:** `https://sharkly-api.fly.dev`.
+Shopify’s automated checks require **both**:
 
-| Topic | URL | Purpose |
-|-------|-----|---------|
-| `customers/redact` | `POST /webhooks/shopify/customers-redact` | Customer requested data deletion. Sharkly stores no customer data — respond 200. |
-| `shop/redact` | `POST /webhooks/shopify/shop-redact` | 48h after uninstall. Clears `shopify_domain` and `shopify_access_token` for that shop; site and content preserved. |
-| `customers/data_request` | `POST /webhooks/shopify/customers-data-request` | Customer requested their data. We store no customer PII — respond 200. |
-| `app/uninstalled` | `POST /webhooks/shopify/app-uninstalled` | App uninstalled. Same as shop/redact: clear tokens for that shop. |
+1. **Registered HTTPS URLs** for the three [mandatory compliance topics](https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance) in the **Partner Dashboard** (same host as your running API — **not** Supabase `api.sharkly.co`).
+2. **HMAC verification** using your app’s **client secret** (`SHOPIFY_API_SECRET`). Invalid signature → **401**; valid → **200** quickly.
 
-All webhooks verify `X-Shopify-Hmac-SHA256` using `SHOPIFY_API_SECRET` and respond 200 after processing.
+### Where to register (Partner Dashboard)
+
+1. [Shopify Partners](https://partners.shopify.com) → **Apps** → your app.
+2. Open **Versions** → your active app version (or **App setup** / **Configuration**, depending on UI).
+3. Find **Mandatory compliance webhooks** (or **Privacy** / **GDPR webhooks**).
+4. Enter the **full HTTPS URLs** below (replace the host with your production API if different, e.g. same origin as `SHOPIFY_REDIRECT_URI`).
+
+### Exact URLs (path must match Express routes)
+
+Use your real API base (example: Fly deploy):
+
+| Compliance topic (Shopify) | Full URL (example) |
+|----------------------------|--------------------|
+| **Customer data request** (`customers/data_request`) | `https://sharkly-api.fly.dev/webhooks/shopify/customers-data-request` |
+| **Customer redact** (`customers/redact`) | `https://sharkly-api.fly.dev/webhooks/shopify/customers-redact` |
+| **Shop redact** (`shop/redact`) | `https://sharkly-api.fly.dev/webhooks/shopify/shop-redact` |
+
+Optional (recommended, not one of the three mandatory compliance topics):
+
+| Topic | Full URL (example) |
+|-------|---------------------|
+| `app/uninstalled` | `https://sharkly-api.fly.dev/webhooks/shopify/app-uninstalled` |
+
+### Server behavior
+
+- **Method:** `POST` only, `Content-Type: application/json`, raw body preserved (see `api/src/index.ts` — `express.raw` **before** `express.json()`).
+- **Headers:** Verifies `X-Shopify-Hmac-Sha256` with HMAC-SHA256 of the **raw** body and `SHOPIFY_API_SECRET`. Missing/invalid HMAC → **401 Unauthorized** (required by Shopify).
+- **Success:** **200** after handling (empty body is fine).
+
+### Common submission failures
+
+- Compliance URLs still point at **localhost**, a tunnel that is down, or **Supabase** instead of the Express API.
+- **`SHOPIFY_API_SECRET`** on Fly (or prod) does not match the app’s **Client secret** in the Partner Dashboard (e.g. after rotating the secret).
+- Typo in path (`customers-data-request` vs `customers/data_request` in the URL path — Shopify topic uses a slash; our path uses hyphens as in the table above).
+
+### `shopify.app.toml` (Shopify CLI apps only)
+
+If you later manage the app with the CLI, subscribe compliance webhooks as in [Shopify’s docs](https://shopify.dev/docs/apps/build/compliance/privacy-law-compliance#subscribe-to-compliance-webhooks). This repo’s production app is **Express on Fly**; registration is normally via the Partner Dashboard, not TOML.
 
 ## Signup with Shopify store
 
