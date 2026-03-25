@@ -46,6 +46,10 @@ export const api = {
     return this.request(endpoint, { ...(options ?? {}), method: 'PUT', data });
   },
 
+  patch(endpoint: string, data?: unknown, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
+    return this.request(endpoint, { ...(options ?? {}), method: 'PATCH', data });
+  },
+
   delete(endpoint: string, options?: Omit<RequestInit, 'method' | 'body'>): Promise<Response> {
     return this.request(endpoint, { ...(options ?? {}), method: 'DELETE' });
   }

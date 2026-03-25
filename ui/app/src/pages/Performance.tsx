@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router';
 import { useSites } from '../hooks/useSites';
+import { api } from '../utils/api';
 import { TierGate, useTierGateContext } from '../components/common/TierGate';
 import { LawTooltip } from '../components/shared/LawTooltip';
 
@@ -186,9 +187,7 @@ export default function Performance() {
 									onClick={async () => {
 										try {
 											setIsSyncing(true);
-											const res = await fetch('/api/gsc/sync', {
-												method: 'POST'
-											});
+											const res = await api.post('/api/gsc/sync');
 											if (res.ok) {
 												const result = (await res.json()) as {
 													synced: number;

@@ -48,7 +48,7 @@ import {
 import { cn } from '../utils/common';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
-import { buildApiUrl } from '../utils/urls';
+import { api } from '../utils/api';
 import { CREDIT_COSTS } from '../lib/credits';
 import { CreditBadge } from '../components/shared/CreditBadge';
 import { TaskProgressWidget } from '../components/shared/TaskProgressWidget';
@@ -1053,16 +1053,12 @@ export default function ClusterDetail() {
 		}
 		setOpenCROStudioLoading(true);
 		try {
-			const res = await fetch(buildApiUrl('/api/cro-studio/audits'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({
-					page_url: cluster.destinationPageUrl.trim(),
-					page_type: 'destination_page',
-					page_label: cluster.destinationPageLabel?.trim() || null,
-					cluster_id: cluster.id,
-					site_id: cluster.siteId ?? null
-				})
+			const res = await api.post('/api/cro-studio/audits', {
+				page_url: cluster.destinationPageUrl.trim(),
+				page_type: 'destination_page',
+				page_label: cluster.destinationPageLabel?.trim() || null,
+				cluster_id: cluster.id,
+				site_id: cluster.siteId ?? null
 			});
 			const data = await res.json().catch(() => ({}));
 			if (res.ok && data.audit_id) {
@@ -1165,11 +1161,8 @@ export default function ClusterDetail() {
 				} = await supabase.auth.getSession();
 				const token = session?.access_token;
 				if (token) {
-					const res = await fetch(
-						buildApiUrl(
-							`/api/sites/${cluster.siteId}/check-cannibalization?keyword=${encodeURIComponent(keyword)}`
-						),
-						{ headers: { Authorization: `Bearer ${token}` } }
+					const res = await api.get(
+						`/api/sites/${cluster.siteId}/check-cannibalization?keyword=${encodeURIComponent(keyword)}`
 					);
 					if (res.ok) {
 						const data = (await res.json()) as {
@@ -1268,10 +1261,8 @@ export default function ClusterDetail() {
 				setRegenWidgetError('Not signed in.');
 				return;
 			}
-			const res = await fetch(buildApiUrl(`/api/clusters/${id}/regenerate`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({ maxArticles: regenArticleCount })
+			const res = await api.post(`/api/clusters/${id}/regenerate`, {
+				maxArticles: regenArticleCount
 			});
 
 			if (!res.ok) {

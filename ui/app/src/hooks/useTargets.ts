@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../utils/supabaseClient';
-import { buildApiUrl } from '../utils/urls';
+import { api } from '../utils/api';
 import type { Target, CreateTargetInput, UpdateTargetInput } from '../types/target';
 
 function mapApiToTarget(raw: {
@@ -27,14 +26,6 @@ function mapApiToTarget(raw: {
 	};
 }
 
-async function getAuthHeaders(): Promise<HeadersInit> {
-	const { data: { session } } = await supabase.auth.getSession();
-	return {
-		'Content-Type': 'application/json',
-		...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-	};
-}
-
 export function useTargets(siteId: string | null) {
 	const [targets, setTargets] = useState<Target[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -49,8 +40,7 @@ export function useTargets(siteId: string | null) {
 		try {
 			setLoading(true);
 			setError(null);
-			const headers = await getAuthHeaders();
-			const res = await fetch(buildApiUrl(`/api/sites/${siteId}/targets`), { headers });
+			const res = await api.get(`/api/sites/${siteId}/targets`);
 			if (!res.ok) {
 				const err = (await res.json().catch(() => ({}))) as { error?: string };
 				throw new Error(err?.error ?? 'Failed to load targets');
@@ -83,12 +73,7 @@ export function useTargets(siteId: string | null) {
 		async (input: CreateTargetInput): Promise<{ target: Target | null; error: string | null }> => {
 			if (!siteId) return { target: null, error: 'No site selected' };
 			try {
-				const headers = await getAuthHeaders();
-				const res = await fetch(buildApiUrl(`/api/sites/${siteId}/targets`), {
-					method: 'POST',
-					headers,
-					body: JSON.stringify(input)
-				});
+				const res = await api.post(`/api/sites/${siteId}/targets`, input);
 				const data = (await res.json().catch(() => ({}))) as {
 					id?: string;
 					siteId?: string;
@@ -118,12 +103,7 @@ export function useTargets(siteId: string | null) {
 	const updateTarget = useCallback(
 		async (targetId: string, input: UpdateTargetInput): Promise<{ error: string | null }> => {
 			try {
-				const headers = await getAuthHeaders();
-				const res = await fetch(buildApiUrl(`/api/targets/${targetId}`), {
-					method: 'PATCH',
-					headers,
-					body: JSON.stringify(input)
-				});
+				const res = await api.patch(`/api/targets/${targetId}`, input);
 				const data = (await res.json().catch(() => ({}))) as { error?: string } & Parameters<typeof mapApiToTarget>[0];
 				if (!res.ok) throw new Error(data?.error ?? 'Failed to update target');
 				const target = mapApiToTarget(data);
@@ -142,11 +122,7 @@ export function useTargets(siteId: string | null) {
 
 	const deleteTarget = useCallback(async (targetId: string): Promise<{ error: string | null }> => {
 		try {
-			const headers = await getAuthHeaders();
-			const res = await fetch(buildApiUrl(`/api/targets/${targetId}`), {
-				method: 'DELETE',
-				headers
-			});
+			const res = await api.delete(`/api/targets/${targetId}`);
 			if (!res.ok) {
 				const data = (await res.json().catch(() => ({}))) as { error?: string };
 				throw new Error(data?.error ?? 'Failed to delete target');

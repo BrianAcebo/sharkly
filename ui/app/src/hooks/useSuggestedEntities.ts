@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { api } from '../utils/api';
 
 export type SuggestedEntity = {
   entity_type: 'email' | 'phone' | 'domain' | 'ip' | 'social_profile' | 'username' | string;
@@ -29,7 +30,7 @@ export function useSuggestedEntities(runId: string | null) {
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`/api/runs/${encodeURIComponent(runId)}/suggested-entities`);
+      const resp = await api.get(`/api/runs/${encodeURIComponent(runId)}/suggested-entities`);
       if (!resp.ok) {
         const txt = await resp.text();
         throw new Error(txt || `Failed to load suggested entities (HTTP ${resp.status})`);
@@ -99,10 +100,9 @@ export function useSuggestedEntities(runId: string | null) {
   const promote = async (runId: string, entity_type: string, value_normalized: string) => {
     removeCandidate(entity_type, value_normalized);
     try {
-      await fetch(`/api/runs/${encodeURIComponent(runId)}/promote-entity`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity_type, value_normalized })
+      await api.post(`/api/runs/${encodeURIComponent(runId)}/promote-entity`, {
+        entity_type,
+        value_normalized
       });
     } catch {
       // swallow for now; optimistic removal
@@ -112,10 +112,10 @@ export function useSuggestedEntities(runId: string | null) {
   const ignore = async (runId: string, entity_type: string, value_normalized: string) => {
     removeCandidate(entity_type, value_normalized);
     try {
-      await fetch(`/api/runs/${encodeURIComponent(runId)}/mention-decision`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity_type, value_normalized, decision: 'ignored' })
+      await api.post(`/api/runs/${encodeURIComponent(runId)}/mention-decision`, {
+        entity_type,
+        value_normalized,
+        decision: 'ignored' as const
       });
     } catch {
       // swallow

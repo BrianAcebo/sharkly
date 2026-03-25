@@ -28,6 +28,7 @@ import { PageHeader } from '../components/layout/PageHeader';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
 import { StatCard } from '../components/shared/StatCard';
 import { Button } from '../components/ui/button';
+import { api } from '../utils/api';
 import {
 	Dialog,
 	DialogContent,
@@ -120,12 +121,10 @@ export default function CROStudio() {
 	const fetchAudits = useCallback(() => {
 		if (!canAccess || !session?.access_token || !selectedSite?.id) return;
 		setLoading(true);
-		fetch(
-			`/api/cro-studio/audits?page_type=${activeTab}&site_id=${encodeURIComponent(selectedSite.id)}`,
-			{
-				headers: { Authorization: `Bearer ${session.access_token}` }
-			}
-		)
+		api
+			.get(
+				`/api/cro-studio/audits?page_type=${activeTab}&site_id=${encodeURIComponent(selectedSite.id)}`
+			)
 			.then((res) => res.json())
 			.then((data) => {
 				if (data.audits) setAudits(data.audits);
@@ -145,10 +144,7 @@ export default function CROStudio() {
 			if (!session?.access_token) return;
 			setDeleting(true);
 			try {
-				await fetch(`/api/cro-studio/audits/${id}`, {
-					method: 'DELETE',
-					headers: { Authorization: `Bearer ${session.access_token}` }
-				});
+				await api.delete(`/api/cro-studio/audits/${id}`);
 				setAudits((prev) => prev.filter((a) => a.id !== id));
 			} finally {
 				setDeleting(false);
@@ -457,7 +453,6 @@ export default function CROStudio() {
 					fetchAudits();
 					navigate(`/cro-studio/audit/${auditId}`);
 				}}
-				getAuthHeader={() => ({ Authorization: `Bearer ${session?.access_token}` })}
 				initialSiteId={selectedSite?.id ?? undefined}
 			/>
 

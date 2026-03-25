@@ -8,6 +8,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
+import { api } from '../utils/api';
 
 interface GSCProperty {
 	siteUrl: string;
@@ -35,7 +36,7 @@ export default function GSCSelectProperty() {
 				}
 
 				// Call backend to get properties from cache
-				const res = await fetch(`/api/gsc/properties?cacheKey=${encodeURIComponent(cacheKey)}`);
+				const res = await api.get(`/api/gsc/properties?cacheKey=${encodeURIComponent(cacheKey)}`);
 
 				if (!res.ok) {
 					throw new Error('Failed to fetch GSC properties');
@@ -73,13 +74,9 @@ export default function GSCSelectProperty() {
 		try {
 			setSaving(true);
 
-			const res = await fetch('/api/gsc/save', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					gscPropertyUrl: selectedProperty,
-					cacheKey
-				})
+			const res = await api.post('/api/gsc/save', {
+				gscPropertyUrl: selectedProperty,
+				cacheKey
 			});
 
 			if (!res.ok) {

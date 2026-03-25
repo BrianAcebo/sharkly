@@ -49,6 +49,7 @@ import { CreditCost } from '../components/shared/CreditBadge';
 import { CREDIT_COSTS } from '../lib/credits';
 import { TierGate } from '../components/common/TierGate';
 import { LawTooltip } from '../components/shared/LawTooltip';
+import { api } from '../utils/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -642,7 +643,7 @@ function EEATTrustPanel({
 	const fetchEEAT = useCallback(async (evaluate = false) => {
 		try {
 			const url = `/api/sites/${siteId}/eeat${evaluate ? '?evaluate=1' : ''}`;
-			const res = await fetch(url, { credentials: 'include' });
+			const res = await api.get(url, { credentials: 'include' });
 			if (!res.ok) throw new Error('Failed to fetch');
 			const json = await res.json();
 			setData({ eeat_score: json.eeat_score ?? 0, eeat_checklist: json.eeat_checklist ?? null });
@@ -887,7 +888,7 @@ function LinkVelocityPanel({
 	const fetchVelocity = useCallback(async () => {
 		try {
 			setLoading(true);
-			const res = await fetch(`/api/sites/${siteId}/link-velocity`, { credentials: 'include' });
+			const res = await api.get(`/api/sites/${siteId}/link-velocity`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Failed to fetch');
 			const json = await res.json();
 			setData(json);
@@ -910,8 +911,7 @@ function LinkVelocityPanel({
 		}
 		setRunning(true);
 		try {
-			const res = await fetch(`/api/sites/${siteId}/link-velocity`, {
-				method: 'POST',
+			const res = await api.post(`/api/sites/${siteId}/link-velocity`, undefined, {
 				credentials: 'include'
 			});
 			const result = await res.json();
@@ -1058,7 +1058,7 @@ function ToxicLinksPanel({
 	const fetchAudit = useCallback(async () => {
 		try {
 			setLoading(true);
-			const res = await fetch(`/api/sites/${siteId}/toxic-links-audit`, { credentials: 'include' });
+			const res = await api.get(`/api/sites/${siteId}/toxic-links-audit`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Failed to fetch');
 			const json = await res.json();
 			setAudit(json.audit ?? null);
@@ -1081,8 +1081,7 @@ function ToxicLinksPanel({
 		}
 		setRunning(true);
 		try {
-			const res = await fetch(`/api/sites/${siteId}/toxic-links-audit`, {
-				method: 'POST',
+			const res = await api.post(`/api/sites/${siteId}/toxic-links-audit`, undefined, {
 				credentials: 'include'
 			});
 			const data = await res.json();
@@ -1242,7 +1241,7 @@ function InternalLinkGapsPanel({ siteId }: { siteId: string }) {
 	const fetchGaps = useCallback(async () => {
 		try {
 			setLoading(true);
-			const res = await fetch(`/api/sites/${siteId}/internal-link-gaps`, { credentials: 'include' });
+			const res = await api.get(`/api/sites/${siteId}/internal-link-gaps`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Failed to fetch');
 			const json = await res.json();
 			setData(json);
@@ -1603,7 +1602,7 @@ export default function Technical() {
 	const fetchResults = useCallback(async () => {
 		if (!selectedSite) return;
 		try {
-			const response = await fetch(`/api/crawler/results/${selectedSite.id}`);
+			const response = await api.get(`/api/crawler/results/${selectedSite.id}`);
 			if (!response.ok) throw new Error('Failed to fetch results');
 			const data = await response.json();
 			setResults(data.data);
@@ -1620,11 +1619,7 @@ export default function Technical() {
 		const key = issueIds[0];
 		setResolving((p) => ({ ...p, [key]: true }));
 		try {
-			const resp = await fetch('/api/crawler/fix-bulk', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ issueIds })
-			});
+			const resp = await api.post('/api/crawler/fix-bulk', { issueIds });
 			if (!resp.ok) throw new Error('Failed to mark resolved');
 			toast.success(`${issueIds.length} issue${issueIds.length > 1 ? 's' : ''} marked as resolved`);
 			await fetchResults();
@@ -1642,10 +1637,8 @@ export default function Technical() {
 		setCrawlabilityIssues([]);
 
 		try {
-			const checkResp = await fetch('/api/crawler/check-crawlability', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ siteUrl: selectedSite.url })
+			const checkResp = await api.post('/api/crawler/check-crawlability', {
+				siteUrl: selectedSite.url
 			});
 			if (!checkResp.ok) {
 				toast.error('Error checking site');
@@ -1669,16 +1662,12 @@ export default function Technical() {
 
 		setLoading(true);
 		try {
-			const response = await fetch('/api/crawler/start', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					organizationId: organization.id,
-					siteId: selectedSite.id,
-					siteUrl: selectedSite.url,
-					userId: user.id,
-					maxPages: 100
-				})
+			const response = await api.post('/api/crawler/start', {
+				organizationId: organization.id,
+				siteId: selectedSite.id,
+				siteUrl: selectedSite.url,
+				userId: user.id,
+				maxPages: 100
 			});
 			if (!response.ok) {
 				const err = await response.json();

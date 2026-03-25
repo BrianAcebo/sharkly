@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { api } from '../utils/api';
 
 export type ExtractedEntity = {
 	entity_type: 'email' | 'phone' | 'domain' | 'ip' | 'url' | 'social_profile' | 'username' | string;
@@ -35,7 +36,7 @@ export function useExtractedEntities(runId: string | null) {
 			try {
 				setLoading(true);
 				setError(null);
-				const resp = await fetch(`/api/runs/${encodeURIComponent(runId)}/extracted-entities`);
+				const resp = await api.get(`/api/runs/${encodeURIComponent(runId)}/extracted-entities`);
 				if (!resp.ok) {
 					const txt = await resp.text();
 					throw new Error(txt || `Failed to load extracted entities (HTTP ${resp.status})`);

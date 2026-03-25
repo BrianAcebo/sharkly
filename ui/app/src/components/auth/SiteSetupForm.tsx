@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { supabase } from '../../utils/supabaseClient';
 import useAuth from '../../hooks/useAuth';
 import { toast } from 'sonner';
-import { buildApiUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 import { Check, Loader2 } from 'lucide-react';
 import { useSiteContext } from '../../contexts/SiteContext';
 import { waitForOrganizationMembership } from '../../utils/waitForOrganizationMembership';
@@ -87,19 +87,12 @@ export default function SiteSetupForm() {
 				throw new Error('Not authenticated');
 			}
 
-			const res = await fetch(buildApiUrl('/api/onboarding/complete'), {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({
-					url: normalized,
-					businessName: businessName.trim(),
-					niche: niche.trim(),
-					customerDescription: customerDescription.trim(),
-					platform
-				})
+			const res = await api.post('/api/onboarding/complete', {
+				url: normalized,
+				businessName: businessName.trim(),
+				niche: niche.trim(),
+				customerDescription: customerDescription.trim(),
+				platform
 			});
 
 			const data = await res.json().catch(() => ({}));

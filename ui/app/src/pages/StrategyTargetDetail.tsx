@@ -38,7 +38,7 @@ import { useTargets } from '../hooks/useTargets';
 import { useStrategyRuns } from '../hooks/useStrategyRuns';
 import { useOrganization } from '../hooks/useOrganization';
 import { supabase } from '../utils/supabaseClient';
-import { buildApiUrl } from '../utils/urls';
+import { api } from '../utils/api';
 import { toast } from 'sonner';
 import {
 	DndContext,
@@ -518,9 +518,8 @@ export default function StrategyTargetDetail() {
 				} = await supabase.auth.getSession();
 				const token = session?.access_token;
 				if (!token) return;
-				const res = await fetch(
-					buildApiUrl(`/api/ecommerce?siteId=${encodeURIComponent(selectedSite.id)}`),
-					{ headers: { Authorization: `Bearer ${token}` } }
+				const res = await api.get(
+					`/api/ecommerce?siteId=${encodeURIComponent(selectedSite.id)}`
 				);
 				if (!res.ok || cancelled) return;
 				const data = (await res.json()) as {
@@ -640,11 +639,7 @@ export default function StrategyTargetDetail() {
 				setClusterWidgetError('Not signed in.');
 				return;
 			}
-			const res = await fetch(buildApiUrl('/api/clusters'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({ topicId, maxArticles })
-			});
+			const res = await api.post('/api/clusters', { topicId, maxArticles });
 
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
@@ -757,12 +752,7 @@ export default function StrategyTargetDetail() {
 				toast.error('Please sign in to continue');
 				return;
 			}
-			const res = await fetch(buildApiUrl('/api/strategy/keyword-metrics'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				credentials: 'include',
-				body: JSON.stringify({ keyword })
-			});
+			const res = await api.post('/api/strategy/keyword-metrics', { keyword }, { credentials: 'include' });
 			if (res.ok) {
 				const data = await res.json();
 				if (
@@ -802,11 +792,8 @@ export default function StrategyTargetDetail() {
 				} = await supabase.auth.getSession();
 				const token = session?.access_token;
 				if (token) {
-					const res = await fetch(
-						buildApiUrl(
-							`/api/sites/${selectedSite.id}/check-cannibalization?keyword=${encodeURIComponent(keyword)}`
-						),
-						{ headers: { Authorization: `Bearer ${token}` } }
+					const res = await api.get(
+						`/api/sites/${selectedSite.id}/check-cannibalization?keyword=${encodeURIComponent(keyword)}`
 					);
 					if (res.ok) {
 						const data = (await res.json()) as {
@@ -1034,14 +1021,10 @@ export default function StrategyTargetDetail() {
 				setTaskError('Authentication required. Please sign in.');
 				return;
 			}
-			const res = await fetch(buildApiUrl('/api/strategy/suggest'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({
-					siteId: selectedSite!.id,
-					seedKeywords: seeds,
-					...(targetId && { targetId })
-				})
+			const res = await api.post('/api/strategy/suggest', {
+				siteId: selectedSite!.id,
+				seedKeywords: seeds,
+				...(targetId && { targetId })
 			});
 
 			if (!res.ok) {
@@ -1174,10 +1157,9 @@ export default function StrategyTargetDetail() {
 
 			if (lastRunId) {
 				// Use accept-from-run when we have the run (cleaner, links to run)
-				const res = await fetch(buildApiUrl(`/api/targets/${targetId}/topics/accept-from-run`), {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-					body: JSON.stringify({ runId: lastRunId, suggestionIndices: indices })
+				const res = await api.post(`/api/targets/${targetId}/topics/accept-from-run`, {
+					runId: lastRunId,
+					suggestionIndices: indices
 				});
 				if (!res.ok) {
 					const err = (await res.json().catch(() => ({}))) as { error?: string };

@@ -46,7 +46,7 @@ import {
 	DropdownMenuTrigger
 } from '../components/ui/dropdown-menu';
 import { useSiteContext } from '../contexts/SiteContext';
-import { buildApiUrl } from '../utils/urls';
+import { api } from '../utils/api';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
 
@@ -131,11 +131,8 @@ export default function Ecommerce() {
 				return;
 			}
 			const offset = (page - 1) * pageSize;
-			const res = await fetch(
-				buildApiUrl(
-					`/api/ecommerce?siteId=${encodeURIComponent(selectedSite.id)}&type=${tab}&limit=${pageSize}&offset=${offset}`
-				),
-				{ headers: { Authorization: `Bearer ${token}` } }
+			const res = await api.get(
+				`/api/ecommerce?siteId=${encodeURIComponent(selectedSite.id)}&type=${tab}&limit=${pageSize}&offset=${offset}`
 			);
 			if (!res.ok) throw new Error('Failed to load');
 			const data = (await res.json()) as { pages: EcommercePage[]; total: number };
@@ -183,10 +180,7 @@ export default function Ecommerce() {
 				toast.error('Please sign in again');
 				return;
 			}
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${p.id}`), {
-				method: 'DELETE',
-				headers: { Authorization: `Bearer ${token}` }
-			});
+			const res = await api.delete(`/api/ecommerce/${p.id}`);
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				toast.error((data as { error?: string }).error ?? 'Delete failed');
@@ -215,14 +209,7 @@ export default function Ecommerce() {
 				toast.error('Please sign in again');
 				return;
 			}
-			const res = await fetch(buildApiUrl('/api/ecommerce/bulk-delete'), {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({ ids: Array.from(selectedIds) })
-			});
+			const res = await api.post('/api/ecommerce/bulk-delete', { ids: Array.from(selectedIds) });
 			const data = (await res.json().catch(() => ({}))) as { deleted?: number; error?: string };
 			if (!res.ok) {
 				toast.error(data.error ?? 'Delete failed');
@@ -278,10 +265,7 @@ export default function Ecommerce() {
 				toast.error('Please sign in again');
 				return;
 			}
-			const res = await fetch(buildApiUrl('/api/ecommerce/sync-all'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-			});
+			const res = await api.post('/api/ecommerce/sync-all');
 			const data = (await res.json().catch(() => ({}))) as {
 				synced?: number;
 				skipped?: number;
@@ -328,9 +312,7 @@ export default function Ecommerce() {
 					if (!cancelled) setHasShopify(false);
 					return;
 				}
-				const res = await fetch(buildApiUrl(`/api/shopify/status/${selectedSite.id}`), {
-					headers: { Authorization: `Bearer ${token}` }
-				});
+				const res = await api.get(`/api/shopify/status/${selectedSite.id}`);
 				const data = (await res.json().catch(() => ({}))) as { connected?: boolean };
 				if (!cancelled) setHasShopify(!!data.connected);
 			} catch {
@@ -743,18 +725,11 @@ function AddEcommerceModal({
 				toast.error('Please sign in again');
 				return;
 			}
-			const res = await fetch(buildApiUrl('/api/ecommerce'), {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({
-					siteId,
-					type,
-					name: name.trim(),
-					url: url.trim() || undefined
-				})
+			const res = await api.post('/api/ecommerce', {
+				siteId,
+				type,
+				name: name.trim(),
+				url: url.trim() || undefined
 			});
 			const data = (await res.json().catch(() => ({}))) as {
 				page?: { id?: string };
@@ -875,9 +850,7 @@ function ImportShopifyModal({
 					type === 'product'
 						? `/api/ecommerce/shopify-products?siteId=${encodeURIComponent(siteId)}`
 						: `/api/ecommerce/shopify-collections?siteId=${encodeURIComponent(siteId)}`;
-				const res = await fetch(buildApiUrl(endpoint), {
-					headers: { Authorization: `Bearer ${token}` }
-				});
+				const res = await api.get(endpoint);
 				if (!res.ok) throw new Error('Failed to load');
 				const data = await res.json();
 				const list =
@@ -925,17 +898,10 @@ function ImportShopifyModal({
 				toast.error('Please sign in again');
 				return;
 			}
-			const res = await fetch(buildApiUrl('/api/ecommerce/import-shopify'), {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({
-					siteId,
-					type,
-					ids: Array.from(selected)
-				})
+			const res = await api.post('/api/ecommerce/import-shopify', {
+				siteId,
+				type,
+				ids: Array.from(selected)
 			});
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) {

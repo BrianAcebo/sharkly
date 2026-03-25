@@ -1,14 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { buildApiUrl } from '../utils/urls';
-import { supabase } from '../utils/supabaseClient';
-
-async function getAuthHeaders(): Promise<HeadersInit> {
-	const { data: { session } } = await supabase.auth.getSession();
-	return {
-		'Content-Type': 'application/json',
-		...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-	};
-}
+import { api } from '../utils/api';
 
 export type PriorityCategory = 'high' | 'medium' | 'keep_going';
 
@@ -49,10 +40,7 @@ export function useWeeklyPriorityStack(siteId: string | null) {
 		try {
 			setLoading(true);
 			setError(null);
-			const headers = await getAuthHeaders();
-			const res = await fetch(buildApiUrl(`/api/priority-stack?siteId=${encodeURIComponent(siteId)}`), {
-				headers
-			});
+			const res = await api.get(`/api/priority-stack?siteId=${encodeURIComponent(siteId)}`);
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err?.error ?? `HTTP ${res.status}`);

@@ -35,7 +35,7 @@ import {
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
-import { buildApiUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 import { CreditCost } from '../shared/CreditBadge';
 import { CREDIT_COSTS } from '../../lib/credits';
 import type { PageDetail } from '../../hooks/usePage';
@@ -227,20 +227,10 @@ export function MetaSidebar({ open, onClose, page, siteId, onSaved, site }: Prop
 		setRegenerating(true);
 		setSuggestions(null);
 		try {
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
-			const resp = await fetch(buildApiUrl(`/api/rankings/${siteId}/meta-suggestions`), {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-				},
-				body: JSON.stringify({
-					keyword: page.keyword,
-					pageTitle: localTitle || page.title,
-					content: typeof page.content === 'string' ? page.content.slice(0, 400) : ''
-				})
+			const resp = await api.post(`/api/rankings/${siteId}/meta-suggestions`, {
+				keyword: page.keyword,
+				pageTitle: localTitle || page.title,
+				content: typeof page.content === 'string' ? page.content.slice(0, 400) : ''
 			});
 			if (!resp.ok) {
 				const err = await resp.json().catch(() => ({}));

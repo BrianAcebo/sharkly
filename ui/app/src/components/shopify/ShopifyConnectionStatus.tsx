@@ -6,7 +6,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../utils/supabaseClient';
-import { buildApiUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 import { AlertCircle, Check, Loader2, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
@@ -37,9 +37,7 @@ export function ShopifyConnectionStatus({ siteId, siteName }: Props) {
 					setLoading(false);
 					return;
 				}
-				const res = await fetch(buildApiUrl(`/api/shopify/status/${siteId}`), {
-					headers: { Authorization: `Bearer ${token}` }
-				});
+				const res = await api.get(`/api/shopify/status/${siteId}`);
 				const data = (await res.json().catch(() => ({}))) as {
 					connected?: boolean;
 					shopDomain?: string | null;

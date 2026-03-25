@@ -13,7 +13,7 @@ import {
 } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Check, X, Loader2, Stethoscope } from 'lucide-react';
-import { buildApiUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 
 interface DiagnoseStep {
 	step: number;
@@ -45,7 +45,8 @@ export function DiagnoseModal({ open, onClose, pageId }: DiagnoseModalProps) {
 		setLoading(true);
 		setError(null);
 		setResult(null);
-		fetch(buildApiUrl(`/api/pages/${pageId}/diagnose`), { credentials: 'include' })
+		api
+			.get(`/api/pages/${pageId}/diagnose`, { credentials: 'include' })
 			.then((res) => {
 				if (!res.ok) {
 					if (res.status === 403) {

@@ -12,6 +12,7 @@ import { Loader2, Copy, Check, TrendingUp, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreditCost } from '../shared/CreditBadge';
 import { CREDIT_COSTS } from '../../lib/credits';
+import { api } from '../../utils/api';
 
 interface RankingRow {
 	keyword: string;
@@ -68,15 +69,11 @@ export function CTROptimizationModal({ open, onClose, siteId, ranking }: Props) 
 		setDescriptions([]);
 		setGenerated(false);
 		try {
-			const resp = await fetch(`/api/rankings/${siteId}/optimize-ctr`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					keyword: ranking.keyword,
-					pageUrl: ranking.pageUrl,
-					currentTitle: '',
-					currentDescription: ''
-				})
+			const resp = await api.post(`/api/rankings/${siteId}/optimize-ctr`, {
+				keyword: ranking.keyword,
+				pageUrl: ranking.pageUrl,
+				currentTitle: '',
+				currentDescription: ''
 			});
 			if (!resp.ok) {
 				const err = await resp.json();

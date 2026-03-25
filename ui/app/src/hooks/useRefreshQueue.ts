@@ -4,8 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { buildApiUrl } from '../utils/urls';
-import { supabase } from '../utils/supabaseClient';
+import { api } from '../utils/api';
 
 export type RefreshQueueItem = {
 	pageId: string;
@@ -18,16 +17,6 @@ export type RefreshQueueItem = {
 	impressionsTrend: 'declining' | 'stable' | 'improving';
 	monthsStale: number;
 };
-
-async function getAuthHeaders(): Promise<HeadersInit> {
-	const {
-		data: { session }
-	} = await supabase.auth.getSession();
-	return {
-		'Content-Type': 'application/json',
-		...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-	};
-}
 
 export function useRefreshQueue(siteId: string | null, enabled = true) {
 	const [items, setItems] = useState<RefreshQueueItem[]>([]);
@@ -43,10 +32,7 @@ export function useRefreshQueue(siteId: string | null, enabled = true) {
 		try {
 			setLoading(true);
 			setError(null);
-			const headers = await getAuthHeaders();
-			const res = await fetch(buildApiUrl(`/api/sites/${siteId}/refresh-queue`), {
-				headers
-			});
+			const res = await api.get(`/api/sites/${siteId}/refresh-queue`);
 			if (!res.ok) {
 				const body = await res.json().catch(() => ({}));
 				throw new Error((body as { error?: string }).error ?? `HTTP ${res.status}`);

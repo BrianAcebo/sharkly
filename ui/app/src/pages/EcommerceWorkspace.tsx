@@ -50,7 +50,7 @@ import {
 } from '../components/ui/dropdown-menu';
 import { Tooltip } from '../components/ui/tooltip';
 import { supabase } from '../utils/supabaseClient';
-import { buildApiUrl } from '../utils/urls';
+import { api } from '../utils/api';
 import { CreditCost } from '../components/shared/CreditBadge';
 import { CREDIT_COSTS } from '../lib/credits';
 import { cleanPastedHTML, htmlToTiptap } from '../lib/editorUtils';
@@ -225,9 +225,7 @@ export default function EcommerceWorkspace() {
 				setLoading(false);
 				return;
 			}
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}`), {
-				headers: { Authorization: `Bearer ${token}` }
-			});
+			const res = await api.get(`/api/ecommerce/${id}`);
 			if (!res.ok) throw new Error('Failed to load page');
 			const data = (await res.json()) as { page: EcommercePage };
 			setPage(data.page);
@@ -268,14 +266,7 @@ export default function EcommerceWorkspace() {
 			} = await supabase.auth.getSession();
 			const token = session?.access_token;
 			if (!token) return;
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}`), {
-				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({ name: name.trim() || page?.name })
-			});
+			const res = await api.patch(`/api/ecommerce/${id}`, { name: name.trim() || page?.name });
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				toast.error((data as { error?: string }).error ?? 'Failed to save');
@@ -300,14 +291,7 @@ export default function EcommerceWorkspace() {
 			} = await supabase.auth.getSession();
 			const token = session?.access_token;
 			if (!token) return;
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}`), {
-				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({ keyword: keyword || null })
-			});
+			const res = await api.patch(`/api/ecommerce/${id}`, { keyword: keyword || null });
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				toast.error((data as { error?: string }).error ?? 'Failed to save');
@@ -332,14 +316,7 @@ export default function EcommerceWorkspace() {
 			} = await supabase.auth.getSession();
 			const token = session?.access_token;
 			if (!token) return;
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}`), {
-				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({ url: url || null })
-			});
+			const res = await api.patch(`/api/ecommerce/${id}`, { url: url || null });
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				toast.error((data as { error?: string }).error ?? 'Failed to save');
@@ -365,17 +342,10 @@ export default function EcommerceWorkspace() {
 			} = await supabase.auth.getSession();
 			const token = session?.access_token;
 			if (!token) return;
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}`), {
-				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({
+			const res = await api.patch(`/api/ecommerce/${id}`, {
 					meta_title: metaTitle.trim() || null,
 					meta_description: metaDescription.trim() || null
-				})
-			});
+				});
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				toast.error((data as { error?: string }).error ?? 'Failed to save');
@@ -413,19 +383,12 @@ export default function EcommerceWorkspace() {
 				return;
 			}
 			// Include current meta from form so we publish what user sees (avoids race with blur-save)
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}/publish-shopify`), {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({
+			const res = await api.post(`/api/ecommerce/${id}/publish-shopify`, {
 					overwriteDescription: true,
 					updateMeta: true,
 					meta_title: metaTitle.trim() || undefined,
 					meta_description: metaDescription.trim() || undefined // empty string clears on Shopify
-				})
-			});
+				});
 			const data = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
 			if (!res.ok) {
 				toast.error(data.error ?? 'Publish failed');
@@ -453,10 +416,7 @@ export default function EcommerceWorkspace() {
 				toast.error('Not signed in');
 				return;
 			}
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}`), {
-				method: 'DELETE',
-				headers: { Authorization: `Bearer ${token}` }
-			});
+			const res = await api.delete(`/api/ecommerce/${id}`);
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				toast.error((data as { error?: string }).error ?? 'Delete failed');
@@ -490,10 +450,8 @@ export default function EcommerceWorkspace() {
 				page.type === 'product'
 					? `/api/ecommerce/${id}/generate-product`
 					: `/api/ecommerce/${id}/generate-collection`;
-			const res = await fetch(buildApiUrl(endpoint), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({ additional_context: additionalContext?.trim() || undefined })
+			const res = await api.post(endpoint, {
+				additional_context: additionalContext?.trim() || undefined
 			});
 			const data = (await res.json()) as { success?: boolean; error?: string; required?: number };
 			if (!res.ok) {
@@ -579,10 +537,8 @@ export default function EcommerceWorkspace() {
 				setGeneratingMeta(false);
 				return;
 			}
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}/generate-meta`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({ additional_context: additionalContext?.trim() || undefined })
+			const res = await api.post(`/api/ecommerce/${id}/generate-meta`, {
+				additional_context: additionalContext?.trim() || undefined
 			});
 			const data = (await res.json()) as {
 				success?: boolean;
@@ -638,10 +594,9 @@ export default function EcommerceWorkspace() {
 				toast.error('Not signed in');
 				return;
 			}
-			const res = await fetch(buildApiUrl('/api/seo-checks/run'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({ url: page.url, keyword: page.keyword || undefined })
+			const res = await api.post('/api/seo-checks/run', {
+				url: page.url,
+				keyword: page.keyword || undefined
 			});
 			const data = (await res.json()) as {
 				success?: boolean;
@@ -674,10 +629,7 @@ export default function EcommerceWorkspace() {
 				toast.error('Not signed in');
 				return;
 			}
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}/sync`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-			});
+			const res = await api.post(`/api/ecommerce/${id}/sync`);
 			const data = (await res.json().catch(() => ({}))) as { page?: EcommercePage; error?: string };
 			if (!res.ok) {
 				toast.error(data.error ?? 'Sync failed');
@@ -774,14 +726,7 @@ export default function EcommerceWorkspace() {
 				} = await supabase.auth.getSession();
 				const token = session?.access_token;
 				if (!token) return;
-				const res = await fetch(buildApiUrl(`/api/ecommerce/${id}`), {
-					method: 'PATCH',
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: `Bearer ${token}`
-					},
-					body: JSON.stringify({ content: doc })
-				});
+				const res = await api.patch(`/api/ecommerce/${id}`, { content: doc });
 				if (res.ok) {
 					setPage((p) =>
 						p
@@ -813,14 +758,7 @@ export default function EcommerceWorkspace() {
 			} = await supabase.auth.getSession();
 			const token = session?.access_token;
 			if (!token) return;
-			const res = await fetch(buildApiUrl(`/api/ecommerce/${id}`), {
-				method: 'PATCH',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({ content: json })
-			});
+			const res = await api.patch(`/api/ecommerce/${id}`, { content: json });
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
 				toast.error((data as { error?: string }).error ?? 'Failed to save');

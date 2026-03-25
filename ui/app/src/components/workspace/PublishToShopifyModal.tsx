@@ -16,7 +16,7 @@ import { Button } from '../ui/button';
 import { Label } from '../ui/label';
 import { Loader2, ShoppingBag, ExternalLink } from 'lucide-react';
 import { supabase } from '../../utils/supabaseClient';
-import { buildApiUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 import { toast } from 'sonner';
 
 interface Blog {
@@ -60,9 +60,7 @@ export function PublishToShopifyModal({
 			const { data: { session } } = await supabase.auth.getSession();
 			if (!session) return;
 
-			const statusRes = await fetch(buildApiUrl(`/api/shopify/status/${siteId}`), {
-				headers: { Authorization: `Bearer ${session.access_token}` }
-			});
+			const statusRes = await api.get(`/api/shopify/status/${siteId}`);
 			if (cancelled) return;
 
 			if (!statusRes.ok) {
@@ -75,9 +73,7 @@ export function PublishToShopifyModal({
 			if (!status.connected) return;
 
 			setLoadingBlogs(true);
-			const blogsRes = await fetch(buildApiUrl(`/api/shopify/blogs/${siteId}`), {
-				headers: { Authorization: `Bearer ${session.access_token}` }
-			});
+			const blogsRes = await api.get(`/api/shopify/blogs/${siteId}`);
 			if (cancelled) return;
 			setLoadingBlogs(false);
 
@@ -105,20 +101,13 @@ export function PublishToShopifyModal({
 
 		setPublishing(true);
 		try {
-			const res = await fetch(buildApiUrl(`/api/shopify/publish/${siteId}`), {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					blogId: selectedBlogId,
-					title: pageTitle,
-					body_html: bodyHtml,
-					meta_title: metaTitle || undefined,
-					meta_description: metaDescription || undefined,
-					published: true
-				})
+			const res = await api.post(`/api/shopify/publish/${siteId}`, {
+				blogId: selectedBlogId,
+				title: pageTitle,
+				body_html: bodyHtml,
+				meta_title: metaTitle || undefined,
+				meta_description: metaDescription || undefined,
+				published: true
 			});
 
 			const data = await res.json();

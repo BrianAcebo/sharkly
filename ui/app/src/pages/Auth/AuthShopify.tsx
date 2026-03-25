@@ -12,7 +12,8 @@
  */
 import { useCallback, useEffect, useState, useLayoutEffect } from 'react';
 import { useSearchParams } from 'react-router';
-import { getBackendUrl, buildApiUrl } from '../../utils/urls';
+import { getBackendUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 import useAuth from '../../hooks/useAuth';
 import { useSites } from '../../hooks/useSites';
 import { AuthLoadingState } from '../../contexts/AuthContext';
@@ -78,9 +79,8 @@ export default function AuthShopify() {
 		let cancelled = false;
 		(async () => {
 			try {
-				const res = await fetch(
-					buildApiUrl(`/api/shopify/site-for-shop?shop=${encodeURIComponent(shopDomain)}`),
-					{ headers: { Authorization: `Bearer ${session.access_token}` } }
+				const res = await api.get(
+					`/api/shopify/site-for-shop?shop=${encodeURIComponent(shopDomain)}`
 				);
 				const data = (await res.json()) as { siteId?: string | null };
 				if (cancelled) return;
@@ -106,14 +106,7 @@ export default function AuthShopify() {
 		let cancelled = false;
 		(async () => {
 			try {
-				const res = await fetch(buildApiUrl('/api/shopify/reconcile-companion'), {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: `Bearer ${session.access_token}`
-					},
-					body: JSON.stringify({ shop: shopDomain })
-				});
+				const res = await api.post('/api/shopify/reconcile-companion', { shop: shopDomain });
 				const data = (await res.json()) as { siteId?: string | null };
 				if (cancelled) return;
 				if (data.siteId) {
@@ -136,17 +129,10 @@ export default function AuthShopify() {
 			if (attaching) return;
 			setAttaching(true);
 			try {
-				const res = await fetch(buildApiUrl('/api/shopify/attach-pending'), {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: `Bearer ${session?.access_token}`
-					},
-					body: JSON.stringify({
-						shop: shopDomain,
-						siteId: siteId || undefined,
-						createNew: !siteId
-					})
+				const res = await api.post('/api/shopify/attach-pending', {
+					shop: shopDomain,
+					siteId: siteId || undefined,
+					createNew: !siteId
 				});
 
 				const data = (await res.json().catch(() => ({}))) as {

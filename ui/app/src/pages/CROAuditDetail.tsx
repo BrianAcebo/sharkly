@@ -59,6 +59,7 @@ import { CreditCost } from '../components/shared/CreditBadge';
 import { CREDIT_COSTS } from '../lib/credits';
 import { toast } from 'sonner';
 import { scrollIntoView } from '../utils/common';
+import { api } from '../utils/api';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1000,13 +1001,11 @@ export default function CROAuditDetail() {
 	const [seoChecking, setSeoChecking] = useState(false);
 	const [seoKeyword, setSeoKeyword] = useState('');
 
-	const getAuth = () => ({ Authorization: `Bearer ${session?.access_token}` });
-
 	const fetchAudit = useCallback(async () => {
 		if (!id || !session?.access_token) return;
 		setLoading(true);
 		try {
-			const res = await fetch(`/api/cro-studio/audits/${id}`, { headers: getAuth() });
+			const res = await api.get(`/api/cro-studio/audits/${id}`);
 			if (!res.ok) {
 				setAudit(null);
 				return;
@@ -1050,10 +1049,7 @@ export default function CROAuditDetail() {
 		if (!id || !session?.access_token) return;
 		setReauditing(true);
 		try {
-			const res = await fetch(`/api/cro-studio/audits/${id}/reaudit`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', ...getAuth() }
-			});
+			const res = await api.post(`/api/cro-studio/audits/${id}/reaudit`);
 			const data = await res.json();
 			if (res.ok && data.success) {
 				toast.success('Re-audit complete');
@@ -1077,10 +1073,10 @@ export default function CROAuditDetail() {
 		if (!id || !session?.access_token) return;
 		setFixGenerating(failingItemKey);
 		try {
-			const res = await fetch('/api/cro-studio/fixes', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', ...getAuth() },
-				body: JSON.stringify({ audit_id: id, mode: 'single', failing_item_key: failingItemKey })
+			const res = await api.post('/api/cro-studio/fixes', {
+				audit_id: id,
+				mode: 'single',
+				failing_item_key: failingItemKey
 			});
 			const data = await res.json();
 			if (res.ok && data.success && data.data?.options) {
@@ -1103,11 +1099,7 @@ export default function CROAuditDetail() {
 		if (!id || !session?.access_token || failing.length === 0) return;
 		setFixGenerating('all');
 		try {
-			const res = await fetch('/api/cro-studio/fixes', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', ...getAuth() },
-				body: JSON.stringify({ audit_id: id, mode: 'all' })
-			});
+			const res = await api.post('/api/cro-studio/fixes', { audit_id: id, mode: 'all' });
 			const data = await res.json();
 			if (res.ok && data.success && data.data?.options) {
 				const opts = data.data.options as FixOption[];
@@ -1133,10 +1125,7 @@ export default function CROAuditDetail() {
 		if (!id || !session?.access_token) return;
 		setFaqLoading(true);
 		try {
-			const res = await fetch(`/api/cro-studio/audits/${id}/faq`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', ...getAuth() }
-			});
+			const res = await api.post(`/api/cro-studio/audits/${id}/faq`);
 			const data = await res.json();
 			if (res.ok && data.success && data.data?.questions) {
 				setFaqResult(data.data.questions);
@@ -1157,10 +1146,7 @@ export default function CROAuditDetail() {
 		if (!id || !session?.access_token) return;
 		setTestimonialLoading(true);
 		try {
-			const res = await fetch(`/api/cro-studio/audits/${id}/testimonial-email`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', ...getAuth() }
-			});
+			const res = await api.post(`/api/cro-studio/audits/${id}/testimonial-email`);
 			const data = await res.json();
 			if (res.ok && data.success && data.data) {
 				setTestimonialResult({ subject: data.data.subject, body: data.data.body });
@@ -1188,10 +1174,7 @@ export default function CROAuditDetail() {
 		const wasExisting = Boolean(cogLoadExplanation?.trim());
 		setCogLoadExpanding(true);
 		try {
-			const res = await fetch(`/api/cro-studio/audits/${id}/cognitive-load`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', ...getAuth() }
-			});
+			const res = await api.post(`/api/cro-studio/audits/${id}/cognitive-load`);
 			const data = await res.json();
 			if (res.ok && data.success) {
 				toast.success(
@@ -1220,10 +1203,7 @@ export default function CROAuditDetail() {
 		const wasExisting = Boolean(deepAnalysisResult?.trim());
 		setDeepAnalysisGenerating(true);
 		try {
-			const res = await fetch(`/api/cro-studio/audits/${id}/emotional-arc`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', ...getAuth() }
-			});
+			const res = await api.post(`/api/cro-studio/audits/${id}/emotional-arc`);
 			const data = await res.json();
 			if (res.ok && data.success && data.analysis) {
 				setDeepAnalysisResult(data.analysis);
@@ -1248,13 +1228,9 @@ export default function CROAuditDetail() {
 		if (!session?.access_token || !audit?.page_url) return;
 		setSeoChecking(true);
 		try {
-			const res = await fetch('/api/seo-checks/run', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', ...getAuth() },
-				body: JSON.stringify({
-					url: audit.page_url,
-					keyword: seoKeyword?.trim() || undefined
-				})
+			const res = await api.post('/api/seo-checks/run', {
+				url: audit.page_url,
+				keyword: seoKeyword?.trim() || undefined
 			});
 			const data = await res.json();
 			if (res.ok && data.success && data.seo_checks) {

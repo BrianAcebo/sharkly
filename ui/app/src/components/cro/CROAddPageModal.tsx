@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { buildApiUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog';
 import { Button } from '../ui/button';
 import { Search, Target, AlertCircle } from 'lucide-react';
@@ -20,8 +20,6 @@ interface CROAddPageModalProps {
 	open: boolean;
 	onClose: () => void;
 	onSuccess: (auditId: string) => void;
-	/** For refetch and navigation */
-	getAuthHeader: () => Record<string, string>;
 	/** Pre-fill when opening from Workspace (this page → CRO Studio) */
 	initialPageUrl?: string;
 	initialDestinationUrl?: string;
@@ -35,7 +33,6 @@ export function CROAddPageModal({
 	open,
 	onClose,
 	onSuccess,
-	getAuthHeader,
 	initialPageUrl,
 	initialDestinationUrl,
 	initialPageLabel,
@@ -108,14 +105,7 @@ export function CROAddPageModal({
 			if (initialClusterId) body.cluster_id = initialClusterId;
 			if (initialSiteId) body.site_id = initialSiteId;
 
-			const res = await fetch(buildApiUrl('/api/cro-studio/audits'), {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					...getAuthHeader()
-				},
-				body: JSON.stringify(body)
-			});
+			const res = await api.post('/api/cro-studio/audits', body);
 
 			const data = await res.json();
 

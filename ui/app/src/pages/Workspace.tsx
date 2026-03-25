@@ -26,7 +26,7 @@ import { useCluster } from '../hooks/useCluster';
 import { useOrganization } from '../hooks/useOrganization';
 import { usePageGscData } from '../hooks/usePageGscData';
 import { useGSCStatus } from '../hooks/useGSCStatus';
-import { buildApiUrl } from '../utils/urls';
+import { api } from '../utils/api';
 import { supabase } from '../utils/supabaseClient';
 import { CREDIT_COSTS } from '../lib/credits'; // FOCUS_PAGE_FULL=40, FOCUS_PAGE_BRIEF_REGEN=25, ARTICLE_GENERATION=15
 import { computeSeoScore, isPassageReadyH2, type SeoScoreBreakdown } from '../lib/seoScore';
@@ -620,9 +620,7 @@ export default function Workspace() {
 		const normalizeUrl = (u: string) => u.trim().toLowerCase().replace(/\/+$/, '') || '';
 		setOpenCROStudioLoading(true);
 		try {
-			const res = await fetch(buildApiUrl('/api/cro-studio/audits?page_type=seo_page'), {
-				headers: { Authorization: `Bearer ${token}` }
-			});
+			const res = await api.get('/api/cro-studio/audits?page_type=seo_page');
 			const data = await res.json().catch(() => ({}));
 			const audits = Array.isArray(data?.audits) ? data.audits : [];
 			const targetNorm = normalizeUrl(fullPageUrl);
@@ -672,12 +670,8 @@ export default function Workspace() {
 				setTaskWidgetError('Please sign in to continue');
 				return;
 			}
-			const res = await fetch(buildApiUrl(`/api/pages/${id}/brief`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({
-					authorOverride: authorForBrief.trim() || null
-				})
+			const res = await api.post(`/api/pages/${id}/brief`, {
+				authorOverride: authorForBrief.trim() || null
 			});
 
 			// Non-2xx: read JSON error (auth, credits, etc.)
@@ -802,10 +796,7 @@ export default function Workspace() {
 				setTaskWidgetError('Please sign in to continue');
 				return;
 			}
-			const res = await fetch(buildApiUrl(`/api/pages/${id}/article`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-			});
+			const res = await api.post(`/api/pages/${id}/article`);
 
 			if (!res.ok) {
 				const data = await res.json().catch(() => ({}));
@@ -911,10 +902,8 @@ export default function Workspace() {
 		try {
 			// ── Step 1: Generate brief (NDJSON stream) ─────────────────────────────
 			setTaskWidgetDisableAutoAdvance(true);
-			const briefRes = await fetch(buildApiUrl(`/api/pages/${id}/brief`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({ authorOverride: authorForBrief.trim() || null })
+			const briefRes = await api.post(`/api/pages/${id}/brief`, {
+				authorOverride: authorForBrief.trim() || null
 			});
 
 			if (!briefRes.ok) {
@@ -990,10 +979,7 @@ export default function Workspace() {
 			await refetchOrg();
 
 			// ── Step 2: Generate article (NDJSON stream, free — bundled) ─────────────
-			const articleRes = await fetch(buildApiUrl(`/api/pages/${id}/article`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-			});
+			const articleRes = await api.post(`/api/pages/${id}/article`);
 
 			if (!articleRes.ok) {
 				const articleData = await articleRes.json().catch(() => ({}));
@@ -1070,16 +1056,12 @@ export default function Workspace() {
 					toast.error('Please sign in');
 					return;
 				}
-				const res = await fetch(buildApiUrl(`/api/pages/${id}/rewrite-section`), {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-					body: JSON.stringify({
-						sectionIndex: sectionIdx,
-						heading: section.heading,
-						guidance: section.guidance,
-						entities: section.entities ?? section.entitiesCovered,
-						keyword: page?.keyword
-					})
+				const res = await api.post(`/api/pages/${id}/rewrite-section`, {
+					sectionIndex: sectionIdx,
+					heading: section.heading,
+					guidance: section.guidance,
+					entities: section.entities ?? section.entitiesCovered,
+					keyword: page?.keyword
 				});
 				const data = await res.json().catch(() => ({}));
 				if (!res.ok) {
@@ -1118,11 +1100,7 @@ export default function Workspace() {
 					toast.error('Please sign in');
 					return;
 				}
-				const res = await fetch(buildApiUrl(`/api/pages/${id}/brief-section`), {
-					method: 'PATCH',
-					headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-					body: JSON.stringify({ sectionIndex, guidance })
-				});
+				const res = await api.patch(`/api/pages/${id}/brief-section`, { sectionIndex, guidance });
 				const data = await res.json().catch(() => ({}));
 				if (!res.ok) {
 					throw new Error(data.error || 'Failed to save');
@@ -1155,10 +1133,7 @@ export default function Workspace() {
 				toast.error('Please sign in');
 				return;
 			}
-			const res = await fetch(buildApiUrl(`/api/pages/${id}/generate-faq`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-			});
+			const res = await api.post(`/api/pages/${id}/generate-faq`);
 			const data = await res.json().catch(() => ({}));
 			if (!res.ok) {
 				if (res.status === 402)
@@ -3631,9 +3606,6 @@ export default function Workspace() {
 					setAddToCROModalOpen(false);
 					navigate(`/cro-studio/audit/${auditId}`);
 				}}
-				getAuthHeader={() => ({
-					Authorization: `Bearer ${session?.access_token ?? ''}`
-				})}
 				initialPageUrl={
 					page?.publishedUrl?.startsWith('http')
 						? page.publishedUrl

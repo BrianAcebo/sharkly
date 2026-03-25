@@ -1,16 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { buildApiUrl } from '../utils/urls';
-import { supabase } from '../utils/supabaseClient';
-
-async function getAuthHeaders(): Promise<HeadersInit> {
-	const {
-		data: { session }
-	} = await supabase.auth.getSession();
-	return {
-		'Content-Type': 'application/json',
-		...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-	};
-}
+import { api } from '../utils/api';
 
 export type ClusterWarning = {
 	type: string;
@@ -47,10 +36,7 @@ export function useClusterIntelligence(clusterId: string | null) {
 		try {
 			setLoading(true);
 			setError(null);
-			const headers = await getAuthHeaders();
-			const res = await fetch(buildApiUrl(`/api/clusters/${clusterId}/intelligence`), {
-				headers
-			});
+			const res = await api.get(`/api/clusters/${clusterId}/intelligence`);
 			if (!res.ok) {
 				const body = await res.json().catch(() => ({}));
 				throw new Error(body?.error?.message || `HTTP ${res.status}`);

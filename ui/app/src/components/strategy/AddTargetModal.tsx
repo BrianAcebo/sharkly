@@ -23,7 +23,7 @@ import { CREDIT_COSTS } from '../../lib/credits';
 import { Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
-import { buildApiUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 import type { Target } from '../../types/target';
 
 /** Same steps as StrategyTargetDetail — consistent TaskProgressWidget experience */
@@ -99,15 +99,11 @@ export function AddTargetModal({ open, onClose, siteId, onTargetCreated }: Props
 			const { data: session } = await supabase.auth.getSession();
 			const token = session?.session?.access_token;
 			if (!token) throw new Error('Please sign in');
-			const res = await fetch(buildApiUrl(`/api/sites/${siteId}/targets`), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({
-					name,
-					destinationPageUrl: form.destinationPageUrl.trim() || undefined,
-					destinationPageLabel: form.destinationPageLabel.trim() || undefined,
-					seedKeywords: seeds.length > 0 ? seeds : undefined
-				})
+			const res = await api.post(`/api/sites/${siteId}/targets`, {
+				name,
+				destinationPageUrl: form.destinationPageUrl.trim() || undefined,
+				destinationPageLabel: form.destinationPageLabel.trim() || undefined,
+				seedKeywords: seeds.length > 0 ? seeds : undefined
 			});
 			const data = (await res.json().catch(() => ({}))) as Target & { error?: string };
 			if (!res.ok) throw new Error(data?.error ?? 'Failed to create target');
@@ -143,14 +139,10 @@ export function AddTargetModal({ open, onClose, siteId, onTargetCreated }: Props
 			}
 			const seeds =
 				createdTarget.seedKeywords.length > 0 ? createdTarget.seedKeywords : [createdTarget.name];
-			const res = await fetch(buildApiUrl('/api/strategy/suggest'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-				body: JSON.stringify({
-					siteId,
-					targetId: createdTarget.id,
-					seedKeywords: seeds
-				})
+			const res = await api.post('/api/strategy/suggest', {
+				siteId,
+				targetId: createdTarget.id,
+				seedKeywords: seeds
 			});
 
 			if (!res.ok) {

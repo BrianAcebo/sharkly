@@ -29,7 +29,7 @@ import { useClusters } from '../../hooks/useClusters';
 import { useTargets } from '../../hooks/useTargets';
 import { useTopics } from '../../hooks/useTopics';
 import { useOrganization } from '../../hooks/useOrganization';
-import { buildApiUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 import { supabase } from '../../utils/supabaseClient';
 import { canAccessPerformance, canAccessTechnical, canAccessCROStudio } from '../../utils/featureGating';
 import type { OrganizationRow } from '../../types/billing';
@@ -288,11 +288,8 @@ const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ 
 				} = await supabase.auth.getSession();
 				const token = session?.access_token;
 				if (!token) return;
-				const res = await fetch(
-					buildApiUrl(
-						`/api/ecommerce?siteId=${encodeURIComponent(selectedSite.id)}&limit=100&offset=0`
-					),
-					{ headers: { Authorization: `Bearer ${token}` } }
+				const res = await api.get(
+					`/api/ecommerce?siteId=${encodeURIComponent(selectedSite.id)}&limit=100&offset=0`
 				);
 				if (!res.ok) return;
 				const data = (await res.json()) as {

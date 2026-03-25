@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { buildApiUrl } from '../utils/urls';
+import { api } from '../utils/api';
 import { isYMYLNiche } from '../lib/ymyl';
 import type { Site } from '../types/site';
 import { useAuth } from './useAuth';
@@ -156,12 +156,12 @@ export function useSites() {
 		// Auto-fetch DA from Moz in the background — don't block site creation if it fails
 		supabase.auth.getSession().then(({ data: { session } }) => {
 			if (!session?.access_token) return;
-			fetch(buildApiUrl(`/api/sites/${siteId}/refresh-authority`), {
-				method: 'POST',
-				headers: { Authorization: `Bearer ${session.access_token}` },
-			})
+			api
+				.post(`/api/sites/${siteId}/refresh-authority`)
 				.then((r) => r.json())
-				.then((d) => { if (d.updated) console.log(`[Sites] DA fetched for new site: ${d.domain_authority}`); })
+				.then((d: { updated?: boolean; domain_authority?: number }) => {
+					if (d.updated) console.log(`[Sites] DA fetched for new site: ${d.domain_authority}`);
+				})
 				.catch(() => { /* non-fatal */ });
 		});
 
@@ -308,10 +308,7 @@ export function useSites() {
 		const { data: { session } } = await supabase.auth.getSession();
 		if (!session?.access_token) return null;
 		try {
-			const res = await fetch(buildApiUrl(`/api/sites/${siteId}/refresh-authority`), {
-				method: 'POST',
-				headers: { Authorization: `Bearer ${session.access_token}` },
-			});
+			const res = await api.post(`/api/sites/${siteId}/refresh-authority`);
 			const d = await res.json();
 			if (d.updated || d.domain_authority != null) {
 				await fetchSites(); // re-load so UI shows new value

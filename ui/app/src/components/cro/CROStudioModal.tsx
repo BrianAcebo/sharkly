@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { useAuth } from '../../hooks/useAuth';
+import { api } from '../../utils/api';
 import { toast } from 'sonner';
 import { Sparkles, Zap, Check, AlertCircle, Coins } from 'lucide-react';
 
@@ -50,11 +51,8 @@ function InnerModal({ onClose, reason }: { onClose: () => void; reason: string }
 		}
 
 		setLoading(true);
-		fetch('/api/billing/cro-addon/status', {
-			headers: {
-				Authorization: `Bearer ${session.access_token}`
-			}
-		})
+		api
+			.get('/api/billing/cro-addon/status')
 			.then((res) => res.json())
 			.then((data) => {
 				if (data.error) {
@@ -80,13 +78,7 @@ function InnerModal({ onClose, reason }: { onClose: () => void; reason: string }
 		setError(null);
 
 		try {
-			const res = await fetch('/api/billing/cro-addon/subscribe', {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				}
-			});
+			const res = await api.post('/api/billing/cro-addon/subscribe');
 
 			const data = await res.json();
 
@@ -121,13 +113,7 @@ function InnerModal({ onClose, reason }: { onClose: () => void; reason: string }
 		setError(null);
 
 		try {
-			const res = await fetch('/api/billing/cro-addon/cancel', {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json'
-				}
-			});
+			const res = await api.post('/api/billing/cro-addon/cancel');
 
 			const data = await res.json();
 

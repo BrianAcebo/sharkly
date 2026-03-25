@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { CreditCost } from '../shared/CreditBadge';
 import { CREDIT_COSTS } from '../../lib/credits';
 import { useOrganization } from '../../hooks/useOrganization';
+import { api } from '../../utils/api';
 
 interface KeywordMetrics {
 	keyword: string;
@@ -113,10 +114,10 @@ export function KeywordLookupModal({
 		setLoading(true);
 		setMetrics(null);
 		try {
-			const resp = await fetch('/api/keywords/lookup', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ keyword: q, siteId, organizationId: organization.id })
+			const resp = await api.post('/api/keywords/lookup', {
+				keyword: q,
+				siteId,
+				organizationId: organization.id
 			});
 			if (!resp.ok) {
 				const err = await resp.json();

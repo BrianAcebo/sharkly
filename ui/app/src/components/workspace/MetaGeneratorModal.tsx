@@ -19,6 +19,7 @@ import { Loader2, Copy, Check, Tag, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { CreditCost } from '../shared/CreditBadge';
 import { CREDIT_COSTS } from '../../lib/credits';
+import { api } from '../../utils/api';
 
 interface Props {
 	open: boolean;
@@ -77,14 +78,10 @@ export function MetaGeneratorModal({ open, onClose, siteId, keyword, pageTitle, 
 		setDescriptions([]);
 		setGenerated(false);
 		try {
-			const resp = await fetch(`/api/rankings/${siteId}/meta-suggestions`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					keyword,
-					pageTitle,
-					content: contentPreview ?? ''
-				})
+			const resp = await api.post(`/api/rankings/${siteId}/meta-suggestions`, {
+				keyword,
+				pageTitle,
+				content: contentPreview ?? ''
 			});
 			if (!resp.ok) {
 				const err = await resp.json();

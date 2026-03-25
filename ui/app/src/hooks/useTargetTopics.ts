@@ -1,14 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { buildApiUrl } from '../utils/urls';
+import { api } from '../utils/api';
 import type { Topic } from './useTopics';
-
-async function getAuthHeaders(): Promise<HeadersInit> {
-	const { data: { session } } = await supabase.auth.getSession();
-	return {
-		...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {})
-	};
-}
 
 function mapRowToTopic(row: {
 	id: string;
@@ -62,8 +55,7 @@ export function useTargetTopics(targetId: string | null) {
 		try {
 			setLoading(true);
 			setError(null);
-			const headers = await getAuthHeaders();
-			const res = await fetch(buildApiUrl(`/api/targets/${targetId}/topics`), { headers });
+			const res = await api.get(`/api/targets/${targetId}/topics`);
 			if (!res.ok) {
 				const err = (await res.json().catch(() => ({}))) as { error?: string };
 				throw new Error(err?.error ?? 'Failed to load topics');
@@ -105,11 +97,8 @@ export function useTargetTopics(targetId: string | null) {
 		async (topicId: string, destinationTargetId: string): Promise<{ error: string | null }> => {
 			if (!targetId) return { error: 'No target selected' };
 			try {
-				const headers = await getAuthHeaders();
-				const res = await fetch(buildApiUrl(`/api/targets/${targetId}/topics/${topicId}/move`), {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json', ...headers },
-					body: JSON.stringify({ destinationTargetId })
+				const res = await api.post(`/api/targets/${targetId}/topics/${topicId}/move`, {
+					destinationTargetId
 				});
 				const data = (await res.json().catch(() => ({}))) as { error?: string };
 				if (!res.ok) return { error: data?.error ?? 'Failed to move topic' };
