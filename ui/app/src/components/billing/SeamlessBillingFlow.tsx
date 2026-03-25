@@ -289,12 +289,9 @@ const PaymentForm: React.FC<PaymentFormProps> = ({
 			<div className="space-y-6">
 				<PlanSummary orgName={orgName} selectedPlan={selectedPlan} trialSelected={trialSelected} />
 				<PaymentElement
-					options={
-						{
-							layout: { type: 'tabs', defaultCollapsed: false },
-							...(import.meta.env.DEV ? { appearance: { theme: 'night' as const } } : {})
-						} as React.ComponentProps<typeof PaymentElement>['options']
-					}
+					options={{
+						layout: { type: 'tabs', defaultCollapsed: false }
+					}}
 				/>
 				{isLoading && <div className="text-sm text-blue-500">Processing payment...</div>}
 			</div>
@@ -1053,7 +1050,8 @@ const SeamlessBillingFlow: React.FC<SeamlessBillingFlowProps> = ({
 									appearance: {
 										theme: document.documentElement.classList.contains('dark') ? 'night' : 'flat',
 										variables: {
-											colorPrimary: '#f6339a',
+											// Match app brand (see index.css --color-brand-500)
+											colorPrimary: '#0891b2',
 											colorText: document.documentElement.classList.contains('dark')
 												? '#f3f4f6'
 												: '#1f2937',
