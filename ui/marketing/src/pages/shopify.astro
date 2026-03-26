@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { buildStaticMarketingPageJsonLd } from '../lib/sitePageJsonLd';
 import {
   ShoppingBag,
   Zap,
@@ -15,35 +16,38 @@ import {
 } from '@lucide/astro';
 
 const shopifyAppUrl = import.meta.env.PUBLIC_SHOPIFY_APP_URL ?? import.meta.env.VITE_SHOPIFY_APP_URL ?? 'https://app.sharkly.co/signup?source=shopify';
-const appUrl       = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
-const siteUrl      = import.meta.env.MARKETING_URL ?? 'https://sharkly.co';
+const appUrl = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
+const siteUrl = import.meta.env.MARKETING_URL ?? 'https://sharkly.co';
 const canonicalUrl = `${siteUrl}/shopify`;
 
-const pageTitle       = 'Easy SEO for Shopify Stores';
-const metaDescription = 'Connect your Shopify store to Sharkly. Get a full SEO strategy, AI-written product descriptions, 6 on-page checks, and one-click publish back — without learning SEO.';
+const pageTitle = 'Easy SEO for Shopify Stores';
+const metaDescription =
+  'Connect your Shopify store to Sharkly. Get a full SEO strategy, AI-written product descriptions, 6 on-page checks, and one-click publish back — without learning SEO.';
 
-const schema = {
-  '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'WebPage',
-      '@id': `${canonicalUrl}#webpage`,
-      url: canonicalUrl,
-      name: pageTitle,
-      description: metaDescription,
-      isPartOf: { '@id': `${siteUrl}#website` },
-    },
+const appEntityId = `${canonicalUrl}#softwareapplication`;
+const schema = buildStaticMarketingPageJsonLd({
+  siteUrl,
+  appUrl,
+  canonicalUrl,
+  pageName: pageTitle,
+  description: metaDescription,
+  breadcrumbItems: [
+    { name: 'Home', path: '/' },
+    { name: 'Shopify', path: '/shopify' },
+  ],
+  mainEntity: { '@id': appEntityId },
+  extraGraph: [
     {
       '@type': 'SoftwareApplication',
+      '@id': appEntityId,
       name: 'Sharkly for Shopify',
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       offers: { '@type': 'Offer', price: '39', priceCurrency: 'USD', priceValidUntil: '2027-01-01' },
       description: metaDescription,
     },
-    { '@type': 'WebSite', '@id': `${siteUrl}#website`, url: siteUrl, name: 'Sharkly' },
   ],
-};
+});
 ---
 
 <BaseLayout

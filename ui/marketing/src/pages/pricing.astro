@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { buildStaticMarketingPageJsonLd } from '../lib/sitePageJsonLd';
 import { Zap, Check, Sparkles, ArrowRight } from '@lucide/astro';
 
 const appUrl = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
@@ -9,19 +10,22 @@ const canonicalUrl = `${siteUrl}/pricing`;
 const pageTitle = 'Pricing';
 const metaDescription = 'Simple, honest pricing. AI-powered SEO strategy, content generation, and rankings — from $39/month. 7-day trial. No contracts.';
 
-const schema = {
-  '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'WebPage',
-      '@id': `${canonicalUrl}#webpage`,
-      url: canonicalUrl,
-      name: pageTitle,
-      description: metaDescription,
-      isPartOf: { '@id': `${siteUrl}#website` },
-    },
+const productId = `${canonicalUrl}#product`;
+const schema = buildStaticMarketingPageJsonLd({
+  siteUrl,
+  appUrl,
+  canonicalUrl,
+  pageName: pageTitle,
+  description: metaDescription,
+  breadcrumbItems: [
+    { name: 'Home', path: '/' },
+    { name: 'Pricing', path: '/pricing' },
+  ],
+  mainEntity: { '@id': productId },
+  extraGraph: [
     {
       '@type': 'Product',
+      '@id': productId,
       name: 'Sharkly SEO',
       description: metaDescription,
       brand: { '@type': 'Brand', name: 'Sharkly' },
@@ -29,12 +33,10 @@ const schema = {
         { '@type': 'Offer', name: 'Builder', price: '39', priceCurrency: 'USD', priceValidUntil: '2027-12-31' },
         { '@type': 'Offer', name: 'Growth', price: '79', priceCurrency: 'USD', priceValidUntil: '2027-12-31' },
         { '@type': 'Offer', name: 'Scale', price: '119', priceCurrency: 'USD', priceValidUntil: '2027-12-31' },
-        // { '@type': 'Offer', name: 'Pro', price: '169', priceCurrency: 'USD', priceValidUntil: '2027-12-31' },
       ],
     },
-    { '@type': 'WebSite', '@id': `${siteUrl}#website`, url: siteUrl, name: 'Sharkly' },
   ],
-};
+});
 
 const tiers = [
   {

@@ -1,7 +1,9 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
+import { Search } from '@lucide/astro';
 import { getPosts, getCategories, getFeaturedPosts } from '../../lib/supabase';
+import { buildStaticMarketingPageJsonLd } from '../../lib/sitePageJsonLd';
 
 const [categories, featured, recent] = await Promise.all([
   getCategories(),
@@ -11,25 +13,43 @@ const [categories, featured, recent] = await Promise.all([
 
 const recentNonFeatured = recent.filter(p => !p.featured).slice(0, 9);
 
-const siteUrl = (import.meta.env.MARKETING_URL as string | undefined) ?? 'https://sharkly.co';
+const postsPayload = JSON.stringify(recent).replace(/</g, '\\u003c');
 
-const schema = {
-  '@context': 'https://schema.org',
-  '@type': 'Blog',
-  name: 'Sharkly Blog',
-  description: 'SEO insights, glossary, and guides for small business owners.',
-  url: `${siteUrl}/blog`,
-  publisher: {
-    '@type': 'Organization',
-    name: 'Sharkly',
-    url: siteUrl,
-  },
-};
+const siteUrl = (import.meta.env.MARKETING_URL as string | undefined) ?? 'https://sharkly.co';
+const appUrl = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
+const blogCanonical = `${siteUrl}/blog`;
+const blogDescription = 'SEO insights, glossary, and guides for small business owners.';
+const blogEntityId = `${blogCanonical}#blog`;
+
+const schema = buildStaticMarketingPageJsonLd({
+  siteUrl,
+  appUrl,
+  canonicalUrl: blogCanonical,
+  pageName: 'Sharkly Blog — SEO for Small Businesses',
+  description:
+    'Plain-English SEO guides, glossary definitions backed by Google patents, and real strategies for small business owners.',
+  breadcrumbItems: [
+    { name: 'Home', path: '/' },
+    { name: 'Blog', path: '/blog' },
+  ],
+  mainEntity: { '@id': blogEntityId },
+  extraGraph: [
+    {
+      '@type': 'Blog',
+      '@id': blogEntityId,
+      name: 'Sharkly Blog',
+      description: blogDescription,
+      url: blogCanonical,
+      publisher: { '@id': `${siteUrl}#organization` },
+    },
+  ],
+});
 ---
 
 <BaseLayout
   title="Sharkly Blog — SEO for Small Businesses"
   description="Plain-English SEO guides, glossary definitions backed by Google patents, and real strategies for small business owners."
+  canonical={blogCanonical}
   schema={schema}
 >
   <div class="max-w-[1100px] mx-auto py-12 px-6">
@@ -41,6 +61,39 @@ const schema = {
       <p class="text-lg text-gray-500 max-w-[560px] mx-auto dark:text-gray-400">
         No jargon. No fluff. Just the stuff that actually moves the needle — backed by real data and Google patents.
       </p>
+
+      <form action="/blog/search" method="get" class="mt-8 max-w-xl mx-auto" role="search">
+        <label for="blog-index-search" class="sr-only">Search articles</label>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-stretch rounded-full border border-gray-200 bg-white pl-4 pr-1 py-1 shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+          <div class="relative flex-1 flex items-center min-w-0">
+            <Search className="size-4 text-gray-400 shrink-0 mr-2 dark:text-gray-500" aria-hidden="true" />
+            <input
+              id="blog-index-search"
+              type="search"
+              name="q"
+              placeholder="Search articles…"
+              autocomplete="off"
+              class="w-full min-w-0 border-0 bg-transparent py-2 text-sm text-neutral-900 placeholder:text-gray-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-gray-500"
+            />
+          </div>
+          <button
+            type="submit"
+            class="shrink-0 rounded-full bg-indigo-600 px-5 py-2 text-sm font-semibold text-white hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+          >
+            Search
+          </button>
+        </div>
+      </form>
+
+      <div id="blog-index-live-wrap" class="mt-10 hidden max-w-[1100px] mx-auto text-left">
+        <h2 class="text-lg font-semibold text-neutral-900 mb-3 dark:text-stone-100">Matching articles</h2>
+        <p
+          id="blog-index-search-status"
+          class="text-sm text-gray-500 mb-5 dark:text-gray-400 hidden"
+          aria-live="polite"
+        ></p>
+        <div id="blog-index-live-results" class="hidden"></div>
+      </div>
     </div>
 
     {categories.length > 0 && (
@@ -79,5 +132,21 @@ const schema = {
         <p>Coming soon. Check back shortly.</p>
       </div>
     )}
+
+    <script type="application/json" id="blog-index-posts-payload" set:html={postsPayload} />
+    <script>
+      import { mountBlogLiveSearch } from '../../lib/blogLiveSearch';
+
+      const raw = document.getElementById('blog-index-posts-payload')?.textContent ?? '[]';
+      const posts = JSON.parse(raw);
+      mountBlogLiveSearch({
+        posts,
+        input: '#blog-index-search',
+        resultsContainer: '#blog-index-live-results',
+        statusEl: '#blog-index-search-status',
+        showHideWrap: '#blog-index-live-wrap',
+        debounceMs: 280,
+      });
+    </script>
   </div>
 </BaseLayout>

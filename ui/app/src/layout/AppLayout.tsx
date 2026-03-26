@@ -17,6 +17,7 @@ import { useOrganizationStatus } from '../hooks/useOrganizationStatus';
 import { isOrganizationBehindOnPayments } from '../utils/paymentStatus';
 import ReadOnlyMode from '../components/common/ReadOnlyMode';
 import { useOrganization } from '../hooks/useOrganization';
+import { CreditsLowBanner } from '../components/billing/CreditsLowBanner';
 import { OrganizationRow } from '../types/billing';
 import Backdrop from './Backdrop';
 import ChatWidget from '../components/chat/ChatWidget';
@@ -285,6 +286,7 @@ const LayoutContent: React.FC = () => {
 					<div className="w-full">
 						<main className="bg-accent-foreground-dark min-h-screen-height-visible h-full w-full p-6 dark:bg-gray-800">
 							<div className="mx-auto h-full w-full max-w-(--breakpoint-2xl)">
+								<CreditsLowBanner organization={currentOrg} loading={orgLoading} className="mb-6" />
 								<Outlet />
 							</div>
 						</main>

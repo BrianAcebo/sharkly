@@ -1,16 +1,30 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { buildStaticMarketingPageJsonLd } from '../lib/sitePageJsonLd';
 
 const siteUrl = import.meta.env.MARKETING_URL ?? 'https://sharkly.co';
+const appUrl = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
 const canonicalUrl = `${siteUrl}/cookies`;
 const LAST_UPDATED = 'March 25, 2026';
 
 const pageTitle = 'Cookie Policy';
 const metaDescription =
 	'How Sharkly uses cookies, local storage, and Google Analytics on sharkly.co, and how you can control your choices.';
+
+const schema = buildStaticMarketingPageJsonLd({
+	siteUrl,
+	appUrl,
+	canonicalUrl,
+	pageName: pageTitle,
+	description: metaDescription,
+	breadcrumbItems: [
+		{ name: 'Home', path: '/' },
+		{ name: 'Cookie Policy', path: '/cookies' },
+	],
+});
 ---
 
-<BaseLayout title={pageTitle} description={metaDescription} canonical={canonicalUrl}>
+<BaseLayout title={pageTitle} description={metaDescription} canonical={canonicalUrl} schema={schema}>
   <section class="bg-stone-100 px-4 py-12 sm:px-6 dark:bg-neutral-900">
     <div class="mx-auto max-w-3xl">
       <a

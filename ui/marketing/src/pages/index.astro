@@ -1,26 +1,33 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { getFeaturedPosts } from '../lib/supabase';
+import { buildStaticMarketingPageJsonLd } from '../lib/sitePageJsonLd';
 import { Star, DollarSign, Brain, Clock, Bot, TrendingDown, MapPinX } from '@lucide/astro';
 
+const siteUrl = import.meta.env.MARKETING_URL ?? 'https://sharkly.co';
 const appUrl = import.meta.env.FRONTEND_URL ?? 'https://app.sharkly.co';
 const featuredPosts = await getFeaturedPosts(3);
 
-const schema = {
-  '@context': 'https://schema.org',
-  '@type': 'WebSite',
-  name: 'Sharkly',
-  url: 'https://sharkly.co',
-  description: 'The AI SEO strategist for people who have a business to run. Expert-level SEO, fully automated.',
-  potentialAction: {
-    '@type': 'SearchAction',
-    target: { '@type': 'EntryPoint', urlTemplate: `${appUrl}/strategy?q={search_term_string}` },
-    'query-input': 'required name=search_term_string',
+const homeDescription =
+  'The AI SEO strategist for people who have a business to run. Expert-level SEO, fully automated.';
+const schema = buildStaticMarketingPageJsonLd({
+  siteUrl,
+  appUrl,
+  canonicalUrl: siteUrl,
+  pageName: 'Sharkly — SEO platform for non-experts',
+  description: homeDescription,
+  breadcrumbItems: [{ name: 'Home', path: '/' }],
+  websiteExtras: {
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: { '@type': 'EntryPoint', urlTemplate: `${appUrl}/strategy?q={search_term_string}` },
+      'query-input': 'required name=search_term_string',
+    },
   },
-};
+});
 ---
 
-<BaseLayout schema={schema}>
+<BaseLayout title="Easy AI SEO for Busy Businesses" description={homeDescription} canonical={siteUrl} schema={schema}>
 
 <style is:global>
   /* ── Scenic gradient card behind UI mockups ── */

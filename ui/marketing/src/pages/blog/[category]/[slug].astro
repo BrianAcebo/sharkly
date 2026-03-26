@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { getPost } from '../../../lib/supabase';
+import { buildBlogPostJsonLd } from '../../../lib/blogPostJsonLd';
 
 // SSR — fetch on every request so new posts appear instantly
 const { slug } = Astro.params;
@@ -8,37 +9,13 @@ const post = await getPost(slug as string);
 if (!post) return Astro.redirect('/404');
 
 const siteUrl = (import.meta.env.MARKETING_URL as string | undefined) ?? 'https://sharkly.co';
+const appUrl = (import.meta.env.FRONTEND_URL as string | undefined) ?? 'https://app.sharkly.co';
 const canonical = post.canonical_url ?? `${siteUrl}/blog/${post.blog_categories?.slug ?? 'uncategorized'}/${post.slug}`;
 const date = post.published_at
   ? new Date(post.published_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   : '';
-const dateISO = post.published_at ? new Date(post.published_at).toISOString() : undefined;
 
-const articleSchema = post.schema_markup ?? {
-  '@context': 'https://schema.org',
-  '@type': 'Article',
-  headline: post.title,
-  description: post.meta_description ?? post.excerpt ?? '',
-  image: post.og_image_url ?? undefined,
-  author: { '@type': 'Person', name: post.author_name },
-  publisher: {
-    '@type': 'Organization',
-    name: 'Sharkly',
-    url: 'https://sharkly.co',
-  },
-  datePublished: dateISO,
-  mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
-};
-
-const breadcrumbSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'BreadcrumbList',
-  itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Blog', item: `${siteUrl}/blog` },
-    post.blog_categories && { '@type': 'ListItem', position: 2, name: post.blog_categories.name, item: `${siteUrl}/blog/${post.blog_categories.slug}` },
-    { '@type': 'ListItem', position: 3, name: post.title, item: canonical },
-  ].filter(Boolean),
-};
+const structuredData = buildBlogPostJsonLd(post, { siteUrl, appUrl });
 ---
 
 <BaseLayout
@@ -46,7 +23,8 @@ const breadcrumbSchema = {
   description={post.meta_description ?? post.excerpt ?? ''}
   ogImage={post.og_image_url ?? undefined}
   canonical={canonical}
-  schema={[articleSchema, breadcrumbSchema]}
+  schema={structuredData}
+  ogType="article"
 >
   <article class="max-w-[780px] mx-auto py-12 px-6">
 

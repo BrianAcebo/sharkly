@@ -52,6 +52,7 @@ export type Post = PostSummary & {
   meta_description: string | null;
   canonical_url: string | null;
   schema_markup: object | null;
+  updated_at?: string | null;
   blog_categories: Category | null;
 };
 

@@ -5,12 +5,11 @@ import { FunnelTag } from '../components/shared/FunnelTag';
 import { SEOGrowthStagePanel, getDefaultGrowthStage } from '../components/shared/SEOGrowthStagePanel';
 import { Link } from 'react-router';
 import { Button } from '../components/ui/button';
-import { Zap, Target, Check, Clock, Lock, Plus } from 'lucide-react';
+import { Target, Check, Clock, Lock, Plus } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
 import { useSiteContext } from '../contexts/SiteContext';
 import { useClusters } from '../hooks/useClusters';
 import { useTopics } from '../hooks/useTopics';
-import { useOrganization } from '../hooks/useOrganization';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { useGSCStatus } from '../hooks/useGSCStatus';
 import { usePerformanceData } from '../hooks/usePerformanceData';
@@ -24,7 +23,6 @@ export default function Dashboard() {
 	const { selectedSite } = useSiteContext();
 	const { clusters } = useClusters(selectedSite?.id ?? null);
 	const { topics } = useTopics(selectedSite?.id ?? null);
-	const { organization } = useOrganization();
 	const { publishedCount, avgSeoScore } = useDashboardStats(selectedSite?.id ?? null);
 	const { isConnected: gscConnected } = useGSCStatus(selectedSite?.id);
 	const { avgPosition, totalClicks } = usePerformanceData({
@@ -36,10 +34,6 @@ export default function Dashboard() {
 
 	const keywordsTracked = topics.filter((t) => t.status === 'active').length;
 	const growthStage = getDefaultGrowthStage(undefined);
-
-	const creditsRemaining = organization?.included_credits_remaining ?? organization?.included_credits ?? 0;
-	const creditsMonthly = organization?.included_credits_monthly ?? organization?.included_credits ?? 1;
-	const showCreditsWarning = creditsMonthly > 0 && creditsRemaining / creditsMonthly < 0.2;
 
 	const activeCluster = clusters[0] ?? null;
 	const progressPct = activeCluster && activeCluster.total > 0
@@ -96,25 +90,7 @@ export default function Dashboard() {
 				</div>
 			</div>
 
-			{/* Section 3: Credits Warning (show if credits < 20%) */}
-			{showCreditsWarning && (
-				<div className="mt-6">
-					<AIInsightBlock
-						variant="warning"
-						compact
-						message={`You're running low on credits — ${creditsRemaining} remaining of ${creditsMonthly} this period. Add more in Billing to keep generating content.`}
-					/>
-					<div className="mt-2 flex justify-end">
-						<Link to="/billing">
-							<Button size="sm" className="bg-brand-500 hover:bg-brand-600 text-white">
-								Billing
-							</Button>
-						</Link>
-					</div>
-				</div>
-			)}
-
-			{/* Section 4: Stats Row — Section 7.3 */}
+			{/* Section 3: Stats Row — Section 7.3 */}
 			<div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 				<StatCard label="Keywords Tracked" value={keywordsTracked > 0 ? String(keywordsTracked) : '0'} delta={keywordsTracked > 0 ? 'in active clusters' : 'Start your first cluster'} deltaDirection="neutral" />
 				<StatCard

@@ -10,7 +10,10 @@ interface Props {
   description?: string;
   ogImage?: string;
   canonical?: string;
-  schema?: object;
+  /** Single entity, @graph object, or array of entities (wrapped as @graph) */
+  schema?: object | object[];
+  /** Open Graph type, e.g. article for blog posts */
+  ogType?: string;
   noIndex?: boolean;
 }
 
@@ -23,6 +26,7 @@ const {
   ogImage = `${appUrl}/images/sharkly-og-image.jpg`,
   canonical,
   schema,
+  ogType = 'website',
   noIndex = false,
 } = Astro.props;
 
@@ -35,6 +39,16 @@ const defaultSchema = {
   url: siteUrl,
   description,
 };
+
+function jsonLdPayload(): object {
+  if (schema == null) return defaultSchema;
+  if (Array.isArray(schema)) {
+    return { '@context': 'https://schema.org', '@graph': schema };
+  }
+  return schema;
+}
+
+const jsonLdHtml = JSON.stringify(jsonLdPayload()).replace(/</g, '\\u003c');
 
 const navLinks = [
   { href: '/#hero', label: 'Home' },
@@ -73,7 +87,7 @@ const navLinks = [
     <meta property="og:description" content={description} />
     <meta property="og:image" content={ogImage} />
     <meta property="og:url" content={canonicalUrl} />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content="Sharkly" />
 
     <!-- Twitter Card -->
@@ -83,7 +97,7 @@ const navLinks = [
     <meta name="twitter:image" content={ogImage} />
 
     <!-- JSON-LD -->
-    <script type="application/ld+json" set:html={JSON.stringify(schema ?? defaultSchema)} />
+    <script type="application/ld+json" set:html={jsonLdHtml} />
 
     <!-- RSS -->
     <link rel="alternate" type="application/rss+xml" title="Sharkly Blog" href="/blog/rss.xml" />
