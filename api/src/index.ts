@@ -48,7 +48,7 @@ import {
 } from './controllers/shopifyWebhooks.js';
 import { handleSupabaseAuthEmailHook } from './controllers/supabaseAuthEmailHook.js';
 import { isServerWebhookPath } from './utils/webhookPaths.js';
-import { captureApiError, sentryEnabled } from './utils/sentryCapture.js';
+import { captureApiError, logSentryConfigStatus, sentryEnabled } from './utils/sentryCapture.js';
 import * as Sentry from '@sentry/node';
 
 const app = express();
@@ -185,5 +185,6 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
 const LISTEN_HOST = isFly ? '0.0.0.0' : '127.0.0.1';
 
 app.listen(PORT, LISTEN_HOST, () => {
+	logSentryConfigStatus();
 	console.log(`API listening on http://${LISTEN_HOST}:${PORT} ${isFly ? '(Fly)' : '(Local)'}`);
 });

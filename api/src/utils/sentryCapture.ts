@@ -19,6 +19,7 @@ function baseRequestTags(req: Request): Record<string, string> {
 
 /**
  * Report an unexpected error with request context (no PII in extras by default).
+ * Fire-and-forget flush helps NDJSON/streaming handlers where the response ends quickly.
  */
 export function captureApiError(
 	err: unknown,
@@ -30,6 +31,11 @@ export function captureApiError(
 
 	Sentry.withScope((scope) => {
 		if (extra?.feature) scope.setTag('feature', String(extra.feature));
+		if (extra?.stage != null) scope.setTag('stage', String(extra.stage));
+		// Tags (not only context) so Sentry alert rules can match e.g. Anthropic 404s
+		if (extra?.http_status != null) scope.setTag('anthropic_http_status', String(extra.http_status));
+		if (extra?.error_category != null) scope.setTag('error_category', String(extra.error_category));
+		if (extra?.anthropic_error_type != null) scope.setTag('anthropic_error_type', String(extra.anthropic_error_type));
 		if (req) {
 			for (const [k, v] of Object.entries(baseRequestTags(req))) {
 				scope.setTag(`http.${k}`, v);
@@ -42,6 +48,7 @@ export function captureApiError(
 		}
 		Sentry.captureException(e);
 	});
+	void Sentry.flush(2000);
 }
 
 /** Non-exception events (e.g. refund RPC failure) — capped severity to avoid noise. */
@@ -76,4 +83,13 @@ export function captureFeatureFailure(
 	extra?: { feature?: string; [key: string]: unknown }
 ): void {
 	captureApiError(new Error(message), req, extra);
+}
+
+/** Call once at startup: makes missing API DSN obvious in Fly logs. */
+export function logSentryConfigStatus(): void {
+	if (process.env.NODE_ENV !== 'production') return;
+	if (process.env.SENTRY_DSN) return;
+	console.warn(
+		'[Sentry] SENTRY_DSN is not set — API errors (including Claude/article failures) will not be sent. Set fly secrets (use the Node/backend DSN from Sentry, not the browser/Vercel DSN).'
+	);
 }
