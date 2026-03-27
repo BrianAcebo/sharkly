@@ -8,7 +8,7 @@ import { Request, Response } from 'express';
 import OpenAI from 'openai';
 import { supabase } from '../utils/supabaseClient.js';
 import { AI_TOOLS, executeTool } from '../services/aiTools.js';
-import { captureApiError } from '../utils/sentryCapture.js';
+import { captureApiError, flushSentry } from '../utils/sentryCapture.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o';
@@ -516,6 +516,12 @@ When asked to perform actions, default to this subject unless otherwise specifie
         });
       } catch (openaiError: any) {
         console.error('[AI Chat] OpenAI API error:', openaiError.message, openaiError.code);
+        captureApiError(
+          openaiError instanceof Error ? openaiError : new Error(String(openaiError?.message ?? openaiError)),
+          req,
+          { feature: 'ai-chat-stream', stage: 'openai_create', code: openaiError?.code }
+        );
+        await flushSentry();
         res.write(`data: ${JSON.stringify({ type: 'error', error: openaiError.message })}\n\n`);
         res.end();
         return;
@@ -726,7 +732,9 @@ When asked to perform actions, default to this subject unless otherwise specifie
     res.end();
   } catch (error) {
     console.error('[AI Chat] Error:', error);
-    
+    captureApiError(error, req, { feature: 'ai-chat-stream', stage: 'handler' });
+    await flushSentry();
+
     // Try to send error through stream - include conversation_id if session was created
     try {
       res.write(`data: ${JSON.stringify({ 
@@ -948,6 +956,7 @@ When asked to perform actions, default to this subject unless otherwise specifie
     });
   } catch (error) {
     console.error('[AI Chat] Error:', error);
+    captureApiError(error, req, { feature: 'ai-chat-sync' });
     return res.status(500).json({
       error: 'Chat failed',
       message: error instanceof Error ? error.message : 'Unknown error',

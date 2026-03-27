@@ -59,3 +59,21 @@ export function captureApiWarning(message: string, req: Request | undefined, con
 		Sentry.captureMessage(message);
 	});
 }
+
+/** Await before ending streaming responses so the event is sent before the process/request closes. */
+export async function flushSentry(ms = 2000): Promise<void> {
+	if (!sentryEnabled()) return;
+	await Sentry.flush(ms);
+}
+
+/**
+ * User-visible feature failure when no Error was thrown (bad model output, validation after AI,
+ * streamed NDJSON error + refund). Reported at error level so alert rules match API failures.
+ */
+export function captureFeatureFailure(
+	message: string,
+	req: Request | undefined,
+	extra?: { feature?: string; [key: string]: unknown }
+): void {
+	captureApiError(new Error(message), req, extra);
+}

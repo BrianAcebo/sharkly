@@ -16,7 +16,7 @@ import { extractPlainText, extractH1s } from '../utils/tiptapExtract.js';
 import { YMYL_PROMPT_ADDITIONS } from '../utils/ymyl.js';
 import { createNotificationForUser } from '../utils/notifications.js';
 import { summarizeAnthropicFailure } from '../utils/anthropicErrors.js';
-import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
+import { captureApiError, captureApiWarning, captureFeatureFailure, flushSentry } from '../utils/sentryCapture.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const CLAUDE_MODEL = process.env.CLAUDE_SONNET_MODEL || 'claude-sonnet-4-5-20250929';
@@ -1091,6 +1091,13 @@ Requirements:
 		} catch (err) {
 			console.error('[Pages] Claude brief error:', err instanceof Error ? err.message : err);
 			const summary = summarizeAnthropicFailure(err);
+			captureApiError(err, req, {
+				feature: 'generateBrief',
+				stage: 'claude',
+				pageId,
+				...summary.metadata
+			});
+			await flushSentry();
 			await refundCredits(
 				site.organization_id,
 				userId,
@@ -1119,6 +1126,14 @@ Requirements:
 		} catch {
 			// JSON truncated — most likely hit max_tokens mid-object.
 			console.error('[Pages] Brief parse error (likely truncated):', rawContent.slice(0, 300));
+			captureFeatureFailure('Brief JSON parse failed (truncated / invalid)', req, {
+				feature: 'generateBrief',
+				stage: 'parse',
+				code: 'BRIEF_TRUNCATED',
+				pageId,
+				raw_excerpt: rawContent.slice(0, 500)
+			});
+			await flushSentry();
 			await refundCredits(site.organization_id, userId, creditCost, 'brief_generation',
 				'Brief JSON was truncated mid-generation (token limit reached)',
 				'Brief generation failed — credits refunded',
@@ -1137,6 +1152,14 @@ Requirements:
 		const parsedSections = Array.isArray(briefData.sections) ? briefData.sections : [];
 		if (parsedSections.length === 0) {
 			console.error('[Pages] Brief generated with no sections:', JSON.stringify(briefData).slice(0, 200));
+			captureFeatureFailure('Brief JSON parsed but sections array empty', req, {
+				feature: 'generateBrief',
+				stage: 'validate',
+				code: 'BRIEF_EMPTY',
+				pageId,
+				brief_excerpt: JSON.stringify(briefData).slice(0, 500)
+			});
+			await flushSentry();
 			await refundCredits(site.organization_id, userId, creditCost, 'brief_generation',
 				'Brief generated with zero sections — likely a model response issue',
 				'Brief generation failed — credits refunded',
@@ -1640,6 +1663,13 @@ Output HTML only (h1, h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, a 
 		} catch (err) {
 			console.error('[Pages] Claude article error:', err instanceof Error ? err.message : err);
 			const summary = summarizeAnthropicFailure(err);
+			captureApiError(err, req, {
+				feature: 'generateArticle',
+				stage: 'claude_article',
+				pageId,
+				...summary.metadata
+			});
+			await flushSentry();
 			if (articleCreditCost > 0) {
 				await refundCredits(
 					site.organization_id,
@@ -1811,6 +1841,11 @@ function stripTags(s: string): string {
 	return s.replace(/<[^>]+>/g, '').trim();
 }
 
+/** Remove HTML tags only — do not trim (trimming inline fragments drops spaces around links). */
+function stripTagsHtmlOnly(s: string): string {
+	return s.replace(/<[^>]+>/g, '');
+}
+
 /**
  * Fix LLM-generated HTML where links are concatenated with surrounding text
  * (e.g. "Understanding<a>ingredients</a>reactions" → "Understanding <a>ingredients</a> reactions").
@@ -1845,7 +1880,7 @@ function parseInlineContent(inner: string): unknown[] {
 	let m: RegExpExecArray | null;
 	while ((m = tokenRegex.exec(inner)) !== null) {
 		if (m.index > lastIndex) {
-			const text = stripTags(inner.slice(lastIndex, m.index));
+			const text = stripTagsHtmlOnly(inner.slice(lastIndex, m.index));
 			if (text) nodes.push({ type: 'text', text });
 		}
 		const token = m[0];
@@ -1876,7 +1911,7 @@ function parseInlineContent(inner: string): unknown[] {
 		lastIndex = m.index + m[0].length;
 	}
 	if (lastIndex < inner.length) {
-		const text = stripTags(inner.slice(lastIndex));
+		const text = stripTagsHtmlOnly(inner.slice(lastIndex));
 		if (text) nodes.push({ type: 'text', text });
 	}
 	return nodes.length > 0 ? nodes : [{ type: 'text', text: stripTags(inner) }];
