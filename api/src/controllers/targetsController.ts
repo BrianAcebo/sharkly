@@ -12,6 +12,7 @@
 
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
@@ -152,6 +153,7 @@ export const listTargets = async (req: Request, res: Response) => {
 
 	if (error) {
 		console.error('[Targets] listTargets error:', error);
+		captureApiError(error, req, { feature: 'targets-list', siteId });
 		return res.status(500).json({ error: 'Failed to fetch targets' });
 	}
 
@@ -222,6 +224,7 @@ export const createTarget = async (req: Request, res: Response) => {
 
 	if (error) {
 		console.error('[Targets] createTarget error:', error);
+		captureApiError(error, req, { feature: 'targets-create', siteId });
 		return res.status(500).json({ error: 'Failed to create target' });
 	}
 
@@ -281,6 +284,7 @@ export const updateTarget = async (req: Request, res: Response) => {
 
 	if (error) {
 		console.error('[Targets] updateTarget error:', error);
+		captureApiError(error, req, { feature: 'targets-update', targetId });
 		return res.status(500).json({ error: 'Failed to update target' });
 	}
 
@@ -312,6 +316,7 @@ export const deleteTarget = async (req: Request, res: Response) => {
 
 	if (error) {
 		console.error('[Targets] deleteTarget error:', error);
+		captureApiError(error, req, { feature: 'targets-delete', targetId });
 		return res.status(500).json({ error: 'Failed to delete target' });
 	}
 
@@ -342,6 +347,7 @@ export const listTopicsForTarget = async (req: Request, res: Response) => {
 
 	if (error) {
 		console.error('[Targets] listTopicsForTarget error:', error);
+		captureApiError(error, req, { feature: 'targets-list-topics', targetId });
 		return res.status(500).json({ error: 'Failed to fetch topics' });
 	}
 
@@ -483,6 +489,7 @@ export const acceptTopicsFromRun = async (req: Request, res: Response) => {
 
 	if (error) {
 		console.error('[Targets] acceptTopicsFromRun error:', error);
+		captureApiError(error, req, { feature: 'targets-accept-topics', targetId });
 		return res.status(500).json({ error: 'Failed to add topics' });
 	}
 
@@ -561,6 +568,7 @@ export const moveTopic = async (req: Request, res: Response) => {
 
 	if (destErr) {
 		console.error('[Targets] moveTopic: failed to fetch destination topics', destErr);
+		captureApiError(destErr, req, { feature: 'targets-move-dest-topics', targetId, destinationTargetId });
 		return res.status(500).json({ error: 'Failed to load destination topics' });
 	}
 
@@ -598,6 +606,7 @@ export const moveTopic = async (req: Request, res: Response) => {
 				.eq('id', t.id);
 			if (shiftErr) {
 				console.error('[Targets] moveTopic: failed to shift topic', t.id, shiftErr);
+				captureApiError(shiftErr, req, { feature: 'targets-move-shift', topicId: t.id });
 				return res.status(500).json({ error: 'Failed to reorder topics' });
 			}
 		}
@@ -615,6 +624,7 @@ export const moveTopic = async (req: Request, res: Response) => {
 
 	if (updateError) {
 		console.error('[Targets] moveTopic error:', updateError);
+		captureApiError(updateError, req, { feature: 'targets-move-update', topicId, destinationTargetId });
 		return res.status(500).json({ error: 'Failed to move topic' });
 	}
 

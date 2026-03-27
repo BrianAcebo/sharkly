@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 /**
  * Normalize phone number to E.164 format
@@ -195,6 +196,7 @@ export async function getExtractedEntitiesForRunHttp(req: Request, res: Response
     return res.json({ ok: true, items: rows, pageInfo: { total, limit: 0, offset: 0, hasMore: false } });
   } catch (e: any) {
     console.error('getExtractedEntitiesForRun error', e);
+    captureApiError(e, req, { feature: 'extracted-entities-list' });
     return res.status(500).json({ ok: false, error: { message: e?.message ?? 'Failed to load extracted entities' } });
   }
 }
@@ -403,6 +405,7 @@ export async function getSuggestedEntitiesForRunHttp(req: Request, res: Response
     return res.json({ runId, groups, totals });
   } catch (e: any) {
     console.error('getSuggestedEntitiesForRun error', e);
+    captureApiError(e, req, { feature: 'extracted-suggested-entities' });
     return res.status(500).json({ error: { message: e?.message ?? 'Failed to load suggested entities' } });
   }
 }
@@ -773,6 +776,7 @@ export async function getTopSuggestionsForRunHttp(req: Request, res: Response) {
     });
   } catch (e: any) {
     console.error('getTopSuggestionsForRun error', e);
+    captureApiError(e, req, { feature: 'extracted-top-suggestions' });
     return res.status(500).json({ error: { message: e?.message ?? 'Failed to load top suggestions' } });
   }
 }
@@ -1087,6 +1091,7 @@ Return ONLY valid JSON (no markdown) mapping keys "<entity_type>::<value>" to {c
     });
   } catch (e: any) {
     console.error('postAiSuggestForRun error', e);
+    captureApiError(e, req, { feature: 'extracted-ai-suggest' });
     return res.status(500).json({ error: { message: e?.message ?? 'AI suggest failed' } });
   }
 }
@@ -1164,11 +1169,13 @@ export async function postMentionDecisionHttp(req: Request, res: Response) {
         { onConflict: 'organization_id,run_id,entity_type,value_normalized' }
       );
     if (upErr) {
+      captureApiError(upErr, req, { feature: 'extracted-mention-decision-upsert' });
       return res.status(500).json({ ok: false, error: { message: upErr.message } });
     }
     return res.json({ ok: true });
   } catch (e: any) {
     console.error('postMentionDecision error', e);
+    captureApiError(e, req, { feature: 'extracted-mention-decision' });
     return res.status(500).json({ ok: false, error: { message: e?.message ?? 'Failed to save decision' } });
   }
 }
@@ -1271,7 +1278,10 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
       .eq('entity_type', entity_type === 'document' ? 'url' : (entity_type as string))
       .eq('value_normalized', value_normalized)
       .limit(25);
-    if (mErr) return res.status(500).json({ error: { message: mErr.message } });
+    if (mErr) {
+      captureApiError(mErr, req, { feature: 'extracted-promote-mentions' });
+      return res.status(500).json({ error: { message: mErr.message } });
+    }
     const mentions = mentionRows ?? [];
 
     // Map docId -> url
@@ -1280,7 +1290,10 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
       .from('documents')
       .select('id, canonical_url')
       .in('id', docIds);
-    if (dErr) return res.status(500).json({ error: { message: dErr.message } });
+    if (dErr) {
+      captureApiError(dErr, req, { feature: 'extracted-promote-docs' });
+      return res.status(500).json({ error: { message: dErr.message } });
+    }
     const urlById = new Map<string, string>((docs ?? []).map((d) => [(d as any).id as string, ((d as any).canonical_url as string) ?? '']));
 
     // 3) Upsert into correct entity table
@@ -1292,7 +1305,10 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
         .upsert({ organization_id, address: value_normalized, domain }, { onConflict: 'organization_id,address' })
         .select('id')
         .single();
-      if (error) return res.status(500).json({ error: { message: error.message } });
+      if (error) {
+        captureApiError(error, req, { feature: 'extracted-promote-email' });
+        return res.status(500).json({ error: { message: error.message } });
+      }
       entity_id = (data?.id as string) ?? null;
     } else if (entity_type === 'domain') {
       const { data, error } = await supabase
@@ -1300,7 +1316,10 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
         .upsert({ organization_id, name: value_normalized }, { onConflict: 'organization_id,name' })
         .select('id')
         .single();
-      if (error) return res.status(500).json({ error: { message: error.message } });
+      if (error) {
+        captureApiError(error, req, { feature: 'extracted-promote-domain' });
+        return res.status(500).json({ error: { message: error.message } });
+      }
       entity_id = (data?.id as string) ?? null;
     } else if (entity_type === 'phone') {
       // Normalize phone number to E.164 format (adds +1 for US numbers)
@@ -1310,7 +1329,10 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
         .upsert({ organization_id, number_e164: normalizedPhone }, { onConflict: 'organization_id,number_e164' })
         .select('id')
         .single();
-      if (error) return res.status(500).json({ error: { message: error.message } });
+      if (error) {
+        captureApiError(error, req, { feature: 'extracted-promote-phone' });
+        return res.status(500).json({ error: { message: error.message } });
+      }
       entity_id = (data?.id as string) ?? null;
     } else if (entity_type === 'ip') {
       const { data, error } = await supabase
@@ -1318,7 +1340,10 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
         .upsert({ organization_id, address: value_normalized, ip: { address: value_normalized } }, { onConflict: 'organization_id,address' })
         .select('id')
         .single();
-      if (error) return res.status(500).json({ error: { message: error.message } });
+      if (error) {
+        captureApiError(error, req, { feature: 'extracted-promote-ip' });
+        return res.status(500).json({ error: { message: error.message } });
+      }
       entity_id = (data?.id as string) ?? null;
     } else if (entity_type === 'username') {
       const { data, error } = await supabase
@@ -1326,7 +1351,10 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
         .upsert({ organization_id, value: value_normalized }, { onConflict: 'organization_id,value' })
         .select('id')
         .single();
-      if (error) return res.status(500).json({ error: { message: error.message } });
+      if (error) {
+        captureApiError(error, req, { feature: 'extracted-promote-username' });
+        return res.status(500).json({ error: { message: error.message } });
+      }
       entity_id = (data?.id as string) ?? null;
     } else if (entity_type === 'social_profile') {
       // Attempt to derive handle/platform from first mention url (preserve original casing)
@@ -1367,6 +1395,7 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
               } 
             });
           }
+          captureApiError(error, req, { feature: 'extracted-promote-social-insert' });
           return res.status(500).json({ error: { message: error.message } });
         }
         entity_id = (data?.id as string) ?? null;
@@ -1393,16 +1422,25 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
           } as Record<string, unknown>)
           .select('id')
           .single();
-        if (insErr) return res.status(500).json({ error: { message: insErr.message } });
+        if (insErr) {
+          captureApiError(insErr, req, { feature: 'extracted-promote-document-insert' });
+          return res.status(500).json({ error: { message: insErr.message } });
+        }
         docId = (insDoc as any)?.id ?? null;
       }
-      if (!docId) return res.status(500).json({ error: { message: 'Failed to create or resolve document_id' } });
+      if (!docId) {
+        captureApiError(new Error('Failed to create or resolve document_id'), req, { feature: 'extracted-promote-document-id' });
+        return res.status(500).json({ error: { message: 'Failed to create or resolve document_id' } });
+      }
       entity_id = docId;
     } else {
       return res.status(400).json({ error: { message: `Unsupported entity_type: ${entity_type}` } });
     }
 
-    if (!entity_id) return res.status(500).json({ error: { message: 'Failed to create or resolve entity_id' } });
+    if (!entity_id) {
+      captureApiError(new Error('Failed to create or resolve entity_id'), req, { feature: 'extracted-promote-entity-id' });
+      return res.status(500).json({ error: { message: 'Failed to create or resolve entity_id' } });
+    }
 
     // 4) Link run → entity
     await supabase
@@ -1451,6 +1489,7 @@ export async function postPromoteEntityHttp(req: Request, res: Response) {
     return res.json({ ok: true, entity_type, entity_id, evidence_added: evidenceRows.length });
   } catch (e: any) {
     console.error('postPromoteEntity error', e);
+    captureApiError(e, req, { feature: 'extracted-promote-entity' });
     return res.status(500).json({ ok: false, error: { message: e?.message ?? 'Failed to promote entity' } });
   }
 }
@@ -1556,7 +1595,10 @@ export async function postLinkEntityToPersonHttp(req: Request, res: Response) {
       if (!found?.data) {
         // Create if still not found
         const ins = await supabase.from('domains').insert({ organization_id, name: domName } as Record<string, unknown>).select('id').single();
-        if (ins.error) return res.status(500).json({ error: { message: ins.error.message } });
+        if (ins.error) {
+          captureApiError(ins.error, req, { feature: 'extracted-link-domain-insert' });
+          return res.status(500).json({ error: { message: ins.error.message } });
+        }
         entityId = (ins.data as any)?.id ?? null;
       } else {
         entityId = (found.data as any)?.id ?? null;
@@ -1581,6 +1623,7 @@ export async function postLinkEntityToPersonHttp(req: Request, res: Response) {
         } as Record<string, unknown>);
       if (edgeErr) {
         console.error('postLinkEntityToPerson: failed to insert edge', edgeErr);
+        captureApiError(edgeErr, req, { feature: 'extracted-link-domain-edge' });
         return res.status(500).json({ error: { message: edgeErr.message } });
       }
       }
@@ -1605,10 +1648,16 @@ export async function postLinkEntityToPersonHttp(req: Request, res: Response) {
           docName = normUrl.length > 80 ? normUrl.substring(0, 77) + '...' : normUrl;
         }
         const ins = await supabase.from('documents').insert({ organization_id, canonical_url: normUrl, source_url: normUrl, doc: { type: 'web', name: docName }, retrieved_at: new Date().toISOString() } as Record<string, unknown>).select('id').single();
-        if (ins.error) return res.status(500).json({ error: { message: ins.error.message } });
+        if (ins.error) {
+          captureApiError(ins.error, req, { feature: 'extracted-link-document-insert' });
+          return res.status(500).json({ error: { message: ins.error.message } });
+        }
         docId = (ins.data as any)?.id ?? null;
       }
-      if (!docId) return res.status(500).json({ error: { message: 'Document not found or created' } });
+      if (!docId) {
+        captureApiError(new Error('Document not found or created'), req, { feature: 'extracted-link-document-id' });
+        return res.status(500).json({ error: { message: 'Document not found or created' } });
+      }
       const { data: existingDoc } = await supabase
         .from('entity_edges')
         .select('id')
@@ -1627,6 +1676,7 @@ export async function postLinkEntityToPersonHttp(req: Request, res: Response) {
         } as Record<string, unknown>);
         if (edgeErr) {
           console.error('postLinkEntityToPerson: failed to link document', edgeErr);
+          captureApiError(edgeErr, req, { feature: 'extracted-link-document-edge' });
           return res.status(500).json({ error: { message: edgeErr.message } });
         }
       }
@@ -1638,6 +1688,7 @@ export async function postLinkEntityToPersonHttp(req: Request, res: Response) {
     return res.json({ ok: true, linked: true, entity_type, entity_id: entityId, person_id: personId });
   } catch (e: any) {
     console.error('postLinkEntityToPerson error', e);
+    captureApiError(e, req, { feature: 'extracted-link-entity-person' });
     return res.status(500).json({ ok: false, error: { message: e?.message ?? 'Failed to link entity to person' } });
   }
 }
@@ -1662,6 +1713,7 @@ export async function postPromoteAndLinkEntityHttp(req: Request, res: Response) 
     // When postPromoteEntityHttp is invoked this way, it returns a JSON-like object or writes to res; handle both
     if (!promoteRes || promoteRes?.ok === false || promoteRes?.error) {
       console.error('postPromoteAndLink: promotion failed', promoteRes?.error ?? promoteRes);
+      captureApiError(new Error('promotion_failed'), req, { feature: 'extracted-promote-and-link-promote' });
       return res.status(500).json(promoteRes ?? { ok: false, error: { message: 'promotion_failed' } });
     }
 
@@ -1689,12 +1741,14 @@ export async function postPromoteAndLinkEntityHttp(req: Request, res: Response) 
           }
         } catch { /* ignore rollback errors */ }
       }
+      captureApiError(new Error('link_failed'), req, { feature: 'extracted-promote-and-link-link' });
       return res.status(500).json(linkRes ?? { ok: false, error: { message: 'link_failed' } });
     }
 
     return res.json({ ok: true, ...linkRes });
   } catch (e: any) {
     console.error('postPromoteAndLinkEntity error', e);
+    captureApiError(e, req, { feature: 'extracted-promote-and-link' });
     return res.status(500).json({ ok: false, error: { message: e?.message ?? 'Failed to promote and link entity' } });
   }
 }

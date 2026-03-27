@@ -8,6 +8,7 @@
 
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 function normalizePath(url: string): string {
 	if (!url || typeof url !== 'string') return '';
@@ -385,6 +386,7 @@ export async function diagnosePage(req: Request, res: Response): Promise<void> {
 		});
 	} catch (err) {
 		console.error('[Diagnose] Error:', err);
+		captureApiError(err, req, { feature: 'diagnose-page', pageId: req.params.id });
 		res.status(500).json({
 			error: err instanceof Error ? err.message : 'Diagnosis failed'
 		});

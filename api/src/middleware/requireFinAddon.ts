@@ -6,6 +6,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 export async function requireFinAddon(req: Request, res: Response, next: NextFunction): Promise<void> {
 	try {
@@ -33,6 +34,7 @@ export async function requireFinAddon(req: Request, res: Response, next: NextFun
 		next();
 	} catch (err) {
 		console.error('[requireFinAddon] Error:', err);
+		captureApiError(err, req, { feature: 'requireFinAddon' });
 		res.status(500).json({ error: 'Failed to verify Fin access' });
 	}
 }

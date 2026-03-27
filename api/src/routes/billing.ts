@@ -12,6 +12,7 @@ import {
 } from '../utils/croAddon.js';
 import billingPublicRoutes from './billingPublic.js';
 import { createOrganizationFromDeferredSubscription } from '../utils/deferredOrgSignup.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const router = express.Router();
 const stripe = getStripeClient();
@@ -99,6 +100,7 @@ router.post('/test/confirm-payment', async (req, res) => {
 
 		if (updateError) {
 			console.error('[TEST] Failed to update org status:', updateError);
+			captureApiError(updateError, req, { feature: 'billing-test-confirm-org-update' });
 			return res.status(500).json({ error: 'Failed to update organization' });
 		}
 
@@ -111,6 +113,7 @@ router.post('/test/confirm-payment', async (req, res) => {
 		});
 	} catch (error) {
 		console.error('[TEST] Error confirming payment:', error);
+		captureApiError(error, req, { feature: 'billing-test-confirm-payment' });
 		return res.status(500).json({ error: 'Failed to confirm payment' });
 	}
 });
@@ -133,12 +136,14 @@ router.get('/wallet/auto-recharge/:organizationId', async (req, res) => {
 
 		if (error) {
 			console.error('Failed to load auto-recharge settings', error);
+			captureApiError(error, req, { feature: 'billing-wallet-auto-recharge-load' });
 			return res.status(500).json({ error: 'Failed to load auto-recharge settings' });
 		}
 
 		return res.json({ settings: data ?? null });
 	} catch (error) {
 		console.error('Auto-recharge load error', error);
+		captureApiError(error, req, { feature: 'billing-wallet-auto-recharge-load' });
 		return res.status(500).json({ error: 'Failed to load auto-recharge settings' });
 	}
 });
@@ -180,6 +185,7 @@ router.put('/wallet/auto-recharge/:organizationId', async (req, res) => {
 		return res.json({ settings: data });
 	} catch (error) {
 		console.error('Auto-recharge save error', error);
+		captureApiError(error, req, { feature: 'billing-wallet-auto-recharge-save' });
 		return res.status(500).json({ error: 'Failed to save auto-recharge settings' });
 	}
 });
@@ -220,6 +226,7 @@ router.post('/wallet/topup/:organizationId/intent', async (req, res) => {
 		});
 	} catch (error) {
 		console.error('Wallet top-up intent error', error);
+		captureApiError(error, req, { feature: 'billing-wallet-topup-intent' });
 		return res.status(500).json({ error: 'Failed to create wallet top-up intent' });
 	}
 });
@@ -251,6 +258,7 @@ router.get('/invoices', async (req, res) => {
 		});
 	} catch (error) {
 		console.error('Invoices fetch error', error);
+		captureApiError(error, req, { feature: 'billing-invoices-list' });
 		return res.status(500).json({ error: 'Failed to fetch invoices' });
 	}
 });
@@ -284,6 +292,7 @@ router.get('/cro-addon/status', async (req, res) => {
 		return res.json(status);
 	} catch (error) {
 		console.error('[Billing] CRO addon status error:', error);
+		captureApiError(error, req, { feature: 'billing-cro-addon-status' });
 		return res.status(500).json({ error: 'Failed to get CRO addon status' });
 	}
 });
@@ -322,6 +331,7 @@ router.post('/cro-addon/subscribe', async (req, res) => {
 		return res.json({ success: true, message: 'Successfully subscribed to CRO Studio!' });
 	} catch (error) {
 		console.error('[Billing] CRO addon subscribe error:', error);
+		captureApiError(error, req, { feature: 'billing-cro-addon-subscribe' });
 		return res.status(500).json({ error: 'Failed to subscribe to CRO addon' });
 	}
 });
@@ -363,6 +373,7 @@ router.post('/cro-addon/cancel', async (req, res) => {
 		});
 	} catch (error) {
 		console.error('[Billing] CRO addon cancel error:', error);
+		captureApiError(error, req, { feature: 'billing-cro-addon-cancel' });
 		return res.status(500).json({ error: 'Failed to cancel CRO addon' });
 	}
 });

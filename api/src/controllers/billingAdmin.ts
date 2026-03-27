@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { getStripeClient } from '../utils/stripe.js';
 import crypto from 'crypto';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const stripe = getStripeClient();
 
@@ -38,6 +39,7 @@ export const adjustCredits = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[ADMIN] Credit adjustment failed', { orgId, error });
+			captureApiError(error, req, { feature: 'billing-admin-adjust-credits', orgId });
 			return res.status(500).json({ error: error.message });
 		}
 
@@ -56,6 +58,7 @@ export const adjustCredits = async (req: Request, res: Response) => {
 		return res.json(data);
 	} catch (error) {
 		console.error('[ADMIN] Credit adjustment exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-adjust-credits' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -86,12 +89,14 @@ export const previewTierChange = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[ADMIN] Tier preview failed', { orgId, error });
+			captureApiError(error, req, { feature: 'billing-admin-preview-tier', orgId });
 			return res.status(500).json({ error: error.message });
 		}
 
 		return res.json(data);
 	} catch (error) {
 		console.error('[ADMIN] Tier preview exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-preview-tier' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -116,12 +121,14 @@ export const getBillingHistory = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[ADMIN] Billing history fetch failed', { orgId, error });
+			captureApiError(error, req, { feature: 'billing-admin-billing-history', orgId });
 			return res.status(500).json({ error: error.message });
 		}
 
 		return res.json(data);
 	} catch (error) {
 		console.error('[ADMIN] Billing history exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-billing-history' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -144,12 +151,14 @@ export const getCreditSummary = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[ADMIN] Credit summary fetch failed', { orgId, error });
+			captureApiError(error, req, { feature: 'billing-admin-credit-summary', orgId });
 			return res.status(500).json({ error: error.message });
 		}
 
 		return res.json(data);
 	} catch (error) {
 		console.error('[ADMIN] Credit summary exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-credit-summary' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -180,6 +189,7 @@ export const changeTierCredits = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[ADMIN] Tier change failed', { orgId, error });
+			captureApiError(error, req, { feature: 'billing-admin-change-tier', orgId });
 			return res.status(500).json({ error: error.message });
 		}
 
@@ -197,6 +207,7 @@ export const changeTierCredits = async (req: Request, res: Response) => {
 		return res.json(data);
 	} catch (error) {
 		console.error('[ADMIN] Tier change exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-change-tier' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -228,6 +239,7 @@ export const adjustCreditsForSeats = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[ADMIN] Seat credit adjustment failed', { orgId, error });
+			captureApiError(error, req, { feature: 'billing-admin-seat-credits', orgId });
 			return res.status(500).json({ error: error.message });
 		}
 
@@ -248,6 +260,7 @@ export const adjustCreditsForSeats = async (req: Request, res: Response) => {
 		return res.json(data);
 	} catch (error) {
 		console.error('[ADMIN] Seat credit adjustment exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-seat-credits' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -333,6 +346,7 @@ export const createWalletCheckoutSession = async (req: Request, res: Response) =
 		});
 	} catch (error) {
 		console.error('[BILLING] Checkout session creation failed', error);
+		captureApiError(error, req, { feature: 'billing-admin-wallet-checkout' });
 		return res.status(500).json({ error: 'Failed to create checkout session' });
 	}
 };
@@ -354,12 +368,14 @@ export const getMonthlyUsage = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[BILLING] Monthly usage fetch failed', { orgId, error });
+			captureApiError(error, req, { feature: 'billing-admin-monthly-usage', orgId });
 			return res.status(500).json({ error: error.message });
 		}
 
 		return res.json(data);
 	} catch (error) {
 		console.error('[BILLING] Monthly usage exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-monthly-usage' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -383,6 +399,7 @@ export const resetMonthlyCreditsForOrg = async (req: Request, res: Response) => 
 
 		if (error) {
 			console.error('[ADMIN] Manual credit reset failed', { orgId, error });
+			captureApiError(error, req, { feature: 'billing-admin-reset-monthly-credits', orgId });
 			return res.status(500).json({ error: error.message });
 		}
 
@@ -399,6 +416,7 @@ export const resetMonthlyCreditsForOrg = async (req: Request, res: Response) => 
 		});
 	} catch (error) {
 		console.error('[ADMIN] Manual credit reset exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-reset-monthly-credits' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -445,6 +463,7 @@ export const lookupOrgForRefund = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[ADMIN] Org lookup failed', error);
+			captureApiError(error, req, { feature: 'billing-admin-lookup-org' });
 			return res.status(500).json({ error: error.message });
 		}
 
@@ -467,6 +486,7 @@ export const lookupOrgForRefund = async (req: Request, res: Response) => {
 		return res.json(orgsWithWallet);
 	} catch (error) {
 		console.error('[ADMIN] Org lookup exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-lookup-org' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -602,6 +622,7 @@ export const getRefundAudit = async (req: Request, res: Response) => {
 		});
 	} catch (error) {
 		console.error('[ADMIN] Refund audit exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-refund-audit', orgId: req.params.orgId });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -623,6 +644,7 @@ export const adminProcessSubscriptionRefund = async (req: Request, res: Response
 		);
 
 		if (eligError) {
+			captureApiError(eligError, req, { feature: 'billing-admin-sub-refund-eligibility', orgId });
 			return res.status(500).json({ error: 'Failed to check eligibility' });
 		}
 
@@ -667,6 +689,7 @@ export const adminProcessSubscriptionRefund = async (req: Request, res: Response
 			.single();
 
 		if (insertError) {
+			captureApiError(insertError, req, { feature: 'billing-admin-sub-refund-insert', orgId });
 			return res.status(500).json({ error: 'Failed to create refund request' });
 		}
 
@@ -706,6 +729,7 @@ export const adminProcessSubscriptionRefund = async (req: Request, res: Response
 		});
 	} catch (error: any) {
 		console.error('[ADMIN] Subscription refund failed', error);
+		captureApiError(error, req, { feature: 'billing-admin-subscription-refund', orgId: req.body?.orgId });
 		return res.status(500).json({ error: error.message || 'Refund failed' });
 	}
 };
@@ -727,6 +751,7 @@ export const adminProcessWalletRefund = async (req: Request, res: Response) => {
 		);
 
 		if (eligError) {
+			captureApiError(eligError, req, { feature: 'billing-admin-wallet-refund-eligibility', orgId });
 			return res.status(500).json({ error: 'Failed to check eligibility' });
 		}
 
@@ -788,6 +813,7 @@ export const adminProcessWalletRefund = async (req: Request, res: Response) => {
 			.single();
 
 		if (insertError) {
+			captureApiError(insertError, req, { feature: 'billing-admin-wallet-refund-insert', orgId });
 			return res.status(500).json({ error: 'Failed to create refund request' });
 		}
 
@@ -827,6 +853,7 @@ export const adminProcessWalletRefund = async (req: Request, res: Response) => {
 		});
 	} catch (error: any) {
 		console.error('[ADMIN] Wallet refund failed', error);
+		captureApiError(error, req, { feature: 'billing-admin-wallet-refund', orgId: req.body?.orgId });
 		return res.status(500).json({ error: error.message || 'Refund failed' });
 	}
 };
@@ -856,6 +883,7 @@ export const adminCreditBackAction = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[ADMIN] Credit-back failed', error);
+			captureApiError(error, req, { feature: 'billing-admin-credit-back', orgId });
 			return res.status(500).json({ error: error.message });
 		}
 
@@ -869,6 +897,7 @@ export const adminCreditBackAction = async (req: Request, res: Response) => {
 		return res.json(data);
 	} catch (error) {
 		console.error('[ADMIN] Credit-back exception', error);
+		captureApiError(error, req, { feature: 'billing-admin-credit-back' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -894,6 +923,7 @@ export const verifyAdminPassword = async (req: Request, res: Response) => {
 		return res.json({ valid });
 	} catch (error) {
 		console.error('[ADMIN] Password verification error', error);
+		captureApiError(error, req, { feature: 'billing-admin-password-verify' });
 		return res.status(500).json({ valid: false, error: 'Verification failed' });
 	}
 };
@@ -948,6 +978,7 @@ export const cancelSubscription = async (req: Request, res: Response) => {
 		});
 	} catch (error: any) {
 		console.error('[ADMIN] Cancel subscription failed', error);
+		captureApiError(error, req, { feature: 'billing-admin-cancel-subscription', orgId: req.body?.orgId });
 		return res.status(500).json({ error: error.message || 'Failed to cancel subscription' });
 	}
 };
@@ -988,6 +1019,7 @@ export const pauseSubscription = async (req: Request, res: Response) => {
 		});
 	} catch (error: any) {
 		console.error('[ADMIN] Pause subscription failed', error);
+		captureApiError(error, req, { feature: 'billing-admin-pause-subscription', orgId: req.body?.orgId });
 		return res.status(500).json({ error: error.message || 'Failed to pause subscription' });
 	}
 };
@@ -1037,6 +1069,7 @@ export const resumeSubscription = async (req: Request, res: Response) => {
 		});
 	} catch (error: any) {
 		console.error('[ADMIN] Resume subscription failed', error);
+		captureApiError(error, req, { feature: 'billing-admin-resume-subscription', orgId: req.body?.orgId });
 		return res.status(500).json({ error: error.message || 'Failed to resume subscription' });
 	}
 };
@@ -1284,6 +1317,7 @@ export const syncFromStripe = async (req: Request, res: Response) => {
 		});
 	} catch (error: any) {
 		console.error('[ADMIN] Stripe sync failed', error);
+		captureApiError(error, req, { feature: 'billing-admin-stripe-sync', orgId: req.body?.orgId });
 		return res.status(500).json({ error: error.message || 'Sync failed' });
 	}
 };

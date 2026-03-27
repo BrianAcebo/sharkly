@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
 import { createNotificationForUser, maybeNotifyCreditsLow } from '../utils/notifications.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 export const getLatestAudit = async (req: Request, res: Response) => {
 	try {
@@ -21,6 +22,7 @@ export const getLatestAudit = async (req: Request, res: Response) => {
 
 		if (auditError) {
 			console.error('[AuditController] Error fetching audit:', auditError);
+			captureApiError(auditError, req, { feature: 'audit-latest-query', siteId });
 			return res.status(500).json({ error: 'Failed to fetch audit results' });
 		}
 
@@ -90,6 +92,7 @@ export const getLatestAudit = async (req: Request, res: Response) => {
 		return res.json({ audit: formattedAudit, inProgress: false });
 	} catch (error) {
 		console.error('[AuditController] Error:', error);
+		captureApiError(error, req, { feature: 'audit-latest', siteId: req.params.siteId });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -110,12 +113,14 @@ export const getAuditHistory = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[AuditController] Error fetching history:', error);
+			captureApiError(error, req, { feature: 'audit-history-query', siteId });
 			return res.status(500).json({ error: 'Failed to fetch audit history' });
 		}
 
 		return res.json({ audits: audits || [] });
 	} catch (error) {
 		console.error('[AuditController] Error:', error);
+		captureApiError(error, req, { feature: 'audit-history', siteId: req.params.siteId });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -180,6 +185,7 @@ export const runAudit = async (req: Request, res: Response) => {
 
 		if (deductErr) {
 			console.error('[AuditController] Failed to deduct credits:', deductErr);
+			captureApiError(deductErr, req, { feature: 'audit-run-deduct-credits', siteId, orgId: site.organization_id });
 			return res.status(500).json({ error: 'Failed to deduct credits' });
 		}
 
@@ -204,6 +210,11 @@ export const runAudit = async (req: Request, res: Response) => {
 			})
 			.catch((e) => {
 				console.error('[AuditController] Audit failed:', e);
+				captureApiError(e, undefined, {
+					feature: 'audit-background-run',
+					siteId,
+					organizationId: site.organization_id
+				});
 				// Refund credits on failure
 				supabase
 					.from('organizations')
@@ -218,6 +229,7 @@ export const runAudit = async (req: Request, res: Response) => {
 		return res.json({ ok: true, message: 'Audit started in background', creditsUsed: cost });
 	} catch (error) {
 		console.error('[AuditController] Error:', error);
+		captureApiError(error, req, { feature: 'audit-run', siteId: req.params.siteId });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };

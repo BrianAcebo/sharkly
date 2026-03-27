@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import exifr from 'exifr';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 export async function extractExif(req: Request, res: Response) {
   try {
@@ -80,6 +81,7 @@ export async function extractExif(req: Request, res: Response) {
     res.json({ exif });
   } catch (e) {
     console.error('extract exif error', e);
+    captureApiError(e, req, { feature: 'images-extract-exif' });
     res.status(500).json({ error: { message: 'Failed to extract EXIF' } });
   }
 }
@@ -94,6 +96,7 @@ export async function ensureImagesBucket(_req: Request, res: Response) {
         fileSizeLimit: '52428800' // 50MB
       });
       if (created.error) {
+        captureApiError(created.error, _req, { feature: 'images-ensure-bucket-create' });
         return res.status(500).json({ error: { message: created.error.message } });
       }
       return res.json({ created: true });
@@ -101,6 +104,7 @@ export async function ensureImagesBucket(_req: Request, res: Response) {
     return res.json({ exists: true });
   } catch (e) {
     console.error('ensure images bucket error', e);
+    captureApiError(e, _req, { feature: 'images-ensure-bucket' });
     return res.status(500).json({ error: { message: 'Failed to ensure bucket' } });
   }
 }
@@ -113,15 +117,21 @@ export async function signedUploadUrl(req: Request, res: Response) {
     const bucket = await supabase.storage.getBucket('images');
     if (bucket.error || !bucket.data) {
       const created = await supabase.storage.createBucket('images', { public: false, fileSizeLimit: '52428800' });
-      if (created.error) return res.status(500).json({ error: { message: created.error.message } });
+      if (created.error) {
+        captureApiError(created.error, req, { feature: 'images-signed-upload-bucket' });
+        return res.status(500).json({ error: { message: created.error.message } });
+      }
     }
     const { data, error } = await supabase.storage.from('images').createSignedUploadUrl(path);
     if (error || !data) {
+      if (error) captureApiError(error, req, { feature: 'images-signed-upload-url' });
+      else captureApiError(new Error('no_signed_upload_data'), req, { feature: 'images-signed-upload-url' });
       return res.status(500).json({ error: { message: error?.message ?? 'failed to create signed upload url' } });
     }
     return res.json({ path, token: data.token });
   } catch (e) {
     console.error('signedUploadUrl error', e);
+    captureApiError(e, req, { feature: 'images-signed-upload-url' });
     return res.status(500).json({ error: { message: 'Failed to create signed upload URL' } });
   }
 }
@@ -138,6 +148,7 @@ export async function signObjectUrl(req: Request, res: Response) {
     return res.json({ signedUrl: data.signedUrl });
   } catch (e) {
     console.error('signObjectUrl error', e);
+    captureApiError(e, req, { feature: 'images-sign-object' });
     return res.status(500).json({ error: { message: 'Failed to sign object URL' } });
   }
 }

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { fetchDomainAuthority } from '../utils/moz.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 /**
  * Creates a site from the first-site wizard. Profile completion is separate (profiles.completed_onboarding).
@@ -66,6 +67,8 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 
 		if (siteErr || !site) {
 			console.error('[Onboarding] Site creation failed:', siteErr);
+			if (siteErr) captureApiError(siteErr, req, { feature: 'onboarding-create-site', organizationId });
+			else captureApiError(new Error('site insert returned no row'), req, { feature: 'onboarding-create-site', organizationId });
 			return res.status(500).json({ error: 'Failed to create site' });
 		}
 
@@ -75,6 +78,7 @@ export const completeOnboarding = async (req: Request, res: Response) => {
 		});
 	} catch (err) {
 		console.error('[Onboarding] Error:', err);
+		captureApiError(err, req, { feature: 'onboarding-complete' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };

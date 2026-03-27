@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { isServerWebhookPath } from '../utils/webhookPaths.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -34,11 +35,15 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
 
     // Add user info to request
     req.userId = user.id;
-    req.user = { id: user.id } as Request['user'];
+    req.user = {
+      id: user.id,
+      ...(user.email ? { email: user.email } : {}),
+    } as Request['user'];
 
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
+    captureApiError(error, req, { feature: 'auth-middleware' });
     res.status(500).json({ error: 'Authentication failed' });
   }
 };

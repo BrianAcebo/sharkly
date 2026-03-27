@@ -17,6 +17,7 @@ import { runCROAudit } from '../utils/runCROAudit.js';
 import { checkDestinationHandoff } from '../utils/checkDestinationHandoff.js';
 import { buildClusterJourneyData } from '../utils/buildClusterJourneyData.js';
 import { detectCognitiveLoad } from '../utils/croAuditDetections.js';
+import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
 
 /** Normalize site.url to a hostname for matching page_url (legacy audits with null site_id). */
 function hostnameFromSiteUrl(siteUrl: string | null | undefined): string | null {
@@ -283,6 +284,7 @@ export const listCROAudits = async (req: Request, res: Response) => {
 
 		if (listError) {
 			console.error('[CRO Studio] List audits error:', listError);
+			captureApiError(listError, req, { feature: 'cro-studio-list-audits-query' });
 			return res.status(500).json({ error: 'Failed to list audits' });
 		}
 
@@ -340,6 +342,7 @@ export const listCROAudits = async (req: Request, res: Response) => {
 		res.json({ audits: items });
 	} catch (error) {
 		console.error('[CRO Studio] List audits error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-list-audits' });
 		res.status(500).json({ error: 'Failed to list audits' });
 	}
 };
@@ -459,6 +462,7 @@ export const getCROAudit = async (req: Request, res: Response) => {
 		});
 	} catch (error) {
 		console.error('[CRO Studio] Get audit error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-get-audit', auditId: req.params.id });
 		res.status(500).json({ error: 'Failed to fetch audit' });
 	}
 };
@@ -543,12 +547,14 @@ export const reauditCROAudit = async (req: Request, res: Response) => {
 
 		if (updateErr) {
 			console.error('[CRO Studio] Reaudit update error:', updateErr);
+			captureApiError(updateErr, req, { feature: 'cro-studio-reaudit-update', auditId: id });
 			return res.status(500).json({ error: 'Failed to update audit' });
 		}
 
 		res.json({ success: true });
 	} catch (error) {
 		console.error('[CRO Studio] Reaudit error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-reaudit', auditId: req.params.id });
 		res.status(500).json({ error: 'Failed to re-audit' });
 	}
 };
@@ -697,12 +703,15 @@ export const addCROAudit = async (req: Request, res: Response) => {
 
 		if (insertErr || !inserted) {
 			console.error('[CRO Studio] Insert audit error:', insertErr);
+			if (insertErr) captureApiError(insertErr, req, { feature: 'cro-studio-add-audit-insert' });
+			else captureApiError(new Error('insert returned no row'), req, { feature: 'cro-studio-add-audit-insert' });
 			return res.status(500).json({ error: 'Failed to save audit' });
 		}
 
 		res.status(201).json({ success: true, audit_id: inserted.id });
 	} catch (error) {
 		console.error('[CRO Studio] Add audit error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-add-audit' });
 		res.status(500).json({ error: 'Failed to add page' });
 	}
 };
@@ -995,6 +1004,7 @@ Provide 2-3 options. Each option must have "copy" and "placement" keys.`;
 		}
 
 		if (!openai) {
+			captureApiWarning('CRO fixes: OpenAI client not configured', req, { feature: 'cro-studio-fixes-no-openai' });
 			return res.status(500).json({ error: 'CRO fixes service not configured' });
 		}
 
@@ -1022,6 +1032,7 @@ Provide 2-3 options. Each option must have "copy" and "placement" keys.`;
 		});
 	} catch (error) {
 		console.error('[CRO Studio] Fix generation error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-generate-fixes' });
 		res.status(500).json({ error: 'Failed to generate CRO fixes' });
 	}
 };
@@ -1308,6 +1319,10 @@ export const generateCognitiveLoadExplanation = async (req: Request, res: Respon
 			.slice(0, 6);
 
 		if (!openai) {
+			captureApiWarning('CRO cognitive load: OpenAI not configured', req, {
+				feature: 'cro-studio-cognitive-load-no-openai',
+				auditId: id
+			});
 			return res.status(500).json({ error: 'CRO cognitive load service not configured' });
 		}
 
@@ -1375,6 +1390,7 @@ YOUR JOB:
 		res.json({ success: true, explanation });
 	} catch (error) {
 		console.error('[CRO Studio] Cognitive load explanation error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-cognitive-load', auditId: req.params.id });
 		res.status(500).json({ error: 'Failed to generate cognitive load explanation' });
 	}
 };
@@ -1406,6 +1422,10 @@ export const generateEmotionalArcAnalysis = async (req: Request, res: Response) 
 		const apiKey = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || '';
 		const model = process.env.CLAUDE_HAIKU_MODEL || 'claude-3-haiku-20240307';
 		if (!apiKey) {
+			captureApiWarning('CRO emotional arc: Anthropic API key not configured', req, {
+				feature: 'cro-studio-emotional-arc-no-api-key',
+				auditId: id
+			});
 			return res.status(500).json({ error: 'Emotional arc analysis service not configured' });
 		}
 
@@ -1437,6 +1457,11 @@ export const generateEmotionalArcAnalysis = async (req: Request, res: Response) 
 				resApi.status,
 				errText.slice(0, 200)
 			);
+			captureApiError(new Error(`Anthropic HTTP ${resApi.status}`), req, {
+				feature: 'cro-studio-emotional-arc-api',
+				auditId: id,
+				bodyPreview: errText.slice(0, 200)
+			});
 			return res.status(500).json({ error: 'Failed to generate emotional arc analysis' });
 		}
 
@@ -1456,6 +1481,7 @@ export const generateEmotionalArcAnalysis = async (req: Request, res: Response) 
 		res.json({ success: true, analysis });
 	} catch (error) {
 		console.error('[CRO Studio] Emotional arc analysis error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-emotional-arc', auditId: req.params.id });
 		res.status(500).json({ error: 'Failed to generate emotional arc analysis' });
 	}
 };
@@ -1498,6 +1524,7 @@ export const generateCROStudioFAQ = async (req: Request, res: Response) => {
 		}
 
 		if (!openai) {
+			captureApiWarning('CRO FAQ: OpenAI not configured', req, { feature: 'cro-studio-faq-no-openai', auditId: id });
 			return res.status(500).json({ error: 'CRO FAQ service not configured' });
 		}
 
@@ -1552,6 +1579,7 @@ Exactly 5 items.`
 		res.json({ success: true, data: { questions } });
 	} catch (error) {
 		console.error('[CRO Studio] FAQ generation error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-faq', auditId: req.params.id });
 		res.status(500).json({ error: 'Failed to generate FAQ' });
 	}
 };
@@ -1594,6 +1622,10 @@ export const generateCROStudioTestimonialEmail = async (req: Request, res: Respo
 		}
 
 		if (!openai) {
+			captureApiWarning('CRO testimonial email: OpenAI not configured', req, {
+				feature: 'cro-studio-testimonial-no-openai',
+				auditId: id
+			});
 			return res.status(500).json({ error: 'CRO testimonial email service not configured' });
 		}
 
@@ -1643,6 +1675,7 @@ Return JSON: { "subject": "Email subject line", "body": "Plain text email body" 
 		res.json({ success: true, data: { subject, body } });
 	} catch (error) {
 		console.error('[CRO Studio] Testimonial email generation error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-testimonial-email', auditId: req.params.id });
 		res.status(500).json({ error: 'Failed to generate testimonial email' });
 	}
 };
@@ -1676,12 +1709,14 @@ export const deleteCROAudit = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[CRO Studio] Delete audit error:', error);
+			captureApiError(error, req, { feature: 'cro-studio-delete-audit-query', auditId: id });
 			return res.status(500).json({ error: 'Failed to delete audit' });
 		}
 
 		res.json({ success: true });
 	} catch (error) {
 		console.error('[CRO Studio] Delete audit error:', error);
+		captureApiError(error, req, { feature: 'cro-studio-delete-audit', auditId: req.params.id });
 		res.status(500).json({ error: 'Failed to delete audit' });
 	}
 };

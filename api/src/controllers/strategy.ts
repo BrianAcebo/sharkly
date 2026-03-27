@@ -61,6 +61,7 @@ import {
 } from '../utils/dataforseo.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
 import { createNotificationForUser } from '../utils/notifications.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
@@ -1524,6 +1525,7 @@ Return: { "rationale": "2-3 sentences", "topics": [{ "title": "exact title", "ai
 		res.end();
 	} catch (err) {
 		console.error('[Strategy] suggestTopics error:', err);
+		captureApiError(err, req, { feature: 'strategy-suggest-topics' });
 		if (res.headersSent) {
 			try {
 				// Refund credits when stream started but error occurred
@@ -1566,6 +1568,7 @@ export const getKeywordMetricsHandler: RequestHandler = async (req, res) => {
 		return res.json(metrics);
 	} catch (err) {
 		console.error('[Strategy] getKeywordMetrics error:', err);
+		captureApiError(err, req, { feature: 'strategy-keyword-metrics' });
 		return res.status(500).json({ error: 'Failed to fetch keyword metrics' });
 	}
 };

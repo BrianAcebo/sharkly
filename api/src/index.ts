@@ -1,4 +1,4 @@
-import './loadEnv.js';
+import './instrument.js';
 import express from 'express';
 import cors from 'cors';
 
@@ -48,6 +48,8 @@ import {
 } from './controllers/shopifyWebhooks.js';
 import { handleSupabaseAuthEmailHook } from './controllers/supabaseAuthEmailHook.js';
 import { isServerWebhookPath } from './utils/webhookPaths.js';
+import { captureApiError } from './utils/sentryCapture.js';
+import * as Sentry from '@sentry/node';
 
 const app = express();
 const isFly = Boolean(process.env.FLY_APP_NAME);
@@ -161,15 +163,21 @@ app.get('/auth/shopify/install', startShopifyOAuthInstall);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
+// Sentry Express error handler — must be after routes, before custom error middleware
+if (process.env.SENTRY_DSN) {
+	Sentry.setupExpressErrorHandler(app);
+}
+
 // Error handler
 type HttpError = Error & { statusCode?: number };
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
 	const e: HttpError = err as HttpError;
 	void _next;
 	if (typeof e?.statusCode === 'number') {
 		return res.status(e.statusCode).json({ error: { message: e.message } });
 	}
 	console.error(err);
+	captureApiError(err, req, { feature: 'express-unhandled-error' });
 	res.status(500).json({ error: { message: 'Internal server error' } });
 });
 

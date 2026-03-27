@@ -1,9 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, Target, Bot, MessageSquare, Info, Clock, ArrowRight, Trash2, RefreshCw, Bell } from 'lucide-react';
-import {
-	NotificationMetadataSection,
-	hasRenderableNotificationMetadata,
-} from '../notifications/NotificationMetadataSection';
 import { Link } from 'react-router';
 
 import { Button } from '../ui/button';
@@ -392,10 +388,6 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, fetchUnr
                           {notification.message}
                         </p>
 
-                        {hasRenderableNotificationMetadata(notification) && (
-                          <NotificationMetadataSection notification={notification} compact />
-                        )}
-                        
                         <div className="flex items-center gap-2 mt-1.5">
                           <span className="text-[10px] text-gray-500 dark:text-gray-400">
                             {formatTimeAgo(notification.created_at)}

@@ -20,6 +20,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { OpenAI } from 'openai';
 import { CREDIT_COSTS } from '../utils/credits.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const GPT_CONTENT_MODEL = process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -214,6 +215,7 @@ async function populateNavboostSignals(
 			'[Rankings] populateNavboostSignals error:',
 			err instanceof Error ? err.message : err
 		);
+		captureApiError(err, undefined, { feature: 'rankings-navboost-populate', siteId });
 	}
 }
 
@@ -407,6 +409,7 @@ export async function getRankings(req: Request, res: Response): Promise<void> {
 		res.json({ success: true, data: rankings, count: rankings.length });
 	} catch (error) {
 		console.error('Error fetching rankings:', error);
+		captureApiError(error, req, { feature: 'rankings-get', siteId: req.params.siteId });
 		res.status(500).json({ error: 'Failed to fetch rankings' });
 	}
 }
@@ -497,6 +500,7 @@ Recent CTR data: ${JSON.stringify(serpData?.slice(0, 5))}`
 		});
 	} catch (error) {
 		console.error('Error optimizing CTR:', error);
+		captureApiError(error, req, { feature: 'rankings-optimize-ctr', siteId: req.params.siteId });
 		res.status(500).json({ error: 'Failed to generate CTR suggestions' });
 	}
 }
@@ -579,6 +583,7 @@ Content preview: "${content ? String(content).slice(0, 400) : 'N/A'}"`
 		});
 	} catch (error) {
 		console.error('Error generating meta suggestions:', error);
+		captureApiError(error, req, { feature: 'rankings-meta-suggestions', siteId: req.params.siteId });
 		res.status(500).json({ error: 'Failed to generate meta suggestions' });
 	}
 }

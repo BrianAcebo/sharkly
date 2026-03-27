@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { getStripeClient } from '../utils/stripe.js';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
 
 const stripe = getStripeClient();
 
@@ -20,12 +21,14 @@ export const checkSubscriptionRefundEligibility = async (req: Request, res: Resp
 
 		if (error) {
 			console.error('[REFUND] Eligibility check failed:', error);
+			captureApiError(error, req, { feature: 'refunds-subscription-eligibility-rpc', organizationId });
 			return res.status(500).json({ error: 'Failed to check refund eligibility' });
 		}
 
 		return res.json(data);
 	} catch (error) {
 		console.error('[REFUND] Error checking eligibility:', error);
+		captureApiError(error, req, { feature: 'refunds-subscription-eligibility' });
 		return res.status(500).json({ error: 'Failed to check refund eligibility' });
 	}
 };
@@ -46,12 +49,14 @@ export const checkWalletRefundEligibility = async (req: Request, res: Response) 
 
 		if (error) {
 			console.error('[REFUND] Wallet eligibility check failed:', error);
+			captureApiError(error, req, { feature: 'refunds-wallet-eligibility-rpc', organizationId });
 			return res.status(500).json({ error: 'Failed to check wallet refund eligibility' });
 		}
 
 		return res.json(data);
 	} catch (error) {
 		console.error('[REFUND] Error checking wallet eligibility:', error);
+		captureApiError(error, req, { feature: 'refunds-wallet-eligibility' });
 		return res.status(500).json({ error: 'Failed to check wallet refund eligibility' });
 	}
 };
@@ -78,6 +83,7 @@ export const requestSubscriptionRefund = async (req: Request, res: Response) => 
 
 		if (eligError) {
 			console.error('[REFUND] Eligibility check failed:', eligError);
+			captureApiError(eligError, req, { feature: 'refunds-subscription-request-eligibility-rpc', organizationId });
 			return res.status(500).json({ error: 'Failed to check refund eligibility' });
 		}
 
@@ -146,6 +152,7 @@ export const requestSubscriptionRefund = async (req: Request, res: Response) => 
 
 		if (insertError) {
 			console.error('[REFUND] Failed to create refund request:', insertError);
+			captureApiError(insertError, req, { feature: 'refunds-subscription-request-insert', organizationId });
 			return res.status(500).json({ error: 'Failed to create refund request' });
 		}
 
@@ -171,6 +178,11 @@ export const requestSubscriptionRefund = async (req: Request, res: Response) => 
 
 			if (processError) {
 				console.error('[REFUND] Failed to process refund in DB:', processError);
+				captureApiWarning(
+					`process_subscription_refund failed after Stripe refund succeeded: ${processError.message}`,
+					req,
+					{ feature: 'refunds-subscription-db-reconcile', organizationId, refundRequestId: refundRequest.id }
+				);
 				// Refund went through Stripe but DB update failed - log for manual reconciliation
 			}
 
@@ -185,6 +197,7 @@ export const requestSubscriptionRefund = async (req: Request, res: Response) => 
 			});
 		} catch (stripeError: any) {
 			console.error('[REFUND] Stripe refund failed:', stripeError);
+			captureApiError(stripeError, req, { feature: 'refunds-subscription-stripe', organizationId });
 
 			// Update refund request as failed
 			await supabase
@@ -202,6 +215,7 @@ export const requestSubscriptionRefund = async (req: Request, res: Response) => 
 		}
 	} catch (error) {
 		console.error('[REFUND] Error processing subscription refund:', error);
+		captureApiError(error, req, { feature: 'refunds-subscription-request' });
 		return res.status(500).json({ error: 'Failed to process refund' });
 	}
 };
@@ -228,6 +242,7 @@ export const requestWalletRefund = async (req: Request, res: Response) => {
 
 		if (eligError) {
 			console.error('[REFUND] Wallet eligibility check failed:', eligError);
+			captureApiError(eligError, req, { feature: 'refunds-wallet-request-eligibility-rpc', organizationId });
 			return res.status(500).json({ error: 'Failed to check refund eligibility' });
 		}
 
@@ -334,6 +349,7 @@ export const requestWalletRefund = async (req: Request, res: Response) => {
 
 		if (insertError) {
 			console.error('[REFUND] Failed to create refund request:', insertError);
+			captureApiError(insertError, req, { feature: 'refunds-wallet-request-insert', organizationId });
 			return res.status(500).json({ error: 'Failed to create refund request' });
 		}
 
@@ -359,6 +375,11 @@ export const requestWalletRefund = async (req: Request, res: Response) => {
 
 			if (processError) {
 				console.error('[REFUND] Failed to process wallet refund in DB:', processError);
+				captureApiWarning(
+					`process_wallet_refund failed after Stripe refund succeeded: ${processError.message}`,
+					req,
+					{ feature: 'refunds-wallet-db-reconcile', organizationId, refundRequestId: refundRequest.id }
+				);
 			}
 
 			return res.json({
@@ -372,6 +393,7 @@ export const requestWalletRefund = async (req: Request, res: Response) => {
 			});
 		} catch (stripeError: any) {
 			console.error('[REFUND] Stripe wallet refund failed:', stripeError);
+			captureApiError(stripeError, req, { feature: 'refunds-wallet-stripe', organizationId });
 
 			await supabase
 				.from('refund_requests')
@@ -388,6 +410,7 @@ export const requestWalletRefund = async (req: Request, res: Response) => {
 		}
 	} catch (error) {
 		console.error('[REFUND] Error processing wallet refund:', error);
+		captureApiError(error, req, { feature: 'refunds-wallet-request' });
 		return res.status(500).json({ error: 'Failed to process refund' });
 	}
 };
@@ -430,6 +453,7 @@ export const creditBackAction = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[REFUND] Credit-back failed:', error);
+			captureApiError(error, req, { feature: 'refunds-credit-back-rpc', organizationId, action_key });
 			return res.status(500).json({ error: 'Failed to credit back action' });
 		}
 
@@ -440,6 +464,7 @@ export const creditBackAction = async (req: Request, res: Response) => {
 		});
 	} catch (error) {
 		console.error('[REFUND] Error crediting back action:', error);
+		captureApiError(error, req, { feature: 'refunds-credit-back' });
 		return res.status(500).json({ error: 'Failed to credit back action' });
 	}
 };
@@ -464,12 +489,14 @@ export const getRefundHistory = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('[REFUND] Failed to get refund history:', error);
+			captureApiError(error, req, { feature: 'refunds-history-query', organizationId });
 			return res.status(500).json({ error: 'Failed to get refund history' });
 		}
 
 		return res.json(data || []);
 	} catch (error) {
 		console.error('[REFUND] Error getting refund history:', error);
+		captureApiError(error, req, { feature: 'refunds-history' });
 		return res.status(500).json({ error: 'Failed to get refund history' });
 	}
 };

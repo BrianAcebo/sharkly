@@ -18,6 +18,7 @@ import {
 	createShopifyArticle
 } from '../services/shopifyService.js';
 import { generateRandomString } from '../utils/helpers.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const STATE_TTL_MS = 20 * 60 * 1000; // 20 minutes (covers slow install, cold starts)
 
@@ -84,6 +85,7 @@ export async function startShopifyOAuth(req: Request, res: Response): Promise<vo
 		res.redirect(authUrl);
 	} catch (error) {
 		console.error('[Shopify] OAuth start error:', error);
+		captureApiError(error, req, { feature: 'shopify-oauth-start' });
 		res.status(500).json({ error: error instanceof Error ? error.message : 'OAuth failed' });
 	}
 }
@@ -109,6 +111,7 @@ export async function startShopifyOAuthInstall(req: Request, res: Response): Pro
 		res.redirect(authUrl);
 	} catch (error) {
 		console.error('[Shopify] OAuth install error:', error);
+		captureApiError(error, req, { feature: 'shopify-oauth-install' });
 		const appUrl = process.env.FRONTEND_URL || 'https://app.sharkly.co';
 		res.redirect(`${appUrl}/signup?shopify_error=oauth_failed`);
 	}
@@ -164,6 +167,7 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 		if (!stateData.siteId) {
 			const { error } = await savePendingShopifyToken(finalDomain, access_token);
 			if (error) {
+				captureApiError(error, req, { feature: 'shopify-callback-save-pending', shop: finalDomain });
 				res.redirect(`${appUrl}/signup?shopify_error=save_failed`);
 				return;
 			}
@@ -173,6 +177,11 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 
 		const { error } = await saveShopifyConnection(stateData.siteId, finalDomain, access_token);
 		if (error) {
+			captureApiError(error, req, {
+				feature: 'shopify-callback-save-connection',
+				siteId: stateData.siteId,
+				shop: finalDomain
+			});
 			res.redirect(`${frontendUrl}/sites?shopify_error=save_failed`);
 			return;
 		}
@@ -180,6 +189,7 @@ export async function handleShopifyOAuthCallback(req: Request, res: Response): P
 		res.redirect(`${frontendUrl}/sites?shopify_success=1&siteId=${stateData.siteId}`);
 	} catch (error) {
 		console.error('[Shopify] OAuth callback error:', error);
+		captureApiError(error, req, { feature: 'shopify-oauth-callback' });
 		const msg = encodeURIComponent(error instanceof Error ? error.message : 'Unknown error');
 		res.redirect(`${frontendUrl}/sites?shopify_error=${msg}`);
 	}
@@ -239,6 +249,7 @@ export async function getShopifySiteForShop(req: Request, res: Response): Promis
 		res.json({ siteId: site ? (site as { id: string }).id : null });
 	} catch (error) {
 		console.error('[Shopify] site-for-shop error:', error);
+		captureApiError(error, req, { feature: 'shopify-site-for-shop' });
 		res.status(500).json({ error: error instanceof Error ? error.message : 'Failed' });
 	}
 }
@@ -291,6 +302,7 @@ export async function reconcileCompanionShopify(req: Request, res: Response): Pr
 		if (accessToken) {
 			const { error } = await saveShopifyConnection(siteId, finalDomain, accessToken);
 			if (error) {
+				captureApiError(error, req, { feature: 'shopify-reconcile-save', siteId, shop: finalDomain });
 				res.status(500).json({ error });
 				return;
 			}
@@ -299,6 +311,7 @@ export async function reconcileCompanionShopify(req: Request, res: Response): Pr
 		res.json({ siteId });
 	} catch (error) {
 		console.error('[Shopify] reconcile-companion error:', error);
+		captureApiError(error, req, { feature: 'shopify-reconcile-companion' });
 		res.status(500).json({ error: error instanceof Error ? error.message : 'Failed' });
 	}
 }
@@ -399,6 +412,8 @@ export async function attachPendingShopifyToken(req: Request, res: Response): Pr
 
 			if (createErr || !newSite) {
 				console.error('[Shopify] Failed to create site for attach:', createErr);
+				if (createErr) captureApiError(createErr, req, { feature: 'shopify-attach-create-site', orgId });
+				else captureApiError(new Error('create site returned no row'), req, { feature: 'shopify-attach-create-site', orgId });
 				res.status(500).json({ error: 'Failed to create site' });
 				return;
 			}
@@ -407,6 +422,7 @@ export async function attachPendingShopifyToken(req: Request, res: Response): Pr
 
 		const { error } = await saveShopifyConnection(targetSiteId!, finalDomain, accessToken);
 		if (error) {
+			captureApiError(error, req, { feature: 'shopify-attach-save', siteId: targetSiteId, shop: finalDomain });
 			res.status(500).json({ error });
 			return;
 		}
@@ -414,6 +430,7 @@ export async function attachPendingShopifyToken(req: Request, res: Response): Pr
 		res.json({ success: true, siteId: targetSiteId });
 	} catch (error) {
 		console.error('[Shopify] Attach pending error:', error);
+		captureApiError(error, req, { feature: 'shopify-attach-pending' });
 		res.status(500).json({
 			error: error instanceof Error ? error.message : 'Failed to attach token'
 		});
@@ -436,6 +453,7 @@ export async function getShopifyStatus(req: Request, res: Response): Promise<voi
 		res.json({ connected: !!shopDomain, shopDomain: shopDomain ?? null });
 	} catch (error) {
 		console.error('[Shopify] Status error:', error);
+		captureApiError(error, req, { feature: 'shopify-status', siteId: req.params.siteId });
 		res.status(500).json({ error: error instanceof Error ? error.message : 'Failed' });
 	}
 }
@@ -454,12 +472,14 @@ export async function postShopifyDisconnect(req: Request, res: Response): Promis
 
 		const { error } = await disconnectShopify(siteId);
 		if (error) {
+			captureApiError(error, req, { feature: 'shopify-disconnect', siteId });
 			res.status(500).json({ error });
 			return;
 		}
 		res.json({ success: true });
 	} catch (error) {
 		console.error('[Shopify] Disconnect error:', error);
+		captureApiError(error, req, { feature: 'shopify-disconnect', siteId: req.params.siteId });
 		res.status(500).json({ error: error instanceof Error ? error.message : 'Failed' });
 	}
 }
@@ -482,6 +502,7 @@ export async function getShopifyBlogs(req: Request, res: Response): Promise<void
 		res.json({ blogs });
 	} catch (error) {
 		console.error('[Shopify] List blogs error:', error);
+		captureApiError(error, req, { feature: 'shopify-list-blogs', siteId: req.params.siteId });
 		res.status(500).json({ error: error instanceof Error ? error.message : 'Failed' });
 	}
 }
@@ -537,6 +558,7 @@ export async function publishToShopify(req: Request, res: Response): Promise<voi
 		});
 	} catch (error) {
 		console.error('[Shopify] Publish error:', error);
+		captureApiError(error, req, { feature: 'shopify-publish', siteId: req.params.siteId });
 		res.status(500).json({ error: error instanceof Error ? error.message : 'Publish failed' });
 	}
 }

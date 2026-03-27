@@ -7,6 +7,7 @@
 
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { findPageIdForGscUrl } from '../utils/gscUrlMatch.js';
 
 export type RefreshQueueItem = {
@@ -227,6 +228,7 @@ export const getRefreshQueue = async (req: Request, res: Response): Promise<void
 		res.json({ items });
 	} catch (err) {
 		console.error('[RefreshQueue] Error:', err);
+		captureApiError(err, req, { feature: 'refresh-queue', siteId: req.params.siteId });
 		res.status(500).json({ error: 'Internal server error' });
 	}
 };

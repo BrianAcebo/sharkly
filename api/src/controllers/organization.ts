@@ -10,6 +10,7 @@ import {
     syncExtraSeatAddon
 } from '../utils/seats.js';
 import { createNotificationForUser } from '../utils/notifications.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 interface InviteTeamMemberRequest {
 	email: string;
@@ -48,6 +49,7 @@ export const createOrganization = async (req: Request, res: Response) => {
 
 		if (orgError) {
 			console.error('Error creating organization:', orgError);
+			captureApiError(orgError, req, { feature: 'org-create-insert', userId });
 			return res.status(500).json({ error: 'Failed to create organization' });
 		}
 
@@ -62,6 +64,7 @@ export const createOrganization = async (req: Request, res: Response) => {
 
 		if (userOrgError) {
 			console.error('Error adding user as manager to user_organizations:', userOrgError);
+			captureApiError(userOrgError, req, { feature: 'org-create-user-org', organizationId: organization.id });
 			// Try to clean up the organization if adding manager fails
 			await supabase.from('organizations').delete().eq('id', organization.id);
 			return res.status(500).json({ error: 'Failed to create organization' });
@@ -70,6 +73,7 @@ export const createOrganization = async (req: Request, res: Response) => {
 		return res.json({ organizationId: organization.id });
 	} catch (error) {
 		console.error('Error creating organization:', error);
+		captureApiError(error, req, { feature: 'org-create' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -102,6 +106,7 @@ export const getSeatSummary = async (req: Request, res: Response) => {
 		return res.json({ summary });
 	} catch (error) {
 		console.error('Error fetching seat summary:', error);
+		captureApiError(error, req, { feature: 'org-seat-summary', organizationId: req.params.organizationId });
 		return res.status(500).json({ error: 'Failed to fetch seat summary' });
 	}
 };
@@ -180,6 +185,7 @@ export const purchaseSeats = async (req: Request, res: Response) => {
         return res.json({ summary: updatedSummary });
 	} catch (error) {
 		console.error('Error purchasing seats:', error);
+		captureApiError(error, req, { feature: 'org-purchase-seats', organizationId: req.params.organizationId });
 		return res.status(500).json({ error: 'Failed to purchase seats' });
 	}
 };
@@ -262,6 +268,7 @@ export const releaseSeats = async (req: Request, res: Response) => {
 	return res.json({ summary: updatedSummary });
 	} catch (error) {
 		console.error('Error releasing seats:', error);
+		captureApiError(error, req, { feature: 'org-release-seats', organizationId: req.params.organizationId });
 		return res.status(500).json({ error: 'Failed to release seats' });
 	}
 };
@@ -321,6 +328,10 @@ export const inviteTeamMember = async (req: Request, res: Response) => {
 
 		if ('error' in pendingInviteResult && pendingInviteResult.error) {
 			console.error('Error fetching pending invitations:', pendingInviteResult.error);
+			captureApiError(pendingInviteResult.error, req, {
+				feature: 'org-invite-pending-query',
+				organizationId
+			});
 			return res.status(500).json({ error: 'Failed to prepare invitation' });
 		}
 
@@ -349,6 +360,7 @@ export const inviteTeamMember = async (req: Request, res: Response) => {
 
 		if (createError) {
 			console.error('Error creating invitation:', createError);
+			captureApiError(createError, req, { feature: 'org-invite-insert', organizationId });
 			return res.status(500).json({ error: 'Failed to create invitation' });
 		}
 
@@ -358,6 +370,7 @@ export const inviteTeamMember = async (req: Request, res: Response) => {
 		return res.json({ message: 'Invitation sent successfully' });
 	} catch (error) {
 		console.error('Error inviting team member:', error);
+		captureApiError(error, req, { feature: 'org-invite-team-member' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -463,6 +476,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 
 		if (addError) {
 			console.error('Error adding team member:', addError);
+			captureApiError(addError, req, { feature: 'org-accept-invite-insert-member', inviteId });
 			return res.status(500).json({ error: 'Failed to join organization' });
 		}
 
@@ -517,6 +531,7 @@ export const acceptInvitation = async (req: Request, res: Response) => {
 		return res.json({ message: 'Successfully joined the organization' });
 	} catch (error) {
 		console.error('Error accepting invitation:', error);
+		captureApiError(error, req, { feature: 'org-accept-invitation' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -567,12 +582,14 @@ export const cancelInvitation = async (req: Request, res: Response) => {
 			.eq('id', inviteId);
 
 		if (updateError) {
+			captureApiError(updateError, req, { feature: 'org-cancel-invite-update', inviteId });
 			return res.status(500).json({ error: 'Failed to cancel invitation' });
 		}
 
 		return res.json({ message: 'Invitation cancelled successfully' });
 	} catch (error) {
 		console.error('Error cancelling invitation:', error);
+		captureApiError(error, req, { feature: 'org-cancel-invitation' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -637,6 +654,7 @@ export const getInviteDetails = async (req: Request, res: Response) => {
 		});
 	} catch (error) {
 		console.error('Error fetching invite details:', error);
+		captureApiError(error, req, { feature: 'org-invite-details' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -678,6 +696,10 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 			console.log('[DELETE] Stripe subscription canceled:', organization.stripe_subscription_id);
 		} catch (stripeError) {
 			console.error('[DELETE] Error canceling Stripe subscription:', stripeError);
+			captureApiError(stripeError, req, {
+				feature: 'org-delete-stripe-cancel',
+				organizationId
+			});
 			return res.status(500).json({
 				error: 'Failed to cancel Stripe subscription. Please contact support at hello@sharkly.co for assistance with deleting this organization.'
 			});
@@ -723,6 +745,7 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 
 		if (deleteError) {
 			console.error('Error deleting organization:', deleteError);
+			captureApiError(deleteError, req, { feature: 'org-delete', organizationId });
 			return res.status(500).json({ error: 'Failed to delete organization' });
 		}
 
@@ -751,6 +774,7 @@ export const deleteOrganization = async (req: Request, res: Response) => {
 		return res.json({ message: 'Organization deleted successfully' });
 	} catch (error) {
 		console.error('Error deleting organization:', error);
+		captureApiError(error, req, { feature: 'org-delete-outer', organizationId: req.params.organizationId });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };

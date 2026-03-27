@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { getInternalLinkGaps } from '../services/internalLinkGapService.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 export async function getInternalLinkGapsHandler(req: Request, res: Response): Promise<void> {
 	try {
@@ -48,6 +49,7 @@ export async function getInternalLinkGapsHandler(req: Request, res: Response): P
 		res.json(result);
 	} catch (err) {
 		console.error('[InternalLinkGaps] Error:', err);
+		captureApiError(err, req, { feature: 'internal-link-gaps', siteId: req.params.siteId });
 		res.status(500).json({
 			error: err instanceof Error ? err.message : 'Failed to get internal link gaps'
 		});

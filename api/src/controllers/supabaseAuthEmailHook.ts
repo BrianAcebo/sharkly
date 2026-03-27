@@ -11,6 +11,7 @@ import { Resend } from 'resend';
 import { Webhook } from 'standardwebhooks';
 import { config, getAppOrigin, getAuthConfirmRedirectFromEnv } from '../config.js';
 import { AuthEmail, emailSubjectForAction } from '../emails/authEmail/AuthEmail.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 type EmailData = {
 	token: string;
@@ -120,11 +121,17 @@ function headersForWebhook(req: Request): Record<string, string> {
 export async function handleSupabaseAuthEmailHook(req: Request, res: Response): Promise<void> {
 	const supabaseUrl = getSupabaseUrl();
 	if (!supabaseUrl) {
+		captureApiError(
+			new Error('SUPABASE_URL or PUBLIC_SUPABASE_URL is not set'),
+			req,
+			{ feature: 'auth-email-hook-config' }
+		);
 		res.status(500).json({ error: { message: 'SUPABASE_URL or PUBLIC_SUPABASE_URL is not set' } });
 		return;
 	}
 
 	if (!config.resend.apiKey) {
+		captureApiError(new Error('RESEND_API_KEY is not configured'), req, { feature: 'auth-email-hook-config' });
 		res.status(500).json({ error: { message: 'RESEND_API_KEY is not configured' } });
 		return;
 	}

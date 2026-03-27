@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import Stripe from 'stripe';
 import { unixToISO } from '../types/billing.js';
 
@@ -144,6 +145,7 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Error fetching subscription status:', error);
+    captureApiError(error, req, { feature: 'subscription-status', organizationId: req.params.organizationId });
     res.status(500).json({ error: 'Internal server error' });
   }
 };

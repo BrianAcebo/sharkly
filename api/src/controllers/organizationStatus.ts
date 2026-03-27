@@ -3,6 +3,7 @@ import { supabase } from '../utils/supabaseClient.js';
 import { OrgStatus } from '../types/billing.js';
 import { isOrganizationInGoodStanding, isOrganizationBehindOnPayments } from '../utils/paymentStatus.js';
 import Stripe from 'stripe';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -100,6 +101,10 @@ export const updateOrganizationStatus = async (req: Request, res: Response) => {
         }
       } catch (stripeError) {
         console.error('Error updating Stripe subscription:', stripeError);
+        captureApiError(stripeError, req, {
+          feature: 'org-status-stripe-pause-resume',
+          organizationId
+        });
         // Continue with organization status update even if Stripe fails
         // This ensures the organization status is still updated
       }
@@ -116,6 +121,7 @@ export const updateOrganizationStatus = async (req: Request, res: Response) => {
 
     if (updateError) {
       console.error('Error updating organization status:', updateError);
+      captureApiError(updateError, req, { feature: 'org-status-update', organizationId });
       return res.status(500).json({ error: 'Failed to update organization status' });
     }
 
@@ -128,6 +134,7 @@ export const updateOrganizationStatus = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Error updating organization status:', error);
+    captureApiError(error, req, { feature: 'org-status-update-outer', organizationId: req.params.organizationId });
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -179,6 +186,7 @@ export const getOrganizationStatus = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Error getting organization status:', error);
+    captureApiError(error, req, { feature: 'org-status-get', organizationId: req.params.organizationId });
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -198,6 +206,7 @@ export const handlePaymentFailure = async (organizationId: string) => {
 
     if (updateError) {
       console.error('Error updating organization status for payment failure:', updateError);
+      captureApiError(updateError, undefined, { feature: 'org-status-payment-failure-update', organizationId });
       return false;
     }
 
@@ -210,6 +219,7 @@ export const handlePaymentFailure = async (organizationId: string) => {
 
     if (orgError || !org) {
       console.error('Organization not found for payment failure handling:', orgError);
+      if (orgError) captureApiError(orgError, undefined, { feature: 'org-status-payment-failure-load-org', organizationId });
       return false;
     }
 
@@ -224,6 +234,10 @@ export const handlePaymentFailure = async (organizationId: string) => {
         console.log(`[STRIPE] Paused subscription ${org.stripe_subscription_id} due to payment failure for organization ${organizationId}`);
       } catch (stripeError) {
         console.error('Error pausing Stripe subscription for payment failure:', stripeError);
+        captureApiError(stripeError, undefined, {
+          feature: 'org-status-payment-failure-stripe-pause',
+          organizationId
+        });
         // Continue even if Stripe fails
       }
     }
@@ -233,6 +247,7 @@ export const handlePaymentFailure = async (organizationId: string) => {
 
   } catch (error) {
     console.error('Error handling payment failure:', error);
+    captureApiError(error, undefined, { feature: 'org-status-payment-failure-outer', organizationId });
     return false;
   }
 };

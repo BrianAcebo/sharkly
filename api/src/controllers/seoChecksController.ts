@@ -6,6 +6,7 @@
 
 import type { Request, Response } from 'express';
 import { fetchPageForSeoChecks } from '../utils/competitorFetch.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 type SeoCheckResult = {
 	status: 'pass' | 'fail' | 'warning';
@@ -180,6 +181,7 @@ export async function runSeoChecks(req: Request, res: Response): Promise<void> {
 		});
 	} catch (error) {
 		console.error('[SEO Checks] Run error:', error);
+		captureApiError(error, req, { feature: 'seo-checks-run' });
 		res.status(500).json({ error: 'Failed to run SEO checks' });
 	}
 }

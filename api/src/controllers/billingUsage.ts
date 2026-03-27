@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { UsageWallet, getWalletByOrg, OrgUsageSnapshot } from '../utils/wallet.js';
 import type { WalletStatus } from '../types/billing.js';
 
@@ -204,6 +205,8 @@ export const getWalletStatus = async (req: Request, res: Response) => {
 		return res.json(status);
 	} catch (error) {
 		console.error('Failed to fetch wallet status:', error);
+		const orgId = (req.query.orgId || req.params.organizationId) as string | undefined;
+		captureApiError(error, req, { feature: 'billing-usage-wallet-status', organizationId: orgId });
 		return res.status(500).json({ error: 'Failed to fetch wallet status' });
 	}
 };
@@ -232,12 +235,14 @@ export const getPublicPlans = async (_req: Request, res: Response) => {
 
 		if (error) {
 			console.error('Failed to load plan catalog', error);
+			captureApiError(error, _req, { feature: 'billing-usage-public-plans' });
 			return res.status(500).json({ error: 'Failed to load pricing' });
 		}
 
 		return res.json(data ?? []);
 	} catch (error) {
 		console.error('getPublicPlans error', error);
+		captureApiError(error, _req, { feature: 'billing-usage-public-plans' });
 		return res.status(500).json({ error: 'Failed to load pricing' });
 	}
 };

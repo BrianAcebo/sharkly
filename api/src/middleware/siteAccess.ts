@@ -5,6 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 export async function requireSiteAccess(
 	req: Request,
@@ -50,6 +51,7 @@ export async function requireSiteAccess(
 		next();
 	} catch (err) {
 		console.error('[requireSiteAccess] Error:', err);
+		captureApiError(err, req, { feature: 'requireSiteAccess' });
 		res.status(500).json({ error: 'Failed to verify site access' });
 	}
 }

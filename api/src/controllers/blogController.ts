@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -107,7 +108,7 @@ export async function listCategories(_req: Request, res: Response): Promise<void
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
 
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) { captureApiError(error, _req, { feature: 'blog-categories-list' }); res.status(500).json({ error: error.message }); return; }
   res.json({ categories: data });
 }
 
@@ -129,7 +130,7 @@ export async function createCategory(req: Request, res: Response): Promise<void>
     .select()
     .single();
 
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) { captureApiError(error, req, { feature: 'blog-categories-create' }); res.status(500).json({ error: error.message }); return; }
   res.status(201).json({ category: data });
 }
 
@@ -157,14 +158,14 @@ export async function updateCategory(req: Request, res: Response): Promise<void>
     .select()
     .single();
 
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) { captureApiError(error, req, { feature: 'blog-categories-update' }); res.status(500).json({ error: error.message }); return; }
   res.json({ category: data });
 }
 
 export async function deleteCategory(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
   const { error } = await supabase.from('blog_categories').delete().eq('id', id);
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) { captureApiError(error, req, { feature: 'blog-categories-delete' }); res.status(500).json({ error: error.message }); return; }
   res.json({ ok: true });
 }
 
@@ -176,7 +177,7 @@ export async function listPostsAdmin(_req: Request, res: Response): Promise<void
     .select('id, title, slug, status, category_id, published_at, featured, reading_time_minutes, excerpt, author_name, created_at, updated_at, blog_categories(id, name, slug)')
     .order('created_at', { ascending: false });
 
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) { captureApiError(error, _req, { feature: 'blog-posts-list-admin' }); res.status(500).json({ error: error.message }); return; }
   res.json({ posts: data });
 }
 
@@ -199,7 +200,7 @@ export async function listPostsPublic(req: Request, res: Response): Promise<void
   }
 
   const { data, error } = await query;
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) { captureApiError(error, req, { feature: 'blog-posts-list-public' }); res.status(500).json({ error: error.message }); return; }
   res.json({ posts: data });
 }
 
@@ -276,7 +277,7 @@ export async function createPost(req: Request, res: Response): Promise<void> {
     .select()
     .single();
 
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) { captureApiError(error, req, { feature: 'blog-posts-create' }); res.status(500).json({ error: error.message }); return; }
   res.status(201).json({ post: data });
 }
 
@@ -340,14 +341,14 @@ export async function updatePost(req: Request, res: Response): Promise<void> {
     .select()
     .single();
 
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) { captureApiError(error, req, { feature: 'blog-posts-update' }); res.status(500).json({ error: error.message }); return; }
   res.json({ post: data });
 }
 
 export async function deletePost(req: Request, res: Response): Promise<void> {
   const { id } = req.params;
   const { error } = await supabase.from('blog_posts').delete().eq('id', id);
-  if (error) { res.status(500).json({ error: error.message }); return; }
+  if (error) { captureApiError(error, req, { feature: 'blog-posts-delete' }); res.status(500).json({ error: error.message }); return; }
   res.json({ ok: true });
 }
 

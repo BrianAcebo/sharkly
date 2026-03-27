@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { OrganizationRow } from '../types/billing.js';
 
 export interface TrialStatusResponse {
@@ -157,6 +158,7 @@ export const getTrialStatusForOrg = async (req: Request, res: Response) => {
     res.json(trialStatus);
   } catch (error) {
     console.error('Error getting trial status:', error);
+    captureApiError(error, req, { feature: 'trial-status' });
     res.status(500).json({ 
       error: 'Internal server error' 
     });

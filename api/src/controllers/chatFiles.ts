@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { extractFromPdf } from './documentExtract.js';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
@@ -87,6 +88,7 @@ export async function uploadChatFile(req: Request, res: Response) {
 
     if (uploadError) {
       console.error('[ChatFiles] Upload error:', uploadError);
+      captureApiError(uploadError, req, { feature: 'chat-files-upload-storage', organizationId });
       return res.status(500).json({ error: 'Failed to upload file', details: uploadError.message });
     }
 
@@ -116,6 +118,7 @@ export async function uploadChatFile(req: Request, res: Response) {
 
     if (dbError) {
       console.error('[ChatFiles] DB error:', dbError);
+      captureApiError(dbError, req, { feature: 'chat-files-upload-metadata', organizationId });
       // Try to clean up the uploaded file
       await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
       return res.status(500).json({ error: 'Failed to save file metadata' });
@@ -139,6 +142,7 @@ export async function uploadChatFile(req: Request, res: Response) {
     return res.json({ file: uploadedFile });
   } catch (error) {
     console.error('[ChatFiles] Error:', error);
+    captureApiError(error, req, { feature: 'chat-files-upload' });
     return res.status(500).json({ 
       error: 'Failed to upload file',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -282,6 +286,7 @@ export async function linkFilesToSession(req: Request, res: Response) {
     .eq('organization_id', organizationId);
 
   if (error) {
+    captureApiError(error, req, { feature: 'chat-files-link-session', organizationId });
     return res.status(500).json({ error: error.message });
   }
 
@@ -307,6 +312,7 @@ export async function getSessionFiles(req: Request, res: Response) {
     .order('created_at', { ascending: true });
 
   if (error) {
+    captureApiError(error, req, { feature: 'chat-files-session-list', organizationId });
     return res.status(500).json({ error: error.message });
   }
 

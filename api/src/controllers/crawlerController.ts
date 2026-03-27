@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import { crawlerService } from '../services/crawlerService.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { crawlabilityChecker } from '../services/crawlabilityChecker.js';
 import { createNotificationForUser } from '../utils/notifications.js';
 import { supabase } from '../utils/supabaseClient.js';
@@ -31,6 +32,7 @@ export async function checkCrawlability(req: Request, res: Response): Promise<vo
 		});
 	} catch (error) {
 		console.error('Error checking crawlability:', error);
+		captureApiError(error, req, { feature: 'crawler-check-crawlability' });
 		res.status(500).json({ error: 'Failed to check crawlability' });
 	}
 }
@@ -91,6 +93,7 @@ export async function startCrawl(req: Request, res: Response): Promise<void> {
 			.eq('id', organizationId);
 		if (deductErr) {
 			console.error('[Crawler] Failed to deduct credits:', deductErr);
+			captureApiError(deductErr, req, { feature: 'crawler-start-deduct', organizationId: req.body?.organizationId });
 			res.status(500).json({ error: 'Failed to deduct credits' });
 			return;
 		}
@@ -155,6 +158,7 @@ export async function startCrawl(req: Request, res: Response): Promise<void> {
 				}
 			}
 		}
+		captureApiError(error, req, { feature: 'crawler-start', siteId: req.body?.siteId });
 		res.status(500).json({ error: 'Failed to start crawl' });
 	}
 }
@@ -237,6 +241,7 @@ export async function getCrawlResults(req: Request, res: Response): Promise<void
 		});
 	} catch (error) {
 		console.error('Error fetching crawl results:', error);
+		captureApiError(error, req, { feature: 'crawler-results', siteId: req.params.siteId });
 		res.status(500).json({ error: 'Failed to fetch results' });
 	}
 }
@@ -281,6 +286,7 @@ export async function getIssueDetails(req: Request, res: Response): Promise<void
 		});
 	} catch (error) {
 		console.error('Error fetching issues:', error);
+		captureApiError(error, req, { feature: 'crawler-issues', siteId: req.params.siteId });
 		res.status(500).json({ error: 'Failed to fetch issues' });
 	}
 }
@@ -313,6 +319,7 @@ export async function markIssuesResolved(req: Request, res: Response): Promise<v
 		});
 	} catch (error) {
 		console.error('Error marking issues resolved:', error);
+		captureApiError(error, req, { feature: 'crawler-fix-bulk' });
 		res.status(500).json({ error: 'Failed to update issues' });
 	}
 }

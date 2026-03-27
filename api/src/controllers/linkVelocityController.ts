@@ -9,6 +9,7 @@
 
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { getReferringDomains } from '../utils/dataforseoBacklinks.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
 
@@ -159,6 +160,7 @@ export async function getLinkVelocity(req: Request, res: Response): Promise<void
 
 		if (histErr) {
 			console.error('[LinkVelocity] History fetch error:', histErr);
+			captureApiError(histErr, req, { feature: 'link-velocity-get-history', siteId });
 			res.status(500).json({ error: 'Failed to fetch backlink history' });
 			return;
 		}
@@ -167,6 +169,7 @@ export async function getLinkVelocity(req: Request, res: Response): Promise<void
 		res.json(result);
 	} catch (err) {
 		console.error('[LinkVelocity] Get error:', err);
+		captureApiError(err, req, { feature: 'link-velocity-get', siteId: req.params.siteId });
 		res.status(500).json({ error: 'Failed to get link velocity status' });
 	}
 }
@@ -236,6 +239,7 @@ export async function runLinkVelocityCheck(req: Request, res: Response): Promise
 
 		if (deductErr) {
 			console.error('[LinkVelocity] Failed to deduct credits:', deductErr);
+			captureApiError(deductErr, req, { feature: 'link-velocity-run-deduct', siteId });
 			res.status(500).json({ error: 'Failed to deduct credits' });
 			return;
 		}
@@ -267,6 +271,7 @@ export async function runLinkVelocityCheck(req: Request, res: Response): Promise
 			});
 		} catch (fetchErr) {
 			console.error('[LinkVelocity] DataForSEO error:', fetchErr);
+			captureApiError(fetchErr, req, { feature: 'link-velocity-dataforseo', siteId });
 			await supabase
 				.from('organizations')
 				.update({
@@ -291,6 +296,7 @@ export async function runLinkVelocityCheck(req: Request, res: Response): Promise
 		res.json({ ...result, creditsUsed: CREDIT_COST });
 	} catch (err) {
 		console.error('[LinkVelocity] Run error:', err);
+		captureApiError(err, req, { feature: 'link-velocity-run', siteId: req.params.siteId });
 		res.status(500).json({
 			error: err instanceof Error ? err.message : 'Failed to run link velocity check',
 		});

@@ -15,6 +15,8 @@ import {
 import { extractPlainText, extractH1s } from '../utils/tiptapExtract.js';
 import { YMYL_PROMPT_ADDITIONS } from '../utils/ymyl.js';
 import { createNotificationForUser } from '../utils/notifications.js';
+import { summarizeAnthropicFailure } from '../utils/anthropicErrors.js';
+import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const CLAUDE_MODEL = process.env.CLAUDE_SONNET_MODEL || 'claude-sonnet-4-5-20250929';
@@ -60,33 +62,47 @@ async function refundCredits(
 	userId: string,
 	amount: number,
 	actionKey: string,
-	reason: string,
+	rpcReason: string,
 	notificationTitle: string,
-	notificationUrl: string
+	notificationUrl: string,
+	metadataExtras: Record<string, unknown> = {},
+	/** Short user-facing explanation (notification body). Defaults to rpcReason. */
+	userFacingReason?: string
 ): Promise<void> {
 	try {
 		const { error: refundErr } = await supabase.rpc('credit_back_action', {
 			p_org_id: orgId,
 			p_action_key: actionKey,
 			p_credits: amount,
-			p_reason: reason
+			p_reason: rpcReason
 		});
 		if (refundErr) {
 			console.error(`[Pages] CRITICAL: Failed to refund ${amount} credits to org ${orgId}:`, refundErr.message);
+			captureApiWarning(
+				`credit_back_action failed after generation error: ${refundErr.message}`,
+				undefined,
+				{ orgId, amount, actionKey }
+			);
 		} else {
-			console.log(`[Pages] Refunded ${amount} credits to org ${orgId} — reason: ${reason}`);
+			console.log(`[Pages] Refunded ${amount} credits to org ${orgId} — reason: ${rpcReason}`);
+			const friendly = userFacingReason?.trim() || rpcReason;
 			await createNotificationForUser(userId, orgId, {
 				title: notificationTitle,
-				message: `${amount} credits were automatically refunded to your account. ${reason}`,
+				message: `${amount} credits were automatically refunded to your account. ${friendly}`,
 				type: 'credit_refund',
 				priority: 'high',
 				action_url: notificationUrl,
-				metadata: { credits_refunded: amount, reason },
+				metadata: {
+					credits_refunded: amount,
+					reason: rpcReason,
+					...metadataExtras,
+				},
 				skipToast: true
 			});
 		}
 	} catch (err) {
 		console.error('[Pages] refundCredits threw:', err instanceof Error ? err.message : err);
+		captureApiError(err, undefined, { feature: 'pages-refundCredits', orgId, userId });
 	}
 }
 
@@ -1074,11 +1090,23 @@ Requirements:
 			);
 		} catch (err) {
 			console.error('[Pages] Claude brief error:', err instanceof Error ? err.message : err);
-			await refundCredits(site.organization_id, userId, creditCost, 'brief_generation',
-				'Claude API error during brief generation',
+			const summary = summarizeAnthropicFailure(err);
+			await refundCredits(
+				site.organization_id,
+				userId,
+				creditCost,
+				'brief_generation',
+				summary.rpcReason,
 				'Brief generation failed — credits refunded',
-				`/workspace/${pageId}`);
-			writeNdjson(res, { type: 'error', message: 'Failed to generate brief. Your credits have been refunded.' });
+				`/workspace/${pageId}`,
+				summary.metadata,
+				summary.friendlySummary
+			);
+			writeNdjson(res, {
+				type: 'error',
+				message: 'Failed to generate brief. Your credits have been refunded.',
+				detail: summary.streamDetail,
+			});
 			res.end();
 			return;
 		}
@@ -1204,16 +1232,29 @@ Requirements:
 		res.end();
 	} catch (err) {
 		console.error('[Pages] generateBrief error:', err);
+		captureApiError(err, req, { feature: 'generateBrief' });
 		// If we've already sent headers (stream started), refund and write error
 		if (res.headersSent) {
 			try {
+				const summary = summarizeAnthropicFailure(err);
 				if (req.user?.id && streamOrgId) {
-					await refundCredits(streamOrgId, req.user.id, streamCreditCost, 'brief_generation',
-						'Unexpected error during brief generation',
+					await refundCredits(
+						streamOrgId,
+						req.user.id,
+						streamCreditCost,
+						'brief_generation',
+						summary.rpcReason,
 						'Brief generation failed — credits refunded',
-						`/workspace/${req.params.id ?? ''}`);
+						`/workspace/${req.params.id ?? ''}`,
+						summary.metadata,
+						summary.friendlySummary
+					);
 				}
-				writeNdjson(res, { type: 'error', message: 'Internal server error. Your credits have been refunded.' });
+				writeNdjson(res, {
+					type: 'error',
+					message: 'Internal server error. Your credits have been refunded.',
+					detail: summary.streamDetail,
+				});
 				res.end();
 			} catch {
 				// ignore
@@ -1596,13 +1637,25 @@ Output HTML only (h1, h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, a 
 			writeNdjson(res, { type: 'step', id: '2' });
 		} catch (err) {
 			console.error('[Pages] Claude article error:', err instanceof Error ? err.message : err);
+			const summary = summarizeAnthropicFailure(err);
 			if (articleCreditCost > 0) {
-				await refundCredits(site.organization_id, userId, articleCreditCost, 'article_generation',
-					'Claude API error during article generation',
+				await refundCredits(
+					site.organization_id,
+					userId,
+					articleCreditCost,
+					'article_generation',
+					summary.rpcReason,
 					'Article generation failed — credits refunded',
-					`/workspace/${pageId}`);
+					`/workspace/${pageId}`,
+					summary.metadata,
+					summary.friendlySummary
+				);
 			}
-			writeNdjson(res, { type: 'error', message: 'Failed to generate article. Your credits have been refunded.' });
+			writeNdjson(res, {
+				type: 'error',
+				message: 'Failed to generate article. Your credits have been refunded.',
+				detail: summary.streamDetail,
+			});
 			res.end();
 			return;
 		}
@@ -1720,15 +1773,28 @@ Requirements:
 		res.end();
 	} catch (err) {
 		console.error('[Pages] generateArticle error:', err);
+		captureApiError(err, req, { feature: 'generateArticle' });
 		if (res.headersSent) {
 			try {
+				const summary = summarizeAnthropicFailure(err);
 				if (_articleCreditCost > 0 && _site && _userId) {
-					await refundCredits(_site.organization_id, _userId, _articleCreditCost, 'article_generation',
-						'Article generation failed mid-stream',
+					await refundCredits(
+						_site.organization_id,
+						_userId,
+						_articleCreditCost,
+						'article_generation',
+						summary.rpcReason,
 						'Article generation failed — credits refunded',
-						`/workspace/${req.params.id ?? ''}`);
+						`/workspace/${req.params.id ?? ''}`,
+						summary.metadata,
+						summary.friendlySummary
+					);
 				}
-				writeNdjson(res, { type: 'error', message: 'Internal server error. Your credits have been refunded.' });
+				writeNdjson(res, {
+					type: 'error',
+					message: 'Internal server error. Your credits have been refunded.',
+					detail: summary.streamDetail,
+				});
 				res.end();
 			} catch {
 				// ignore
@@ -1992,6 +2058,7 @@ Rewrite this section content (150-250 words). Keep the tone professional but app
 				'[Pages] Claude section rewrite error:',
 				err instanceof Error ? err.message : err
 			);
+			captureApiError(err, req, { feature: 'pages-section-rewrite-claude', pageId });
 			return res.status(500).json({ error: 'Failed to rewrite section' });
 		}
 
@@ -2007,6 +2074,7 @@ Rewrite this section content (150-250 words). Keep the tone professional but app
 		res.json({ success: true, data: { content: rewrittenContent, sectionIndex } });
 	} catch (error) {
 		console.error('[Pages] Section rewrite error:', error);
+		captureApiError(error, req, { feature: 'pages-section-rewrite' });
 		res.status(500).json({ error: 'Failed to rewrite section' });
 	}
 };
@@ -2076,12 +2144,14 @@ export const updateBriefSection = async (req: Request, res: Response) => {
 
 		if (updateErr) {
 			console.error('[Pages] updateBriefSection error:', updateErr);
+			captureApiError(updateErr, req, { feature: 'pages-brief-section-update', pageId });
 			return res.status(500).json({ error: 'Failed to save section' });
 		}
 
 		res.json({ success: true, data: { sectionIndex, guidance: sections[sectionIndex].guidance } });
 	} catch (error) {
 		console.error('[Pages] updateBriefSection error:', error);
+		captureApiError(error, req, { feature: 'pages-brief-section' });
 		res.status(500).json({ error: 'Failed to save section' });
 	}
 };
@@ -2158,6 +2228,7 @@ Generate a complete FAQ section with answers, plus copy-ready FAQPage schema mar
 			);
 		} catch (err) {
 			console.error('[Pages] Claude FAQ error:', err instanceof Error ? err.message : err);
+			captureApiError(err, req, { feature: 'pages-faq-claude', pageId });
 			return res.status(500).json({ error: 'Failed to generate FAQ' });
 		}
 
@@ -2179,6 +2250,7 @@ Generate a complete FAQ section with answers, plus copy-ready FAQPage schema mar
 		});
 	} catch (error) {
 		console.error('[Pages] FAQ generation error:', error);
+		captureApiError(error, req, { feature: 'pages-generate-faq' });
 		res.status(500).json({ error: 'Failed to generate FAQ' });
 	}
 };
@@ -2300,6 +2372,7 @@ For each failing item:
 		});
 	} catch (error) {
 		console.error('[Pages] CRO fixes error:', error);
+		captureApiError(error, req, { feature: 'pages-cro-fixes' });
 		res.status(500).json({ error: 'Failed to generate CRO fixes' });
 	}
 };
@@ -2432,6 +2505,7 @@ The output will be wrapped in <script type="application/ld+json"> tags by the ca
 			schemaJson = schemaJson.replace(/```json\n?|\n?```/g, '').trim();
 		} catch (err) {
 			console.error('[Pages] Schema generation error:', err instanceof Error ? err.message : err);
+			captureApiError(err, req, { feature: 'pages-schema-claude', pageId });
 			return res.status(500).json({ error: 'Failed to generate schema' });
 		}
 
@@ -2440,6 +2514,11 @@ The output will be wrapped in <script type="application/ld+json"> tags by the ca
 			JSON.parse(schemaJson);
 		} catch {
 			console.error('[Pages] Schema JSON parse error:', schemaJson.slice(0, 200));
+			captureApiError(new Error('Generated schema was not valid JSON'), req, {
+				feature: 'pages-schema-parse',
+				pageId,
+				preview: schemaJson.slice(0, 200)
+			});
 			return res.status(500).json({ error: 'Generated schema was not valid JSON' });
 		}
 
@@ -2473,6 +2552,7 @@ The output will be wrapped in <script type="application/ld+json"> tags by the ca
 		});
 	} catch (err) {
 		console.error('[Pages] generateSchema error:', err);
+		captureApiError(err, req, { feature: 'pages-generate-schema' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };

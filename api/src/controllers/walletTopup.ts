@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { createTopUpPaymentIntent } from '../utils/walletTopup.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 export const postWalletTopup = async (req: Request, res: Response) => {
   try {
@@ -33,6 +34,7 @@ export const postWalletTopup = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('wallet topup error', error);
+    captureApiError(error, req, { feature: 'wallet-topup' });
     return res.status(500).json({ error: 'Failed to create top-up' });
   }
 };

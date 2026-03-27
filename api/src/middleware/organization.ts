@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { HttpError } from '../error/httpError.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 export const organizationRequired = async (req: Request, res: Response, next: NextFunction) => {
 	try {
@@ -40,6 +41,7 @@ export const organizationRequired = async (req: Request, res: Response, next: Ne
 		}
 
 		console.error('An unexpected error occurred:', error);
+		captureApiError(error, req, { feature: 'middleware-organization-required' });
 		return res.status(500).json({
 			error: {
 				message: 'Internal server error'

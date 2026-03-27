@@ -5,6 +5,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 export async function requireOrgForChat(req: Request, res: Response, next: NextFunction): Promise<void> {
 	try {
@@ -49,6 +50,7 @@ export async function requireOrgForChat(req: Request, res: Response, next: NextF
 		next();
 	} catch (err) {
 		console.error('[requireOrgForChat] Error:', err);
+		captureApiError(err, req, { feature: 'requireOrgForChat' });
 		res.status(500).json({ error: 'Failed to resolve organization' });
 	}
 }

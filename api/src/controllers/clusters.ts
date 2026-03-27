@@ -7,6 +7,7 @@ import type { DfsKeyword } from '../utils/dataforseo.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
 import { classifyPageType } from '../utils/croChecklist.js';
 import { detectKeywordCannibalization } from '../utils/keywordCannibalization.js';
+import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
@@ -1583,6 +1584,7 @@ Return:
 		return res.json({ clusterId: cluster.id });
 	} catch (err) {
 		console.error('[Clusters] Error:', err);
+		captureApiError(err, req, { feature: 'clusters-create', orgId, userId });
 		// Refund credits when cluster creation fails after deduction
 		if (creditsDeducted && userId && orgId) {
 			try {
@@ -1594,6 +1596,11 @@ Return:
 				});
 				if (refundErr) {
 					console.error('[Clusters] CRITICAL: Failed to refund credits:', refundErr.message);
+					captureApiWarning(
+						`credit_back_action failed after cluster creation error: ${refundErr.message}`,
+						req,
+						{ orgId, amount: CREDIT_COSTS.CLUSTER_GENERATION, actionKey: 'cluster_generation' }
+					);
 				} else {
 					console.log(`[Clusters] Refunded ${CREDIT_COSTS.CLUSTER_GENERATION} credits to org ${orgId}`);
 					await createNotificationForUser(userId, orgId, {
@@ -1608,6 +1615,7 @@ Return:
 				}
 			} catch (refundEx) {
 				console.error('[Clusters] refundCredits threw:', refundEx instanceof Error ? refundEx.message : refundEx);
+				captureApiError(refundEx, req, { feature: 'clusters-create-refund', orgId, userId });
 			}
 		}
 		return res.status(500).json({ error: 'Internal server error' });
@@ -1929,6 +1937,7 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 		return res.json({ suggestions, runId: savedRun?.id ?? null });
 	} catch (err) {
 		console.error('[Clusters/Regen] Error:', err);
+		captureApiError(err, req, { feature: 'clusters-regenerate', orgId, userId });
 		// Refund credits when regeneration fails after deduction
 		if (creditsDeducted && userId && orgId) {
 			try {
@@ -1940,6 +1949,11 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 				});
 				if (refundErr) {
 					console.error('[Clusters/Regen] CRITICAL: Failed to refund credits:', refundErr.message);
+					captureApiWarning(
+						`credit_back_action failed after cluster regeneration error: ${refundErr.message}`,
+						req,
+						{ orgId, amount: CREDIT_COSTS.CLUSTER_GENERATION, actionKey: 'cluster_generation' }
+					);
 				} else {
 					console.log(`[Clusters/Regen] Refunded ${CREDIT_COSTS.CLUSTER_GENERATION} credits to org ${orgId}`);
 					await createNotificationForUser(userId, orgId, {
@@ -1954,6 +1968,7 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 				}
 			} catch (refundEx) {
 				console.error('[Clusters/Regen] Refund threw:', refundEx instanceof Error ? refundEx.message : refundEx);
+				captureApiError(refundEx, req, { feature: 'clusters-regenerate-refund', orgId, userId });
 			}
 		}
 		return res.status(500).json({ error: 'Internal server error' });
@@ -2072,6 +2087,7 @@ export const generateArticleBrief = async (req: Request, res: Response) => {
 		return generateBrief(req, res);
 	} catch (err) {
 		console.error('[Clusters/ArticleBrief] Error:', err);
+		captureApiError(err, req, { feature: 'clusters-article-brief' });
 		return res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -2200,6 +2216,7 @@ export const getClusterIntelligence = async (req: Request, res: Response): Promi
 		res.json(result);
 	} catch (err) {
 		console.error('[Clusters/Intelligence] Error:', err);
+		captureApiError(err, req, { feature: 'clusters-intelligence' });
 		res.status(500).json({ error: 'Internal server error' });
 	}
 };

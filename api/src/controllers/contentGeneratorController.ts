@@ -9,6 +9,7 @@
 import { Request, Response } from 'express';
 import { OpenAI } from 'openai';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
 
 const GPT_CONTENT_MODEL = process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini';
@@ -93,6 +94,7 @@ Requirements:
 		});
 	} catch (error) {
 		console.error('Error generating meta suggestions:', error);
+		captureApiError(error, req, { feature: 'content-meta-suggestions', organizationId: req.body?.organizationId });
 		res.status(500).json({ error: 'Failed to generate meta suggestions' });
 	}
 }
@@ -173,6 +175,7 @@ Each version should:
 		});
 	} catch (error) {
 		console.error('Error rewriting product description:', error);
+		captureApiError(error, req, { feature: 'content-product-description', organizationId: req.body?.organizationId });
 		res.status(500).json({ error: 'Failed to rewrite product description' });
 	}
 }
@@ -255,6 +258,7 @@ Generate 8 questions/answers that:
 		});
 	} catch (error) {
 		console.error('Error generating FAQ:', error);
+		captureApiError(error, req, { feature: 'content-faq', organizationId: req.body?.organizationId });
 		res.status(500).json({ error: 'Failed to generate FAQ' });
 	}
 }
@@ -332,6 +336,7 @@ Each version should:
 		});
 	} catch (error) {
 		console.error('Error rewriting section:', error);
+		captureApiError(error, req, { feature: 'content-rewrite-section', organizationId: req.body?.organizationId });
 		res.status(500).json({ error: 'Failed to rewrite section' });
 	}
 }
@@ -408,6 +413,7 @@ Return ONLY the rewritten content, no JSON, no markdown blocks.`
 		});
 	} catch (error) {
 		console.error('Error adjusting tone:', error);
+		captureApiError(error, req, { feature: 'content-adjust-tone', organizationId: req.body?.organizationId });
 		res.status(500).json({ error: 'Failed to adjust tone' });
 	}
 }

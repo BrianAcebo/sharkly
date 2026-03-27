@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { runToxicLinksAudit } from '../services/toxicLinksService.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const CREDIT_COST = 15;
 
@@ -54,6 +55,7 @@ export async function getToxicLinksAudit(req: Request, res: Response): Promise<v
 		res.json({ audit: site.toxic_links_audit ?? null });
 	} catch (err) {
 		console.error('[ToxicLinks] Get error:', err);
+		captureApiError(err, req, { feature: 'toxic-links-get', siteId: req.params.siteId });
 		res.status(500).json({ error: 'Failed to fetch toxic links audit' });
 	}
 }
@@ -126,6 +128,11 @@ export async function runToxicLinksAuditHandler(req: Request, res: Response): Pr
 
 		if (deductErr) {
 			console.error('[ToxicLinks] Failed to deduct credits:', deductErr);
+			captureApiError(deductErr, req, {
+				feature: 'toxic-links-deduct-credits',
+				siteId,
+				orgId: userOrg.organization_id
+			});
 			res.status(500).json({ error: 'Failed to deduct credits' });
 			return;
 		}
@@ -147,6 +154,7 @@ export async function runToxicLinksAuditHandler(req: Request, res: Response): Pr
 		}
 	} catch (err) {
 		console.error('[ToxicLinks] Audit error:', err);
+		captureApiError(err, req, { feature: 'toxic-links-run-audit', siteId: req.params.siteId });
 		res.status(500).json({
 			error: err instanceof Error ? err.message : 'Failed to run toxic link audit',
 		});

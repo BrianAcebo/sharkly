@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { fetchDomainAuthority } from '../utils/moz.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
 import { wouldConflictWithKeyword } from '../utils/keywordCannibalization.js';
@@ -72,6 +73,7 @@ export const refreshAuthority = async (req: Request, res: Response) => {
 
 		if (deductErr) {
 			console.error('[Sites] Failed to deduct credits:', deductErr);
+			captureApiError(deductErr, req, { feature: 'sites-refresh-authority-deduct', siteId });
 			return res.status(500).json({ error: 'Failed to deduct credits' });
 		}
 	}
@@ -94,6 +96,7 @@ export const refreshAuthority = async (req: Request, res: Response) => {
 
 	if (updateErr) {
 		console.error('[Sites] Failed to update DA:', updateErr);
+		captureApiError(updateErr, req, { feature: 'sites-refresh-authority-save', siteId });
 		return res.status(500).json({ error: 'Failed to save domain authority' });
 	}
 

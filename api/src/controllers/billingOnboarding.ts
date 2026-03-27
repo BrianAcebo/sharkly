@@ -19,6 +19,7 @@ import {
 	cancelDeferredIncompleteSubscriptionsExcept,
 	createOrganizationFromDeferredSubscription
 } from '../utils/deferredOrgSignup.js';
+import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
 
 const stripe = getStripeClient();
 
@@ -1280,6 +1281,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
 
 		if (updateError) {
 			console.error('Error updating organization:', updateError);
+			captureApiError(updateError, req, { feature: 'billing-onboard-org-update', orgId: org.id });
 			return res.status(500).json({
 				ok: false,
 				error: 'Failed to update organization with billing information'
@@ -1323,6 +1325,7 @@ export const onboardOrganization = async (req: Request, res: Response) => {
 		res.json(response);
 	} catch (error) {
 		console.error('Error onboarding organization:', error);
+		captureApiError(error, req, { feature: 'billing-onboard-organization' });
 		res.status(500).json({
 			ok: false,
 			error: 'Internal server error'
@@ -1341,12 +1344,14 @@ export const getPlanCatalog = async (req: Request, res: Response) => {
 
 		if (error) {
 			console.error('Error fetching plan catalog:', error);
+			captureApiError(error, req, { feature: 'billing-plan-catalog-query' });
 			return res.status(500).json({ error: 'Failed to fetch plan catalog' });
 		}
 
 		res.json({ plans });
 	} catch (error) {
 		console.error('Error fetching plan catalog:', error);
+		captureApiError(error, req, { feature: 'billing-plan-catalog' });
 		res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -1432,6 +1437,10 @@ export const getCustomerPaymentMethodSummary = async (req: Request, res: Respons
 					};
 				} catch (pmError) {
 					console.error('Error retrieving payment method for summary:', pmError);
+					captureApiWarning('Failed to retrieve default payment method by id for summary', req, {
+						feature: 'billing-pm-summary-retrieve',
+						orgId
+					});
 				}
 			}
 
@@ -1445,10 +1454,12 @@ export const getCustomerPaymentMethodSummary = async (req: Request, res: Respons
 			});
 		} catch (stripeError) {
 			console.error('Error retrieving customer payment method summary:', stripeError);
+			captureApiError(stripeError, req, { feature: 'billing-pm-summary-stripe', orgId });
 			return res.status(500).json({ error: 'Failed to retrieve payment method summary' });
 		}
 	} catch (error) {
 		console.error('Error retrieving customer payment method summary:', error);
+		captureApiError(error, req, { feature: 'billing-pm-summary' });
 		res.status(500).json({ error: 'Internal server error' });
 	}
 };
@@ -1521,6 +1532,7 @@ export const getCustomerPaymentMethods = async (req: Request, res: Response) => 
 		});
 	} catch (err) {
 		console.error('Error retrieving customer payment methods:', err);
+		captureApiError(err, req, { feature: 'billing-payment-methods-list' });
 		return res.status(500).json({ error: 'Failed to retrieve payment methods' });
 	}
 };
@@ -1614,6 +1626,11 @@ export const syncDeferredOrganizationAfterPayment = async (req: Request, res: Re
 				}
 				return res.json({ ok: true, org });
 			}
+			captureApiWarning(
+				'Could not create organization from deferred subscription after active/trialing sub',
+				req,
+				{ feature: 'billing-sync-deferred-create-org', userId }
+			);
 			return res
 				.status(500)
 				.json({ ok: false, error: 'Could not create organization' } as ApiError);
@@ -1636,6 +1653,7 @@ export const syncDeferredOrganizationAfterPayment = async (req: Request, res: Re
 		} as ApiError);
 	} catch (e) {
 		console.error('syncDeferredOrganizationAfterPayment', e);
+		captureApiError(e, req, { feature: 'billing-sync-deferred' });
 		return res.status(500).json({ ok: false, error: 'Internal server error' } as ApiError);
 	}
 };

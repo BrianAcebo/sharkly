@@ -6,6 +6,7 @@
 import { Request, Response } from 'express';
 import { GSCService } from '../services/gscService.js';
 import { generateRandomString } from '../utils/helpers.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const gscService = new GSCService();
 
@@ -53,6 +54,7 @@ export async function syncPerformanceData(req: Request, res: Response): Promise<
 		const result = await gscService.syncAllPerformanceData();
 
 		if (result.error) {
+			captureApiError(new Error(String(result.error)), req, { feature: 'gsc-sync-all' });
 			res.status(500).json({
 				success: false,
 				error: result.error
@@ -68,6 +70,7 @@ export async function syncPerformanceData(req: Request, res: Response): Promise<
 		});
 	} catch (error) {
 		console.error('GSC sync error:', error);
+		captureApiError(error, req, { feature: 'gsc-sync' });
 		res.status(500).json({
 			success: false,
 			error: error instanceof Error ? error.message : 'Unknown error'
@@ -122,6 +125,7 @@ export async function startGSCOAuth(req: Request, res: Response): Promise<void> 
 		res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 	} catch (error) {
 		console.error('GSC OAuth start error:', error);
+		captureApiError(error, req, { feature: 'gsc-oauth-start' });
 		res.status(500).json({
 			success: false,
 			error: error instanceof Error ? error.message : 'Unknown error'
@@ -220,6 +224,7 @@ export async function handleGSCOAuthCallback(req: Request, res: Response): Promi
 	);
 	} catch (error) {
 		console.error('GSC OAuth callback error:', error);
+		captureApiError(error, req, { feature: 'gsc-oauth-callback' });
 		const errorMsg = encodeURIComponent(error instanceof Error ? error.message : 'Unknown error');
 		res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/sites?gsc_error=${errorMsg}`);
 	}
@@ -276,6 +281,7 @@ export async function saveGSCToken(req: Request, res: Response): Promise<void> {
 		});
 	} catch (error) {
 		console.error('GSC save error:', error);
+		captureApiError(error, req, { feature: 'gsc-save-token' });
 		res.status(500).json({
 			success: false,
 			error: error instanceof Error ? error.message : 'Unknown error'
@@ -332,6 +338,7 @@ export async function getGSCProperties(req: Request, res: Response): Promise<voi
 		});
 	} catch (error) {
 		console.error('GSC properties error:', error);
+		captureApiError(error, req, { feature: 'gsc-properties' });
 		res.status(500).json({
 			success: false,
 			error: error instanceof Error ? error.message : 'Unknown error'
@@ -364,6 +371,7 @@ export async function disconnectGSC(req: Request, res: Response): Promise<void> 
 		});
 	} catch (error) {
 		console.error('GSC disconnect error:', error);
+		captureApiError(error, req, { feature: 'gsc-disconnect' });
 		res.status(500).json({
 			success: false,
 			error: error instanceof Error ? error.message : 'Unknown error'

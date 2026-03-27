@@ -20,6 +20,7 @@ import {
 	updateShopifyCollection
 } from '../services/shopifyService.js';
 import { maybeNotifyCreditsLow } from '../utils/notifications.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const GPT_MODEL = process.env.GPT_CONTENT_MODEL || 'gpt-4o-mini';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -344,6 +345,7 @@ REQUIREMENTS:
 	try {
 		parsed = JSON.parse(raw) as { html?: string; schema_json?: string };
 	} catch {
+		captureApiError(new Error('Invalid AI response'), req, { feature: 'ecommerce-generate-product-json', pageId: req.params.id });
 		res.status(500).json({ error: 'Invalid AI response' });
 		return;
 	}
@@ -370,6 +372,7 @@ REQUIREMENTS:
 
 	if (updateErr) {
 		console.error('[Ecommerce] Update page error:', updateErr);
+		captureApiError(updateErr, req, { feature: 'ecommerce-generate-product-save', pageId: req.params.id });
 		res.status(500).json({ error: 'Failed to save generated content' });
 		return;
 	}
@@ -510,6 +513,7 @@ ${competitorBlock || 'None'}`;
 	try {
 		parsed = JSON.parse(raw) as { html?: string; schema_json?: string };
 	} catch {
+		captureApiError(new Error('Invalid AI response'), req, { feature: 'ecommerce-generate-collection-json', pageId: req.params.id });
 		res.status(500).json({ error: 'Invalid AI response' });
 		return;
 	}
@@ -536,6 +540,7 @@ ${competitorBlock || 'None'}`;
 
 	if (updateErr) {
 		console.error('[Ecommerce] Update page error:', updateErr);
+		captureApiError(updateErr, req, { feature: 'ecommerce-generate-collection-save', pageId: req.params.id });
 		res.status(500).json({ error: 'Failed to save generated content' });
 		return;
 	}
@@ -656,6 +661,7 @@ Deliver: One meta_title (50-60 chars, keyword front-loaded, no brand suffix) and
 	try {
 		parsed = JSON.parse(raw) as { meta_title?: string; meta_description?: string };
 	} catch {
+		captureApiError(new Error('Invalid AI response'), req, { feature: 'ecommerce-generate-meta-json', pageId: req.params.id });
 		res.status(500).json({ error: 'Invalid AI response' });
 		return;
 	}
@@ -689,6 +695,7 @@ Deliver: One meta_title (50-60 chars, keyword front-loaded, no brand suffix) and
 
 	if (updateErr) {
 		console.error('[Ecommerce] Update meta error:', updateErr);
+		captureApiError(updateErr, req, { feature: 'ecommerce-generate-meta-save', pageId: req.params.id });
 		res.status(500).json({ error: 'Failed to save generated meta' });
 		return;
 	}
@@ -947,6 +954,7 @@ export async function runSeoChecks(req: Request, res: Response): Promise<void> {
 
 	if (updateErr) {
 		console.error('[Ecommerce] Update seo_checks error:', updateErr);
+		captureApiError(updateErr, req, { feature: 'ecommerce-seo-checks-save', pageId: page.id });
 		res.status(500).json({ error: 'Failed to save SEO checks' });
 		return;
 	}
@@ -1043,6 +1051,7 @@ export async function publishToShopify(req: Request, res: Response): Promise<voi
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : 'Publish failed';
 		console.error('[Ecommerce] publishToShopify error:', err);
+		captureApiError(err, req, { feature: 'ecommerce-publish-shopify', pageId: req.params.id });
 		res.status(500).json({ error: msg });
 	}
 }
@@ -1287,6 +1296,7 @@ export async function createEcommercePage(req: Request, res: Response): Promise<
 
 	if (error) {
 		console.error('[Ecommerce] Create error:', error);
+		captureApiError(error, req, { feature: 'ecommerce-create-page' });
 		res.status(500).json({ error: 'Failed to create page' });
 		return;
 	}
@@ -1348,6 +1358,7 @@ export async function updateEcommercePage(req: Request, res: Response): Promise<
 
 	if (error) {
 		console.error('[Ecommerce] Update error:', error);
+		captureApiError(error, req, { feature: 'ecommerce-update-page', pageId: page.id });
 		res.status(500).json({ error: 'Failed to update page' });
 		return;
 	}
@@ -1365,6 +1376,7 @@ export async function deleteEcommercePage(req: Request, res: Response): Promise<
 	const { error } = await supabase.from('ecommerce_pages').delete().eq('id', page.id);
 	if (error) {
 		console.error('[Ecommerce] Delete error:', error);
+		captureApiError(error, req, { feature: 'ecommerce-delete-page', pageId: page.id });
 		res.status(500).json({ error: 'Failed to delete page' });
 		return;
 	}
@@ -1406,6 +1418,7 @@ export async function bulkDeleteEcommercePages(req: Request, res: Response): Pro
 		.select('id');
 	if (error) {
 		console.error('[Ecommerce] Bulk delete error:', error);
+		captureApiError(error, req, { feature: 'ecommerce-bulk-delete' });
 		res.status(500).json({ error: 'Failed to delete pages' });
 		return;
 	}
@@ -1500,6 +1513,7 @@ export async function syncEcommercePage(req: Request, res: Response): Promise<vo
 
 	if (error) {
 		console.error('[Ecommerce] Sync update error:', error);
+		captureApiError(error, req, { feature: 'ecommerce-sync-page', pageId: page.id });
 		res.status(500).json({ error: 'Failed to sync' });
 		return;
 	}
@@ -1531,6 +1545,7 @@ export async function syncAllEcommercePages(req: Request, res: Response): Promis
 
 	if (error) {
 		console.error('[Ecommerce] Sync-all fetch error:', error);
+		captureApiError(error, req, { feature: 'ecommerce-sync-all-fetch' });
 		res.status(500).json({ error: 'Failed to fetch records' });
 		return;
 	}
@@ -1614,6 +1629,7 @@ export async function syncAllEcommercePages(req: Request, res: Response): Promis
 				synced++;
 			}
 		} catch (err) {
+			captureApiError(err, req, { feature: 'ecommerce-sync-all-row', pageId: row.id });
 			errors.push(`Sync failed for ${row.id}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
@@ -1651,6 +1667,7 @@ export async function listEcommercePages(req: Request, res: Response): Promise<v
 	const { data, error, count } = await q;
 	if (error) {
 		console.error('[Ecommerce] List error:', error);
+		captureApiError(error, req, { feature: 'ecommerce-list-pages', siteId });
 		res.status(500).json({ error: 'Failed to list pages' });
 		return;
 	}

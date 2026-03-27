@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { isOrganizationInGoodStanding, isOrganizationBehindOnPayments, getOrganizationStatusMessage, getOrganizationIssueReason } from '../utils/paymentStatus.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 /**
  * Get payment status for an organization
@@ -64,6 +65,7 @@ export const getPaymentStatus = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Error getting payment status:', error);
+    captureApiError(error, req, { feature: 'payment-status-get' });
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -118,6 +120,7 @@ export const checkResumeEligibility = async (req: Request, res: Response) => {
 
   } catch (error) {
     console.error('Error checking resume eligibility:', error);
+    captureApiError(error, req, { feature: 'payment-status-resume-eligibility' });
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -153,6 +156,7 @@ export const getOrganizationsNeedingPaymentAttention = async (req: Request, res:
 
     if (orgsError) {
       console.error('Error fetching organizations with payment issues:', orgsError);
+      captureApiError(orgsError, req, { feature: 'payment-status-orgs-needing-attention-query' });
       return res.status(500).json({ error: 'Failed to fetch organizations' });
     }
 
@@ -177,6 +181,7 @@ export const getOrganizationsNeedingPaymentAttention = async (req: Request, res:
 
   } catch (error) {
     console.error('Error getting organizations needing payment attention:', error);
+    captureApiError(error, req, { feature: 'payment-status-orgs-needing-attention' });
     res.status(500).json({ error: 'Internal server error' });
   }
 };

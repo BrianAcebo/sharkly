@@ -6,6 +6,7 @@
 
 import { Request, Response, NextFunction } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const TIER_ORDER = ['builder', 'growth', 'scale', 'pro'] as const;
 type Tier = (typeof TIER_ORDER)[number];
@@ -72,6 +73,7 @@ export function requireTier(requiredTier: Tier) {
       next();
     } catch (err) {
       console.error('[requireTier] Error:', err);
+      captureApiError(err, req, { feature: 'middleware-require-tier', requiredTier });
       res.status(500).json({ error: 'Failed to verify plan tier' });
     }
   };

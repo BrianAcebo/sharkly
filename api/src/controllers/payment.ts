@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Stripe from 'stripe';
 import { supabase } from '../utils/supabaseClient.js';
 import { HttpError } from '../error/httpError.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 	apiVersion: '2025-08-27.basil'
@@ -52,6 +53,7 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
 			});
 		} else {
 			console.error('An unexpected error occurred:', error);
+			captureApiError(error, req, { feature: 'payment-create-intent' });
 			return res.status(500).json({
 				error: {
 					message: 'An unexpected error occurred'
@@ -87,6 +89,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
 				if (updateError) {
 					console.error('Error updating organization status:', updateError);
+					captureApiError(updateError, req, {
+						feature: 'payment-webhook-org-status',
+						organizationId: organizationId as string | undefined
+					});
 					return res.status(500).json({ error: 'Failed to update organization status' });
 				}
 
@@ -102,6 +108,10 @@ export const handleWebhook = async (req: Request, res: Response) => {
 
 				if (subscriptionError) {
 					console.error('Error creating subscription:', subscriptionError);
+					captureApiError(subscriptionError, req, {
+						feature: 'payment-webhook-subscription-insert',
+						organizationId: organizationId as string | undefined
+					});
 					return res.status(500).json({ error: 'Failed to create subscription' });
 				}
 
@@ -153,6 +163,7 @@ export const createSetupIntent = async (req: Request, res: Response) => {
 			return res.status(err.statusCode).json({ error: { message: err.message } });
 		}
 		console.error('Unexpected error creating setup intent:', error);
+		captureApiError(error, req, { feature: 'payment-setup-intent' });
 		return res.status(500).json({ error: { message: 'Failed to create setup intent' } });
 	}
 };

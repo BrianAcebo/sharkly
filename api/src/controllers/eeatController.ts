@@ -5,6 +5,7 @@
 
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { eeatService } from '../services/eeatService.js';
 
 /**
@@ -66,6 +67,7 @@ export const getEEAT = async (req: Request, res: Response): Promise<void> => {
 		});
 	} catch (err) {
 		console.error('[EEAT] Error:', err);
+		captureApiError(err, req, { feature: 'eeat-get', siteId: req.params.siteId });
 		res.status(500).json({ error: 'Failed to get EEAT data' });
 	}
 };

@@ -22,6 +22,7 @@ import {
 	DEFERRED_ORG_SIGNUP_META,
 	DEFERRED_ORG_SIGNUP_VALUE
 } from '../utils/deferredOrgSignup.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const stripe = getStripeClient();
 
@@ -2344,6 +2345,11 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
 		res.json({ received: true });
 	} catch (error) {
 		console.error('[WEBHOOK] Error handling event', { type: event.type, error });
+		captureApiError(error, req, {
+			feature: 'stripe-webhook',
+			stripeEventType: event.type,
+			orgId: orgId ?? undefined
+		});
 
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 

@@ -8,6 +8,7 @@ import { Request, Response } from 'express';
 import OpenAI from 'openai';
 import { supabase } from '../utils/supabaseClient.js';
 import { AI_TOOLS, executeTool } from '../services/aiTools.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o';
@@ -1065,6 +1066,7 @@ export async function listChatSessions(req: Request, res: Response) {
     return res.json({ sessions: sessions || [] });
   } catch (err) {
     console.error('[AI Chat] Exception fetching sessions:', err);
+    captureApiError(err, req, { feature: 'ai-chat-sessions' });
     return res.json({ sessions: [] });
   }
 }

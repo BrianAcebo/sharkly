@@ -7,6 +7,7 @@
 
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { findPageIdForGscUrl } from '../utils/gscUrlMatch.js';
 
 export type PriorityCategory = 'high' | 'medium' | 'keep_going';
@@ -404,6 +405,7 @@ export const getPriorityStack = async (req: Request, res: Response): Promise<voi
 		res.json({ items: sorted, cadence });
 	} catch (err) {
 		console.error('[PriorityStack] Error:', err);
+		captureApiError(err, req, { feature: 'priority-stack' });
 		res.status(500).json({ error: 'Internal server error' });
 	}
 };

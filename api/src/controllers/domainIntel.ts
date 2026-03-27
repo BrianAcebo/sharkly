@@ -5,6 +5,7 @@
 
 import type { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 import { spendCreditsForAction } from '../utils/credits.js';
 import * as dnsLookup from '../services/dnsLookup.js';
 import * as whoisLookup from '../services/whoisLookup.js';
@@ -119,6 +120,7 @@ export async function dnsLookupHandler(req: Request, res: Response) {
     });
   } catch (err) {
     console.error('[Domain Intel] DNS lookup error:', err);
+    captureApiError(err, req, { feature: 'domain-intel-dns' });
     return res.status(500).json({ 
       error: 'DNS lookup failed', 
       details: err instanceof Error ? err.message : String(err) 
@@ -255,6 +257,7 @@ export async function statusHandler(req: Request, res: Response) {
     });
   } catch (err) {
     console.error('[Domain Intel] Status check error:', err);
+    captureApiError(err, req, { feature: 'domain-intel-status' });
     return res.status(500).json({ error: 'Status check failed' });
   }
 }

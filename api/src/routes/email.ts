@@ -1,5 +1,6 @@
 import express from 'express';
 import { emailService } from '../utils/email.js';
+import { captureApiError } from '../utils/sentryCapture.js';
 
 const router = express.Router();
 
@@ -26,6 +27,7 @@ router.post('/test', async (req, res) => {
 		return res.json({ message: `Test email sent to ${target}` });
 	} catch (err) {
 		console.error('Test email error:', err);
+		captureApiError(err, req, { feature: 'email-test' });
 		return res.status(500).json({ error: { message: 'Failed to send test email' } });
 	}
 });
@@ -87,6 +89,7 @@ router.post('/test-template', async (req, res) => {
 		return res.json({ message: `Template email sent to ${target}` });
 	} catch (err) {
 		console.error('Test template email error:', err);
+		captureApiError(err, req, { feature: 'email-test-template' });
 		return res.status(500).json({ error: { message: 'Failed to send template email' } });
 	}
 });
