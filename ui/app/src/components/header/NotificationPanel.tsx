@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, Target, Bot, MessageSquare, Info, Clock, ArrowRight, Trash2, RefreshCw, Bell } from 'lucide-react';
+import {
+	NotificationMetadataSection,
+	hasRenderableNotificationMetadata,
+} from '../notifications/NotificationMetadataSection';
 import { Link } from 'react-router';
 
 import { Button } from '../ui/button';
@@ -205,8 +209,11 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, fetchUnr
         return <Info className="h-5 w-5 text-gray-500" />;
       case 'task_reminder':
         return <Clock className="h-5 w-5 text-orange-500" />;
+      case 'credit_refund':
+      case 'strategy_refund':
+        return <Bell className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />;
       default:
-        return <Target className="h-5 w-5 text-gray-500" />;
+        return <Target className="h-3.5 w-3.5 text-gray-500 shrink-0" />;
     }
   };
 
@@ -246,10 +253,10 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, fetchUnr
   }, []);
 
   return (
-    <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-900 z-50">
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-900">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold text-black dark:text-white">Recent Notifications</h3>
+    <div className="absolute right-0 mt-2 w-[min(100vw-1rem,22rem)] bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-900 z-50">
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-gray-200 dark:border-gray-900">
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="text-sm font-semibold text-black dark:text-white truncate">Notifications</h3>
           <div className="flex items-center gap-2">
             {!serviceAvailable ? (
               <>
@@ -370,34 +377,27 @@ const NotificationPanel: React.FC<NotificationPanelProps> = ({ onClose, fetchUnr
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <h4 className={`text-sm font-medium ${
+                        <h4 className={`text-xs font-semibold leading-snug ${
                           !notification.read 
                             ? 'text-blue-900 dark:text-blue-100' 
                             : 'text-gray-900 dark:text-gray-100'
                         }`}>
                           {notification.title}
                         </h4>
-                        <p className={`text-sm mt-1 ${
+                        <p className={`text-xs mt-0.5 leading-relaxed ${
                           !notification.read 
-                            ? 'text-blue-800 dark:text-blue-200' 
+                            ? 'text-blue-800/90 dark:text-blue-200/90' 
                             : 'text-gray-600 dark:text-gray-400'
                         }`}>
                           {notification.message}
                         </p>
-                        
-                        {notification.metadata && Object.keys(notification.metadata).length > 0 && (
-                          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                            {typeof notification.metadata.task_title === 'string' && notification.metadata.task_title && (
-                              <p>Task: {notification.metadata.task_title}</p>
-                            )}
-                            {typeof notification.metadata.due_date === 'string' && notification.metadata.due_date && (
-                              <p>Due: {new Date(notification.metadata.due_date).toLocaleDateString()}</p>
-                            )}
-                          </div>
+
+                        {hasRenderableNotificationMetadata(notification) && (
+                          <NotificationMetadataSection notification={notification} compact />
                         )}
                         
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-[10px] text-gray-500 dark:text-gray-400">
                             {formatTimeAgo(notification.created_at)}
                           </span>
                           

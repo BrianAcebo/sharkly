@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import * as Sentry from '@sentry/react';
 import { Button } from '../ui/button';
 
 interface Props {
@@ -25,6 +26,7 @@ class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
+    Sentry.captureException(error, { contexts: { react: { componentStack: errorInfo.componentStack } } });
     this.setState({ error, errorInfo });
   }
 
@@ -49,13 +51,16 @@ class ErrorBoundary extends Component<Props, State> {
               Something went wrong
             </h2>
             
-            <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
-              An unexpected error occurred. Please try refreshing the page.
+            <p className="text-gray-600 dark:text-gray-400 text-center mb-2">
+              An unexpected error occurred. Try again or refresh the page.
+            </p>
+            <p className="text-gray-500 dark:text-gray-500 text-center text-sm mb-6">
+              If this keeps happening, contact support with what you were doing when it appeared.
             </p>
 
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {import.meta.env.DEV && this.state.error && (
               <details className="mb-4 p-3 bg-gray-100 dark:bg-gray-700 rounded text-sm">
-                <summary className="cursor-pointer font-medium mb-2">Error Details</summary>
+                <summary className="cursor-pointer font-medium mb-2">Error details (dev only)</summary>
                 <pre className="text-red-600 dark:text-red-400 whitespace-pre-wrap">
                   {this.state.error.toString()}
                 </pre>

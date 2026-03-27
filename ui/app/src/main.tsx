@@ -4,28 +4,52 @@ import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './providers/AuthProvider';
 import { AssistantProvider } from './providers/AssistantProvider';
 import { ThemeProvider } from './providers/ThemeProvider';
-
 import App from './App';
 import './index.css';
 import { supabase } from './utils/supabaseClient';
 import { setApiAuthGetter } from './utils/api';
+import * as Sentry from '@sentry/react';
+
+/** Public DSN — override with VITE_SENTRY_DSN in env if needed */
+const defaultBrowserDsn =
+	'https://2f8036ca5ec8b6dfcfea7b289e06163f@o4511108528472064.ingest.us.sentry.io/4511108531027968';
+
+const sentryDsn = import.meta.env.VITE_SENTRY_DSN || defaultBrowserDsn;
+
+Sentry.init({
+	dsn: sentryDsn,
+	sendDefaultPii: true,
+	environment: import.meta.env.VITE_SENTRY_ENVIRONMENT ?? import.meta.env.MODE,
+	release: import.meta.env.VITE_SENTRY_RELEASE,
+	integrations: [Sentry.browserTracingIntegration()],
+	tracePropagationTargets: [
+		'localhost',
+		/^https:\/\/.+\.sharkly\.co/,
+		/^https:\/\/.+\.fly\.dev/,
+	],
+	tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
+});
 
 // Attach Supabase session to all API requests so auth middleware can validate the token
 setApiAuthGetter(async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  return (session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) as Record<string, string>;
+	const {
+		data: { session }
+	} = await supabase.auth.getSession();
+	return (
+		session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+	) as Record<string, string>;
 });
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <HelmetProvider>
-      <AuthProvider>
-        <AssistantProvider>
-          <ThemeProvider>
-            <App />
-          </ThemeProvider>
-        </AssistantProvider>
-      </AuthProvider>
-    </HelmetProvider>
-  </StrictMode>
+	<StrictMode>
+		<HelmetProvider>
+			<AuthProvider>
+				<AssistantProvider>
+					<ThemeProvider>
+						<App />
+					</ThemeProvider>
+				</AssistantProvider>
+			</AuthProvider>
+		</HelmetProvider>
+	</StrictMode>
 );

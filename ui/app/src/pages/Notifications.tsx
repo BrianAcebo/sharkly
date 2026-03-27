@@ -24,6 +24,10 @@ import {
 import PageMeta from '../components/common/PageMeta';
 import Input from '../components/form/input/InputField';
 import Select from '../components/form/Select';
+import {
+	NotificationMetadataSection,
+	hasRenderableNotificationMetadata,
+} from '../components/notifications/NotificationMetadataSection';
 
 export default function Notifications() {
   const { user } = useAuth();
@@ -199,8 +203,11 @@ export default function Notifications() {
         return <Info className="h-5 w-5 text-gray-500" />;
       case 'task_reminder':
         return <Clock className="h-5 w-5 text-orange-500" />;
+      case 'credit_refund':
+      case 'strategy_refund':
+        return <Bell className="h-4 w-4 text-amber-600 dark:text-amber-400" />;
       default:
-        return <Target className="h-5 w-5 text-gray-500" />;
+        return <Target className="h-4 w-4 text-gray-500" />;
     }
   };
 
@@ -267,14 +274,16 @@ export default function Notifications() {
     <>
       <PageMeta title="Notifications" description="View and manage your notifications" />
       
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-3xl mx-auto px-4 pb-10">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Notifications</h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
-                Stay updated with your task reminders and important updates
+              <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-stone-100">
+                Notifications
+              </h1>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                Task reminders, credit refunds, and product updates
               </p>
               {!serviceAvailable && (
                 <div className="mt-3 flex items-center gap-2 text-sm">
@@ -318,53 +327,27 @@ export default function Notifications() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalCount}</p>
-                  </div>
-                  <Bell className="h-8 w-8 text-gray-400" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Unread</p>
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{unreadCount}</p>
-                  </div>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                    New
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Read</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">{readCount}</p>
-                  </div>
-                  <Check className="h-8 w-8 text-green-400" />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="mt-5 flex flex-wrap gap-3 text-sm text-neutral-600 dark:text-neutral-400">
+            <span>
+              <span className="font-medium text-neutral-900 dark:text-stone-200">{totalCount}</span> total
+            </span>
+            <span className="text-neutral-300 dark:text-neutral-600">·</span>
+            <span>
+              <span className="font-medium text-blue-600 dark:text-blue-400">{unreadCount}</span> unread
+            </span>
+            <span className="text-neutral-300 dark:text-neutral-600">·</span>
+            <span>
+              <span className="font-medium text-neutral-800 dark:text-stone-200">{readCount}</span> read
+            </span>
           </div>
         </div>
 
         {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="mb-5 border-neutral-200/80 dark:border-neutral-800">
+          <CardContent className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1.5">
                   Search
                 </label>
                 <div className="relative">
@@ -380,39 +363,40 @@ export default function Notifications() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1.5">
                   Type
                 </label>
-                                                  <Select
-                   defaultValue={typeFilter}
-                   onChange={(value: string) => setTypeFilter(value)}
-                   options={[
-                     { value: 'all', label: 'All Types' },
-                     { value: 'task_reminder', label: 'Task Reminders' },
-                     { value: 'lead', label: 'Lead Updates' },
-                     { value: 'ai', label: 'AI Insights' },
-                     { value: 'ai_call_completed', label: 'AI Calls' },
-                     { value: 'ai_meeting_booked', label: 'AI Meetings' },
-                     { value: 'ai_callback', label: 'AI Callbacks' },
-                     { value: 'communication', label: 'Communications' },
-                     { value: 'system', label: 'System' }
-                   ]}
-                 />
+                <Select
+                  defaultValue={typeFilter}
+                  onChange={(value: string) => setTypeFilter(value)}
+                  options={[
+                    { value: 'all', label: 'All Types' },
+                    { value: 'credit_refund', label: 'Credit refunds' },
+                    { value: 'task_reminder', label: 'Task Reminders' },
+                    { value: 'lead', label: 'Lead Updates' },
+                    { value: 'ai', label: 'AI Insights' },
+                    { value: 'ai_call_completed', label: 'AI Calls' },
+                    { value: 'ai_meeting_booked', label: 'AI Meetings' },
+                    { value: 'ai_callback', label: 'AI Callbacks' },
+                    { value: 'communication', label: 'Communications' },
+                    { value: 'system', label: 'System' },
+                  ]}
+                />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1.5">
                   Status
                 </label>
-                                                  <Select
-                   defaultValue={statusFilter}
-                   onChange={(value: string) => setStatusFilter(value)}
-                   options={[
-                     { value: 'all', label: 'All Status' },
-                     { value: 'unread', label: 'Unread' },
-                     { value: 'read', label: 'Read' }
-                   ]}
-                 />
+                <Select
+                  defaultValue={statusFilter}
+                  onChange={(value: string) => setStatusFilter(value)}
+                  options={[
+                    { value: 'all', label: 'All Status' },
+                    { value: 'unread', label: 'Unread' },
+                    { value: 'read', label: 'Read' },
+                  ]}
+                />
               </div>
               
               <div className="flex items-end">
@@ -490,82 +474,73 @@ export default function Notifications() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {filteredNotifications.map((notification) => (
-              <Card key={notification.id} className={`notification-item transition-all duration-200 ${
-                !notification.read ? 'ring-2 ring-blue-200 dark:ring-blue-800 bg-blue-50 dark:bg-blue-900/20' : ''
-              }`}>
-                <CardContent className="p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0 mt-1">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <h3 className={`text-lg font-semibold ${
-                              !notification.read 
-                                ? 'text-blue-900 dark:text-blue-100' 
-                                : 'text-gray-900 dark:text-gray-100'
-                            }`}>
+              <Card
+                key={notification.id}
+                className={`notification-item border-neutral-200/90 transition-colors dark:border-neutral-800 ${
+                  !notification.read
+                    ? 'border-l-[3px] border-l-blue-500 bg-blue-50/40 dark:bg-blue-950/20'
+                    : ''
+                }`}
+              >
+                <CardContent className="p-4 sm:p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex-shrink-0">{getNotificationIcon(notification.type)}</div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <h3
+                              className={`text-sm font-semibold leading-snug ${
+                                !notification.read
+                                  ? 'text-neutral-900 dark:text-stone-100'
+                                  : 'text-neutral-800 dark:text-stone-200'
+                              }`}
+                            >
                               {notification.title}
                             </h3>
-                            
                             {!notification.read && (
-                              <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                              <Badge
+                                variant="secondary"
+                                className="h-5 px-1.5 text-[10px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200"
+                              >
                                 New
                               </Badge>
                             )}
-                            
-                            <Badge variant="outline" className="text-xs">
-                              {notification.type.replace('_', ' ')}
+                            <Badge
+                              variant="outline"
+                              className="h-5 border-neutral-200 px-1.5 text-[10px] font-normal capitalize text-neutral-600 dark:border-neutral-700 dark:text-neutral-400"
+                            >
+                              {notification.type.replace(/_/g, ' ')}
                             </Badge>
                           </div>
-                          
-                          <p className={`text-base ${
-                            !notification.read 
-                              ? 'text-blue-800 dark:text-blue-200' 
-                              : 'text-gray-600 dark:text-gray-400'
-                          }`}>
+
+                          <p
+                            className={`text-sm leading-relaxed ${
+                              !notification.read
+                                ? 'text-neutral-700 dark:text-neutral-300'
+                                : 'text-neutral-600 dark:text-neutral-400'
+                            }`}
+                          >
                             {notification.message}
                           </p>
-                          
-                          {notification.metadata && Object.keys(notification.metadata).length > 0 && (
-                            <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Details</h4>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                                {typeof notification.metadata.task_title === 'string' && notification.metadata.task_title && (
-                                  <div>
-                                    <span className="font-medium text-gray-600 dark:text-gray-400">Task:</span>
-                                    <span className="ml-2 text-gray-800 dark:text-gray-200">{notification.metadata.task_title}</span>
-                                  </div>
-                                )}
-                                {typeof notification.metadata.due_date === 'string' && notification.metadata.due_date && (
-                                  <div>
-                                    <span className="font-medium text-gray-600 dark:text-gray-400">Due:</span>
-                                    <span className="ml-2 text-gray-800 dark:text-gray-200">
-                                      {new Date(notification.metadata.due_date).toLocaleDateString()}
-                                    </span>
-                                  </div>
-                                )}
-                                {typeof notification.metadata.priority === 'string' && notification.metadata.priority && (
-                                  <div>
-                                    <span className="font-medium text-gray-600 dark:text-gray-400">Priority:</span>
-                                    <span className="ml-2 text-gray-800 dark:text-gray-200 capitalize">
-                                      {notification.metadata.priority}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+
+                          {hasRenderableNotificationMetadata(notification) && (
+                            <NotificationMetadataSection notification={notification} />
                           )}
-                          
-                          <div className="flex items-center gap-4 mt-4 text-sm text-gray-500 dark:text-gray-400">
-                            <span className="inline-flex items-center gap-1.5"><Calendar className="size-4" /> {formatTimeAgo(notification.created_at)}</span>
+
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-neutral-500 dark:text-neutral-500">
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="size-3.5 shrink-0 opacity-70" />
+                              {formatTimeAgo(notification.created_at)}
+                            </span>
                             {notification.read && notification.read_at && (
-                              <span className="inline-flex items-center gap-1.5"><Eye className="size-4" /> Read {formatTimeAgo(notification.read_at)}</span>
+                              <span className="inline-flex items-center gap-1">
+                                <Eye className="size-3.5 shrink-0 opacity-70" />
+                                Read {formatTimeAgo(notification.read_at)}
+                              </span>
                             )}
                           </div>
                         </div>

@@ -466,6 +466,7 @@ export default function Workspace() {
 	const [taskWidgetTitle, setTaskWidgetTitle] = useState('');
 	const [taskWidgetSteps, setTaskWidgetSteps] = useState<TaskStep[]>([]);
 	const [taskWidgetError, setTaskWidgetError] = useState<string | undefined>();
+	const [taskWidgetErrorDetail, setTaskWidgetErrorDetail] = useState<string | undefined>();
 	const [taskWidgetDisableAutoAdvance, setTaskWidgetDisableAutoAdvance] = useState(false);
 	const [liveSeoBreakdown, setLiveSeoBreakdown] = useState<SeoScoreBreakdown | null>(null);
 	// L9: AI detection education — persisted dismiss (localStorage)
@@ -657,6 +658,7 @@ export default function Workspace() {
 		);
 		setTaskWidgetStatus('running');
 		setTaskWidgetError(undefined);
+		setTaskWidgetErrorDetail(undefined);
 		setTaskWidgetDisableAutoAdvance(true); // Real progress from NDJSON stream
 		setTaskWidgetOpen(true);
 		try {
@@ -668,6 +670,7 @@ export default function Workspace() {
 				toast.error('Please sign in to continue');
 				setTaskWidgetStatus('error');
 				setTaskWidgetError('Please sign in to continue');
+				setTaskWidgetErrorDetail(undefined);
 				return;
 			}
 			const res = await api.post(`/api/pages/${id}/brief`, {
@@ -682,6 +685,7 @@ export default function Workspace() {
 					toast.error(msg);
 					setTaskWidgetStatus('error');
 					setTaskWidgetError(msg);
+					setTaskWidgetErrorDetail(undefined);
 					return;
 				}
 				throw new Error(data?.error || 'Failed to generate brief');
@@ -692,6 +696,7 @@ export default function Workspace() {
 			const decoder = new TextDecoder();
 			let buffer = '';
 			let briefData: Record<string, unknown> | null = null;
+			let streamError: { message: string; detail?: string } | undefined;
 
 			if (reader) {
 				let streamDone = false;
@@ -727,7 +732,13 @@ export default function Workspace() {
 								streamDone = true;
 								break;
 							} else if (ev.type === 'error') {
-								throw new Error(ev.message ?? 'Failed to generate brief');
+								const evd = ev as { message?: string; detail?: string };
+								streamError = {
+									message: evd.message ?? 'Failed to generate brief',
+									detail: evd.detail
+								};
+								streamDone = true;
+								break;
 							}
 						} catch (parseErr) {
 							if (parseErr instanceof SyntaxError) {
@@ -738,6 +749,14 @@ export default function Workspace() {
 					}
 					if (streamDone) break;
 				}
+			}
+
+			if (streamError) {
+				toast.error(streamError.message);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError(streamError.message);
+				setTaskWidgetErrorDetail(streamError.detail);
+				return;
 			}
 
 			if (!briefData) {
@@ -752,6 +771,7 @@ export default function Workspace() {
 			toast.error(msg);
 			setTaskWidgetStatus('error');
 			setTaskWidgetError(msg);
+			setTaskWidgetErrorDetail(undefined);
 		} finally {
 			setGenerating(false);
 			setTaskWidgetDisableAutoAdvance(false);
@@ -782,6 +802,7 @@ export default function Workspace() {
 		);
 		setTaskWidgetStatus('running');
 		setTaskWidgetError(undefined);
+		setTaskWidgetErrorDetail(undefined);
 		setTaskWidgetOpen(true);
 		setTaskWidgetDisableAutoAdvance(true);
 		try {
@@ -794,6 +815,7 @@ export default function Workspace() {
 				setGenerating(false);
 				setTaskWidgetStatus('error');
 				setTaskWidgetError('Please sign in to continue');
+				setTaskWidgetErrorDetail(undefined);
 				return;
 			}
 			const res = await api.post(`/api/pages/${id}/article`);
@@ -808,6 +830,7 @@ export default function Workspace() {
 					setTaskWidgetError(
 						`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`
 					);
+					setTaskWidgetErrorDetail(undefined);
 					return;
 				}
 				throw new Error(data?.error || 'Failed to generate article');
@@ -818,6 +841,7 @@ export default function Workspace() {
 			const reader = res.body?.getReader();
 			const decoder = new TextDecoder();
 			let buffer = '';
+			let streamError: { message: string; detail?: string } | undefined;
 
 			if (reader) {
 				let streamDone = false;
@@ -830,7 +854,7 @@ export default function Workspace() {
 					for (const line of lines) {
 						if (!line.trim()) continue;
 						try {
-							const ev = JSON.parse(line) as { type: string; id?: string; message?: string };
+							const ev = JSON.parse(line) as { type: string; id?: string; message?: string; detail?: string };
 							if (ev.type === 'ping') continue;
 							if (ev.type === 'step' && ev.id) {
 								setTaskWidgetSteps((prev) => {
@@ -846,7 +870,12 @@ export default function Workspace() {
 								streamDone = true;
 								break;
 							} else if (ev.type === 'error') {
-								throw new Error(ev.message ?? 'Failed to generate article');
+								streamError = {
+									message: ev.message ?? 'Failed to generate article',
+									detail: ev.detail
+								};
+								streamDone = true;
+								break;
 							}
 						} catch (parseErr) {
 							if (!(parseErr instanceof SyntaxError)) throw parseErr;
@@ -854,6 +883,14 @@ export default function Workspace() {
 					}
 					if (streamDone) break;
 				}
+			}
+
+			if (streamError) {
+				toast.error(streamError.message);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError(streamError.message);
+				setTaskWidgetErrorDetail(streamError.detail);
+				return;
 			}
 
 			setTaskWidgetStatus('done');
@@ -865,6 +902,7 @@ export default function Workspace() {
 			toast.error(msg);
 			setTaskWidgetStatus('error');
 			setTaskWidgetError(msg);
+			setTaskWidgetErrorDetail(undefined);
 		} finally {
 			setGenerating(false);
 			setTaskWidgetDisableAutoAdvance(false);
@@ -897,6 +935,7 @@ export default function Workspace() {
 		);
 		setTaskWidgetStatus('running');
 		setTaskWidgetError(undefined);
+		setTaskWidgetErrorDetail(undefined);
 		setTaskWidgetOpen(true);
 
 		try {
@@ -915,6 +954,7 @@ export default function Workspace() {
 				toast.error(msg);
 				setTaskWidgetStatus('error');
 				setTaskWidgetError(msg);
+				setTaskWidgetErrorDetail(undefined);
 				return;
 			}
 
@@ -923,6 +963,7 @@ export default function Workspace() {
 			const decoder = new TextDecoder();
 			let buffer = '';
 			let briefData: Record<string, unknown> | null = null;
+			let briefStreamError: { message: string; detail?: string } | undefined;
 
 			if (reader) {
 				let streamDone = false;
@@ -939,20 +980,35 @@ export default function Workspace() {
 								type: string;
 								briefData?: Record<string, unknown>;
 								message?: string;
+								detail?: string;
 							};
 							if (ev.type === 'ping') continue;
 							if (ev.type === 'done') {
 								briefData = ev.briefData ?? null;
 								streamDone = true;
 								break;
-							} else if (ev.type === 'error')
-								throw new Error(ev.message ?? 'Failed to generate brief');
+							} else if (ev.type === 'error') {
+								briefStreamError = {
+									message: ev.message ?? 'Failed to generate brief',
+									detail: ev.detail
+								};
+								streamDone = true;
+								break;
+							}
 						} catch (parseErr) {
 							if (!(parseErr instanceof SyntaxError)) throw parseErr;
 						}
 					}
 					if (streamDone) break;
 				}
+			}
+
+			if (briefStreamError) {
+				toast.error(briefStreamError.message);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError(briefStreamError.message);
+				setTaskWidgetErrorDetail(briefStreamError.detail);
+				return;
 			}
 
 			// Validate the brief actually has sections before advancing
@@ -963,6 +1019,7 @@ export default function Workspace() {
 				toast.error(msg);
 				setTaskWidgetStatus('error');
 				setTaskWidgetError(msg);
+				setTaskWidgetErrorDetail(undefined);
 				return;
 			}
 
@@ -990,6 +1047,7 @@ export default function Workspace() {
 				toast.error(msg);
 				setTaskWidgetStatus('error');
 				setTaskWidgetError(msg);
+				setTaskWidgetErrorDetail(undefined);
 				return;
 			}
 
@@ -997,6 +1055,7 @@ export default function Workspace() {
 			const articleReader = articleRes.body?.getReader();
 			const articleDecoder = new TextDecoder();
 			let articleBuffer = '';
+			let articleStreamError: { message: string; detail?: string } | undefined;
 			let articleDone = false;
 			if (articleReader) {
 				while (true) {
@@ -1008,19 +1067,33 @@ export default function Workspace() {
 					for (const line of lines) {
 						if (!line.trim()) continue;
 						try {
-							const ev = JSON.parse(line) as { type: string; message?: string };
+							const ev = JSON.parse(line) as { type: string; message?: string; detail?: string };
 							if (ev.type === 'ping') continue;
 							if (ev.type === 'done') {
 								articleDone = true;
 								break;
-							} else if (ev.type === 'error')
-								throw new Error(ev.message ?? 'Failed to generate article');
+							} else if (ev.type === 'error') {
+								articleStreamError = {
+									message: ev.message ?? 'Failed to generate article',
+									detail: ev.detail
+								};
+								articleDone = true;
+								break;
+							}
 						} catch (parseErr) {
 							if (!(parseErr instanceof SyntaxError)) throw parseErr;
 						}
 					}
 					if (articleDone) break;
 				}
+			}
+
+			if (articleStreamError) {
+				toast.error(articleStreamError.message);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError(articleStreamError.message);
+				setTaskWidgetErrorDetail(articleStreamError.detail);
+				return;
 			}
 
 			setTaskWidgetSteps((s) => (s ? [s[0], { ...s[1], status: 'complete' }] : s));
@@ -1037,6 +1110,7 @@ export default function Workspace() {
 			toast.error(msg);
 			setTaskWidgetStatus('error');
 			setTaskWidgetError(msg);
+			setTaskWidgetErrorDetail(undefined);
 		} finally {
 			setGenerating(false);
 			setTaskWidgetDisableAutoAdvance(false);
@@ -1564,10 +1638,12 @@ export default function Workspace() {
 				status={taskWidgetStatus}
 				steps={taskWidgetSteps}
 				errorMessage={taskWidgetError}
+				errorDetail={taskWidgetErrorDetail}
 				disableAutoAdvance={taskWidgetDisableAutoAdvance}
 				onClose={() => {
 					setTaskWidgetOpen(false);
 					setTaskWidgetError(undefined);
+					setTaskWidgetErrorDetail(undefined);
 				}}
 			/>
 

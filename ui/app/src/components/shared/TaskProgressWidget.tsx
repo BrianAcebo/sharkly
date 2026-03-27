@@ -23,6 +23,7 @@ type Props = {
 	status: TaskStatus;
 	steps: TaskStep[];
 	errorMessage?: string;
+	errorDetail?: string;
 	/** ms between auto-advancing steps when status='running'. Default 9600ms. Set to 0 or pass disableAutoAdvance to drive from real events. */
 	stepInterval?: number;
 	/** When true, steps are driven by parent (e.g. streaming events) — no auto-advance timer. */
@@ -84,13 +85,19 @@ export function TaskProgressWidget({
 	status,
 	steps: externalSteps,
 	errorMessage,
+	errorDetail,
 	stepInterval = 9600,
 	disableAutoAdvance = false,
 	onClose
 }: Props) {
 	const [minimized, setMinimized] = useState(false);
+	const [showErrorDetail, setShowErrorDetail] = useState(false);
 	const [internalSteps, setInternalSteps] = useState<TaskStep[]>(externalSteps);
 	const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	useEffect(() => {
+		setShowErrorDetail(false);
+	}, [errorMessage, errorDetail]);
 
 	// Sync external steps into internal (allows parent to override)
 	useEffect(() => {
@@ -149,7 +156,7 @@ export function TaskProgressWidget({
 					animate={{ opacity: 1, y: 0, scale: 1 }}
 					exit={{ opacity: 0, y: 16, scale: 0.95 }}
 					transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-					className="fixed right-4 bottom-4 z-50 w-[340px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+					className="fixed right-4 bottom-4 z-50 w-[min(100vw-2rem,320px)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
 				>
 					{/* Animated border glow while running */}
 					{status === 'running' && (
@@ -179,11 +186,9 @@ export function TaskProgressWidget({
 							)}
 							{status === 'error' && <AlertCircle className="text-error-500 size-4 shrink-0" />}
 							<div className="min-w-0">
-								<p className="truncate text-[13px] font-semibold text-gray-900 dark:text-white">
-									{title}
-								</p>
+								<p className="truncate text-xs font-semibold text-gray-900 dark:text-white">{title}</p>
 								<p
-									className={`text-[11px] font-medium ${
+									className={`text-[10px] font-medium ${
 										status === 'running'
 											? 'text-brand-500'
 											: status === 'done'
@@ -192,11 +197,16 @@ export function TaskProgressWidget({
 									}`}
 								>
 									{status === 'running'
-										? 'Running… Please do not close the page.'
+										? 'Running… Don’t close this tab.'
 										: status === 'done'
 											? 'Complete'
 											: 'Failed'}
 								</p>
+								{minimized && status === 'error' && errorMessage && (
+									<p className="text-error-600 dark:text-error-400 mt-1 line-clamp-2 text-[10px] leading-snug">
+										{errorMessage}
+									</p>
+								)}
 							</div>
 						</div>
 						<div className="flex items-center gap-1">
@@ -204,7 +214,8 @@ export function TaskProgressWidget({
 								type="button"
 								onClick={() => setMinimized((v) => !v)}
 								className="rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-								aria-label={minimized ? 'Expand' : 'Minimize'}
+								aria-label={minimized ? 'Show progress' : 'Hide progress'}
+								title={minimized ? 'Show progress' : 'Hide progress'}
 							>
 								{minimized ? (
 									<ChevronUp className="size-3.5" />
@@ -257,7 +268,7 @@ export function TaskProgressWidget({
 										>
 											<StepIcon status={step.status} />
 											<span
-												className={`text-[13px] leading-snug transition-colors ${
+												className={`text-[12px] leading-snug transition-colors ${
 													step.status === 'active'
 														? 'font-semibold text-gray-900 dark:text-white'
 														: step.status === 'complete'
@@ -276,9 +287,27 @@ export function TaskProgressWidget({
 									<motion.div
 										initial={{ opacity: 0 }}
 										animate={{ opacity: 1 }}
-										className="bg-error-50 text-error-600 dark:bg-error-900/20 dark:text-error-400 mx-4 mb-3 rounded-lg px-3 py-2 text-[12px]"
+										className="mx-3 mb-2 space-y-1.5"
 									>
-										{errorMessage}
+										<div className="bg-error-50 text-error-700 dark:bg-error-900/25 dark:text-error-300 rounded-lg px-2.5 py-1.5 text-[11px] leading-snug">
+											{errorMessage}
+										</div>
+										{import.meta.env.DEV && errorDetail?.trim() && (
+											<div>
+												<button
+													type="button"
+													onClick={() => setShowErrorDetail((v) => !v)}
+													className="text-[10px] font-medium text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+												>
+													{showErrorDetail ? 'Hide technical details' : 'Technical details (dev)'}
+												</button>
+												{showErrorDetail && (
+													<pre className="bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 mt-1 max-h-36 overflow-auto rounded-md px-2 py-1.5 text-[10px] leading-relaxed whitespace-pre-wrap wrap-break-word">
+														{errorDetail.trim()}
+													</pre>
+												)}
+											</div>
+										)}
 									</motion.div>
 								)}
 
