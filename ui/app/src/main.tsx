@@ -18,6 +18,7 @@ const sentryDsn = import.meta.env.VITE_SENTRY_DSN || defaultBrowserDsn;
 
 Sentry.init({
 	dsn: sentryDsn,
+	enabled: import.meta.env.PROD,
 	sendDefaultPii: true,
 	environment: import.meta.env.VITE_SENTRY_ENVIRONMENT ?? import.meta.env.MODE,
 	release: import.meta.env.VITE_SENTRY_RELEASE,

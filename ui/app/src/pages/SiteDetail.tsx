@@ -92,6 +92,7 @@ export default function SiteDetail() {
 				twitterUrl: data.twitterUrl,
 				yelpUrl: data.yelpUrl,
 				wikidataUrl: data.wikidataUrl,
+				originalInsight: data.originalInsight,
 				logoFile: data.logoFile,
 				removeLogo: data.removeLogo
 			});

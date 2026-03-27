@@ -5,8 +5,9 @@
 import type { Request } from 'express';
 import * as Sentry from '@sentry/node';
 
+/** True only when DSN is set and the process is production — avoids noisy alerts from local dev. */
 export function sentryEnabled(): boolean {
-	return Boolean(process.env.SENTRY_DSN);
+	return Boolean(process.env.SENTRY_DSN) && process.env.NODE_ENV === 'production';
 }
 
 function baseRequestTags(req: Request): Record<string, string> {

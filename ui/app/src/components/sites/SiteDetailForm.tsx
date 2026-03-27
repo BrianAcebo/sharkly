@@ -108,6 +108,8 @@ export interface SiteFormData {
 	twitterUrl?: string | null;
 	yelpUrl?: string | null;
 	wikidataUrl?: string | null;
+	/** Site-wide original insight for article generation (information gain) */
+	originalInsight?: string | null;
 	logoFile?: File | null;
 	removeLogo?: boolean;
 }
@@ -159,6 +161,7 @@ export default function SiteDetailForm({
 	const [twitterUrl, setTwitterUrl] = useState(initial?.twitterUrl ?? '');
 	const [yelpUrl, setYelpUrl] = useState(initial?.yelpUrl ?? '');
 	const [wikidataUrl, setWikidataUrl] = useState(initial?.wikidataUrl ?? '');
+	const [originalInsight, setOriginalInsight] = useState(initial?.originalInsight ?? '');
 	const [logo, setLogo] = useState<File | null>(null);
 	const [logoPreview, setLogoPreview] = useState<string | null>(initial?.logo ?? null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -263,6 +266,7 @@ export default function SiteDetailForm({
 			twitterUrl: twitterUrl.trim() || null,
 			yelpUrl: yelpUrl.trim() || null,
 			wikidataUrl: wikidataUrl.trim() || null,
+			originalInsight: originalInsight.trim() || null,
 			logoFile: logo ?? undefined,
 			removeLogo: Boolean(initial?.logo && !logoPreview && !logo)
 		});
@@ -626,6 +630,22 @@ export default function SiteDetailForm({
 
 	const contentFields = (
 		<>
+			<div className="rounded-xl border border-gray-200 p-4 dark:border-gray-600">
+				<Label htmlFor="site-original-insight">Original insight (information gain)</Label>
+				<TextArea
+					id="site-original-insight"
+					placeholder="What unique data, experience, or perspective can your articles offer that competitors typically don't? Used when generating articles for this site."
+					rows={4}
+					value={typeof originalInsight === 'string' ? originalInsight : ''}
+					onChange={(e) => setOriginalInsight(e.target.value)}
+					className="mt-1"
+				/>
+				<p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+					Saved per site. Article generation uses this when a page doesn&apos;t have its own brief-level
+					insight (e.g. supporting articles). You can also set this from the workspace when you first
+					generate.
+				</p>
+			</div>
 			<div>
 				<Label htmlFor="site-customer-description">Customer description</Label>
 				<TextArea

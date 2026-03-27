@@ -48,7 +48,7 @@ import {
 } from './controllers/shopifyWebhooks.js';
 import { handleSupabaseAuthEmailHook } from './controllers/supabaseAuthEmailHook.js';
 import { isServerWebhookPath } from './utils/webhookPaths.js';
-import { captureApiError } from './utils/sentryCapture.js';
+import { captureApiError, sentryEnabled } from './utils/sentryCapture.js';
 import * as Sentry from '@sentry/node';
 
 const app = express();
@@ -164,7 +164,7 @@ app.get('/auth/shopify/install', startShopifyOAuthInstall);
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
 // Sentry Express error handler — must be after routes, before custom error middleware
-if (process.env.SENTRY_DSN) {
+if (sentryEnabled()) {
 	Sentry.setupExpressErrorHandler(app);
 }
 

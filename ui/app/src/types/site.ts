@@ -16,6 +16,8 @@ export interface Site {
 	targetLanguage: string;
 	targetRegion: string;
 	authorBio?: string | null;
+	/** Site-wide original insight / IGS for generated articles when the page has no brief-level igs_opportunity */
+	originalInsight?: string | null;
 	// S1-5: AggregateRating + sameAs
 	googleReviewCount?: number | null;
 	googleAverageRating?: number | null;

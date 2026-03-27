@@ -11,6 +11,7 @@ const dsn = process.env.SENTRY_DSN;
 if (dsn) {
 	Sentry.init({
 		dsn,
+		enabled: process.env.NODE_ENV === 'production',
 		sendDefaultPii: true,
 		environment: process.env.SENTRY_ENVIRONMENT ?? process.env.NODE_ENV ?? 'development',
 		release: process.env.SENTRY_RELEASE,

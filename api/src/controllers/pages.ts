@@ -1292,7 +1292,7 @@ export const generateArticle = async (req: Request, res: Response) => {
 		const { data: site } = await supabase
 			.from('sites')
 			.select(
-				'id, name, niche, customer_description, organization_id, tone, include_terms, avoid_terms, target_language, target_region, url, author_bio, is_ymyl'
+				'id, name, niche, customer_description, organization_id, tone, include_terms, avoid_terms, target_language, target_region, url, author_bio, original_insight, is_ymyl'
 			)
 			.eq('id', page.site_id)
 			.single();
@@ -1491,6 +1491,8 @@ export const generateArticle = async (req: Request, res: Response) => {
 				if (typeof igs === 'object' && igs.description) return `${igs.type ?? 'Original element'}: ${igs.description}`;
 				if (typeof igs === 'string') return igs;
 			}
+			const siteIgs = (site as { original_insight?: string | null }).original_insight?.trim();
+			if (siteIgs) return siteIgs;
 			const kw = page.keyword || page.title || 'this topic';
 			return `For "${kw}": add ONE specific original element not found in competitor articles. Ranked by IGS bonus: (1) Specific stat with source attribution +5pts; (2) Expert quote with name/credentials +4pts; (3) First-hand observation/test result +3pts; (4) Original comparison table or structured list +2pts; (5) Evidence-backed contrarian perspective +1pt. Without at least one, this article scores zero on Information Gain and risks the Skyscraper penalty at the domain level [US20190155948A1].`;
 		})();
@@ -2153,6 +2155,73 @@ export const updateBriefSection = async (req: Request, res: Response) => {
 		console.error('[Pages] updateBriefSection error:', error);
 		captureApiError(error, req, { feature: 'pages-brief-section' });
 		res.status(500).json({ error: 'Failed to save section' });
+	}
+};
+
+// ---------------------------------------------------------------------------
+// Original insight / IGS (information gain) — user-provided, required before article gen
+// PATCH /api/pages/:id/brief-igs
+// Merges into brief_data; creates brief_data if missing (e.g. supporting pages).
+// ---------------------------------------------------------------------------
+
+export const updateBriefIgsOpportunity = async (req: Request, res: Response) => {
+	try {
+		const userId = req.user?.id;
+		if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+		const pageId = req.params.id;
+		const raw = req.body?.igs_opportunity;
+		const igs_opportunity = typeof raw === 'string' ? raw.trim() : String(raw ?? '').trim();
+
+		if (!pageId) {
+			return res.status(400).json({ error: 'pageId is required' });
+		}
+
+		const { data: page } = await supabase
+			.from('pages')
+			.select('id, site_id, brief_data')
+			.eq('id', pageId)
+			.single();
+
+		if (!page) return res.status(404).json({ error: 'Page not found' });
+
+		const { data: site } = await supabase
+			.from('sites')
+			.select('organization_id')
+			.eq('id', page.site_id)
+			.single();
+
+		if (!site) return res.status(404).json({ error: 'Site not found' });
+
+		const { data: userOrg } = await supabase
+			.from('user_organizations')
+			.select('organization_id')
+			.eq('user_id', userId)
+			.maybeSingle();
+
+		if (!userOrg || userOrg.organization_id !== site.organization_id) {
+			return res.status(403).json({ error: 'Access denied' });
+		}
+
+		const existing = (page.brief_data as Record<string, unknown> | null) ?? {};
+		const mergedBriefData = { ...existing, igs_opportunity };
+
+		const { error: updateErr } = await supabase
+			.from('pages')
+			.update({ brief_data: mergedBriefData, updated_at: new Date().toISOString() })
+			.eq('id', pageId);
+
+		if (updateErr) {
+			console.error('[Pages] updateBriefIgsOpportunity error:', updateErr);
+			captureApiError(updateErr, req, { feature: 'pages-brief-igs-update', pageId });
+			return res.status(500).json({ error: 'Failed to save original insight' });
+		}
+
+		res.json({ success: true, data: { igs_opportunity } });
+	} catch (error) {
+		console.error('[Pages] updateBriefIgsOpportunity error:', error);
+		captureApiError(error, req, { feature: 'pages-brief-igs' });
+		res.status(500).json({ error: 'Failed to save original insight' });
 	}
 };
 

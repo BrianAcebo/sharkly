@@ -40,7 +40,7 @@ export function useSites() {
 			const { data, error: fetchError } = await supabase
 				.from('sites')
 				.select(
-					'id, name, description, logo, url, platform, niche, customer_description, competitor_urls, domain_authority, tone, include_terms, avoid_terms, target_language, target_region, author_bio, google_review_count, google_average_rating, gbp_url, facebook_url, linkedin_url, twitter_url, yelp_url, wikidata_url, is_ymyl, created_at, updated_at'
+					'id, name, description, logo, url, platform, niche, customer_description, competitor_urls, domain_authority, tone, include_terms, avoid_terms, target_language, target_region, author_bio, original_insight, google_review_count, google_average_rating, gbp_url, facebook_url, linkedin_url, twitter_url, yelp_url, wikidata_url, is_ymyl, created_at, updated_at'
 				)
 				.eq('organization_id', organizationId)
 				.order('created_at', { ascending: false });
@@ -65,6 +65,7 @@ export function useSites() {
 			targetLanguage: (row.target_language as string | null) ?? 'English',
 			targetRegion: (row.target_region as string | null) ?? 'United States',
 				authorBio: (row.author_bio as string | null) ?? null,
+				originalInsight: (row.original_insight as string | null) ?? null,
 				googleReviewCount: (row.google_review_count as number | null) ?? null,
 				googleAverageRating: (row.google_average_rating as number | null) ?? null,
 				gbpUrl: (row.gbp_url as string | null) ?? null,
@@ -114,9 +115,10 @@ export function useSites() {
 			linkedinUrl?: string | null;
 			twitterUrl?: string | null;
 			yelpUrl?: string | null;
-			wikidataUrl?: string | null;
-			logoFile?: File | null;
-		}) => {
+				wikidataUrl?: string | null;
+				originalInsight?: string | null;
+				logoFile?: File | null;
+			}) => {
 			if (!organizationId) throw new Error('No organization');
 			const { data: inserted, error: insertError } = await supabase
 				.from('sites')
@@ -145,6 +147,7 @@ export function useSites() {
 					twitter_url: data.twitterUrl ?? null,
 					yelp_url: data.yelpUrl ?? null,
 					wikidata_url: data.wikidataUrl ?? null,
+					original_insight: data.originalInsight ?? null,
 					logo: null
 				})
 				.select('id')
@@ -212,6 +215,7 @@ export function useSites() {
 				twitterUrl?: string | null;
 				yelpUrl?: string | null;
 				wikidataUrl?: string | null;
+				originalInsight?: string | null;
 				logoFile?: File | null;
 				removeLogo?: boolean;
 			}
@@ -268,6 +272,7 @@ export function useSites() {
 				twitter_url: data.twitterUrl ?? null,
 				yelp_url: data.yelpUrl ?? null,
 				wikidata_url: data.wikidataUrl ?? null,
+				original_insight: data.originalInsight ?? null,
 				logo: logoPath
 				})
 				.eq('id', siteId)

@@ -49,7 +49,8 @@ import {
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
-	DialogDescription
+	DialogDescription,
+	DialogFooter
 } from '../components/ui/dialog';
 import {
 	AlertDialog,
@@ -298,6 +299,29 @@ function PassageReadyIndicator({ heading }: { heading: string }) {
 // Scores the brief on 7 quality signals, each worth points toward 100
 // ---------------------------------------------------------------------------
 
+/** Normalizes brief_data.igs_opportunity (string or legacy object shape) for display / validation */
+function igsTextFromBriefData(briefData: Record<string, unknown> | null | undefined): string {
+	if (!briefData) return '';
+	const raw = briefData.igs_opportunity;
+	if (typeof raw === 'string') return raw.trim();
+	if (raw && typeof raw === 'object' && raw !== null && 'description' in raw) {
+		const d = (raw as { description?: string; type?: string }).description;
+		return (d ?? '').trim();
+	}
+	return '';
+}
+
+/** Site-level IGS satisfies all pages; focus pages may also use brief_data.igs_opportunity */
+function hasOriginalInsightForGeneration(
+	isFocusPage: boolean,
+	pageBrief: Record<string, unknown> | null | undefined,
+	siteOriginalInsight: string | null | undefined
+): boolean {
+	if ((siteOriginalInsight ?? '').trim().length > 0) return true;
+	if (isFocusPage && igsTextFromBriefData(pageBrief ?? null).length > 0) return true;
+	return false;
+}
+
 function computeBriefQualityScore(
 	page: { briefData?: Record<string, unknown> | null },
 	briefSections: Array<{ heading?: string; type?: string; guidance?: string }>
@@ -318,7 +342,7 @@ function computeBriefQualityScore(
 		},
 		{
 			label: 'IGS opportunity identified',
-			pass: !!(bd?.igs_opportunity as string | undefined)?.trim(),
+			pass: igsTextFromBriefData(bd).length > 0,
 			pts: 20
 		},
 		{
@@ -452,7 +476,7 @@ export default function Workspace() {
 	const { openCROStudioUpgradeModal } = useCROStudioUpgrade();
 	const isFocusPage = page?.type === 'focus_page';
 
-	const { sites, selectedSite } = useSiteContext();
+	const { sites, selectedSite, refetchSites } = useSiteContext();
 
 	// Mode tabs: each page type defaults to its natural mode but can switch
 	const [activeTab, setActiveTab] = useState<'brief' | 'article'>(
@@ -494,6 +518,14 @@ export default function Workspace() {
 		schema: string;
 	} | null>(null);
 	const [faqOpen, setFaqOpen] = useState(false);
+	/** Modal collects site-level original insight when missing; saved on the site for all articles */
+	const [igsModalOpen, setIgsModalOpen] = useState(false);
+	const [igsModalDraft, setIgsModalDraft] = useState('');
+	const [igsModalError, setIgsModalError] = useState<string | null>(null);
+	const [savingIgs, setSavingIgs] = useState(false);
+	const [pendingAfterIgs, setPendingAfterIgs] = useState<'article' | 'research_article' | null>(
+		null
+	);
 	// Pricing state derived from brief_data
 	const briefPaid = !!(page?.briefData as { brief_paid?: boolean } | null)?.brief_paid;
 	const articleGenerated = !!(page?.briefData as { article_generated?: boolean } | null)
@@ -778,136 +810,289 @@ export default function Workspace() {
 		}
 	}, [id, isFocusPage, authorForBrief, refetch, refetchOrg, briefCost, creditsRemaining]);
 
-	const handleGenerateArticle = useCallback(async () => {
+	const openIgsModalForPending = useCallback((pending: 'article' | 'research_article') => {
+		setPendingAfterIgs(pending);
+		setIgsModalDraft((siteForAuthor?.originalInsight ?? '').trim());
+		setIgsModalError(null);
+		setIgsModalOpen(true);
+	}, [siteForAuthor?.originalInsight]);
+
+	/** Step 2 of Research & Write — article NDJSON stream (widget already shows step 1 complete) */
+	const runResearchWriteArticleOnly = useCallback(async () => {
 		if (!id) return;
+		const articleRes = await api.post(`/api/pages/${id}/article`);
 
-		// S2-4: Pre-generation IGS warning when igs_opportunity is empty (product-gaps V1.2c)
-		const igsOpportunity = (
-			page?.briefData as { igs_opportunity?: string } | null
-		)?.igs_opportunity?.trim();
-		if (!igsOpportunity) {
-			const proceed = window.confirm(
-				`To protect your site's overall quality score, this article needs at least one original element that competitors don't have. Without it, this article may gradually lower Google's quality rating for your entire site — not just this page.\n\nWhat original insight, data, or experience can you add? (You can add this in a brief section or proceed anyway.)`
-			);
-			if (!proceed) return;
-		}
-
-		setGenerating(true);
-		setTaskWidgetTitle(isFocusPage ? 'Writing article from brief' : 'Generating article');
-		setTaskWidgetSteps(
-			(isFocusPage ? ARTICLE_TASK_STEPS : SUPPORTING_ARTICLE_STEPS).map((s, i) => ({
-				...s,
-				status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
-			}))
-		);
-		setTaskWidgetStatus('running');
-		setTaskWidgetError(undefined);
-		setTaskWidgetErrorDetail(undefined);
-		setTaskWidgetOpen(true);
-		setTaskWidgetDisableAutoAdvance(true);
-		try {
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
-			const token = session?.access_token;
-			if (!token) {
-				toast.error('Please sign in to continue');
-				setGenerating(false);
-				setTaskWidgetStatus('error');
-				setTaskWidgetError('Please sign in to continue');
-				setTaskWidgetErrorDetail(undefined);
-				return;
-			}
-			const res = await api.post(`/api/pages/${id}/article`);
-
-			if (!res.ok) {
-				const data = await res.json().catch(() => ({}));
-				if (res.status === 402) {
-					toast.error(
-						`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`
-					);
-					setTaskWidgetStatus('error');
-					setTaskWidgetError(
-						`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`
-					);
-					setTaskWidgetErrorDetail(undefined);
-					return;
-				}
-				throw new Error(data?.error || 'Failed to generate article');
-			}
-
-			// Consume NDJSON stream
-			const steps = isFocusPage ? ARTICLE_TASK_STEPS : SUPPORTING_ARTICLE_STEPS;
-			const reader = res.body?.getReader();
-			const decoder = new TextDecoder();
-			let buffer = '';
-			let streamError: { message: string; detail?: string } | undefined;
-
-			if (reader) {
-				let streamDone = false;
-				while (true) {
-					const { done, value } = await reader.read();
-					if (done) break;
-					buffer += decoder.decode(value, { stream: true });
-					const lines = buffer.split('\n');
-					buffer = lines.pop() ?? '';
-					for (const line of lines) {
-						if (!line.trim()) continue;
-						try {
-							const ev = JSON.parse(line) as { type: string; id?: string; message?: string; detail?: string };
-							if (ev.type === 'ping') continue;
-							if (ev.type === 'step' && ev.id) {
-								setTaskWidgetSteps((prev) => {
-									const stepIdx = steps.findIndex((st) => st.id === ev.id);
-									if (stepIdx === -1) return prev;
-									return prev.map((s, i) => {
-										if (i <= stepIdx) return { ...s, status: 'complete' as const };
-										if (i === stepIdx + 1) return { ...s, status: 'active' as const };
-										return s;
-									});
-								});
-							} else if (ev.type === 'done') {
-								streamDone = true;
-								break;
-							} else if (ev.type === 'error') {
-								streamError = {
-									message: ev.message ?? 'Failed to generate article',
-									detail: ev.detail
-								};
-								streamDone = true;
-								break;
-							}
-						} catch (parseErr) {
-							if (!(parseErr instanceof SyntaxError)) throw parseErr;
-						}
-					}
-					if (streamDone) break;
-				}
-			}
-
-			if (streamError) {
-				toast.error(streamError.message);
-				setTaskWidgetStatus('error');
-				setTaskWidgetError(streamError.message);
-				setTaskWidgetErrorDetail(streamError.detail);
-				return;
-			}
-
-			setTaskWidgetStatus('done');
-			toast.success('Article generated — SEO score ready');
-			refetch();
-			refetchOrg();
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : 'Failed to generate article';
+		if (!articleRes.ok) {
+			const articleData = await articleRes.json().catch(() => ({}));
+			const msg =
+				articleRes.status === 402
+					? `Not enough credits for article — need ${articleData.required ?? 0}, have ${articleData.available ?? creditsRemaining}.`
+					: articleData?.error || 'Failed to generate article';
 			toast.error(msg);
 			setTaskWidgetStatus('error');
 			setTaskWidgetError(msg);
 			setTaskWidgetErrorDetail(undefined);
-		} finally {
 			setGenerating(false);
-			setTaskWidgetDisableAutoAdvance(false);
+			return;
 		}
-	}, [id, isFocusPage, page?.briefData, refetch, refetchOrg, articleCost, creditsRemaining]);
+
+		const articleReader = articleRes.body?.getReader();
+		const articleDecoder = new TextDecoder();
+		let articleBuffer = '';
+		let articleStreamError: { message: string; detail?: string } | undefined;
+		let articleDone = false;
+		if (articleReader) {
+			while (true) {
+				const { done, value } = await articleReader.read();
+				if (done) break;
+				articleBuffer += articleDecoder.decode(value, { stream: true });
+				const lines = articleBuffer.split('\n');
+				articleBuffer = lines.pop() ?? '';
+				for (const line of lines) {
+					if (!line.trim()) continue;
+					try {
+						const ev = JSON.parse(line) as { type: string; message?: string; detail?: string };
+						if (ev.type === 'ping') continue;
+						if (ev.type === 'done') {
+							articleDone = true;
+							break;
+						} else if (ev.type === 'error') {
+							articleStreamError = {
+								message: ev.message ?? 'Failed to generate article',
+								detail: ev.detail
+							};
+							articleDone = true;
+							break;
+						}
+					} catch (parseErr) {
+						if (!(parseErr instanceof SyntaxError)) throw parseErr;
+					}
+				}
+				if (articleDone) break;
+			}
+		}
+
+		if (articleStreamError) {
+			toast.error(articleStreamError.message);
+			setTaskWidgetStatus('error');
+			setTaskWidgetError(articleStreamError.message);
+			setTaskWidgetErrorDetail(articleStreamError.detail);
+			setGenerating(false);
+			return;
+		}
+
+		setTaskWidgetSteps((s) => (s ? [s[0], { ...s[1], status: 'complete' }] : s));
+		setTaskWidgetStatus('done');
+		toast.success('Focus page complete — research, brief, and article ready');
+		setGenerating(false);
+		setActiveTab('article');
+		await refetch();
+		await refetchOrg();
+	}, [id, refetch, refetchOrg, creditsRemaining]);
+
+	const handleGenerateArticle = useCallback(
+		async (skipIgsGate = false) => {
+			if (!id) return;
+			if (
+				!skipIgsGate &&
+				!hasOriginalInsightForGeneration(
+					isFocusPage,
+					page?.briefData as Record<string, unknown> | null | undefined,
+					siteForAuthor?.originalInsight
+				)
+			) {
+				openIgsModalForPending('article');
+				return;
+			}
+
+			setGenerating(true);
+			setTaskWidgetTitle(isFocusPage ? 'Writing article from brief' : 'Generating article');
+			setTaskWidgetSteps(
+				(isFocusPage ? ARTICLE_TASK_STEPS : SUPPORTING_ARTICLE_STEPS).map((s, i) => ({
+					...s,
+					status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
+				}))
+			);
+			setTaskWidgetStatus('running');
+			setTaskWidgetError(undefined);
+			setTaskWidgetErrorDetail(undefined);
+			setTaskWidgetOpen(true);
+			setTaskWidgetDisableAutoAdvance(true);
+			try {
+				const {
+					data: { session }
+				} = await supabase.auth.getSession();
+				const token = session?.access_token;
+				if (!token) {
+					toast.error('Please sign in to continue');
+					setGenerating(false);
+					setTaskWidgetStatus('error');
+					setTaskWidgetError('Please sign in to continue');
+					setTaskWidgetErrorDetail(undefined);
+					return;
+				}
+				const res = await api.post(`/api/pages/${id}/article`);
+
+				if (!res.ok) {
+					const data = await res.json().catch(() => ({}));
+					if (res.status === 402) {
+						toast.error(
+							`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`
+						);
+						setTaskWidgetStatus('error');
+						setTaskWidgetError(
+							`Insufficient credits. Need ${data.required ?? articleCost}, have ${data.available ?? creditsRemaining ?? 0}.`
+						);
+						setTaskWidgetErrorDetail(undefined);
+						return;
+					}
+					throw new Error(data?.error || 'Failed to generate article');
+				}
+
+				// Consume NDJSON stream
+				const steps = isFocusPage ? ARTICLE_TASK_STEPS : SUPPORTING_ARTICLE_STEPS;
+				const reader = res.body?.getReader();
+				const decoder = new TextDecoder();
+				let buffer = '';
+				let streamError: { message: string; detail?: string } | undefined;
+
+				if (reader) {
+					let streamDone = false;
+					while (true) {
+						const { done, value } = await reader.read();
+						if (done) break;
+						buffer += decoder.decode(value, { stream: true });
+						const lines = buffer.split('\n');
+						buffer = lines.pop() ?? '';
+						for (const line of lines) {
+							if (!line.trim()) continue;
+							try {
+								const ev = JSON.parse(line) as {
+									type: string;
+									id?: string;
+									message?: string;
+									detail?: string;
+								};
+								if (ev.type === 'ping') continue;
+								if (ev.type === 'step' && ev.id) {
+									setTaskWidgetSteps((prev) => {
+										const stepIdx = steps.findIndex((st) => st.id === ev.id);
+										if (stepIdx === -1) return prev;
+										return prev.map((s, i) => {
+											if (i <= stepIdx) return { ...s, status: 'complete' as const };
+											if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+											return s;
+										});
+									});
+								} else if (ev.type === 'done') {
+									streamDone = true;
+									break;
+								} else if (ev.type === 'error') {
+									streamError = {
+										message: ev.message ?? 'Failed to generate article',
+										detail: ev.detail
+									};
+									streamDone = true;
+									break;
+								}
+							} catch (parseErr) {
+								if (!(parseErr instanceof SyntaxError)) throw parseErr;
+							}
+						}
+						if (streamDone) break;
+					}
+				}
+
+				if (streamError) {
+					toast.error(streamError.message);
+					setTaskWidgetStatus('error');
+					setTaskWidgetError(streamError.message);
+					setTaskWidgetErrorDetail(streamError.detail);
+					return;
+				}
+
+				setTaskWidgetStatus('done');
+				toast.success('Article generated — SEO score ready');
+				refetch();
+				refetchOrg();
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : 'Failed to generate article';
+				toast.error(msg);
+				setTaskWidgetStatus('error');
+				setTaskWidgetError(msg);
+				setTaskWidgetErrorDetail(undefined);
+			} finally {
+				setGenerating(false);
+				setTaskWidgetDisableAutoAdvance(false);
+			}
+		},
+		[
+			id,
+			isFocusPage,
+			page?.briefData,
+			siteForAuthor?.originalInsight,
+			refetch,
+			refetchOrg,
+			articleCost,
+			creditsRemaining,
+			openIgsModalForPending
+		]
+	);
+
+	const handleIgsModalSubmit = useCallback(async () => {
+		const text = igsModalDraft.trim();
+		if (!text) {
+			setIgsModalError('Describe your original insight to continue.');
+			return;
+		}
+		const siteId = cluster?.siteId;
+		if (!siteId) {
+			toast.error('No site linked to this page');
+			return;
+		}
+		setSavingIgs(true);
+		try {
+			const { error: siteErr } = await supabase
+				.from('sites')
+				.update({ original_insight: text, updated_at: new Date().toISOString() })
+				.eq('id', siteId);
+			if (siteErr) throw new Error(siteErr.message);
+			await refetchSites();
+			const pending = pendingAfterIgs;
+			setPendingAfterIgs(null);
+			setIgsModalOpen(false);
+			setIgsModalError(null);
+			if (pending === 'article') {
+				await handleGenerateArticle(true);
+			} else if (pending === 'research_article') {
+				setGenerating(true);
+				setTaskWidgetDisableAutoAdvance(true);
+				setTaskWidgetTitle('Research & Write');
+				setTaskWidgetSteps(
+					RESEARCH_AND_WRITE_STEPS.map((s, i) => ({
+						...s,
+						status: (i === 0 ? 'complete' : i === 1 ? 'active' : 'pending') as 'active' | 'pending'
+					}))
+				);
+				setTaskWidgetStatus('running');
+				setTaskWidgetError(undefined);
+				setTaskWidgetErrorDetail(undefined);
+				setTaskWidgetOpen(true);
+				await runResearchWriteArticleOnly();
+			}
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Failed to save');
+		} finally {
+			setSavingIgs(false);
+		}
+	}, [
+		igsModalDraft,
+		pendingAfterIgs,
+		cluster?.siteId,
+		refetchSites,
+		handleGenerateArticle,
+		runResearchWriteArticleOnly
+	]);
 
 	// ── Research & Write — chains brief → article for focus pages (first time) ──
 	// Step 1 charges FOCUS_PAGE_FULL (40 credits), Step 2 is free (brief_paid flag).
@@ -1035,76 +1220,23 @@ export default function Workspace() {
 			await refetch(); // brief now in page data
 			await refetchOrg();
 
+			const igsFromBrief = igsTextFromBriefData(briefData);
+			const siteHasIgs = (siteForAuthor?.originalInsight ?? '').trim().length > 0;
+			if (!igsFromBrief && !siteHasIgs) {
+				setTaskWidgetStatus('done');
+				setTaskWidgetOpen(false);
+				setGenerating(false);
+				setTaskWidgetDisableAutoAdvance(false);
+				setPendingAfterIgs('research_article');
+				setIgsModalDraft((siteForAuthor?.originalInsight ?? '').trim());
+				setIgsModalError(null);
+				setIgsModalOpen(true);
+				toast.success('Brief ready. Add your site original insight to finish your article.');
+				return;
+			}
+
 			// ── Step 2: Generate article (NDJSON stream, free — bundled) ─────────────
-			const articleRes = await api.post(`/api/pages/${id}/article`);
-
-			if (!articleRes.ok) {
-				const articleData = await articleRes.json().catch(() => ({}));
-				const msg =
-					articleRes.status === 402
-						? `Not enough credits for article — need ${articleData.required ?? 0}, have ${articleData.available ?? creditsRemaining}.`
-						: articleData?.error || 'Failed to generate article';
-				toast.error(msg);
-				setTaskWidgetStatus('error');
-				setTaskWidgetError(msg);
-				setTaskWidgetErrorDetail(undefined);
-				return;
-			}
-
-			// Consume article NDJSON stream until done
-			const articleReader = articleRes.body?.getReader();
-			const articleDecoder = new TextDecoder();
-			let articleBuffer = '';
-			let articleStreamError: { message: string; detail?: string } | undefined;
-			let articleDone = false;
-			if (articleReader) {
-				while (true) {
-					const { done, value } = await articleReader.read();
-					if (done) break;
-					articleBuffer += articleDecoder.decode(value, { stream: true });
-					const lines = articleBuffer.split('\n');
-					articleBuffer = lines.pop() ?? '';
-					for (const line of lines) {
-						if (!line.trim()) continue;
-						try {
-							const ev = JSON.parse(line) as { type: string; message?: string; detail?: string };
-							if (ev.type === 'ping') continue;
-							if (ev.type === 'done') {
-								articleDone = true;
-								break;
-							} else if (ev.type === 'error') {
-								articleStreamError = {
-									message: ev.message ?? 'Failed to generate article',
-									detail: ev.detail
-								};
-								articleDone = true;
-								break;
-							}
-						} catch (parseErr) {
-							if (!(parseErr instanceof SyntaxError)) throw parseErr;
-						}
-					}
-					if (articleDone) break;
-				}
-			}
-
-			if (articleStreamError) {
-				toast.error(articleStreamError.message);
-				setTaskWidgetStatus('error');
-				setTaskWidgetError(articleStreamError.message);
-				setTaskWidgetErrorDetail(articleStreamError.detail);
-				return;
-			}
-
-			setTaskWidgetSteps((s) => (s ? [s[0], { ...s[1], status: 'complete' }] : s));
-			setTaskWidgetStatus('done');
-			toast.success('Focus page complete — research, brief, and article ready');
-			// Clear generating BEFORE refetch so button unlocks immediately.
-			// Refetch runs in background — editor content loads asynchronously.
-			setGenerating(false);
-			setActiveTab('article');
-			await refetch();
-			await refetchOrg();
+			await runResearchWriteArticleOnly();
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : 'Failed to generate';
 			toast.error(msg);
@@ -1115,7 +1247,16 @@ export default function Workspace() {
 			setGenerating(false);
 			setTaskWidgetDisableAutoAdvance(false);
 		}
-	}, [id, isFocusPage, authorForBrief, refetch, refetchOrg, creditsRemaining]);
+	}, [
+		id,
+		isFocusPage,
+		authorForBrief,
+		refetch,
+		refetchOrg,
+		creditsRemaining,
+		runResearchWriteArticleOnly,
+		siteForAuthor?.originalInsight
+	]);
 
 	const handleRewriteSection = useCallback(
 		async (sectionIdx: number, section: Record<string, unknown>) => {
@@ -1646,6 +1787,69 @@ export default function Workspace() {
 					setTaskWidgetErrorDetail(undefined);
 				}}
 			/>
+
+			<Dialog
+				open={igsModalOpen}
+				onOpenChange={(open) => {
+					setIgsModalOpen(open);
+					if (!open) {
+						setPendingAfterIgs(null);
+						setIgsModalError(null);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Original insight required</DialogTitle>
+						<DialogDescription className="text-left text-sm leading-relaxed">
+							To protect your site&apos;s quality score, add at least one element competitors
+							don&apos;t have — unique data, first-hand experience, or a perspective from your
+							business. This is saved for your{' '}
+							<strong className="text-gray-800 dark:text-gray-200">site</strong> and reused for
+							future article generation. You can edit it anytime under{' '}
+							{cluster?.siteId ? (
+								<Link
+									to={`/sites/${cluster.siteId}`}
+									className="text-brand-600 dark:text-brand-400 font-medium hover:underline"
+								>
+									Site settings
+								</Link>
+							) : (
+								<span className="font-medium">Site settings</span>
+							)}
+							, Content tab.
+						</DialogDescription>
+					</DialogHeader>
+					<TextArea
+						rows={5}
+						value={igsModalDraft}
+						onChange={(e) => {
+							setIgsModalDraft(e.target.value);
+							if (igsModalError) setIgsModalError(null);
+						}}
+						placeholder="e.g. Internal benchmark, a process you tested, stats from your operations, or a takeaway from serving this market."
+						className="min-h-[120px] text-sm"
+					/>
+					{igsModalError && (
+						<p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+							{igsModalError}
+						</p>
+					)}
+					<DialogFooter className="gap-2 sm:gap-0">
+						<Button variant="outline" onClick={() => setIgsModalOpen(false)} disabled={savingIgs}>
+							Cancel
+						</Button>
+						<Button
+							className="bg-brand-500 hover:bg-brand-600 text-white"
+							onClick={() => void handleIgsModalSubmit()}
+							disabled={savingIgs}
+						>
+							{savingIgs ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+							Save &amp; generate
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<div className="flex h-[calc(100vh-80px)] flex-col gap-6">
 				{/* ------------------------------------------------------------------ */}
@@ -2223,7 +2427,7 @@ export default function Workspace() {
 							/* ========================================================== */
 							<>
 								{(page?.wordCount ?? 0) === 0 && !showEditorFromScratch ? (
-									<div className="mt-16 flex flex-col items-center text-center">
+									<div className="mx-auto mt-16 flex w-full max-w-lg flex-col items-center self-center px-2 text-center">
 										<Sparkles className="text-brand-500 dark:text-brand-400 size-14" />
 										<h2 className="font-montserrat mt-4 text-xl font-bold text-gray-900 dark:text-white">
 											Ready to generate this article?
