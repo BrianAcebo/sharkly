@@ -29,6 +29,11 @@ Sentry.init({
 		/^https:\/\/.+\.fly\.dev/,
 	],
 	tracesSampleRate: import.meta.env.PROD ? 0.2 : 1.0,
+	// Tag browser events so they are distinct from Fly API events when both share one Sentry project.
+	beforeSend(event) {
+		event.tags = { ...event.tags, source: 'browser', runtime: 'javascript' };
+		return event;
+	},
 });
 
 // Attach Supabase session to all API requests so auth middleware can validate the token
