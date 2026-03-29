@@ -15,6 +15,16 @@ import Label from '../form/Label';
 import Input from '../form/input/InputField';
 import TextArea from '../form/input/TextArea';
 import { Button } from '../ui/button';
+import { Tooltip } from '../ui/tooltip';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle
+} from '../ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { validateUrl } from '../../utils/validation';
@@ -121,6 +131,11 @@ interface SiteDetailFormProps {
 	disabled?: boolean;
 	onDelete: () => void;
 	variant?: 'sheet' | 'page';
+	/** While true, Delete is disabled (usage counts loading). */
+	deleteCheckLoading?: boolean;
+	/** When true, Delete is disabled — use with deleteBlockedMessage. */
+	deleteBlocked?: boolean;
+	deleteBlockedMessage?: string;
 }
 
 export default function SiteDetailForm({
@@ -129,8 +144,12 @@ export default function SiteDetailForm({
 	onCancel,
 	disabled = false,
 	onDelete,
-	variant = 'sheet'
+	variant = 'sheet',
+	deleteCheckLoading = false,
+	deleteBlocked = false,
+	deleteBlockedMessage = ''
 }: SiteDetailFormProps) {
+	const [deleteBlockedDialogOpen, setDeleteBlockedDialogOpen] = useState(false);
 	const [name, setName] = useState(initial?.name ?? '');
 	const [description, setDescription] = useState(initial?.description ?? '');
 	const [url, setUrl] = useState(initial?.url ?? '');
@@ -641,9 +660,9 @@ export default function SiteDetailForm({
 					className="mt-1"
 				/>
 				<p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-					Saved per site. Article generation uses this when a page doesn&apos;t have its own brief-level
-					insight (e.g. supporting articles). You can also set this from the workspace when you first
-					generate.
+					Saved per site. Article generation uses this when a page doesn&apos;t have its own
+					brief-level insight (e.g. supporting articles). You can also set this from the workspace
+					when you first generate.
 				</p>
 			</div>
 			<div>
@@ -798,7 +817,6 @@ export default function SiteDetailForm({
 			className="space-y-6 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
 		>
 			{formContent}
-			{/* Delete */}
 
 			{/* Submit */}
 			<div className="flex max-w-sm gap-3 pt-4">
@@ -809,19 +827,81 @@ export default function SiteDetailForm({
 				>
 					{initial ? 'Save Changes' : 'Add Site'}
 				</Button>
-				{initial && (
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="border-error-200 text-error-600 hover:bg-error-50 dark:border-error-900 dark:text-error-400 dark:hover:bg-error-900/20"
-						onClick={onDelete}
-						startIcon={<Trash2 className="size-4" />}
-					>
-						Delete
-					</Button>
-				)}
+				{initial &&
+					(deleteCheckLoading ? (
+						<Tooltip
+							content="Checking whether this site can be removed…"
+							tooltipPosition="bottom"
+							usePortal
+						>
+							<span className="inline-flex">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="border-error-200 text-error-600 dark:border-error-900 dark:text-error-400 opacity-60"
+									disabled
+									startIcon={<Trash2 className="size-4" />}
+								>
+									Delete
+								</Button>
+							</span>
+						</Tooltip>
+					) : deleteBlocked ? (
+						<Tooltip
+							content="Still has linked content — click for details"
+							tooltipPosition="top"
+							usePortal
+						>
+							<span className="inline-flex">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="border-error-200 text-error-600 hover:bg-error-50 dark:border-error-900 dark:text-error-400 dark:hover:bg-error-900/20"
+									disabled={disabled}
+									onClick={() => setDeleteBlockedDialogOpen(true)}
+									startIcon={<Trash2 className="size-4" />}
+								>
+									Delete
+								</Button>
+							</span>
+						</Tooltip>
+					) : (
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="border-error-200 text-error-600 hover:bg-error-50 dark:border-error-900 dark:text-error-400 dark:hover:bg-error-900/20"
+							onClick={onDelete}
+							disabled={disabled}
+							startIcon={<Trash2 className="size-4" />}
+						>
+							Delete
+						</Button>
+					))}
 			</div>
+
+			<AlertDialog open={deleteBlockedDialogOpen} onOpenChange={setDeleteBlockedDialogOpen}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Can&apos;t delete this site yet</AlertDialogTitle>
+						<AlertDialogDescription className="text-left">
+							{deleteBlockedMessage ||
+								'This site still has linked content. Remove it before deleting the site.'}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogAction
+							type="button"
+							variant="default"
+							className="bg-brand-500 hover:bg-brand-600"
+						>
+							Got it
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</form>
 	);
 }

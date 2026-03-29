@@ -21,7 +21,7 @@ import {
 import SiteDetailForm from '../components/sites/SiteDetailForm';
 import type { Site } from '../types/site';
 import type { SiteFormData } from '../components/sites/SiteDetailForm';
-import { useSites } from '../hooks/useSites';
+import { useSites, fetchSiteDeletionBlockers, type SiteDeletionBlockers } from '../hooks/useSites';
 import { toast } from 'sonner';
 
 export default function SiteDetail() {
@@ -31,6 +31,8 @@ export default function SiteDetail() {
 	const [site, setSite] = useState<Site | null>(null);
 	const [submitting, setSubmitting] = useState(false);
 	const [siteToDelete, setSiteToDelete] = useState<Site | null>(null);
+	const [deletionBlockers, setDeletionBlockers] = useState<SiteDeletionBlockers | null>(null);
+	const [deletionCheckLoading, setDeletionCheckLoading] = useState(true);
 
 	useEffect(() => {
 		if (!id) {
@@ -40,6 +42,29 @@ export default function SiteDetail() {
 		const found = sites.find((s) => s.id === id);
 		setSite(found ?? null);
 	}, [id, sites]);
+
+	useEffect(() => {
+		if (!site?.id) {
+			setDeletionBlockers(null);
+			setDeletionCheckLoading(false);
+			return;
+		}
+		let cancelled = false;
+		setDeletionCheckLoading(true);
+		fetchSiteDeletionBlockers(site.id)
+			.then((b) => {
+				if (!cancelled) setDeletionBlockers(b);
+			})
+			.catch(() => {
+				if (!cancelled) setDeletionBlockers(null);
+			})
+			.finally(() => {
+				if (!cancelled) setDeletionCheckLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [site?.id]);
 
 	// Handle Shopify/GSC callback params
 	useEffect(() => {
@@ -97,6 +122,8 @@ export default function SiteDetail() {
 				removeLogo: data.removeLogo
 			});
 			toast.success('Site updated');
+			const blockers = await fetchSiteDeletionBlockers(site.id);
+			setDeletionBlockers(blockers);
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Failed to save site');
 		} finally {
@@ -105,7 +132,9 @@ export default function SiteDetail() {
 	};
 
 	const handleDeleteClick = () => {
-		if (site) setSiteToDelete(site);
+		if (!site || deletionCheckLoading) return;
+		if (deletionBlockers && !deletionBlockers.canDelete) return;
+		setSiteToDelete(site);
 	};
 
 	const handleDeleteConfirm = async () => {
@@ -166,6 +195,9 @@ export default function SiteDetail() {
 					onDelete={handleDeleteClick}
 					disabled={submitting}
 					variant="page"
+					deleteCheckLoading={deletionCheckLoading}
+					deleteBlocked={Boolean(deletionBlockers && !deletionBlockers.canDelete)}
+					deleteBlockedMessage={deletionBlockers?.summaryText ?? ''}
 				/>
 			</div>
 
@@ -175,7 +207,8 @@ export default function SiteDetail() {
 						<AlertDialogTitle>Delete site?</AlertDialogTitle>
 						{siteToDelete && (
 							<p className="text-sm text-gray-600 dark:text-gray-400">
-								This will remove &quot;{siteToDelete.name}&quot;. This action cannot be undone.
+								This will remove &quot;{siteToDelete.name}&quot; and cannot be undone. You can only
+								delete a site after all clusters, pages, and other linked data are removed.
 							</p>
 						)}
 					</AlertDialogHeader>

@@ -8,6 +8,61 @@ import { useAuth } from './useAuth';
 const ASSETS_BUCKET = 'assets';
 const LOGO_PREFIX = 'site-logos';
 
+/** Tables with `site_id` — block site delete when any row exists (avoids accidental mass data loss / loose ends). */
+const SITE_SCOPED_TABLES: ReadonlyArray<{ table: string; label: string }> = [
+	{ table: 'clusters', label: 'clusters' },
+	{ table: 'pages', label: 'pages' },
+	{ table: 'topics', label: 'topics' },
+	{ table: 'targets', label: 'strategy targets' },
+	{ table: 'strategy_runs', label: 'strategy runs' },
+	{ table: 'ecommerce_pages', label: 'e-commerce pages' },
+	{ table: 'integrations', label: 'integrations' },
+	{ table: 'technical_issues', label: 'technical issues' },
+	{ table: 'cro_audits', label: 'CRO audits' }
+];
+
+export type SiteDeletionBlockers = {
+	canDelete: boolean;
+	summaryText: string;
+	counts: Record<string, number>;
+};
+
+async function countRowsForSite(table: string, siteId: string): Promise<number> {
+	const { count, error } = await supabase
+		.from(table)
+		.select('*', { count: 'exact', head: true })
+		.eq('site_id', siteId);
+	if (error) {
+		console.warn(`[useSites] count ${table}:`, error.message);
+		return 0;
+	}
+	return count ?? 0;
+}
+
+/**
+ * Returns whether the site can be deleted (no dependent rows in core tables).
+ * Call before showing delete UI and again inside deleteSite as a safety check.
+ */
+export async function fetchSiteDeletionBlockers(siteId: string): Promise<SiteDeletionBlockers> {
+	const pairs = await Promise.all(
+		SITE_SCOPED_TABLES.map(async ({ table, label }) => {
+			const n = await countRowsForSite(table, siteId);
+			return { table, label, n };
+		})
+	);
+	const counts: Record<string, number> = {};
+	const parts: string[] = [];
+	for (const { table, label, n } of pairs) {
+		counts[table] = n;
+		if (n > 0) parts.push(`${n} ${label}`);
+	}
+	const canDelete = parts.length === 0;
+	const summaryText = canDelete
+		? ''
+		: `This site still has: ${parts.join(', ')}. Remove or reassign that content before deleting the site.`;
+	return { canDelete, summaryText, counts };
+}
+
 function storagePath(organizationId: string, siteId: string, ext: string): string {
 	return `${LOGO_PREFIX}/${organizationId}/${siteId}_${Date.now()}.${ext}`;
 }
@@ -288,6 +343,11 @@ export function useSites() {
 		async (siteId: string) => {
 			if (!organizationId) throw new Error('No organization');
 
+			const blockers = await fetchSiteDeletionBlockers(siteId);
+			if (!blockers.canDelete) {
+				throw new Error(blockers.summaryText);
+			}
+
 			const site = sites.find((s) => s.id === siteId);
 			if (site?.logoPath) {
 				await supabase.storage.from(ASSETS_BUCKET).remove([site.logoPath]);
@@ -325,5 +385,15 @@ export function useSites() {
 		}
 	}, [fetchSites]);
 
-	return { sites, loading, error, createSite, updateSite, deleteSite, refetch: fetchSites, refreshSiteAuthority };
+	return {
+		sites,
+		loading,
+		error,
+		createSite,
+		updateSite,
+		deleteSite,
+		fetchSiteDeletionBlockers,
+		refetch: fetchSites,
+		refreshSiteAuthority
+	};
 }
