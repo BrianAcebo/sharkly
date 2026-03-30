@@ -8,7 +8,8 @@ import {
 	Palette,
 	Building2,
 	FileText,
-	Plug
+	Plug,
+	Info
 } from 'lucide-react';
 import { isYMYLNiche } from '../../lib/ymyl';
 import Label from '../form/Label';
@@ -734,7 +735,18 @@ export default function SiteDetailForm({
 				<GSCConnectionManager siteId={initial.id} siteName={initial.name} />
 			</div>
 			<div>
-				<h3 className="mb-3 font-medium text-gray-900 dark:text-white">Shopify</h3>
+				<h3 className="mb-3 flex items-center gap-2 font-medium text-gray-900 dark:text-white">
+					Shopify
+					<Tooltip
+						content="If you uninstalled the Sharkly app from your Shopify store, it will take 48 hours for Shopify to trigger the removal of your store from Sharkly."
+						tooltipPosition="top"
+						usePortal
+					>
+						<span className="text-xs text-gray-500 dark:text-gray-400">
+							<Info className="size-4" />
+						</span>
+					</Tooltip>
+				</h3>
 				<ShopifyConnectionStatus siteId={initial.id} siteName={initial.name} />
 			</div>
 		</div>
