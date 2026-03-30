@@ -123,3 +123,50 @@ export async function appUninstalled(req: Request, res: Response): Promise<void>
 		await clearShopifyConnectionByDomain(shopDomain);
 	});
 }
+
+/**
+ * POST /webhooks/shopify
+ * Partner checks + shopify.app.toml often use this single URL. Shopify probes with an invalid HMAC and expects 401.
+ * Real deliveries include `X-Shopify-Topic` (`customers/data_request`, `customers/redact`, `shop/redact`).
+ * More specific routes (`/webhooks/shopify/customers/...`) stay available if you register those full URLs instead.
+ */
+export async function shopifyComplianceUnified(req: Request, res: Response): Promise<void> {
+	const hmac = req.headers['x-shopify-hmac-sha256'];
+	const rawBody = Buffer.isBuffer(req.body) ? req.body : null;
+	if (!rawBody || !verifyShopifyWebhookHmac(rawBody, hmac)) {
+		res.status(401).send('Unauthorized');
+		return;
+	}
+	let body: unknown;
+	try {
+		body = JSON.parse(rawBody.toString('utf8'));
+	} catch {
+		body = {};
+	}
+	const topicHeader = req.headers['x-shopify-topic'];
+	const topicRaw = Array.isArray(topicHeader) ? topicHeader[0] : topicHeader;
+	const topic = typeof topicRaw === 'string' ? topicRaw.trim().toLowerCase() : '';
+	const shopDomain = shopDomainFromWebhook(req, body);
+
+	try {
+		switch (topic) {
+			case 'customers/data_request':
+				break;
+			case 'customers/redact':
+				break;
+			case 'shop/redact':
+				if (shopDomain) await clearShopifyConnectionByDomain(shopDomain);
+				break;
+			case 'app/uninstalled':
+				if (shopDomain) await clearShopifyConnectionByDomain(shopDomain);
+				break;
+			default:
+				if (topic) {
+					console.warn('[Shopify Webhook] /webhooks/shopify unexpected topic:', topicRaw);
+				}
+		}
+	} catch (err) {
+		console.error('[Shopify Webhook] /webhooks/shopify error:', err);
+	}
+	res.status(200).send();
+}

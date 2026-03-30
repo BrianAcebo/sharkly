@@ -71,6 +71,8 @@ Use your real API base (example: Fly deploy):
 | **Customer redact** (`customers/redact`) | `https://sharkly-api.fly.dev/webhooks/shopify/customers/redact` |
 | **Shop redact** (`shop/redact`) | `https://sharkly-api.fly.dev/webhooks/shopify/shop/redact` |
 
+If the Partner Dashboard or `shopify.app.toml` uses **one** compliance URL for all topics (e.g. `https://sharkly-api.fly.dev/webhooks/shopify`), that route is supported too: same HMAC rules, topic from `X-Shopify-Topic`. Per-topic URLs in the table still work in parallel.
+
 Optional (recommended, not one of the three mandatory compliance topics):
 
 | Topic | Full URL (example) |

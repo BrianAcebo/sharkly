@@ -44,7 +44,8 @@ import {
 	customersRedact,
 	shopRedact,
 	customersDataRequest,
-	appUninstalled
+	appUninstalled,
+	shopifyComplianceUnified
 } from './controllers/shopifyWebhooks.js';
 import { handleSupabaseAuthEmailHook } from './controllers/supabaseAuthEmailHook.js';
 import { isServerWebhookPath } from './utils/webhookPaths.js';
@@ -97,7 +98,9 @@ app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res) =>
 // `type: () => true` so every Content-Type (e.g. application/json; charset=utf-8) gets a Buffer;
 // if the matcher skips parsing, req.body is not a Buffer and HMAC always fails (401).
 const shopifyWebhookRaw = express.raw({ limit: '1mb', type: () => true });
-// Mandatory compliance + uninstall — paths mirror Shopify topic names (Partner Dashboard URLs).
+// Single base URL (Partner HMAC probe + TOML `uri`) — not `POST /webhooks`, so other providers keep their own paths.
+app.post('/webhooks/shopify', shopifyWebhookRaw, (req, res) => shopifyComplianceUnified(req, res));
+// Mandatory compliance + uninstall — full paths if you register per-topic URLs in Partner Dashboard.
 app.post('/webhooks/shopify/customers/data_request', shopifyWebhookRaw, (req, res) =>
 	customersDataRequest(req, res)
 );
