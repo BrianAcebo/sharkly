@@ -10,26 +10,31 @@ import { clearShopifyConnectionByDomain } from '../services/shopifyService.js';
 
 const secret = process.env.SHOPIFY_API_SECRET || '';
 
-/** Shopify sends X-Shopify-Hmac-Sha256 as base64 of HMAC-SHA256(secret, rawBody). Must never throw — invalid input → false → 401. */
-function verifyShopifyWebhookHmac(rawBody: Buffer, hmacHeader: string | string[] | undefined): boolean {
-	if (!secret || !Buffer.isBuffer(rawBody)) return false;
-	const headerVal = Array.isArray(hmacHeader) ? hmacHeader[0] : hmacHeader;
-	if (!headerVal || typeof headerVal !== 'string') return false;
-	const trimmed = headerVal.trim();
-	if (!trimmed) return false;
+let loggedMissingShopifySecret = false;
 
-	const computedDigest = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
-	let received: Buffer;
-	let expected: Buffer;
-	try {
-		received = Buffer.from(trimmed, 'base64');
-		expected = Buffer.from(computedDigest, 'base64');
-	} catch {
+/** Same algorithm as https://shopify.dev/docs/apps/webhooks/configuration/https#step-2-validate-the-origin-of-your-webhook */
+function verifyShopifyWebhookHmac(rawBody: Buffer, hmacHeader: string | string[] | undefined): boolean {
+	if (!secret) {
+		if (!loggedMissingShopifySecret) {
+			loggedMissingShopifySecret = true;
+			console.error(
+				'[Shopify Webhook] SHOPIFY_API_SECRET is empty — HMAC will fail. Set it to the app Client secret from the Partner Dashboard (same value as OAuth).'
+			);
+		}
 		return false;
 	}
-	if (received.length === 0 || received.length !== expected.length) return false;
+	if (!Buffer.isBuffer(rawBody)) return false;
+	const headerVal = Array.isArray(hmacHeader) ? hmacHeader[0] : hmacHeader;
+	if (!headerVal || typeof headerVal !== 'string') return false;
+	const shopifyHmac = headerVal.trim();
+	if (!shopifyHmac) return false;
+
+	const calculatedHmacDigest = crypto.createHmac('sha256', secret).update(rawBody).digest('base64');
 	try {
-		return crypto.timingSafeEqual(received, expected);
+		return crypto.timingSafeEqual(
+			Buffer.from(calculatedHmacDigest, 'base64'),
+			Buffer.from(shopifyHmac, 'base64')
+		);
 	} catch {
 		return false;
 	}
@@ -71,7 +76,7 @@ async function handleWebhook(req: Request, res: Response, action: (shopDomain: s
 }
 
 /**
- * POST /webhooks/shopify/customers-redact
+ * POST /webhooks/shopify/customers/redact
  * Customer requested deletion of their data. Sharkly stores no customer data.
  */
 export async function customersRedact(req: Request, res: Response): Promise<void> {
@@ -81,7 +86,7 @@ export async function customersRedact(req: Request, res: Response): Promise<void
 }
 
 /**
- * POST /webhooks/shopify/shop-redact
+ * POST /webhooks/shopify/shop/redact
  * Fires 48h after store uninstalls. Clear store data; we only have connection tokens.
  */
 export async function shopRedact(req: Request, res: Response): Promise<void> {
@@ -95,7 +100,7 @@ export async function shopRedact(req: Request, res: Response): Promise<void> {
 }
 
 /**
- * POST /webhooks/shopify/customers-data-request
+ * POST /webhooks/shopify/customers/data_request
  * Customer requested their data. Respond with what we store: store domain + token reference only, no PII.
  */
 export async function customersDataRequest(req: Request, res: Response): Promise<void> {

@@ -94,25 +94,21 @@ app.post('/api/payments/webhook', express.raw({ type: '*/*' }), (req, res) =>
 
 // Shopify mandatory webhooks (GDPR + uninstall) — raw body for HMAC verification.
 // Public: no JWT (Shopify server-to-server). CORS skipped for /webhooks/* above.
-app.post(
-	'/webhooks/shopify/customers-redact',
-	express.raw({ type: '*/*' }),
-	(req, res) => customersRedact(req, res)
+// `type: () => true` so every Content-Type (e.g. application/json; charset=utf-8) gets a Buffer;
+// if the matcher skips parsing, req.body is not a Buffer and HMAC always fails (401).
+const shopifyWebhookRaw = express.raw({ limit: '1mb', type: () => true });
+// Mandatory compliance + uninstall — paths mirror Shopify topic names (Partner Dashboard URLs).
+app.post('/webhooks/shopify/customers/data_request', shopifyWebhookRaw, (req, res) =>
+	customersDataRequest(req, res)
 );
-app.post(
-	'/webhooks/shopify/shop-redact',
-	express.raw({ type: '*/*' }),
-	(req, res) => shopRedact(req, res)
+app.post('/webhooks/shopify/customers/redact', shopifyWebhookRaw, (req, res) =>
+	customersRedact(req, res)
 );
-app.post(
-	'/webhooks/shopify/customers-data-request',
-	express.raw({ type: '*/*' }),
-	(req, res) => customersDataRequest(req, res)
+app.post('/webhooks/shopify/shop/redact', shopifyWebhookRaw, (req, res) =>
+	shopRedact(req, res)
 );
-app.post(
-	'/webhooks/shopify/app-uninstalled',
-	express.raw({ type: '*/*' }),
-	(req, res) => appUninstalled(req, res)
+app.post('/webhooks/shopify/app-uninstalled', shopifyWebhookRaw, (req, res) =>
+	appUninstalled(req, res)
 );
 
 // Supabase Auth — Send Email hook (Standard Webhooks + Resend). No JWT; verified via SUPABASE_AUTH_EMAIL_HOOK_SECRET.

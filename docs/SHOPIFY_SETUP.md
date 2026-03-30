@@ -67,9 +67,9 @@ Use your real API base (example: Fly deploy):
 
 | Compliance topic (Shopify) | Full URL (example) |
 |----------------------------|--------------------|
-| **Customer data request** (`customers/data_request`) | `https://sharkly-api.fly.dev/webhooks/shopify/customers-data-request` |
-| **Customer redact** (`customers/redact`) | `https://sharkly-api.fly.dev/webhooks/shopify/customers-redact` |
-| **Shop redact** (`shop/redact`) | `https://sharkly-api.fly.dev/webhooks/shopify/shop-redact` |
+| **Customer data request** (`customers/data_request`) | `https://sharkly-api.fly.dev/webhooks/shopify/customers/data_request` |
+| **Customer redact** (`customers/redact`) | `https://sharkly-api.fly.dev/webhooks/shopify/customers/redact` |
+| **Shop redact** (`shop/redact`) | `https://sharkly-api.fly.dev/webhooks/shopify/shop/redact` |
 
 Optional (recommended, not one of the three mandatory compliance topics):
 
@@ -87,7 +87,7 @@ Optional (recommended, not one of the three mandatory compliance topics):
 
 - Compliance URLs still point at **localhost**, a tunnel that is down, or **Supabase** instead of the Express API.
 - **`SHOPIFY_API_SECRET`** on Fly (or prod) does not match the app’s **Client secret** in the Partner Dashboard (e.g. after rotating the secret).
-- Typo in path (`customers-data-request` vs `customers/data_request` in the URL path — Shopify topic uses a slash; our path uses hyphens as in the table above).
+- Typo in path: URLs must match the table (slashes under `/webhooks/shopify/…`, same shape as topic names).
 
 ### `shopify.app.toml` (Shopify CLI apps only)
 
