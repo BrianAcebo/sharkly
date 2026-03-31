@@ -8,6 +8,7 @@ import {
 	checkCrawlability,
 	startCrawl,
 	getCrawlResults,
+	getCrawlHistory,
 	getIssueDetails,
 	markIssuesResolved
 } from '../controllers/crawlerController.js';
@@ -27,6 +28,9 @@ router.post('/start', startCrawl);
 
 // GET /api/crawler/results/:siteId - Get latest crawl results
 router.get('/results/:siteId', getCrawlResults);
+
+// GET /api/crawler/history/:siteId - Past crawl runs (stats per run)
+router.get('/history/:siteId', getCrawlHistory);
 
 // GET /api/crawler/issues/:siteId - Get specific issue details
 router.get('/issues/:siteId', getIssueDetails);

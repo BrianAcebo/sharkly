@@ -131,17 +131,17 @@ export const AI_TOOLS = [
 		function: {
 			name: 'suggest_next_actions',
 			description:
-				'Analyze current data and suggest prioritized next actions for the user. Can take optional site_id or cluster_id for context. Free — no credits.',
+				'Returns prioritized next actions using live data: org credits, latest technical audit, low SEO-score pages, and stale content (6+ months without update). Optional site_id scopes to one site; optional cluster_id narrows page lists to that cluster. Free — no credits.',
 			parameters: {
 				type: 'object',
 				properties: {
 					site_id: {
 						type: 'string',
-						description: 'Optional — focus suggestions on this site'
+						description: 'Optional — focus on this site (recommended for concrete recommendations)'
 					},
 					cluster_id: {
 						type: 'string',
-						description: 'Optional — focus suggestions on this cluster'
+						description: 'Optional — narrow page-level actions to this cluster (requires site_id or resolves site from cluster)'
 					}
 				},
 				required: []
@@ -190,6 +190,355 @@ function hasScalePlan(planCode: string | null): boolean {
 	if (!planCode) return false;
 	const base = planCode.replace(/_test$/, '');
 	return ['scale', 'pro'].includes(base);
+}
+
+type SuggestedAction = {
+	priority: 'high' | 'medium' | 'low';
+	title: string;
+	description: string;
+	action_url?: string;
+	source: 'credits' | 'audit' | 'priority_stack' | 'refresh_queue' | 'cluster' | 'org_overview';
+};
+
+const PRIORITY_ORDER: Record<SuggestedAction['priority'], number> = {
+	high: 0,
+	medium: 1,
+	low: 2
+};
+
+function dedupeActions(actions: SuggestedAction[]): SuggestedAction[] {
+	const seen = new Set<string>();
+	const out: SuggestedAction[] = [];
+	for (const a of actions) {
+		const key = `${a.source}|${a.action_url ?? ''}|${a.title.slice(0, 80)}`;
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(a);
+	}
+	return out;
+}
+
+async function buildOrgNextActions(organizationId: string): Promise<{ success: boolean; result: any }> {
+	const { data: sites } = await supabase
+		.from('sites')
+		.select(
+			'id, name, url, audit_score, audit_health_status, critical_issues_count, last_audit_at, created_at'
+		)
+		.eq('organization_id', organizationId)
+		.order('created_at', { ascending: false })
+		.limit(20);
+
+	const { data: org } = await supabase
+		.from('organizations')
+		.select('included_credits_remaining, included_credits_monthly')
+		.eq('id', organizationId)
+		.single();
+
+	const actions: SuggestedAction[] = [];
+	const remaining = Number(org?.included_credits_remaining ?? 0);
+	const monthly = Number(org?.included_credits_monthly ?? 1);
+
+	if (monthly > 0 && remaining / monthly < 0.2) {
+		actions.push({
+			priority: 'high',
+			title: 'Credits running low',
+			description: `${remaining} of ${monthly} monthly credits remaining — top up before running crawls or generation.`,
+			action_url: '/billing',
+			source: 'credits'
+		});
+	}
+
+	const siteList = sites || [];
+
+	for (const s of siteList) {
+		if (!s.last_audit_at) {
+			actions.push({
+				priority: 'high',
+				title: `Run a technical audit: ${s.name}`,
+				description: 'This site has no completed audit on record — crawl health and issue counts are unknown.',
+				action_url: `/audit/${s.id}`,
+				source: 'org_overview'
+			});
+		}
+	}
+
+	const scored = siteList
+		.filter((s) => s.last_audit_at && (s.audit_score ?? 100) < 65)
+		.sort((a, b) => (a.audit_score ?? 100) - (b.audit_score ?? 100))
+		.slice(0, 4);
+
+	for (const s of scored) {
+		const crit = s.critical_issues_count ?? 0;
+		actions.push({
+			priority: s.audit_health_status === 'critical' || crit > 5 ? 'high' : 'medium',
+			title: `Technical health needs attention: ${s.name}`,
+			description: `Audit score ${s.audit_score ?? '—'}/100${crit ? ` · ${crit} critical issues` : ''}.`,
+			action_url: `/audit/${s.id}`,
+			source: 'org_overview'
+		});
+	}
+
+	const finalActions = dedupeActions(actions).sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]).slice(0, 25);
+
+	const summaryParts: string[] = [];
+	if (finalActions.length === 0) {
+		summaryParts.push('No urgent items surfaced from site summaries — pick a site for detailed actions.');
+	} else {
+		summaryParts.push(`${finalActions.length} prioritized action(s) from credits + per-site audit snapshots.`);
+	}
+
+	return {
+		success: true,
+		result: {
+			scope: 'organization',
+			sites_preview: siteList.slice(0, 8).map((s) => ({
+				id: s.id,
+				name: s.name,
+				audit_score: s.audit_score,
+				last_audit_at: s.last_audit_at
+			})),
+			credits: { remaining, monthly },
+			actions: finalActions,
+			action_count: finalActions.length,
+			summary: summaryParts.join(' ')
+		}
+	};
+}
+
+type ClusterRow = {
+	id: string;
+	site_id: string;
+	title?: string | null;
+	target_keyword?: string | null;
+	cluster_intelligence?: unknown;
+};
+
+async function buildSiteNextActions(
+	organizationId: string,
+	siteId: string,
+	clusterScope: ClusterRow | null
+): Promise<{ success: boolean; result: any }> {
+	const { data: siteRow } = await supabase.from('sites').select('name, url').eq('id', siteId).single();
+	const siteName = (siteRow as { name?: string })?.name ?? 'This site';
+
+	const { data: audit } = await supabase
+		.from('audit_results')
+		.select(
+			'overall_score, health_status, crawl_total_pages, crawl_total_issues, crawl_critical_issues, recommendations, created_at'
+		)
+		.eq('site_id', siteId)
+		.order('created_at', { ascending: false })
+		.limit(1)
+		.maybeSingle();
+
+	const { data: org } = await supabase
+		.from('organizations')
+		.select('included_credits_remaining, included_credits_monthly')
+		.eq('id', organizationId)
+		.single();
+
+	const actions: SuggestedAction[] = [];
+	const remaining = Number(org?.included_credits_remaining ?? 0);
+	const monthly = Number(org?.included_credits_monthly ?? 1);
+
+	if (monthly > 0 && remaining / monthly < 0.2) {
+		actions.push({
+			priority: 'high',
+			title: 'Credits running low',
+			description: `${remaining} of ${monthly} monthly credits remaining.`,
+			action_url: '/billing',
+			source: 'credits'
+		});
+	}
+
+	if (audit) {
+		const score = audit.overall_score ?? 0;
+		const crit = audit.crawl_critical_issues ?? 0;
+		const total = audit.crawl_total_issues ?? 0;
+		if (audit.health_status === 'critical' || score < 45) {
+			actions.push({
+				priority: 'high',
+				title: `Technical health: ${audit.health_status} (${score}/100)`,
+				description: `${crit} critical issues, ${total} total — review crawl, CWV, and indexation on the audit report.`,
+				action_url: `/audit/${siteId}`,
+				source: 'audit'
+			});
+		} else if (score < 70) {
+			actions.push({
+				priority: 'medium',
+				title: `Audit score ${score}/100 — improvement opportunity`,
+				description: `${crit} critical · ${total} total issues.`,
+				action_url: `/audit/${siteId}`,
+				source: 'audit'
+			});
+		}
+		const recs = Array.isArray(audit.recommendations) ? audit.recommendations : [];
+		for (const r of recs.slice(0, 2)) {
+			const text = typeof r === 'string' ? r : String(r);
+			if (!text.trim()) continue;
+			actions.push({
+				priority: 'low',
+				title: text.length > 90 ? `${text.slice(0, 87)}…` : text,
+				description: 'From the latest technical audit recommendations.',
+				action_url: `/audit/${siteId}`,
+				source: 'audit'
+			});
+		}
+	} else {
+		actions.push({
+			priority: 'high',
+			title: 'No technical audit on file for this site',
+			description: `Run an audit for ${siteName} to measure crawl issues, Core Web Vitals, and indexation.`,
+			action_url: `/audit/${siteId}`,
+			source: 'audit'
+		});
+	}
+
+	let clusterIds: string[] = [];
+	if (clusterScope) {
+		clusterIds = [clusterScope.id];
+	} else {
+		const { data: clusterRows } = await supabase.from('clusters').select('id').eq('site_id', siteId);
+		clusterIds = (clusterRows ?? []).map((c) => c.id);
+	}
+
+	if (clusterIds.length > 0) {
+		const { data: lowPages } = await supabase
+			.from('pages')
+			.select('id, title, seo_score')
+			.in('cluster_id', clusterIds)
+			.eq('status', 'published')
+			.or('seo_score.lt.70,seo_score.is.null')
+			.limit(24);
+
+		for (const p of (lowPages ?? []).slice(0, 5)) {
+			actions.push({
+				priority: 'medium',
+				title: `Raise SEO score: ${p.title}`,
+				description: `Published page at ${p.seo_score ?? '—'}/115.`,
+				action_url: `/workspace/${p.id}`,
+				source: 'priority_stack'
+			});
+		}
+	}
+
+	const { data: pubPages } = await supabase
+		.from('pages')
+		.select('id, title, last_updated_meaningful, updated_at, cluster_id')
+		.eq('site_id', siteId)
+		.eq('status', 'published');
+
+	let pages = pubPages || [];
+	if (clusterScope) {
+		pages = pages.filter((p) => p.cluster_id === clusterScope.id);
+	}
+	const staleCutoff = new Date();
+	staleCutoff.setMonth(staleCutoff.getMonth() - 6);
+	const stale = pages.filter((p) => {
+		const d = p.last_updated_meaningful || p.updated_at;
+		return d && new Date(d as string) < staleCutoff;
+	});
+	for (const p of stale.slice(0, 5)) {
+		actions.push({
+			priority: 'medium',
+			title: `Refresh outdated content: ${p.title}`,
+			description: 'No meaningful update in over 6 months.',
+			action_url: `/workspace/${p.id}`,
+			source: 'refresh_queue'
+		});
+	}
+
+	if (clusterScope?.cluster_intelligence != null && clusterScope.cluster_intelligence !== '') {
+		actions.push({
+			priority: 'low',
+			title: clusterScope.title
+				? `Review cluster plan: ${clusterScope.title}`
+				: 'Review cluster intelligence',
+			description: 'Cluster-level signals and gaps are saved on the cluster page.',
+			action_url: `/clusters/${clusterScope.id}`,
+			source: 'cluster'
+		});
+	}
+
+	const finalActions = dedupeActions(actions)
+		.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority])
+		.slice(0, 25);
+
+	const scope = clusterScope ? 'cluster' : 'site';
+	const summary = `Merged ${finalActions.length} action(s) for ${siteName}${clusterScope ? ` (cluster scoped)` : ''}: credits, audit, low-score pages, stale refresh queue.`;
+
+	return {
+		success: true,
+		result: {
+			scope,
+			site_id: siteId,
+			site_name: siteName,
+			cluster_id: clusterScope?.id,
+			cluster_title: clusterScope?.title ?? undefined,
+			audit_summary: audit
+				? {
+						overall_score: audit.overall_score,
+						health_status: audit.health_status,
+						crawl_critical_issues: audit.crawl_critical_issues,
+						crawl_total_issues: audit.crawl_total_issues,
+						audited_at: audit.created_at
+					}
+				: null,
+			credits: { remaining, monthly },
+			actions: finalActions,
+			action_count: finalActions.length,
+			summary
+		}
+	};
+}
+
+async function suggestNextActionsMerged(
+	organizationId: string,
+	siteIdArg: string | undefined,
+	clusterIdArg: string | undefined
+): Promise<{ success: boolean; result: any; error?: string }> {
+	if (!siteIdArg && !clusterIdArg) {
+		return buildOrgNextActions(organizationId);
+	}
+
+	if (clusterIdArg && !siteIdArg) {
+		const { data: cluster, error: cErr } = await supabase
+			.from('clusters')
+			.select('id, site_id, title, target_keyword, cluster_intelligence')
+			.eq('id', clusterIdArg)
+			.single();
+		if (cErr || !cluster) {
+			return { success: false, result: null, error: 'Cluster not found' };
+		}
+		const { error } = await verifySiteAccess(cluster.site_id, organizationId);
+		if (error) return { success: false, result: null, error };
+		return buildSiteNextActions(organizationId, cluster.site_id, cluster as ClusterRow);
+	}
+
+	if (siteIdArg && clusterIdArg) {
+		const { data: cluster, error: cErr } = await supabase
+			.from('clusters')
+			.select('id, site_id, title, target_keyword, cluster_intelligence')
+			.eq('id', clusterIdArg)
+			.single();
+		if (cErr || !cluster) {
+			return { success: false, result: null, error: 'Cluster not found' };
+		}
+		if (cluster.site_id !== siteIdArg) {
+			return { success: false, result: null, error: 'cluster_id does not belong to this site' };
+		}
+		const { error } = await verifySiteAccess(siteIdArg, organizationId);
+		if (error) return { success: false, result: null, error };
+		return buildSiteNextActions(organizationId, siteIdArg, cluster as ClusterRow);
+	}
+
+	if (siteIdArg) {
+		const { error } = await verifySiteAccess(siteIdArg, organizationId);
+		if (error) return { success: false, result: null, error };
+		return buildSiteNextActions(organizationId, siteIdArg, null);
+	}
+
+	return { success: false, result: null, error: 'Invalid arguments' };
 }
 
 export async function executeTool(
@@ -354,43 +703,7 @@ export async function executeTool(
 				};
 			}
 			case 'suggest_next_actions': {
-				const siteId = args.site_id;
-				const clusterId = args.cluster_id;
-				if (!siteId && !clusterId) {
-					const { data: sites } = await supabase
-						.from('sites')
-						.select('id, name')
-						.eq('organization_id', organizationId)
-						.limit(5);
-					return {
-						success: true,
-						result: {
-							suggestions: [
-								'List your sites with get_sites_summary to see what you have.',
-								'Run get_audit_summary for a site to check technical health.',
-								'Check get_weekly_priority_stack for recommended actions.'
-							],
-							sites: sites || []
-						}
-					};
-				}
-				const suggestions: string[] = [];
-				if (siteId) {
-					const { error } = await verifySiteAccess(siteId, organizationId);
-					if (error) return { success: false, result: null, error };
-					suggestions.push(
-						'Review your clusters with get_clusters_summary.',
-						'Check get_audit_summary for technical issues.',
-						'See get_weekly_priority_stack for top priorities.'
-					);
-				}
-				if (clusterId) {
-					suggestions.push(
-						'Review cluster pages with get_cluster_details.',
-						'Check for content gaps and funnel alignment.'
-					);
-				}
-				return { success: true, result: { suggestions } };
+				return suggestNextActionsMerged(organizationId, args.site_id, args.cluster_id);
 			}
 			case 'trigger_technical_audit': {
 				if (!hasScalePlan(planCode ?? null)) {
@@ -430,22 +743,52 @@ export async function executeTool(
 						included_credits: org?.included_credits != null ? newCredits : undefined
 					})
 					.eq('id', organizationId);
+
 				const { technicalAuditService } = await import('./technicalAuditService.js');
-				technicalAuditService.runFullAudit(site.url, siteId, organizationId).catch((e) => {
-					console.error('[AI Tools] Audit failed:', e);
-					supabase
+				try {
+					const auditResult = await technicalAuditService.runFullAudit(
+						site.url,
+						siteId,
+						organizationId
+					);
+					const preview = auditResult.recommendations.slice(0, 5);
+					return {
+						success: true,
+						result: {
+							site_id: siteId,
+							site_name: site.name,
+							message: `Audit finished for ${site.name}: overall score ${auditResult.overallScore}/100 (${auditResult.healthStatus}). ${auditResult.crawlResults.criticalIssues} critical issues, ${auditResult.crawlResults.totalIssuesFound} total across ${auditResult.crawlResults.totalPagesCrawled} pages crawled.`,
+							overall_score: auditResult.overallScore,
+							health_status: auditResult.healthStatus,
+							pages_crawled: auditResult.crawlResults.totalPagesCrawled,
+							critical_issues: auditResult.crawlResults.criticalIssues,
+							warning_issues: auditResult.crawlResults.warningIssues,
+							total_issues: auditResult.crawlResults.totalIssuesFound,
+							recommendations_preview: preview,
+							report_url: `/audit/${siteId}`,
+							technical_seo_url: '/technical',
+							credits_used: cost
+						},
+						creditsCost: cost
+					};
+				} catch (auditErr) {
+					console.error('[AI Tools] Audit failed:', auditErr);
+					await supabase
 						.from('organizations')
-						.update({ included_credits_remaining: creditsRemaining })
+						.update({
+							included_credits_remaining: creditsRemaining,
+							...(org?.included_credits != null && { included_credits: creditsRemaining })
+						})
 						.eq('id', organizationId);
-				});
-				return {
-					success: true,
-					result: {
-						message: `Audit started for ${site.name}. Results will appear in Technical SEO in a few minutes.`,
-						creditsUsed: cost
-					},
-					creditsCost: cost
-				};
+					return {
+						success: false,
+						result: null,
+						error:
+							auditErr instanceof Error
+								? auditErr.message
+								: 'Technical audit failed. Credits were refunded.'
+					};
+				}
 			}
 			default:
 				return { success: false, result: null, error: `Unknown tool: ${toolName}` };

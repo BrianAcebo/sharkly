@@ -1,14 +1,22 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useAudit } from '../hooks/useAudit';
 import { Button } from '../components/ui/button';
-import { AlertCircle, CheckCircle2, AlertTriangle, XCircle, RotateCcw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, AlertTriangle, XCircle, RotateCcw, History } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { useEffect } from 'react';
+import { cn } from '../utils/common';
 
 export default function AuditResults() {
 	const { siteId } = useParams<{ siteId: string }>();
-	const { audit, isLoading, isInProgress, error, runAudit } = useAudit(siteId);
+	const [searchParams, setSearchParams] = useSearchParams();
+	const snapshotId = searchParams.get('snapshot');
+	const { audit, isLoading, isInProgress, error, runAudit, history } = useAudit(siteId, snapshotId);
+
+	const handleRunAudit = async () => {
+		setSearchParams({});
+		await runAudit();
+	};
 	const { setTitle } = useBreadcrumbs();
 
 	useEffect(() => {
@@ -57,7 +65,7 @@ export default function AuditResults() {
 					<p className="text-gray-600 dark:text-gray-400 mb-6">
 						Start your first site audit to get a detailed technical SEO report
 					</p>
-					<Button onClick={runAudit} disabled={isLoading}>
+					<Button onClick={handleRunAudit} disabled={isLoading}>
 						<RotateCcw className="w-4 h-4 mr-2" />
 						Start Audit
 					</Button>
@@ -117,14 +125,79 @@ export default function AuditResults() {
 							Site Technical Audit
 						</h1>
 						<p className="text-gray-600 dark:text-gray-400">
-							Last scanned: {new Date(audit.createdAt).toLocaleDateString()}
+							{snapshotId ? (
+								<span className="text-amber-700 dark:text-amber-300">
+									Viewing saved report from {new Date(audit.createdAt).toLocaleString()} — not
+									necessarily the latest crawl.
+								</span>
+							) : (
+								<>Last scanned: {new Date(audit.createdAt).toLocaleDateString()}</>
+							)}
 						</p>
 					</div>
-					<Button onClick={runAudit} disabled={isLoading}>
-						<RotateCcw className="w-4 h-4 mr-2" />
-						Re-run Audit
-					</Button>
+					<div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+						{snapshotId && (
+							<Button variant="outline" onClick={() => setSearchParams({})}>
+								View latest audit
+							</Button>
+						)}
+						<Button onClick={handleRunAudit} disabled={isLoading}>
+							<RotateCcw className="w-4 h-4 mr-2" />
+							Re-run Audit
+						</Button>
+					</div>
 				</div>
+
+				{history.length > 0 && (
+					<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
+						<div className="mb-2 flex items-center gap-2">
+							<History className="h-4 w-4 text-gray-500" />
+							<h2 className="text-sm font-semibold text-gray-900 dark:text-white">Past reports</h2>
+						</div>
+						<p className="mb-3 text-xs text-gray-600 dark:text-gray-400">
+							Each run saves a snapshot (health score, crawl counts, DA/CWV). Open an older report to
+							compare with the current site state.
+						</p>
+						<div className="flex flex-wrap gap-2">
+							{history.map((h) => {
+								const latestId = history[0]?.id;
+								const active =
+									(snapshotId && h.id === snapshotId) ||
+									(!snapshotId && h.id === latestId);
+								return (
+									<button
+										key={h.id}
+										type="button"
+										onClick={() => {
+											if (h.id === latestId) setSearchParams({});
+											else setSearchParams({ snapshot: h.id });
+										}}
+										className={cn(
+											'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
+											active
+												? 'border-brand-500 bg-brand-50 text-brand-900 dark:bg-brand-950/40 dark:text-brand-100'
+												: 'border-gray-200 bg-white hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:hover:bg-gray-800'
+										)}
+									>
+										<span className="font-medium">
+											{new Date(h.created_at).toLocaleDateString()}{' '}
+											<span className="text-gray-500 dark:text-gray-400">
+												{new Date(h.created_at).toLocaleTimeString([], {
+													hour: '2-digit',
+													minute: '2-digit'
+												})}
+											</span>
+										</span>
+										<span className="mt-0.5 block text-[11px] text-gray-600 dark:text-gray-400">
+											Score {h.overall_score} · {h.health_status} · {h.crawl_total_issues ?? '—'}{' '}
+											issues
+										</span>
+									</button>
+								);
+							})}
+						</div>
+					</div>
+				)}
 
 				{/* Overall Score Card */}
 				<div className={`${getHealthBgColor(audit.healthStatus)} rounded-lg p-8 border border-current`}>

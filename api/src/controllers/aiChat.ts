@@ -329,25 +329,25 @@ const SYSTEM_PROMPT = `You are Fin, the Sharkly SEO Assistant. You help business
 - **get_audit_summary** — Latest technical audit: health score, critical issues, recommendations.
 - **get_weekly_priority_stack** — Top recommended actions (credits, low-score pages, etc.).
 - **get_refresh_queue** — Pages that need content updates (stale + declining).
-- **suggest_next_actions** — Analyze and suggest priorities. Free.
-- **trigger_technical_audit** — (Scale/Pro only) Run full technical audit. Costs credits.
+- **suggest_next_actions** — Merged prioritized actions from live data (credits, latest audit, low SEO-score pages, stale content). Optional site_id and cluster_id. Free.
+- **trigger_technical_audit** — (Scale/Pro only) Runs the full site crawl + technical audit **to completion** (may take a few minutes). Costs credits. The tool result includes overall_score, health_status, issue counts, recommendations_preview, site_id, and paths report_url and technical_seo_url.
 
 ## Workflow
 1. When the user asks "what should I do" or "what's wrong" — run get_sites_summary first, then get_weekly_priority_stack for their main site.
 2. When they ask about a specific site — use get_site_details, get_audit_summary, get_clusters_summary.
 3. When they ask "why isn't this ranking" — get the page summary and audit, explain the likely causes.
-4. When they want an audit — use trigger_technical_audit (Scale/Pro only; tell Growth users to upgrade).
+4. When they want a technical audit — use trigger_technical_audit with site_id (Scale/Pro only; tell Growth users to upgrade). When it succeeds, the audit is **already finished** — summarize the score, critical/total issues, and 2–4 recommendation bullets from recommendations_preview. Do **not** say "check back in a few minutes" or that results are still processing. Always give markdown links using the returned site_id: [Full audit report](/audit/SITE_ID) for DA/CWV/indexation detail, and [Technical SEO](/technical) for the crawl issue list.
 
 ## Output Rules
 1. **Never output raw JSON** — summarize tool results in natural language.
 2. **Be conversational** — short, helpful sentences.
 3. **Use plain English** — avoid jargon like "UPSA", "DA", "KGR" unless you briefly explain.
 4. **Suggest specific actions** — "Fix the missing meta descriptions on your pricing page" not "improve on-page SEO."
-5. **Mention where to go** — "Check Technical SEO for the full audit" or "Open the Workspace for that page."
+5. **Mention where to go** — After trigger_technical_audit, use the links above; for other tasks, "Open Technical SEO for crawl issues" or "Open the Workspace for that page" as appropriate.
 
 ## Response Style
 - Direct and professional, warm and approachable
-- Proactive: if the request is vague, run get_sites_summary and suggest_next_actions
+- Proactive: if the request is vague, run get_sites_summary; for “what should I do?” use suggest_next_actions with a site_id when known (merged real priorities).
 - After tools run, highlight the key takeaways — don't dump everything
 - Use **bold** for emphasis, bullet lists for multiple items`;
 
@@ -655,15 +655,18 @@ When asked to perform actions, default to this subject unless otherwise specifie
             credits: toolResult.creditsCost || 0,
           })}\n\n`);
 
+          const toolPayload = toolResult.success
+            ? toolResult.result
+            : { error: toolResult.error ?? 'Tool failed' };
           // Add tool result to messages
           messages.push({
             role: 'tool' as const,
             tool_call_id: toolCall.id,
-            content: JSON.stringify(toolResult.result),
+            content: JSON.stringify(toolPayload),
           });
           
           // Save tool result to DB
-          await saveMessage(sessionId, 'tool', JSON.stringify(toolResult.result), {
+          await saveMessage(sessionId, 'tool', JSON.stringify(toolPayload), {
             tool_call_id: toolCall.id,
           });
         }
@@ -894,14 +897,17 @@ When asked to perform actions, default to this subject unless otherwise specifie
           });
           totalCredits += toolResult.creditsCost || 0;
 
+          const toolPayloadSync = toolResult.success
+            ? toolResult.result
+            : { error: toolResult.error ?? 'Tool failed' };
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: JSON.stringify(toolResult.result),
+            content: JSON.stringify(toolPayloadSync),
           });
           
           // Save tool result to DB
-          await saveMessage(sessionId, 'tool', JSON.stringify(toolResult.result), {
+          await saveMessage(sessionId, 'tool', JSON.stringify(toolPayloadSync), {
             tool_call_id: toolCall.id,
           });
         }

@@ -325,6 +325,70 @@ export async function markIssuesResolved(req: Request, res: Response): Promise<v
 }
 
 /**
+ * GET /api/crawler/history/:siteId
+ * Past crawl runs (aggregate stats per run) for comparing trends over time
+ */
+export async function getCrawlHistory(req: Request, res: Response): Promise<void> {
+	try {
+		const { siteId } = req.params;
+		const userId = req.user?.id;
+		if (!siteId) {
+			res.status(400).json({ error: 'siteId required' });
+			return;
+		}
+		if (!userId) {
+			res.status(401).json({ error: 'Unauthorized' });
+			return;
+		}
+
+		const { data: site, error: siteErr } = await supabase
+			.from('sites')
+			.select('id, organization_id')
+			.eq('id', siteId)
+			.single();
+
+		if (siteErr || !site) {
+			res.status(404).json({ error: 'Site not found' });
+			return;
+		}
+
+		const { data: membership } = await supabase
+			.from('user_organizations')
+			.select('id')
+			.eq('user_id', userId)
+			.eq('organization_id', site.organization_id)
+			.maybeSingle();
+
+		if (!membership) {
+			res.status(403).json({ error: 'Not authorized' });
+			return;
+		}
+
+		const { data: rows, error } = await supabase
+			.from('crawl_history')
+			.select(
+				'id, status, pages_scanned, total_issues, critical_issues, warning_issues, info_issues, avg_response_time_ms, end_time, duration_seconds, created_at'
+			)
+			.eq('site_id', siteId)
+			.order('created_at', { ascending: false })
+			.limit(25);
+
+		if (error) {
+			console.error('[Crawler] crawl_history query failed:', error);
+			captureApiError(error, req, { feature: 'crawler-history-query', siteId });
+			res.status(500).json({ error: 'Failed to fetch crawl history' });
+			return;
+		}
+
+		res.json({ success: true, runs: rows || [] });
+	} catch (error) {
+		console.error('Error fetching crawl history:', error);
+		captureApiError(error, req, { feature: 'crawler-history', siteId: req.params.siteId });
+		res.status(500).json({ error: 'Failed to fetch crawl history' });
+	}
+}
+
+/**
  * Helper: Aggregate issues by type for dashboard display
  */
 function aggregateByType(issues: any[]): Record<string, number> {

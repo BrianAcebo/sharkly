@@ -146,11 +146,16 @@ const RESEARCH_AND_WRITE_STEPS: TaskStep[] = [
 	}
 ];
 
-// Standalone brief regeneration (brief already exists, user wants fresh research)
+// Standalone brief regeneration — ids match NDJSON step events from generateBrief (8 steps)
 const BRIEF_TASK_STEPS: TaskStep[] = [
-	{ id: '1', label: 'Analyzing context', status: 'pending' },
-	{ id: '2', label: 'Crawling competitors', status: 'pending' },
-	{ id: '3', label: 'Rebuilding brief', status: 'pending' }
+	{ id: '1', label: 'Gathering search results', status: 'pending' },
+	{ id: '2', label: 'Crawling competitor pages', status: 'pending' },
+	{ id: '3', label: 'Aggregating competitor signals', status: 'pending' },
+	{ id: '4', label: 'Preparing brief instructions', status: 'pending' },
+	{ id: '5', label: 'Drafting brief with AI', status: 'pending' },
+	{ id: '6', label: 'Shaping sections & outline', status: 'pending' },
+	{ id: '7', label: 'Weaving entities & questions', status: 'pending' },
+	{ id: '8', label: 'Finalizing brief structure', status: 'pending' }
 ];
 
 // Standalone article regeneration (brief exists, user wants a rewrite) — ids match NDJSON step events from generateArticle
@@ -1147,7 +1152,7 @@ export default function Workspace() {
 		setGenerating(true);
 		setTaskWidgetTitle('Research & Write');
 		setTaskWidgetSteps(
-			RESEARCH_AND_WRITE_STEPS.map((s, i) => ({
+			BRIEF_TASK_STEPS.map((s, i) => ({
 				...s,
 				status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
 			}))
@@ -1158,7 +1163,7 @@ export default function Workspace() {
 		setTaskWidgetOpen(true);
 
 		try {
-			// ── Step 1: Generate brief (NDJSON stream) ─────────────────────────────
+			// ── Step 1: Generate brief (NDJSON stream — same step ids as standalone brief) ──
 			setTaskWidgetDisableAutoAdvance(true);
 			const briefRes = await api.post(`/api/pages/${id}/brief`, {
 				authorOverride: authorForBrief.trim() || null
@@ -1197,12 +1202,24 @@ export default function Workspace() {
 						try {
 							const ev = JSON.parse(line) as {
 								type: string;
+								id?: string;
 								briefData?: Record<string, unknown>;
 								message?: string;
 								detail?: string;
 							};
 							if (ev.type === 'ping') continue;
-							if (ev.type === 'done') {
+							if (ev.type === 'step' && ev.id) {
+								const stepIdx = BRIEF_TASK_STEPS.findIndex((st) => st.id === ev.id);
+								if (stepIdx >= 0) {
+									setTaskWidgetSteps((prev) =>
+										prev.map((s, i) => {
+											if (i <= stepIdx) return { ...s, status: 'complete' as const };
+											if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+											return s;
+										})
+									);
+								}
+							} else if (ev.type === 'done') {
 								briefData = ev.briefData ?? null;
 								streamDone = true;
 								break;
@@ -1242,15 +1259,6 @@ export default function Workspace() {
 				return;
 			}
 
-			// Step 1 complete — advance to Step 2
-			setTaskWidgetSteps((s) =>
-				s
-					? [
-							{ ...s[0], status: 'complete' },
-							{ ...s[1], status: 'active' }
-						]
-					: s
-			);
 			await refetch(); // brief now in page data
 			await refetchOrg();
 

@@ -78,7 +78,7 @@ export interface AuditHistoryItem {
 	crawl_total_issues: number;
 }
 
-export const useAudit = (siteId: string | undefined) => {
+export const useAudit = (siteId: string | undefined, snapshotId?: string | null) => {
 	const [audit, setAudit] = useState<AuditResult | null>(null);
 	const [history, setHistory] = useState<AuditHistoryItem[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
@@ -97,7 +97,10 @@ export const useAudit = (siteId: string | undefined) => {
 				data: { session }
 			} = await supabase.auth.getSession();
 			if (!session?.access_token) return;
-			const response = await api.get(`/api/audit/${siteId}/latest`, {
+			const auditPath = snapshotId
+				? `/api/audit/${siteId}/snapshot/${snapshotId}`
+				: `/api/audit/${siteId}/latest`;
+			const response = await api.get(auditPath, {
 				headers: { Authorization: `Bearer ${session.access_token}` }
 			});
 			if (!response.ok) {
@@ -161,11 +164,11 @@ export const useAudit = (siteId: string | undefined) => {
 		}
 	};
 
-	// Fetch on mount and when siteId changes
+	// Fetch on mount and when siteId or snapshot changes
 	useEffect(() => {
 		fetchLatestAudit();
 		fetchAuditHistory();
-	}, [siteId]);
+	}, [siteId, snapshotId]);
 
 	// Poll if in progress
 	useEffect(() => {

@@ -991,6 +991,8 @@ Research confirms body text links in the first 400 words pass the most equity. Y
 `
 			: '';
 
+		writeNdjson(res, { type: 'step', id: '3' }); // Aggregating competitor signals (prompt prep)
+
 		const userPrompt = `PAGE TYPE: ${page.page_type || 'Blog Post / Article'}
 ${pageTypeInstr.systemNote}
 ${croContextBlock}
@@ -1080,14 +1082,50 @@ Requirements:
 - The intro section guidance MUST explicitly instruct: open with a direct statement
   containing the keyword that confirms the reader found what they searched for`;
 
+		writeNdjson(res, { type: 'step', id: '4' }); // Brief prompt assembled
+
 		let rawContent: string;
+		let briefDraftProgressTimer: ReturnType<typeof setInterval> | null = null;
 		try {
-			rawContent = await callClaudeWithKeepalive(
-				res,
-				`You are an expert SEO content strategist. You create detailed content briefs adapted to the specific page type — different page types have fundamentally different on-page SEO rules. ${pageTypeInstr.systemNote} Return only valid JSON — no markdown fences, no extra text.`,
-				userPrompt,
-				8192
-			);
+			writeNdjson(res, { type: 'step', id: '5' }); // Start AI draft — long phase
+			let nextBriefPhase = 6;
+			briefDraftProgressTimer = setInterval(() => {
+				try {
+					if (nextBriefPhase <= 8) {
+						writeNdjson(res, { type: 'step', id: String(nextBriefPhase) });
+						nextBriefPhase++;
+					}
+					if (nextBriefPhase > 8 && briefDraftProgressTimer) {
+						clearInterval(briefDraftProgressTimer);
+						briefDraftProgressTimer = null;
+					}
+				} catch {
+					if (briefDraftProgressTimer) clearInterval(briefDraftProgressTimer);
+					briefDraftProgressTimer = null;
+				}
+			}, 9_000);
+
+			try {
+				rawContent = await callClaudeWithKeepalive(
+					res,
+					`You are an expert SEO content strategist. You create detailed content briefs adapted to the specific page type — different page types have fundamentally different on-page SEO rules. ${pageTypeInstr.systemNote} Return only valid JSON — no markdown fences, no extra text.`,
+					userPrompt,
+					8192
+				);
+			} finally {
+				if (briefDraftProgressTimer) {
+					clearInterval(briefDraftProgressTimer);
+					briefDraftProgressTimer = null;
+				}
+				// Ensure steps 6–8 are emitted if the model returned faster than the interval ticks
+				try {
+					for (let p = nextBriefPhase; p <= 8; p++) {
+						writeNdjson(res, { type: 'step', id: String(p) });
+					}
+				} catch {
+					// response closed
+				}
+			}
 		} catch (err) {
 			console.error('[Pages] Claude brief error:', err instanceof Error ? err.message : err);
 			const summary = summarizeAnthropicFailure(err);
@@ -1117,7 +1155,6 @@ Requirements:
 			res.end();
 			return;
 		}
-		writeNdjson(res, { type: 'step', id: '3' }); // Rebuilding brief
 
 		let briefData: Record<string, unknown>;
 		try {

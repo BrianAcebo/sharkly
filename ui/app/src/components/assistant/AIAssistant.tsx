@@ -69,8 +69,9 @@ const TOOL_CONFIG: Record<
 	suggest_next_actions: { icon: Lightbulb, label: 'Suggesting Actions', color: 'text-cyan-500' },
 	trigger_technical_audit: {
 		icon: Server,
-		label: 'Starting Technical Audit',
-		color: 'text-red-500'
+		label: 'Technical Audit',
+		color: 'text-red-500',
+		resultPath: (r: { site_id?: string }) => (r?.site_id ? `/audit/${r.site_id}` : null)
 	}
 };
 
@@ -203,6 +204,11 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 	const isRunning = tool.status === 'running';
 	const isCompleted = tool.status === 'completed';
 	const isError = tool.status === 'error';
+	const auditSummary =
+		isCompleted &&
+		tool.name === 'trigger_technical_audit' &&
+		tool.result &&
+		typeof (tool.result as { site_id?: string }).site_id === 'string';
 
 	return (
 		<div
@@ -248,7 +254,9 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 							</span>
 						</div>
 						<p className="mt-0.5 wrap-break-word text-sm text-gray-600 dark:text-gray-400">
-							{isRunning && (tool.result?.message || 'Running... This may take a moment.')}
+							{isRunning &&
+								(tool.result?.message ||
+									'Running full crawl and audit — this usually takes 1–3 minutes.')}
 							{isCompleted && (tool.result?.message || 'Completed successfully')}
 							{isError && (tool.result?.error || 'Action failed')}
 						</p>
@@ -256,7 +264,7 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 				</div>
 
 				<div className="flex shrink-0 items-center gap-3 sm:ml-auto">
-					{isCompleted && resultPath && (
+					{isCompleted && resultPath && !auditSummary && (
 						<Button
 							onClick={() => navigate(resultPath)}
 							className="gap-2 bg-green-600 text-white hover:bg-green-700"
@@ -267,6 +275,66 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 					)}
 				</div>
 			</div>
+
+			{auditSummary && (
+				<div className="border-t border-green-200 bg-white/90 px-4 py-3 dark:border-green-800 dark:bg-gray-900/60">
+					<p className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+						Results summary
+					</p>
+					<div className="mt-2 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+						<div>
+							<p className="text-xs text-gray-500 dark:text-gray-400">Health score</p>
+							<p className="font-semibold text-gray-900 dark:text-white">
+								{(tool.result as { overall_score?: number }).overall_score ?? '—'}/100
+							</p>
+						</div>
+						<div>
+							<p className="text-xs text-gray-500 dark:text-gray-400">Critical</p>
+							<p className="font-semibold text-gray-900 dark:text-white">
+								{(tool.result as { critical_issues?: number }).critical_issues ?? '—'}
+							</p>
+						</div>
+						<div>
+							<p className="text-xs text-gray-500 dark:text-gray-400">Total issues</p>
+							<p className="font-semibold text-gray-900 dark:text-white">
+								{(tool.result as { total_issues?: number }).total_issues ?? '—'}
+							</p>
+						</div>
+						<div>
+							<p className="text-xs text-gray-500 dark:text-gray-400">Pages crawled</p>
+							<p className="font-semibold text-gray-900 dark:text-white">
+								{(tool.result as { pages_crawled?: number }).pages_crawled ?? '—'}
+							</p>
+						</div>
+					</div>
+					{Array.isArray((tool.result as { recommendations_preview?: string[] }).recommendations_preview) &&
+						(tool.result as { recommendations_preview: string[] }).recommendations_preview.length >
+							0 && (
+							<ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-gray-600 dark:text-gray-300">
+								{(tool.result as { recommendations_preview: string[] }).recommendations_preview
+									.slice(0, 5)
+									.map((line, idx) => (
+										<li key={idx}>{line}</li>
+									))}
+							</ul>
+						)}
+					<div className="mt-3 flex flex-wrap gap-2">
+						<Button
+							type="button"
+							onClick={() =>
+								navigate(`/audit/${(tool.result as { site_id: string }).site_id}`)
+							}
+							className="gap-2 bg-green-600 text-white hover:bg-green-700"
+						>
+							<ExternalLink className="h-4 w-4" />
+							Full audit report
+						</Button>
+						<Button type="button" variant="outline" onClick={() => navigate('/technical')}>
+							Technical SEO (issues)
+						</Button>
+					</div>
+				</div>
+			)}
 
 			{/* Progress bar for running state */}
 			{isRunning && (

@@ -27,6 +27,17 @@ import {
 import { cn } from '../../utils/common';
 import { formatDistanceToNow } from 'date-fns';
 import { api } from '../../utils/api';
+import { toast } from 'sonner';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle
+} from '../ui/alert-dialog';
 
 interface ChatSession {
 	id: string;
@@ -64,6 +75,10 @@ export function ChatHistorySidebar({
 	const [searchQuery, setSearchQuery] = useState('');
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [editTitle, setEditTitle] = useState('');
+	const [sessionToDelete, setSessionToDelete] = useState<{ id: string; title: string } | null>(
+		null
+	);
+	const [deleteInProgress, setDeleteInProgress] = useState(false);
 
 	// Fetch sessions
 	const fetchSessions = useCallback(async () => {
@@ -207,32 +222,85 @@ export function ChatHistorySidebar({
 		}
 	};
 
-	// Delete session
-	const deleteSession = async (sessionId: string) => {
-		if (!confirm('Delete this conversation?')) return;
+	const confirmDeleteSession = async () => {
+		const target = sessionToDelete;
+		if (!target) return;
 
+		setDeleteInProgress(true);
 		try {
 			const headers = await getAuthHeaders();
-			if (!headers) return;
+			if (!headers) {
+				toast.error('Please sign in again');
+				return;
+			}
 
-			await api.delete(`/api/ai/conversation/${sessionId}`, {
+			const res = await api.delete(`/api/ai/conversation/${target.id}`, {
 				headers: {
 					Authorization: headers.Authorization,
 					'x-organization-id': orgData?.id || ''
 				}
 			});
-			fetchSessions();
-			if (sessionId === currentSessionId) {
+
+			if (!res.ok) {
+				const data = await res.json().catch(() => ({}));
+				toast.error((data as { error?: string }).error ?? 'Could not delete conversation');
+				return;
+			}
+
+			setSessions((prev) => prev.filter((s) => s.id !== target.id));
+			setSessionToDelete(null);
+			if (target.id === currentSessionId) {
 				onNewChat();
 			}
+			void fetchSessions();
 		} catch (error) {
 			console.error('[ChatHistory] Error deleting:', error);
+			toast.error('Could not delete conversation');
+		} finally {
+			setDeleteInProgress(false);
 		}
 	};
+
+	const deleteDialog = (
+		<AlertDialog
+			open={!!sessionToDelete}
+			onOpenChange={(open) => {
+				if (!open && !deleteInProgress) setSessionToDelete(null);
+			}}
+		>
+			<AlertDialogContent>
+				<AlertDialogHeader>
+					<AlertDialogTitle>Delete conversation?</AlertDialogTitle>
+					<AlertDialogDescription>
+						{sessionToDelete && (
+							<>
+								This will permanently remove &quot;{sessionToDelete.title}&quot;. This cannot be
+								undone.
+							</>
+						)}
+					</AlertDialogDescription>
+				</AlertDialogHeader>
+				<AlertDialogFooter>
+					<AlertDialogCancel disabled={deleteInProgress}>Cancel</AlertDialogCancel>
+					<AlertDialogAction
+						variant="destructive"
+						disabled={deleteInProgress}
+						onClick={(e) => {
+							e.preventDefault();
+							void confirmDeleteSession();
+						}}
+					>
+						{deleteInProgress ? 'Deleting…' : 'Delete'}
+					</AlertDialogAction>
+				</AlertDialogFooter>
+			</AlertDialogContent>
+		</AlertDialog>
+	);
 
 	// Collapsed view
 	if (isCollapsed) {
 		return (
+			<>
 			<div className="flex h-full flex-col items-center gap-4 border-r border-gray-200 bg-gray-50 py-4 pr-6 dark:border-gray-700 dark:bg-gray-900">
 				<Button
 					variant="outline"
@@ -264,10 +332,13 @@ export function ChatHistorySidebar({
 					))}
 				</div>
 			</div>
+			{deleteDialog}
+			</>
 		);
 	}
 
 	return (
+		<>
 		<div className="flex h-full max-h-screen flex-col overflow-hidden border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
 			{/* Header */}
 			<div className="border-b border-gray-200 p-4 dark:border-gray-700">
@@ -420,7 +491,12 @@ export function ChatHistorySidebar({
 														)}
 													</DropdownMenuItem>
 													<DropdownMenuItem
-														onClick={() => deleteSession(session.id)}
+														onClick={() =>
+															setSessionToDelete({
+																id: session.id,
+																title: session.title || 'New conversation'
+															})
+														}
 														className="text-red-600 dark:text-red-400"
 													>
 														<Trash2 className="mr-2 h-4 w-4" />
@@ -437,5 +513,7 @@ export function ChatHistorySidebar({
 				)}
 			</div>
 		</div>
+		{deleteDialog}
+		</>
 	);
 }

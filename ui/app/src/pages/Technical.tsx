@@ -1598,6 +1598,40 @@ export default function Technical() {
 	const [expandedUrls, setExpandedUrls] = useState<Record<string, boolean>>({});
 	const [resolving, setResolving] = useState<Record<string, boolean>>({});
 	const [showResolved, setShowResolved] = useState(false);
+	const [crawlHistory, setCrawlHistory] = useState<
+		Array<{
+			id: string;
+			status: string;
+			pages_scanned: number | null;
+			total_issues: number | null;
+			critical_issues: number | null;
+			warning_issues: number | null;
+			info_issues: number | null;
+			avg_response_time_ms: number | null;
+			end_time: string | null;
+			duration_seconds: number | null;
+			created_at: string;
+		}>
+	>([]);
+
+	const fetchCrawlHistory = useCallback(async () => {
+		if (!selectedSite) return;
+		try {
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			if (!session?.access_token) return;
+			const res = await api.get(`/api/crawler/history/${selectedSite.id}`, {
+				headers: { Authorization: `Bearer ${session.access_token}` }
+			});
+			if (res.ok) {
+				const data = await res.json();
+				setCrawlHistory(data.runs || []);
+			}
+		} catch (e) {
+			console.error('[Technical] crawl history:', e);
+		}
+	}, [selectedSite]);
 
 	const fetchResults = useCallback(async () => {
 		if (!selectedSite) return;
@@ -1612,8 +1646,11 @@ export default function Technical() {
 	}, [selectedSite]);
 
 	useEffect(() => {
-		if (selectedSite) fetchResults();
-	}, [selectedSite, fetchResults]);
+		if (selectedSite) {
+			fetchResults();
+			fetchCrawlHistory();
+		}
+	}, [selectedSite, fetchResults, fetchCrawlHistory]);
 
 	const markResolved = async (issueIds: string[]) => {
 		const key = issueIds[0];
@@ -1686,6 +1723,7 @@ export default function Technical() {
 				`Crawl complete — ${data.data.issuesFound} issues found across ${data.data.pagesScanned} pages.`
 			);
 			await fetchResults();
+			await fetchCrawlHistory();
 		} catch {
 			toast.error('Error starting crawl');
 		} finally {
@@ -1821,6 +1859,59 @@ export default function Technical() {
 							{checking ? 'Checking…' : loading ? 'Crawling…' : 'Start Crawl'}
 						</Button>
 					</div>
+
+					{crawlHistory.length > 0 && (
+						<div className="rounded-xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-900">
+							<div className="mb-2 flex items-center gap-2">
+								<Clock className="size-4 text-gray-500" />
+								<p className="font-medium text-gray-900 dark:text-white">Past crawl runs</p>
+							</div>
+							<p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+								Each run stores page counts and issue totals (current issue list always reflects the
+								latest crawl). For DA, Core Web Vitals, and indexation snapshots, open{' '}
+								<button
+									type="button"
+									onClick={() => navigate(`/audit/${selectedSite.id}`)}
+									className="font-medium text-brand-600 underline hover:text-brand-700 dark:text-brand-400"
+								>
+									Full site audit report
+								</button>
+								.
+							</p>
+							<div className="max-h-56 overflow-auto rounded-lg border border-gray-100 dark:border-gray-700">
+								<table className="w-full text-left text-xs">
+									<thead className="sticky top-0 bg-gray-50 text-[10px] font-semibold tracking-wide text-gray-500 uppercase dark:bg-gray-800 dark:text-gray-400">
+										<tr>
+											<th className="px-3 py-2">When</th>
+											<th className="px-3 py-2">Status</th>
+											<th className="px-3 py-2 text-right">Pages</th>
+											<th className="px-3 py-2 text-right">Issues</th>
+											<th className="px-3 py-2 text-right">Crit.</th>
+											<th className="px-3 py-2 text-right">Duration</th>
+										</tr>
+									</thead>
+									<tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+										{crawlHistory.map((row) => (
+											<tr key={row.id} className="text-gray-700 dark:text-gray-300">
+												<td className="px-3 py-2 whitespace-nowrap">
+													{row.end_time || row.created_at
+														? new Date(row.end_time || row.created_at).toLocaleString()
+														: '—'}
+												</td>
+												<td className="px-3 py-2 capitalize">{row.status || '—'}</td>
+												<td className="px-3 py-2 text-right">{row.pages_scanned ?? '—'}</td>
+												<td className="px-3 py-2 text-right">{row.total_issues ?? '—'}</td>
+												<td className="px-3 py-2 text-right">{row.critical_issues ?? '—'}</td>
+												<td className="px-3 py-2 text-right">
+													{row.duration_seconds != null ? `${row.duration_seconds}s` : '—'}
+												</td>
+											</tr>
+										))}
+									</tbody>
+								</table>
+							</div>
+						</div>
+					)}
 
 					{/* ── Results ──────────────────────────────────────────────────────── */}
 					{results && (

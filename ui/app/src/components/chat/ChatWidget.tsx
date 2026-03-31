@@ -62,8 +62,9 @@ const TOOL_CONFIG: Record<
 	suggest_next_actions: { icon: Sparkles, label: 'Suggesting Actions', color: 'text-cyan-500' },
 	trigger_technical_audit: {
 		icon: Server,
-		label: 'Starting Technical Audit',
-		color: 'text-red-500'
+		label: 'Technical Audit',
+		color: 'text-red-500',
+		resultPath: (r: { site_id?: string }) => (r?.site_id ? `/audit/${r.site_id}` : null)
 	}
 };
 
@@ -130,6 +131,11 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 	const isRunning = tool.status === 'running';
 	const isCompleted = tool.status === 'completed';
 	const isError = tool.status === 'error';
+	const auditSummary =
+		isCompleted &&
+		tool.name === 'trigger_technical_audit' &&
+		tool.result &&
+		typeof (tool.result as { site_id?: string }).site_id === 'string';
 
 	return (
 		<div
@@ -174,7 +180,9 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 							</span>
 						</div>
 						<p className="wrap-break-word text-xs text-gray-500 dark:text-gray-400">
-							{isRunning && (tool.result?.message || 'Running... This may take a minute.')}
+							{isRunning &&
+								(tool.result?.message ||
+									'Running full crawl and audit — usually 1–3 minutes.')}
 							{isCompleted && (tool.result?.message || 'Completed successfully')}
 							{isError && (tool.result?.error || 'Action failed')}
 						</p>
@@ -182,7 +190,7 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 				</div>
 
 				<div className="flex shrink-0 items-center gap-2 sm:ml-auto">
-					{isCompleted && resultPath && (
+					{isCompleted && resultPath && !auditSummary && (
 						<Button
 							size="sm"
 							variant="outline"
@@ -195,6 +203,42 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 					)}
 				</div>
 			</div>
+
+			{auditSummary && (
+				<div className="border-t border-green-200 px-3 py-2 dark:border-green-800">
+					<p className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase">Summary</p>
+					<div className="mt-1 grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+						<span>
+							Score{' '}
+							<strong>{(tool.result as { overall_score?: number }).overall_score ?? '—'}</strong>
+						</span>
+						<span>
+							Critical{' '}
+							<strong>{(tool.result as { critical_issues?: number }).critical_issues ?? '—'}</strong>
+						</span>
+						<span>
+							Issues{' '}
+							<strong>{(tool.result as { total_issues?: number }).total_issues ?? '—'}</strong>
+						</span>
+						<span>
+							Pages{' '}
+							<strong>{(tool.result as { pages_crawled?: number }).pages_crawled ?? '—'}</strong>
+						</span>
+					</div>
+					<div className="mt-2 flex flex-wrap gap-1.5">
+						<Button
+							size="sm"
+							className="h-7 text-xs"
+							onClick={() => navigate(`/audit/${(tool.result as { site_id: string }).site_id}`)}
+						>
+							Full report
+						</Button>
+						<Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate('/technical')}>
+							Issues
+						</Button>
+					</div>
+				</div>
+			)}
 
 			{/* Progress bar for running state */}
 			{isRunning && (
