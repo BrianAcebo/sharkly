@@ -153,15 +153,19 @@ const BRIEF_TASK_STEPS: TaskStep[] = [
 	{ id: '3', label: 'Rebuilding brief', status: 'pending' }
 ];
 
-// Standalone article regeneration (brief exists, user wants a rewrite)
+// Standalone article regeneration (brief exists, user wants a rewrite) — ids match NDJSON step events from generateArticle
 const ARTICLE_TASK_STEPS: TaskStep[] = [
-	{ id: '1', label: 'Loading your brief plan', status: 'pending' },
-	{ id: '2', label: 'Writing content', status: 'pending' },
-	{ id: '3', label: 'Optimizing for SEO', status: 'pending' },
-	{ id: '4', label: 'Finalizing', status: 'pending' }
+	{ id: '1', label: 'Loading context & competitors', status: 'pending' },
+	{ id: '2', label: 'Preparing draft', status: 'pending' },
+	{ id: '3', label: 'Generating article', status: 'pending' },
+	{ id: '4', label: 'Drafting deeper', status: 'pending' },
+	{ id: '5', label: 'Continuing draft', status: 'pending' },
+	{ id: '6', label: 'Formatting & internal links', status: 'pending' },
+	{ id: '7', label: 'Extracting SEO metadata', status: 'pending' },
+	{ id: '8', label: 'Saving article', status: 'pending' }
 ];
 
-// Supporting article — single step with context
+// Supporting article — same step ids as focus article stream
 const SUPPORTING_ARTICLE_STEPS: TaskStep[] = [
 	{
 		id: '1',
@@ -170,8 +174,13 @@ const SUPPORTING_ARTICLE_STEPS: TaskStep[] = [
 			'Supporting articles target long-tail keywords. Crawling competitors for word count and H2 structure, then writing directly — same patent-grounded signals as a focus page, calibrated to the actual competition.',
 		status: 'pending'
 	},
-	{ id: '2', label: 'Writing article', status: 'pending' },
-	{ id: '3', label: 'Extracting SEO metadata', status: 'pending' }
+	{ id: '2', label: 'Preparing draft', status: 'pending' },
+	{ id: '3', label: 'Generating article', status: 'pending' },
+	{ id: '4', label: 'Drafting sections', status: 'pending' },
+	{ id: '5', label: 'Refining content', status: 'pending' },
+	{ id: '6', label: 'Formatting & internal links', status: 'pending' },
+	{ id: '7', label: 'Extracting SEO metadata', status: 'pending' },
+	{ id: '8', label: 'Saving article', status: 'pending' }
 ];
 
 // ---------------------------------------------------------------------------
@@ -817,7 +826,7 @@ export default function Workspace() {
 		setIgsModalOpen(true);
 	}, [siteForAuthor?.originalInsight]);
 
-	/** Step 2 of Research & Write — article NDJSON stream (widget already shows step 1 complete) */
+	/** Step 2 of Research & Write — article NDJSON stream (switches widget to detailed article steps) */
 	const runResearchWriteArticleOnly = useCallback(async () => {
 		if (!id) return;
 		const articleRes = await api.post(`/api/pages/${id}/article`);
@@ -836,6 +845,17 @@ export default function Workspace() {
 			return;
 		}
 
+		const steps = ARTICLE_TASK_STEPS;
+		setTaskWidgetTitle('Writing article from brief');
+		setTaskWidgetSteps(
+			steps.map((s, i) => ({
+				...s,
+				status: (i === 0 ? 'active' : 'pending') as 'active' | 'pending'
+			}))
+		);
+		setTaskWidgetStatus('running');
+		setTaskWidgetOpen(true);
+
 		const articleReader = articleRes.body?.getReader();
 		const articleDecoder = new TextDecoder();
 		let articleBuffer = '';
@@ -851,9 +871,24 @@ export default function Workspace() {
 				for (const line of lines) {
 					if (!line.trim()) continue;
 					try {
-						const ev = JSON.parse(line) as { type: string; message?: string; detail?: string };
+						const ev = JSON.parse(line) as {
+							type: string;
+							id?: string;
+							message?: string;
+							detail?: string;
+						};
 						if (ev.type === 'ping') continue;
-						if (ev.type === 'done') {
+						if (ev.type === 'step' && ev.id) {
+							setTaskWidgetSteps((prev) => {
+								const stepIdx = steps.findIndex((st) => st.id === ev.id);
+								if (stepIdx === -1) return prev;
+								return prev.map((s, i) => {
+									if (i <= stepIdx) return { ...s, status: 'complete' as const };
+									if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+									return s;
+								});
+							});
+						} else if (ev.type === 'done') {
 							articleDone = true;
 							break;
 						} else if (ev.type === 'error') {
@@ -881,7 +916,6 @@ export default function Workspace() {
 			return;
 		}
 
-		setTaskWidgetSteps((s) => (s ? [s[0], { ...s[1], status: 'complete' }] : s));
 		setTaskWidgetStatus('done');
 		toast.success('Focus page complete — research, brief, and article ready');
 		setGenerating(false);

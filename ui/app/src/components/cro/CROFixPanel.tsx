@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Copy, MapPin, Wand2 } from 'lucide-react';
+import { Copy, MapPin, RefreshCw, Wand2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { toast } from 'sonner';
 import { CreditCost } from '../shared/CreditBadge';
@@ -46,6 +46,21 @@ export function CROFixPanel({
 	if (options && options.length > 0) {
 		return (
 			<div className="mt-4 space-y-3">
+				<div className="flex flex-wrap items-center gap-2">
+					<Button
+						size="sm"
+						variant="outline"
+						onClick={() => onGenerateFix(itemKey)}
+						disabled={generating}
+						className="h-8 gap-2 text-xs"
+					>
+						<RefreshCw className={`size-3.5 ${generating ? 'animate-spin' : ''}`} />
+						{generating ? 'Generating…' : 'Regenerate fix'}
+					</Button>
+					<span className="text-xs text-gray-400">
+						<CreditCost amount={creditCost} />
+					</span>
+				</div>
 				<p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
 					Generated fix
 				</p>

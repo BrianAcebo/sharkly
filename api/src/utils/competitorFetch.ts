@@ -451,11 +451,17 @@ export interface PageSeoMeta {
 	schemaTypes: string[];
 }
 
+/** Live fetch for universal SEO checks — includes HTML for password-gate detection */
+export interface PageSeoFetchResult {
+	meta: PageSeoMeta;
+	html: string;
+}
+
 /**
  * Fetch a URL and extract metadata for SEO checks (title, H1, meta description, JSON-LD types).
  * Returns null on fetch/parse error.
  */
-export async function fetchPageForSeoChecks(url: string): Promise<PageSeoMeta | null> {
+export async function fetchPageForSeoChecks(url: string): Promise<PageSeoFetchResult | null> {
 	try {
 		const res = await axios.get(url, {
 			timeout: TIMEOUT_MS,
@@ -476,11 +482,14 @@ export async function fetchPageForSeoChecks(url: string): Promise<PageSeoMeta | 
 		const schemaTypes = extractSchemaTypes($);
 
 		return {
-			title,
-			h1,
-			metaDescription: metaDesc,
-			metaDescriptionLength: metaDescLen,
-			schemaTypes
+			meta: {
+				title,
+				h1,
+				metaDescription: metaDesc,
+				metaDescriptionLength: metaDescLen,
+				schemaTypes
+			},
+			html
 		};
 	} catch {
 		return null;

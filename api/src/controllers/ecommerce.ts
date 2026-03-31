@@ -9,7 +9,7 @@ import { OpenAI } from 'openai';
 import { supabase } from '../utils/supabaseClient.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
 import { serperSearch } from '../utils/serper.js';
-import { fetchCompetitorPages, fetchPageForSeoChecks } from '../utils/competitorFetch.js';
+import { fetchCompetitorPages } from '../utils/competitorFetch.js';
 import {
 	getShopifyToken,
 	listShopifyProducts,

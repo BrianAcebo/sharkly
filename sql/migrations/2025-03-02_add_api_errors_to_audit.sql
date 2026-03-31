@@ -9,5 +9,5 @@ ADD COLUMN IF NOT EXISTS indexation_error TEXT DEFAULT NULL,
 ADD COLUMN IF NOT EXISTS api_errors JSONB DEFAULT '{}'::jsonb;
 
 -- Index for easy lookup of audits with errors (for monitoring/debugging)
-CREATE INDEX IF NOT EXISTS idx_audit_results_has_errors ON public.audit_results
+CREATE INDEX IF NOT EXISTS idx_audit_results_has_errors ON public.audit_results (id)
   WHERE (api_errors != '{}'::jsonb);

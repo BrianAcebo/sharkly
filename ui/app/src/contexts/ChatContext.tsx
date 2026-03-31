@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import { useOrganization } from '../hooks/useOrganization';
 import { supabase } from '../utils/supabaseClient';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
 
 export interface UploadedFile {
@@ -90,6 +91,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const pollingIntervalsRef = useRef<Set<ReturnType<typeof setInterval>>>(new Set());
   const navigate = useNavigate();
+  const location = useLocation();
 
   const refreshSessions = useCallback(() => {
     setSessionRefreshKey(prev => prev + 1);
@@ -293,12 +295,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                   setTotalCreditsUsed(prev => prev + (data.credits || 0));
                   break;
 
-                case 'done':
-                  // If this was a new conversation, refresh the sidebar
-                  if (!conversationId && data.conversation_id) {
-                    setSessionRefreshKey(prev => prev + 1);
+                case 'done': {
+                  const wasNewConversation = !conversationId;
+                  const newConvId = data.conversation_id as string | undefined;
+                  if (newConvId) {
+                    // Commit id before navigate so URL sync effect never sees /assistant/:id with null id
+                    flushSync(() => {
+                      if (wasNewConversation) {
+                        setSessionRefreshKey((prev) => prev + 1);
+                      }
+                      setConversationId(newConvId);
+                    });
+                    const p = location.pathname;
+                    if (wasNewConversation && (p === '/assistant' || p === '/assistant/')) {
+                      navigate(`/assistant/${newConvId}`, { replace: true });
+                    }
                   }
-                  setConversationId(data.conversation_id);
                   if (data.usage) {
                     setUsageInfo(data.usage);
                     // Add chat credit cost to total if charged
@@ -307,14 +319,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     }
                   }
                   break;
+                }
 
                 case 'error':
                   // Even on error, update conversation ID and refresh if session was created
                   if (data.conversation_id) {
-                    if (!conversationId) {
-                      setSessionRefreshKey(prev => prev + 1);
+                    const wasNewConversation = !conversationId;
+                    flushSync(() => {
+                      if (wasNewConversation) {
+                        setSessionRefreshKey((prev) => prev + 1);
+                      }
+                      setConversationId(data.conversation_id);
+                    });
+                    const p = location.pathname;
+                    if (wasNewConversation && (p === '/assistant' || p === '/assistant/')) {
+                      navigate(`/assistant/${data.conversation_id}`, { replace: true });
                     }
-                    setConversationId(data.conversation_id);
                   }
                   throw new Error(data.error);
               }
@@ -363,7 +383,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       abortControllerRef.current = null;
     }
-  }, [conversationId, isLoading, orgData?.id, personContext]);
+  }, [conversationId, isLoading, orgData?.id, personContext, navigate, location.pathname]);
 
   const clearChat = useCallback(() => {
     // Abort any in-progress request
@@ -381,6 +401,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     if (!orgData?.id) return;
 
     try {
+      // Match URL intent immediately so UI never flashes the /assistant home state while fetching
+      setConversationId(targetConversationId);
       setIsLoading(true);
       setMessages([]);
       setCurrentTools([]);

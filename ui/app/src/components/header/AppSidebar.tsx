@@ -33,6 +33,7 @@ import { useTierUpgrade } from '../../contexts/TierUpgradeContext';
 import type { OrganizationRow } from '../../types/billing';
 import { Tooltip } from '../ui/tooltip';
 import { cn } from '../../utils/common';
+import { useChat } from '../../contexts/ChatContext';
 
 type MenuItem = {
 	icon: React.ComponentType<{ className?: string }>;
@@ -53,6 +54,7 @@ interface AppSidebarProps {
 
 const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading }) => {
 	const { user, signOut } = useAuth();
+	const { clearChat } = useChat();
 	const { isExpanded, isMobileOpen } = useSidebar();
 	const { openCROStudioUpgradeModal } = useCROStudioUpgrade();
 	const { openTierUpgradeModal } = useTierUpgrade();
@@ -417,11 +419,14 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 								: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
 						}`;
 
+						const assistantHomeClick =
+							item.path === '/assistant' ? () => clearChat() : undefined;
+
 						return (
 							<li key={`${item.path ?? item.label}${index}`}>
 								{!(isExpanded || isMobileOpen) ? (
 									<Tooltip content={item.label} tooltipPosition="right" usePortal>
-										<Link to={item.path as string}>
+										<Link to={item.path as string} onClick={assistantHomeClick}>
 											<button className={linkClassName}>
 												<item.icon className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
 												{(isExpanded || isMobileOpen) && (
@@ -431,7 +436,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 										</Link>
 									</Tooltip>
 								) : (
-									<Link to={item.path as string}>
+									<Link to={item.path as string} onClick={assistantHomeClick}>
 										<button className={linkClassName}>
 											<item.icon className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
 											{(isExpanded || isMobileOpen) && (

@@ -1653,13 +1653,42 @@ Output HTML only (h1, h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, a 
 
 		let htmlContent: string;
 		try {
-			htmlContent = await callClaudeWithKeepalive(
-				res,
-				`You are a content writer for ${siteCtx.name}, a brand in ${siteCtx.niche}. Write for ${siteCtx.audience}. Tone: ${siteCtx.tone} — ${siteCtx.toneGuidance} Adapt structure completely by page type. ${articlePageTypeInstr.systemNote} Every sentence must sound like a real human at ${siteCtx.name} wrote it. Vary sentence length. Avoid filler phrases. Insert every internal link as an HTML <a> tag — mandatory. Output HTML only — no markdown, no wrappers.`,
-				userPrompt,
-				8192
-			);
+			// Steps 2–3: prep + start drafting; 4–5: timed milestones during long Claude call (client TaskProgressWidget)
 			writeNdjson(res, { type: 'step', id: '2' });
+			writeNdjson(res, { type: 'step', id: '3' });
+			let emitted4 = false;
+			let emitted5 = false;
+			const draftProgressTimer = setInterval(() => {
+				try {
+					if (!emitted4) {
+						writeNdjson(res, { type: 'step', id: '4' });
+						emitted4 = true;
+					} else if (!emitted5) {
+						writeNdjson(res, { type: 'step', id: '5' });
+						emitted5 = true;
+						clearInterval(draftProgressTimer);
+					}
+				} catch {
+					clearInterval(draftProgressTimer);
+				}
+			}, 22_000);
+
+			try {
+				htmlContent = await callClaudeWithKeepalive(
+					res,
+					`You are a content writer for ${siteCtx.name}, a brand in ${siteCtx.niche}. Write for ${siteCtx.audience}. Tone: ${siteCtx.tone} — ${siteCtx.toneGuidance} Adapt structure completely by page type. ${articlePageTypeInstr.systemNote} Every sentence must sound like a real human at ${siteCtx.name} wrote it. Vary sentence length. Avoid filler phrases. Insert every internal link as an HTML <a> tag — mandatory. Output HTML only — no markdown, no wrappers.`,
+					userPrompt,
+					8192
+				);
+			} finally {
+				clearInterval(draftProgressTimer);
+				try {
+					if (!emitted4) writeNdjson(res, { type: 'step', id: '4' });
+					if (!emitted5) writeNdjson(res, { type: 'step', id: '5' });
+				} catch {
+					// response closed
+				}
+			}
 		} catch (err) {
 			console.error('[Pages] Claude article error:', err instanceof Error ? err.message : err);
 			const summary = summarizeAnthropicFailure(err);
@@ -1696,6 +1725,8 @@ Output HTML only (h1, h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, a 
 		const wordCount = stripTags(htmlWithSpaces).split(/\s+/).filter(Boolean).length;
 		const tiptapContent = htmlToTiptap(htmlWithSpaces);
 
+		writeNdjson(res, { type: 'step', id: '6' });
+
 		// ── Extract meta + semantic data from the generated article ────────────
 		type ArticleMeta = {
 			meta_title: string;
@@ -1706,6 +1737,7 @@ Output HTML only (h1, h2, h3, p, ul, ol, li, table, thead, tbody, tr, th, td, a 
 		};
 
 		let extractedMeta: ArticleMeta | null = null;
+		writeNdjson(res, { type: 'step', id: '7' });
 		try {
 			const keyword = page.keyword || page.title;
 			const plainText = stripTags(htmlWithSpaces).slice(0, 3000);
@@ -1747,11 +1779,7 @@ Requirements:
 			console.warn('[Pages] Meta extraction failed:', err instanceof Error ? err.message : err);
 		}
 
-		writeNdjson(res, { type: 'step', id: '3' });
-
-		if (isFocusPage) {
-			writeNdjson(res, { type: 'step', id: '4' });
-		}
+		writeNdjson(res, { type: 'step', id: '8' });
 
 		const existingBrief = (page.brief_data as Record<string, unknown> | null) ?? {};
 		const mergedBriefData = {

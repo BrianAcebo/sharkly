@@ -52,6 +52,7 @@ import { Tooltip } from '../components/ui/tooltip';
 import { supabase } from '../utils/supabaseClient';
 import { api } from '../utils/api';
 import { CreditCost } from '../components/shared/CreditBadge';
+import { PasswordProtectedCrawlNotice } from '../components/shared/PasswordProtectedCrawlNotice';
 import { CREDIT_COSTS } from '../lib/credits';
 import { cleanPastedHTML, htmlToTiptap } from '../lib/editorUtils';
 import {
@@ -126,9 +127,13 @@ function SeoChecksDisplay({ seoChecks }: { seoChecks: unknown }) {
 	const data = seoChecks as {
 		checks?: Record<string, { status: string; message: string }>;
 		fetch_error?: boolean;
+		likely_password_protected?: boolean;
+		password_protection_message?: string;
 	};
 	const checks = data?.checks ?? {};
 	const fetchError = data?.fetch_error ?? false;
+	const likelyPassword = Boolean(data?.likely_password_protected);
+	const passwordMessage = data?.password_protection_message;
 
 	// If fetch failed, show only the error
 	if (fetchError && checks.fetch_error) {
@@ -153,6 +158,9 @@ function SeoChecksDisplay({ seoChecks }: { seoChecks: unknown }) {
 	];
 	return (
 		<div className="mt-3 space-y-2">
+			{likelyPassword && (
+				<PasswordProtectedCrawlNotice message={passwordMessage} className="mb-1" />
+			)}
 			{keys.map((key) => {
 				const c = checks[key];
 				if (!c) return null;

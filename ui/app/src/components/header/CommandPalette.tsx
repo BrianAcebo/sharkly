@@ -29,6 +29,7 @@ import { useClusters } from '../../hooks/useClusters';
 import { useTargets } from '../../hooks/useTargets';
 import { useTopics } from '../../hooks/useTopics';
 import { useOrganization } from '../../hooks/useOrganization';
+import { useChat } from '../../contexts/ChatContext';
 import { api } from '../../utils/api';
 import { supabase } from '../../utils/supabaseClient';
 import { canAccessPerformance, canAccessTechnical, canAccessCROStudio } from '../../utils/featureGating';
@@ -254,6 +255,7 @@ const typeLabels: Record<ResultType, string> = {
 
 const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ onClose }, ref) => {
 	const navigate = useNavigate();
+	const { clearChat } = useChat();
 	const { selectedSite } = useSiteContext();
 	const { sites } = useSites();
 	const { clusters } = useClusters(selectedSite?.id ?? null);
@@ -488,10 +490,13 @@ const CommandPalette = React.forwardRef<HTMLDivElement, CommandPaletteProps>(({ 
 
 	const handleResultSelect = useCallback(
 		(result: SearchResult) => {
+			if (result.path === '/assistant' || result.path === '/assistant/') {
+				clearChat();
+			}
 			navigate(result.path);
 			onClose();
 		},
-		[navigate, onClose]
+		[navigate, onClose, clearChat]
 	);
 
 	const handleKeyDown = useCallback(

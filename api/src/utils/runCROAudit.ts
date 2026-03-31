@@ -51,6 +51,8 @@ export interface CROAuditResult {
 	cognitive_load: Record<string, unknown> | null;
 	audit_error: boolean;
 	audit_error_message: string | null;
+	/** Set when live fetch hit a password gate — audit reflects gate HTML, not real page */
+	crawl_warnings: { likely_password_protected: boolean } | null;
 }
 
 /**
@@ -81,9 +83,14 @@ export async function runCROAudit(input: CROAuditInput): Promise<CROAuditResult>
 			cognitive_load: null,
 			audit_error: true,
 			audit_error_message:
-				'Could not fetch or parse the page. The URL may be unreachable or invalid.'
+				'Could not fetch or parse the page. The URL may be unreachable or invalid.',
+			crawl_warnings: null
 		};
 	}
+
+	const crawlWarnings: { likely_password_protected: boolean } = {
+		likely_password_protected: content.likelyPasswordProtected
+	};
 
 	// ── SEO PAGE ───────────────────────────────────────────────────────────────
 
@@ -114,7 +121,8 @@ export async function runCROAudit(input: CROAuditInput): Promise<CROAuditResult>
 			objection_coverage: null,
 			cognitive_load: cognitiveLoad as unknown as Record<string, unknown>,
 			audit_error: false,
-			audit_error_message: null
+			audit_error_message: null,
+			crawl_warnings: crawlWarnings
 		};
 	}
 
@@ -157,6 +165,7 @@ export async function runCROAudit(input: CROAuditInput): Promise<CROAuditResult>
 		objection_coverage: objectionCoverage as unknown as Record<string, unknown>,
 		cognitive_load: cognitiveLoad as unknown as Record<string, unknown>,
 		audit_error: false,
-		audit_error_message: null
+		audit_error_message: null,
+		crawl_warnings: crawlWarnings
 	};
 }

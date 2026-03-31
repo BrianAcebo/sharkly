@@ -134,7 +134,7 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 	return (
 		<div
 			className={cn(
-				'mx-4 my-2 overflow-hidden rounded-xl border',
+				'mx-4 my-2 min-w-0 max-w-full overflow-hidden rounded-xl border',
 				isRunning && 'border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-950/30',
 				isCompleted && 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950/30',
 				isError && 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950/30'
@@ -143,37 +143,37 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 			{/* Header */}
 			<div
 				className={cn(
-					'flex items-center justify-between px-4 py-3',
+					'flex min-w-0 flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between',
 					isRunning && 'bg-indigo-100/50 dark:bg-indigo-900/30',
 					isCompleted && 'bg-green-100/50 dark:bg-green-900/30',
 					isError && 'bg-red-100/50 dark:bg-red-900/30'
 				)}
 			>
-				<div className="flex items-center gap-3">
+				<div className="flex min-w-0 flex-1 items-start gap-3">
 					{isRunning ? (
-						<div className="relative">
+						<div className="relative shrink-0">
 							<div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-200 dark:bg-indigo-800">
 								<Loader2 className="h-4 w-4 animate-spin text-indigo-600 dark:text-indigo-400" />
 							</div>
 							<span className="absolute -top-1 -right-1 h-3 w-3 animate-ping rounded-full bg-indigo-500" />
 						</div>
 					) : isCompleted ? (
-						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-200 dark:bg-green-800">
+						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-green-200 dark:bg-green-800">
 							<CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
 						</div>
 					) : (
-						<div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-200 dark:bg-red-800">
+						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-200 dark:bg-red-800">
 							<AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
 						</div>
 					)}
-					<div>
-						<div className="flex items-center gap-2">
-							<Icon className={cn('h-4 w-4', config.color)} />
-							<span className="text-sm font-medium text-gray-900 dark:text-white">
+					<div className="min-w-0 flex-1">
+						<div className="flex min-w-0 items-center gap-2">
+							<Icon className={cn('h-4 w-4 shrink-0', config.color)} />
+							<span className="wrap-break-word text-sm font-medium text-gray-900 dark:text-white">
 								{config.label}
 							</span>
 						</div>
-						<p className="text-xs text-gray-500 dark:text-gray-400">
+						<p className="wrap-break-word text-xs text-gray-500 dark:text-gray-400">
 							{isRunning && (tool.result?.message || 'Running... This may take a minute.')}
 							{isCompleted && (tool.result?.message || 'Completed successfully')}
 							{isError && (tool.result?.error || 'Action failed')}
@@ -181,7 +181,7 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 					</div>
 				</div>
 
-				<div className="flex items-center gap-2">
+				<div className="flex shrink-0 items-center gap-2 sm:ml-auto">
 					{isCompleted && resultPath && (
 						<Button
 							size="sm"
@@ -366,7 +366,7 @@ export default function ChatWidget() {
 			</div>
 
 			{/* Messages */}
-			<div className="min-h-0 flex-1 overflow-y-auto">
+			<div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
 				{messages.length === 0 ? (
 					<div className="flex h-full flex-col items-center justify-center p-6 text-center">
 						<div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-600/20">

@@ -98,11 +98,17 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 	const isUser = message.role === 'user';
 
 	return (
-		<div className={cn('flex gap-4 py-4', isUser ? 'flex-row-reverse' : 'flex-row')}>
+		<div
+			className={cn(
+				'flex w-full min-w-0 gap-4 py-4',
+				// row-reverse: main-start is on the right — flex-start packs user bubble + avatar to the right edge
+				isUser ? 'flex-row-reverse justify-start' : 'flex-row'
+			)}
+		>
 			{/* Avatar */}
 			<div
 				className={cn(
-					'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full',
+					'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
 					isUser
 						? 'bg-blue-500 text-white'
 						: 'to-brand-600 bg-gradient-to-br from-blue-500 text-white'
@@ -111,8 +117,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 				{isUser ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
 			</div>
 
-			{/* Message Content */}
-			<div className={cn('max-w-[75%]')}>
+			{/* Message Content — wide column; cap width for readability on very large screens */}
+			<div className="min-w-0 max-w-[min(88%,52rem)]">
 				{/* Attached Files */}
 				{message.files && message.files.length > 0 && (
 					<div className="mb-2 flex flex-wrap gap-2">
@@ -201,7 +207,8 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 	return (
 		<div
 			className={cn(
-				'my-3 mr-4 ml-14 overflow-hidden rounded-xl border shadow-sm',
+				// ml-12 + w-full overflows the parent; width must subtract the margin (3rem = ml-12)
+				'my-3 ml-12 w-[calc(100%-3rem)] min-w-0 max-w-full overflow-hidden rounded-xl border shadow-sm',
 				isRunning && 'border-indigo-300 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-950/30',
 				isCompleted && 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950/30',
 				isError && 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950/30'
@@ -210,35 +217,37 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 			{/* Header */}
 			<div
 				className={cn(
-					'flex items-center justify-between px-4 py-3',
+					'flex min-w-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between',
 					isRunning && 'bg-indigo-100/50 dark:bg-indigo-900/30',
 					isCompleted && 'bg-green-100/50 dark:bg-green-900/30',
 					isError && 'bg-red-100/50 dark:bg-red-900/30'
 				)}
 			>
-				<div className="flex items-center gap-3">
+				<div className="flex min-w-0 flex-1 items-start gap-3">
 					{isRunning ? (
-						<div className="relative">
+						<div className="relative shrink-0">
 							<div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-200 dark:bg-indigo-800">
 								<Loader2 className="h-5 w-5 animate-spin text-indigo-600 dark:text-indigo-400" />
 							</div>
 							<span className="absolute -top-1 -right-1 h-3 w-3 animate-ping rounded-full bg-indigo-500" />
 						</div>
 					) : isCompleted ? (
-						<div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-200 dark:bg-green-800">
+						<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-200 dark:bg-green-800">
 							<CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
 						</div>
 					) : (
-						<div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-200 dark:bg-red-800">
+						<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-200 dark:bg-red-800">
 							<AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
 						</div>
 					)}
-					<div>
-						<div className="flex items-center gap-2">
-							<Icon className={cn('h-5 w-5', config.color)} />
-							<span className="font-semibold text-gray-900 dark:text-white">{config.label}</span>
+					<div className="min-w-0 flex-1">
+						<div className="flex min-w-0 items-center gap-2">
+							<Icon className={cn('h-5 w-5 shrink-0', config.color)} />
+							<span className="font-semibold wrap-break-word text-gray-900 dark:text-white">
+								{config.label}
+							</span>
 						</div>
-						<p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
+						<p className="mt-0.5 wrap-break-word text-sm text-gray-600 dark:text-gray-400">
 							{isRunning && (tool.result?.message || 'Running... This may take a moment.')}
 							{isCompleted && (tool.result?.message || 'Completed successfully')}
 							{isError && (tool.result?.error || 'Action failed')}
@@ -246,7 +255,7 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 					</div>
 				</div>
 
-				<div className="flex items-center gap-3">
+				<div className="flex shrink-0 items-center gap-3 sm:ml-auto">
 					{isCompleted && resultPath && (
 						<Button
 							onClick={() => navigate(resultPath)}
@@ -365,16 +374,17 @@ const AIAssistant: React.FC = () => {
 	const { chatId: urlChatId } = useParams<{ chatId?: string }>();
 	const navigate = useNavigate();
 
-	// Sync chat state with URL - load conversation or clear when URL changes
+	/** True while switching/loading a thread from the URL — not while sending a message (messages already in state) */
+	const loadingConversationFromUrl =
+		!!urlChatId &&
+		(conversationId !== urlChatId || (messages.length === 0 && isLoading));
+
+	// Load conversation when URL points at a specific chat (new-chat URL sync is handled in ChatContext)
 	useEffect(() => {
 		if (urlChatId && urlChatId !== conversationId && loadConversation) {
-			// URL has a chat ID that differs from current - load it
 			loadConversation(urlChatId);
-		} else if (!urlChatId && conversationId) {
-			// URL has no chat ID but we have one loaded - clear the chat
-			clearChat();
 		}
-	}, [urlChatId, conversationId, loadConversation, clearChat]);
+	}, [urlChatId, conversationId, loadConversation]);
 
 	const [input, setInput] = useState('');
 	const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
@@ -459,15 +469,12 @@ const AIAssistant: React.FC = () => {
 	};
 
 	const handleSelectSession = (sessionId: string) => {
-		// Update URL without pushing to history stack
+		// URL drives load via useEffect — avoids double fetch and duplicate state updates
 		navigate(`/assistant/${sessionId}`, { replace: true });
-		if (loadConversation) {
-			loadConversation(sessionId);
-		}
 	};
 
 	const handleNewChat = () => {
-		// Reset URL to base assistant path - useEffect will handle clearing the chat
+		clearChat();
 		navigate('/assistant', { replace: true });
 	};
 
@@ -486,10 +493,10 @@ const AIAssistant: React.FC = () => {
 				refreshKey={sessionRefreshKey}
 			/>
 
-			{/* Main Content */}
-			<div className="scrollbar-branded relative flex min-h-0 min-w-0 flex-1 flex-col overflow-y-scroll">
+			{/* Main Content — messages scroll in the middle; input stays flush to bottom */}
+			<div className="scrollbar-branded relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
 				{/* Header */}
-				<div className="sticky top-0 shrink-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
+				<div className="shrink-0 border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-4">
 							<div className="to-brand-600 flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-blue-500">
@@ -518,10 +525,11 @@ const AIAssistant: React.FC = () => {
 					</div>
 				</div>
 
-				{/* Chat Area */}
-				<div className="px-6 py-12">
-					{messages.length === 0 ? (
-						<div className="mx-auto flex h-full max-w-2xl flex-col items-center justify-center text-center">
+				{/* Chat Area (scrolls only here) */}
+				<div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-6 py-8">
+					{/* Home welcome: only on /assistant with no chat id — not while loading a /assistant/:id thread */}
+					{!urlChatId && messages.length === 0 && !isLoading ? (
+						<div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center py-8 text-center">
 							<div className="to-brand-600 from-brand-500/20 mb-6 flex items-center justify-center rounded-2xl bg-linear-to-br p-4">
 								<Sparkles className="size-8 text-white" />
 							</div>
@@ -575,8 +583,13 @@ const AIAssistant: React.FC = () => {
 								</div>
 							</div>
 						</div>
+					) : loadingConversationFromUrl ? (
+						<div className="flex flex-1 flex-col items-center justify-center py-16">
+							<Loader2 className="text-brand-500 size-10 animate-spin" />
+							<p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Loading conversation…</p>
+						</div>
 					) : (
-						<div className="mx-auto max-w-4xl py-4">
+						<div className="w-full min-w-0 py-4">
 							{/* Filter out tool messages and empty assistant placeholders (tool-call rows from history) */}
 							{messages
 								.filter(shouldShowChatBubble)
@@ -606,7 +619,7 @@ const AIAssistant: React.FC = () => {
 												) : null
 											)}
 											{currentTools.filter((t) => !majorActions.includes(t.name)).length > 0 && (
-												<div className="flex flex-wrap gap-2 py-4 pl-14">
+												<div className="flex flex-wrap gap-2 py-4 pl-12">
 													{currentTools
 														.filter((t) => !majorActions.includes(t.name))
 														.map((tool, i) => (
@@ -637,8 +650,8 @@ const AIAssistant: React.FC = () => {
 				/>
 
 				{/* Input Area */}
-				<div className="sticky bottom-0 shrink-0 border-t border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
-					<div className="mx-auto max-w-4xl">
+				<div className="shrink-0 border-t border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
+					<div className="w-full min-w-0">
 						{/* Attached Files Preview */}
 						{attachedFiles.length > 0 && (
 							<div className="mb-3 flex flex-wrap gap-2">

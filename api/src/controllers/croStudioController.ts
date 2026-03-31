@@ -19,6 +19,44 @@ import { buildClusterJourneyData } from '../utils/buildClusterJourneyData.js';
 import { detectCognitiveLoad } from '../utils/croAuditDetections.js';
 import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
 
+/**
+ * Load fixes_result / crawl_warnings in separate queries so one missing migration
+ * does not fail the whole SELECT or strip persisted JSONB (e.g. fixes after reload).
+ */
+async function loadCroAuditOptionalJsonbColumns(
+	auditId: string,
+	organizationId: string
+): Promise<{ fixes_result: unknown; crawl_warnings: unknown }> {
+	const out: { fixes_result: unknown; crawl_warnings: unknown } = {
+		fixes_result: undefined,
+		crawl_warnings: undefined
+	};
+
+	const { data: fixRow, error: fixErr } = await supabase
+		.from('cro_audits')
+		.select('fixes_result')
+		.eq('id', auditId)
+		.eq('organization_id', organizationId)
+		.maybeSingle();
+
+	if (!fixErr && fixRow && 'fixes_result' in fixRow) {
+		out.fixes_result = fixRow.fixes_result;
+	}
+
+	const { data: crawlRow, error: crawlErr } = await supabase
+		.from('cro_audits')
+		.select('crawl_warnings')
+		.eq('id', auditId)
+		.eq('organization_id', organizationId)
+		.maybeSingle();
+
+	if (!crawlErr && crawlRow && 'crawl_warnings' in crawlRow) {
+		out.crawl_warnings = crawlRow.crawl_warnings;
+	}
+
+	return out;
+}
+
 /** Normalize site.url to a hostname for matching page_url (legacy audits with null site_id). */
 function hostnameFromSiteUrl(siteUrl: string | null | undefined): string | null {
 	if (!siteUrl?.trim()) return null;
@@ -162,6 +200,30 @@ function parseFixOptions(text: string, includeMechanism = false): FixOption[] {
 		return [{ copy: trimmed, placement: 'Apply as suggested in the content.' }];
 	}
 	return [];
+}
+
+/** Same slicing as CROAuditDetail handleGenerateAllFixes — one combined options array → per item key */
+function splitFixOptionsByFailingKeys(
+	options: FixOption[],
+	failingKeys: string[]
+): Record<string, FixOption[]> {
+	if (failingKeys.length === 0) return {};
+	if (failingKeys.length === 1) {
+		return { [failingKeys[0]]: options };
+	}
+	const perCount = Math.ceil(options.length / failingKeys.length);
+	const out: Record<string, FixOption[]> = {};
+	failingKeys.forEach((key, i) => {
+		out[key] = options.slice(i * perCount, (i + 1) * perCount);
+	});
+	return out;
+}
+
+function normalizeFixesResult(
+	raw: unknown
+): Record<string, FixOption[]> {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+	return raw as Record<string, FixOption[]>;
 }
 
 const SEO_ITEM_LABELS: Record<string, string> = {
@@ -377,6 +439,7 @@ export const getCROAudit = async (req: Request, res: Response) => {
 			return res.status(403).json({ error: 'CRO Studio add-on required' });
 		}
 
+		// fixes_result + crawl_warnings loaded separately so a partial migration never drops them
 		const extendedSelect =
 			'id, page_url, page_type, page_label, destination_url, cro_score, max_score, audited_at, checklist, architecture_violations, bias_inventory, bias_coherence, headline_insight, above_fold, objection_coverage, cognitive_load, cognitive_load_explanation, emotional_arc_result, page_subtype, cluster_id, audit_error, audit_error_message, faq_result, testimonial_result';
 		const baseSelect =
@@ -414,6 +477,14 @@ export const getCROAudit = async (req: Request, res: Response) => {
 		}
 
 		if (error || !audit) return res.status(404).json({ error: 'Audit not found' });
+
+		const optionalCols = await loadCroAuditOptionalJsonbColumns(id, userOrg.organization_id);
+		if (typeof optionalCols.fixes_result !== 'undefined') {
+			(audit as Record<string, unknown>).fixes_result = optionalCols.fixes_result;
+		}
+		if (typeof optionalCols.crawl_warnings !== 'undefined') {
+			(audit as Record<string, unknown>).crawl_warnings = optionalCols.crawl_warnings;
+		}
 
 		let cluster_name: string | null = null;
 		let cluster_journey: Awaited<ReturnType<typeof buildClusterJourneyData>> = null;
@@ -458,7 +529,9 @@ export const getCROAudit = async (req: Request, res: Response) => {
 			audit_error: audit.audit_error ?? false,
 			audit_error_message: audit.audit_error_message ?? null,
 			faq_result: audit.faq_result ?? null,
-			testimonial_result: audit.testimonial_result ?? null
+			testimonial_result: audit.testimonial_result ?? null,
+			fixes_result: (audit as Record<string, unknown>).fixes_result ?? {},
+			crawl_warnings: (audit as Record<string, unknown>).crawl_warnings ?? {}
 		});
 	} catch (error) {
 		console.error('[CRO Studio] Get audit error:', error);
@@ -541,6 +614,8 @@ export const reauditCROAudit = async (req: Request, res: Response) => {
 				audited_at: result.audited_at,
 				audit_error: result.audit_error,
 				audit_error_message: result.audit_error_message,
+				fixes_result: {},
+				crawl_warnings: result.crawl_warnings ?? {},
 				updated_at: new Date().toISOString()
 			})
 			.eq('id', id);
@@ -690,7 +765,8 @@ export const addCROAudit = async (req: Request, res: Response) => {
 			page_subtype: page_type === 'destination_page' ? (page_subtype ?? 'saas_signup') : null,
 			audited_at: result.audited_at,
 			audit_error: result.audit_error,
-			audit_error_message: result.audit_error_message
+			audit_error_message: result.audit_error_message,
+			crawl_warnings: result.crawl_warnings ?? {}
 		};
 		if (cluster_id) insertPayload.cluster_id = cluster_id;
 		if (site_id) insertPayload.site_id = site_id;
@@ -741,7 +817,7 @@ export const generateCROStudioFixes = async (req: Request, res: Response) => {
 			return res.status(400).json({ error: 'failing_item_key required for single fix' });
 		}
 
-		// Load audit + verify org access + has_cro_addon
+		// Load audit + verify org access + has_cro_addon (fixes_result in separate query — column may be new)
 		const { data: audit, error: auditErr } = await supabase
 			.from('cro_audits')
 			.select(
@@ -751,6 +827,13 @@ export const generateCROStudioFixes = async (req: Request, res: Response) => {
 			.single();
 
 		if (auditErr || !audit) return res.status(404).json({ error: 'Audit not found' });
+
+		const optionalForFixes = await loadCroAuditOptionalJsonbColumns(audit_id, audit.organization_id);
+		const auditWithFixes = {
+			...audit,
+			fixes_result:
+				typeof optionalForFixes.fixes_result !== 'undefined' ? optionalForFixes.fixes_result : {}
+		};
 
 		const { data: userOrg } = await supabase
 			.from('user_organizations')
@@ -1022,6 +1105,28 @@ Provide 2-3 options. Each option must have "copy" and "placement" keys.`;
 			'Sorry, no suggestions could be generated.';
 
 		const options = parseFixOptions(rawText, isBiasFix);
+
+		const existingFixes = normalizeFixesResult(auditWithFixes.fixes_result);
+		const failingKeys = failingItems.map((f) => f.key);
+		const newByKey =
+			mode === 'all'
+				? splitFixOptionsByFailingKeys(options, failingKeys)
+				: failing_item_key
+					? { [failing_item_key]: options }
+					: {};
+		const mergedFixes = { ...existingFixes, ...newByKey };
+
+		const { error: saveErr } = await supabase
+			.from('cro_audits')
+			.update({ fixes_result: mergedFixes, updated_at: new Date().toISOString() })
+			.eq('id', audit_id)
+			.eq('organization_id', audit.organization_id);
+
+		if (saveErr) {
+			console.error('[CRO Studio] Persist fixes error:', saveErr);
+			captureApiError(saveErr, req, { feature: 'cro-studio-persist-fixes', auditId: audit_id });
+			return res.status(500).json({ error: 'Failed to save generated fixes' });
+		}
 
 		res.json({
 			success: true,

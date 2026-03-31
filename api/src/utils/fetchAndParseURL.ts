@@ -21,6 +21,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
 import type { ChildNode, Element } from 'domhandler';
+import { detectPasswordProtectionFromHtml } from './passwordProtectedPage.js';
 
 const USER_AGENT =
 	'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -62,6 +63,8 @@ export interface ParsedPageContent {
 	renderConfidence: RenderConfidence;
 	/** True when JS framework signals detected — audit accuracy warning may apply */
 	isJsRendered: boolean;
+	/** True when HTML matches a storefront/site password gate — audit reflects gate, not real page */
+	likelyPasswordProtected: boolean;
 }
 
 // ─── Selectors ────────────────────────────────────────────────────────────────
@@ -307,7 +310,8 @@ function parseHTML(
 		metaDescription,
 		aboveFoldText,
 		renderConfidence,
-		isJsRendered
+		isJsRendered,
+		likelyPasswordProtected: detectPasswordProtectionFromHtml(html)
 	};
 }
 

@@ -51,6 +51,7 @@ import { CROStudioGate } from '../components/cro/CROStudioGate';
 import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
+import { PasswordProtectedCrawlNotice } from '../components/shared/PasswordProtectedCrawlNotice';
 import { StatCard } from '../components/shared/StatCard';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -359,6 +360,10 @@ interface CROAudit {
 	emotional_arc_result?: string | null;
 	faq_result?: Array<{ q: string; a: string }> | null;
 	testimonial_result?: { subject: string; body: string } | null;
+	/** Persisted AI copy fixes per checklist item key (handoff, arch_*, journey step, bias_*, etc.) */
+	fixes_result?: Record<string, FixOption[]> | null;
+	/** Live crawl metadata — e.g. storefront password gate */
+	crawl_warnings?: { likely_password_protected?: boolean } | null;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -399,9 +404,13 @@ function SeoChecksDisplay({ seoChecks }: { seoChecks: unknown }) {
 	const data = seoChecks as {
 		checks?: Record<string, { status: string; message: string }>;
 		fetch_error?: boolean;
+		likely_password_protected?: boolean;
+		password_protection_message?: string;
 	};
 	const checks = data?.checks ?? {};
 	const fetchError = data?.fetch_error ?? false;
+	const likelyPassword = Boolean(data?.likely_password_protected);
+	const passwordMessage = data?.password_protection_message;
 
 	if (fetchError && checks.fetch_error) {
 		return (
@@ -422,6 +431,9 @@ function SeoChecksDisplay({ seoChecks }: { seoChecks: unknown }) {
 	];
 	return (
 		<div className="mt-3 space-y-2">
+			{likelyPassword && (
+				<PasswordProtectedCrawlNotice message={passwordMessage} className="mb-1" />
+			)}
 			{keys.map((key) => {
 				const c = checks[key];
 				if (!c) return null;
@@ -799,6 +811,21 @@ function FixPanel({
 
 	return (
 		<div className="mt-3 space-y-2">
+			<div className="flex flex-wrap items-center gap-2">
+				<Button
+					size="sm"
+					variant="outline"
+					onClick={() => onGenerate(itemKey)}
+					disabled={generating}
+					className="h-7 gap-1.5 text-xs"
+				>
+					<RefreshCw className={`size-3 ${generating ? 'animate-spin' : ''}`} />
+					{generating ? 'Generating…' : 'Regenerate fix'}
+				</Button>
+				<span className="text-xs text-gray-400">
+					<CreditCost amount={creditCost} />
+				</span>
+			</div>
 			{options.map((opt, i) => (
 				<div
 					key={i}
@@ -1037,11 +1064,18 @@ export default function CROAuditDetail() {
 						}
 					: null
 			);
+			const fr = audit.fixes_result;
+			setFixesByItem(
+				fr && typeof fr === 'object' && !Array.isArray(fr)
+					? (fr as Record<string, FixOption[]>)
+					: {}
+			);
 		} else {
 			setCogLoadExplanation(null);
 			setDeepAnalysisResult(null);
 			setFaqResult(null);
 			setTestimonialResult(null);
+			setFixesByItem({});
 		}
 	}, [audit]);
 
@@ -1081,6 +1115,7 @@ export default function CROAuditDetail() {
 			const data = await res.json();
 			if (res.ok && data.success && data.data?.options) {
 				setFixesByItem((prev) => ({ ...prev, [failingItemKey]: data.data.options }));
+				await fetchAudit();
 			} else if (res.status === 402) {
 				toast.error(
 					`Insufficient credits. Need ${data.required ?? CREDIT_COSTS.CRO_STUDIO_SINGLE_FIX}.`
@@ -1109,6 +1144,7 @@ export default function CROAuditDetail() {
 					perItem[key] = opts.slice(i * perCount, (i + 1) * perCount);
 				});
 				setFixesByItem((prev) => ({ ...prev, ...perItem }));
+				await fetchAudit();
 			} else if (res.status === 402) {
 				toast.error(`Insufficient credits.`);
 			} else {
@@ -1315,6 +1351,9 @@ export default function CROAuditDetail() {
 			...archViolations.map((_, i) => `arch_${i}`),
 			...failingSteps.map((s) => String(s.step))
 		];
+		const hasDestinationBulkFixes = allFailingKeys.some(
+			(k) => (fixesByItem[k]?.length ?? 0) > 0
+		);
 
 		return (
 			<CROStudioGate variant="audit">
@@ -1369,7 +1408,7 @@ export default function CROAuditDetail() {
 										className="bg-brand-500 hover:bg-brand-600 gap-2 text-white"
 									>
 										<Wand2 className={`size-4 ${fixGenerating === 'all' ? 'animate-pulse' : ''}`} />
-										Generate all fixes —{' '}
+										{hasDestinationBulkFixes ? 'Regenerate all fixes' : 'Generate all fixes'} —{' '}
 										<CreditCost amount={CREDIT_COSTS.CRO_STUDIO_ALL_FIXES_DEST} />
 									</Button>
 								)}
@@ -1405,6 +1444,8 @@ export default function CROAuditDetail() {
 							{audit.audit_error_message}
 						</div>
 					)}
+
+					{audit.crawl_warnings?.likely_password_protected && <PasswordProtectedCrawlNotice />}
 
 					{/* Headline insight — single sentence, always first (cro-studio.md Tier 3 Rule 1) */}
 					{audit.headline_insight && (
@@ -1618,7 +1659,7 @@ export default function CROAuditDetail() {
 					</div>
 
 					{/* Two-column studio layout */}
-					<div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px] lg:items-start">
+					<div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_350px] lg:items-start">
 						{/* LEFT: Tabbed content */}
 						<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
 							<TabsList className="grid w-full grid-cols-5">
@@ -2326,7 +2367,7 @@ export default function CROAuditDetail() {
 								>
 									<div className="flex items-center gap-2">
 										{priorityItems.length === 0 && (
-											<Check className="size-4 flex-shrink-0 text-green-600 dark:text-green-400" />
+											<Check className="size-4 shrink-0 text-green-600 dark:text-green-400" />
 										)}
 										<div>
 											<h3 className="text-sm font-semibold text-gray-900 dark:text-white">
@@ -2565,6 +2606,7 @@ export default function CROAuditDetail() {
 	const handoffStatus = checklist['handoff']?.status ?? 'na';
 	const handoffPass = handoffStatus === 'pass';
 	const allFailingKeys = [...criticalItems, ...partialItems];
+	const hasSeoBulkFixes = allFailingKeys.some((k) => (fixesByItem[k]?.length ?? 0) > 0);
 
 	return (
 		<CROStudioGate variant="audit">
@@ -2622,7 +2664,8 @@ export default function CROAuditDetail() {
 									className="bg-brand-500 hover:bg-brand-600 gap-2 text-white"
 								>
 									<Wand2 className={`size-4 ${fixGenerating === 'all' ? 'animate-pulse' : ''}`} />
-									Get fixes — <CreditCost amount={CREDIT_COSTS.CRO_STUDIO_ALL_FIXES_SEO} />
+									{hasSeoBulkFixes ? 'Regenerate all fixes' : 'Get fixes'} —{' '}
+									<CreditCost amount={CREDIT_COSTS.CRO_STUDIO_ALL_FIXES_SEO} />
 								</Button>
 							)}
 						</div>
@@ -2656,6 +2699,8 @@ export default function CROAuditDetail() {
 						{audit.audit_error_message}
 					</div>
 				)}
+
+				{audit.crawl_warnings?.likely_password_protected && <PasswordProtectedCrawlNotice />}
 
 				{/* Headline insight */}
 				{audit.headline_insight && (

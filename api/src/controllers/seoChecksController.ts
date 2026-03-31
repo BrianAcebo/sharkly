@@ -6,6 +6,11 @@
 
 import type { Request, Response } from 'express';
 import { fetchPageForSeoChecks } from '../utils/competitorFetch.js';
+import {
+	detectPasswordProtectionFromHtml,
+	inferPasswordProtectionFromUniversalSeoChecks,
+	PASSWORD_PROTECTED_CRAWL_MESSAGE
+} from '../utils/passwordProtectedPage.js';
 import { captureApiError } from '../utils/sentryCapture.js';
 
 type SeoCheckResult = {
@@ -60,22 +65,28 @@ export async function runSeoChecks(req: Request, res: Response): Promise<void> {
 			return;
 		}
 
-		const pageMeta = await fetchPageForSeoChecks(parsedUrl.toString());
+		const fetched = await fetchPageForSeoChecks(parsedUrl.toString());
 		const checks: Record<string, SeoCheckResult> = {};
 
-		if (!pageMeta) {
+		if (!fetched) {
 			checks.fetch_error = {
 				status: 'fail',
 				message: 'Could not fetch the page. The URL may be unreachable, blocked, or returning an error.'
 			};
 			res.json({
 				success: true,
-				seo_checks: { checks, fetched_at: new Date().toISOString(), fetch_error: true }
+				seo_checks: {
+					checks,
+					fetched_at: new Date().toISOString(),
+					fetch_error: true,
+					likely_password_protected: false
+				}
 			});
 			return;
 		}
 
-		const { title, h1, metaDescription, metaDescriptionLength: len, schemaTypes } = pageMeta;
+		const { title, h1, metaDescription, metaDescriptionLength: len, schemaTypes } = fetched.meta;
+		const html = fetched.html;
 		const kw = keyword?.trim() ?? '';
 
 		// Check 1 — Keyword in title (only if keyword provided)
@@ -171,12 +182,21 @@ export async function runSeoChecks(req: Request, res: Response): Promise<void> {
 			};
 		}
 
+		const htmlPasswordHint = detectPasswordProtectionFromHtml(html);
+		const heuristicPasswordHint = inferPasswordProtectionFromUniversalSeoChecks({
+			keyword: kw,
+			checks
+		});
+		const likelyPasswordProtected = htmlPasswordHint || heuristicPasswordHint;
+
 		res.json({
 			success: true,
 			seo_checks: {
 				checks,
 				fetched_at: new Date().toISOString(),
-				fetch_error: false
+				fetch_error: false,
+				likely_password_protected: likelyPasswordProtected,
+				...(likelyPasswordProtected && { password_protection_message: PASSWORD_PROTECTED_CRAWL_MESSAGE })
 			}
 		});
 	} catch (error) {
