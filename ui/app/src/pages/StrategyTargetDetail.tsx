@@ -77,59 +77,111 @@ const MARKETING_URL = import.meta.env.VITE_MARKETING_URL ?? 'https://sharkly.co'
 const IGS_LINK = `${MARKETING_URL}/blog/glossary/what-is-information-gain-score-igs`;
 
 // Returns a recommended article count and plain-English explanation based
-// on how competitive the topic keyword is (0–100 difficulty scale).
-// reason is React.ReactNode so individual entries can include inline links.
-function getArticleRecommendation(kd: number): {
+// on how competitive the topic keyword is (0–100 difficulty scale) AND
+// how wide the topic's keyword landscape is (monthly search volume as proxy).
+//
+// KD alone is wrong: "shopify url structure" (KD 56, vol 500) is narrow —
+// there are only ~6-8 supportable angles. But "shopify seo" (KD 56, vol 50k)
+// is broad — 18 articles is genuinely appropriate.
+//
+// Volume tiers as supply proxy:
+//   < 500/mo  → narrow topic,  cap at 6  articles regardless of KD
+//   < 2,000   → medium-narrow, cap at 10 articles
+//   < 8,000   → medium,        cap at 14 articles
+//   ≥ 8,000   → broad enough,  no supply cap (KD drives the count)
+function getArticleRecommendation(
+	kd: number,
+	volume?: number
+): {
 	count: number;
 	label: string;
 	color: string;
 	reason: React.ReactNode;
 } {
-	if (kd <= 15)
-		return {
-			count: 5,
-			label: 'Low competition',
-			color: 'text-success-600 dark:text-success-400',
-			reason: (
+	// KD-based baseline count
+	let baseCount: number;
+	let label: string;
+	let color: string;
+	let reason: React.ReactNode;
+
+	if (kd <= 15) {
+		baseCount = 5;
+		label = 'Low competition';
+		color = 'text-success-600 dark:text-success-400';
+		reason = (
+			<>
+				This is a low-competition topic — 5 well-written articles is enough to fully cover it and
+				rank quickly. Don&apos;t pad it out just for the sake of more content. A 5-article cluster
+				that completely covers a narrow topic, with strong internal linking and genuine{' '}
+				<a
+					href={IGS_LINK}
+					target="_blank"
+					rel="noopener noreferrer"
+					className="text-brand-500 hover:text-brand-600 underline underline-offset-2"
+				>
+					IGS signals
+				</a>
+				, will outperform a 20-article cluster of thin Skyscraper content every time.
+			</>
+		);
+	} else if (kd <= 30) {
+		baseCount = 8;
+		label = 'Moderate competition';
+		color = 'text-brand-600 dark:text-brand-400';
+		reason =
+			"There's a moderate level of competition here. 8 articles gives you solid coverage of the topic — deep enough to outrank most sites without creating thin filler content.";
+	} else if (kd <= 45) {
+		baseCount = 12;
+		label = 'Competitive';
+		color = 'text-warning-600 dark:text-warning-400';
+		reason =
+			"This is a competitive keyword. You'll need around 12 articles covering the full range of questions people ask to build enough authority to rank.";
+	} else {
+		baseCount = 18;
+		label = 'Highly competitive';
+		color = 'text-error-600 dark:text-error-400';
+		reason =
+			"This is a tough keyword with a lot of established competition. 18–20 articles covering every angle gives you the best shot at ranking — but only generate what you'll actually publish.";
+	}
+
+	// Volume-based supply cap: narrow topics don't have 18 distinct angles to write about.
+	// Recommending 18 for a 500/mo topic results in off-topic padding — worse than fewer.
+	const vol = volume ?? 0;
+	let supplyCap: number;
+	let supplyNote = '';
+
+	if (vol > 0 && vol < 500) {
+		supplyCap = 6;
+		supplyNote =
+			" This is a narrow topic with limited search volume, so we've capped the recommendation — there simply aren't enough distinct angles to fill more articles with quality content.";
+	} else if (vol < 2000) {
+		supplyCap = 10;
+		supplyNote =
+			" Search volume suggests this is a fairly specific topic, so we've adjusted the recommendation to avoid padding with off-topic content.";
+	} else if (vol < 8000) {
+		supplyCap = 14;
+		supplyNote = '';
+	} else {
+		supplyCap = 20; // no cap for broad topics
+		supplyNote = '';
+	}
+
+	const count = Math.min(baseCount, supplyCap);
+
+	// Append supply note to reason if we capped below the KD-based count
+	if (count < baseCount && supplyNote) {
+		reason =
+			typeof reason === 'string' ? (
+				reason + supplyNote
+			) : (
 				<>
-					This is a low-competition topic — 5 well-written articles is enough to fully cover it and
-					rank quickly. Don&apos;t pad it out just for the sake of more content. A 5-article cluster
-					that completely covers a narrow topic, with strong internal linking and genuine{' '}
-					<a
-						href={IGS_LINK}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-brand-500 hover:text-brand-600 underline underline-offset-2"
-					>
-						IGS signals
-					</a>
-					, will outperform a 20-article cluster of thin Skyscraper content every time.
+					{reason}
+					{supplyNote}
 				</>
-			)
-		};
-	if (kd <= 30)
-		return {
-			count: 8,
-			label: 'Moderate competition',
-			color: 'text-brand-600 dark:text-brand-400',
-			reason:
-				"There's a moderate level of competition here. 8 articles gives you solid coverage of the topic — deep enough to outrank most sites without creating thin filler content."
-		};
-	if (kd <= 45)
-		return {
-			count: 12,
-			label: 'Competitive',
-			color: 'text-warning-600 dark:text-warning-400',
-			reason:
-				"This is a competitive keyword. You'll need around 12 articles covering the full range of questions people ask to build enough authority to rank."
-		};
-	return {
-		count: 18,
-		label: 'Highly competitive',
-		color: 'text-error-600 dark:text-error-400',
-		reason:
-			"This is a tough keyword with a lot of established competition. 18–20 articles covering every angle gives you the best shot at ranking — but only generate what you'll actually publish."
-	};
+			);
+	}
+
+	return { count, label, color, reason };
 }
 
 const FILTERS = [
@@ -518,9 +570,7 @@ export default function StrategyTargetDetail() {
 				} = await supabase.auth.getSession();
 				const token = session?.access_token;
 				if (!token) return;
-				const res = await api.get(
-					`/api/ecommerce?siteId=${encodeURIComponent(selectedSite.id)}`
-				);
+				const res = await api.get(`/api/ecommerce?siteId=${encodeURIComponent(selectedSite.id)}`);
 				if (!res.ok || cancelled) return;
 				const data = (await res.json()) as {
 					pages?: Array<{ id: string; type: string; url: string | null }>;
@@ -592,11 +642,11 @@ export default function StrategyTargetDetail() {
 		useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
 	);
 
-	// Opens the article count dialog — sets recommended count based on topic KD
+	// Opens the article count dialog — sets recommended count based on topic KD and volume
 	const openClusterDialog = (topicId: string) => {
 		const topic = topics.find((t) => t.id === topicId);
 		if (!topic) return;
-		const rec = getArticleRecommendation(topic.kd ?? 30);
+		const rec = getArticleRecommendation(topic.kd ?? 30, topic.volume ?? 0);
 		setClusterArticleCount(rec.count);
 		setClusterDialogTopic(topic);
 		setClusterDialogOpen(true);
@@ -752,7 +802,11 @@ export default function StrategyTargetDetail() {
 				toast.error('Please sign in to continue');
 				return;
 			}
-			const res = await api.post('/api/strategy/keyword-metrics', { keyword }, { credentials: 'include' });
+			const res = await api.post(
+				'/api/strategy/keyword-metrics',
+				{ keyword },
+				{ credentials: 'include' }
+			);
 			if (res.ok) {
 				const data = await res.json();
 				if (
@@ -1051,6 +1105,45 @@ export default function StrategyTargetDetail() {
 				runId?: string | null;
 			} = {};
 
+			const processNdjsonLine = (line: string) => {
+				if (!line.trim()) return;
+				try {
+					const ev = JSON.parse(line) as {
+						type: string;
+						id?: string;
+						message?: string;
+						suggestions?: TopicSuggestion[];
+						strategyRationale?: string;
+						researchContext?: unknown;
+						trafficTier?: string | null;
+						runId?: string | null;
+					};
+					if (ev.type === 'step' && ev.id) {
+						setTaskSteps((prev) => {
+							const stepIdx = STRATEGY_STEPS.findIndex((st) => st.id === ev.id);
+							if (stepIdx === -1) return prev;
+							return prev.map((s, i) => {
+								if (i <= stepIdx) return { ...s, status: 'complete' as const };
+								if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+								return s;
+							});
+						});
+					} else if (ev.type === 'done') {
+						result = {
+							suggestions: ev.suggestions,
+							strategyRationale: ev.strategyRationale,
+							researchContext: ev.researchContext,
+							trafficTier: ev.trafficTier,
+							runId: ev.runId
+						};
+					} else if (ev.type === 'error') {
+						throw new Error(ev.message ?? 'Failed to generate suggestions');
+					}
+				} catch (parseErr) {
+					if (!(parseErr instanceof SyntaxError)) throw parseErr;
+				}
+			};
+
 			if (reader) {
 				while (true) {
 					const { done, value } = await reader.read();
@@ -1060,42 +1153,15 @@ export default function StrategyTargetDetail() {
 					const lines = buffer.split('\n');
 					buffer = lines.pop() ?? '';
 					for (const line of lines) {
-						if (!line.trim()) continue;
-						try {
-							const ev = JSON.parse(line) as {
-								type: string;
-								id?: string;
-								message?: string;
-								suggestions?: TopicSuggestion[];
-								strategyRationale?: string;
-								researchContext?: unknown;
-								trafficTier?: string | null;
-								runId?: string | null;
-							};
-							if (ev.type === 'step' && ev.id) {
-								setTaskSteps((prev) => {
-									const stepIdx = STRATEGY_STEPS.findIndex((st) => st.id === ev.id);
-									if (stepIdx === -1) return prev;
-									return prev.map((s, i) => {
-										if (i <= stepIdx) return { ...s, status: 'complete' as const };
-										if (i === stepIdx + 1) return { ...s, status: 'active' as const };
-										return s;
-									});
-								});
-							} else if (ev.type === 'done') {
-								result = {
-									suggestions: ev.suggestions,
-									strategyRationale: ev.strategyRationale,
-									researchContext: ev.researchContext,
-									trafficTier: ev.trafficTier,
-									runId: ev.runId
-								};
-							} else if (ev.type === 'error') {
-								throw new Error(ev.message ?? 'Failed to generate suggestions');
-							}
-						} catch (parseErr) {
-							if (!(parseErr instanceof SyntaxError)) throw parseErr;
+						processNdjsonLine(line);
+					}
+					if (done) {
+						// Last chunk may not end with \n — flush remainder as a final line.
+						if (buffer.trim()) {
+							processNdjsonLine(buffer);
+							buffer = '';
 						}
+						break;
 					}
 				}
 			}
@@ -1830,7 +1896,10 @@ export default function StrategyTargetDetail() {
 
 					{clusterDialogTopic &&
 						(() => {
-							const rec = getArticleRecommendation(clusterDialogTopic.kd ?? 30);
+							const rec = getArticleRecommendation(
+								clusterDialogTopic.kd ?? 30,
+								clusterDialogTopic.volume ?? 0
+							);
 							return (
 								<div className="space-y-5 py-2">
 									{/* Topic being clustered */}
@@ -2132,6 +2201,11 @@ export default function StrategyTargetDetail() {
 							traffic to this page — questions, guides, and comparisons people search for before
 							landing on your destination.
 						</DialogDescription>
+
+						<p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+							Use specific keywords that are relevant to the target. Generic keywords will likely
+							throw off the results and lead to topics not related to the target.
+						</p>
 					</DialogHeader>
 
 					<div className="space-y-4 py-2">

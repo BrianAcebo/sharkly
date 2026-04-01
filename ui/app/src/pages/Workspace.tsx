@@ -614,9 +614,10 @@ export default function Workspace() {
 		[page?.id]
 	);
 
-	// Sync page type from DB when page loads
+	// Sync page type from DB — DB stores classifyPageType() codes (e.g. mofu_comparison);
+	// the select only accepts PAGE_TYPES labels (e.g. Comparison). Map so the control isn't blank.
 	useEffect(() => {
-		if (page?.pageType) setLocalPageType(page.pageType);
+		setLocalPageType(page?.pageType ? canonicalPageType(page.pageType) : '');
 	}, [page?.pageType]);
 
 	// Fetch minimal site settings (language/region) for display

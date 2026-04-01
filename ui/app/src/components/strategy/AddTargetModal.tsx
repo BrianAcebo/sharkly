@@ -167,41 +167,53 @@ export function AddTargetModal({ open, onClose, siteId, onTargetCreated }: Props
 			let buffer = '';
 			let result: { suggestions?: TopicSuggestion[]; runId?: string | null } = {};
 
+			const processNdjsonLine = (line: string) => {
+				if (!line.trim()) return;
+				try {
+					const ev = JSON.parse(line) as {
+						type: string;
+						id?: string;
+						message?: string;
+						suggestions?: TopicSuggestion[];
+						runId?: string | null;
+					};
+					if (ev.type === 'step' && ev.id) {
+						setTaskSteps((prev) => {
+							const stepIdx = TOPIC_PLAN_STEPS.findIndex((st) => st.id === ev.id);
+							if (stepIdx === -1) return prev;
+							return prev.map((s, i) => {
+								if (i <= stepIdx) return { ...s, status: 'complete' as const };
+								if (i === stepIdx + 1) return { ...s, status: 'active' as const };
+								return s;
+							});
+						});
+					} else if (ev.type === 'done') {
+						result = { suggestions: ev.suggestions, runId: ev.runId };
+					} else if (ev.type === 'error') {
+						throw new Error(ev.message ?? 'Failed to generate topics');
+					}
+				} catch (parseErr) {
+					if (!(parseErr instanceof SyntaxError)) throw parseErr;
+				}
+			};
+
 			if (reader) {
 				while (true) {
 					const { done, value } = await reader.read();
-					if (done) break;
-					buffer += decoder.decode(value, { stream: true });
+					if (value) {
+						buffer += decoder.decode(value, { stream: true });
+					}
 					const lines = buffer.split('\n');
 					buffer = lines.pop() ?? '';
 					for (const line of lines) {
-						if (!line.trim()) continue;
-						try {
-							const ev = JSON.parse(line) as {
-								type: string;
-								id?: string;
-								message?: string;
-								suggestions?: TopicSuggestion[];
-								runId?: string | null;
-							};
-							if (ev.type === 'step' && ev.id) {
-								setTaskSteps((prev) => {
-									const stepIdx = TOPIC_PLAN_STEPS.findIndex((st) => st.id === ev.id);
-									if (stepIdx === -1) return prev;
-									return prev.map((s, i) => {
-										if (i <= stepIdx) return { ...s, status: 'complete' as const };
-										if (i === stepIdx + 1) return { ...s, status: 'active' as const };
-										return s;
-									});
-								});
-							} else if (ev.type === 'done') {
-								result = { suggestions: ev.suggestions, runId: ev.runId };
-							} else if (ev.type === 'error') {
-								throw new Error(ev.message ?? 'Failed to generate topics');
-							}
-						} catch (parseErr) {
-							if (!(parseErr instanceof SyntaxError)) throw parseErr;
+						processNdjsonLine(line);
+					}
+					if (done) {
+						if (buffer.trim()) {
+							processNdjsonLine(buffer);
+							buffer = '';
 						}
+						break;
 					}
 				}
 			}
@@ -279,6 +291,10 @@ export function AddTargetModal({ open, onClose, siteId, onTargetCreated }: Props
 								/>
 								<p className="text-xs text-gray-500 dark:text-gray-400">
 									Comma-separated. Defaults to target name if blank.
+									<br></br>
+									<br></br>
+									Use specific keywords that are relevant to the target. Generic keywords will
+									likely throw off the results and lead to topics not related to the target.
 								</p>
 							</div>
 							<DialogFooter>

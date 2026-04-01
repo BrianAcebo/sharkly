@@ -1,5 +1,5 @@
 /**
- * Strategy Topic Generation — v5.0 (Data-First Edition)
+ * Strategy Topic Generation — v6.0 (Content Pillar Edition)
  *
  * Rebuilt to match exactly how a senior SEO strategist works manually:
  *
@@ -565,87 +565,108 @@ export const suggestTopics = async (req: Request, res: Response) => {
 			: '';
 
 		console.log(
-			`[Strategy] v5.0 | Seeds: "${seeds.join('", "')}" | DA: ${da} | Tier: ${tier.label}`
+			`[Strategy] v6.0 | Seeds: "${seeds.join('", "')}" | DA: ${da} | Tier: ${tier.label}`
 		);
 
 		// =====================================================================
-		// PHASE 1 — COMPETITIVE LANDSCAPE MAPPING
-		// AI maps the category into specific zone seeds using domain knowledge.
-		// These are actual sub-topic areas, not modifier variants of the seed.
+		// PHASE 1 — CONTENT PILLAR MAPPING
+		//
+		// Critical design principle: zones must be CONTENT TOPIC AREAS — distinct
+		// subtopics that each warrant their own piece of content — not search query
+		// variants of the same topic.
+		//
+		// "law firm seo", "seo for lawyers", "lawyer seo" are ALL THE SAME TOPIC.
+		// Generating all three as zones produces identical keyword clusters, gives
+		// Phase 5 nothing to differentiate, and results in garbage output topics
+		// like "is local SEO worth it?" and "in-house vs agency" — generic filler
+		// that no one asked for.
+		//
+		// The correct zones for "lawyer seo" are genuinely different pillars:
+		// local seo, keyword research, link building, content strategy, technical
+		// seo, specific practice areas — each with its own keyword cluster and
+		// SERP landscape.
 		// =====================================================================
-		console.log('[Strategy] Phase 1: competitive landscape mapping');
+		console.log('[Strategy] Phase 1: content pillar mapping');
+
+		// Pre-filter user seeds that are too generic to be useful zones.
+		// e.g. "search engine optimization" as a seed in a lawyer SEO strategy
+		// pulls 50 generic SEO keywords with no law firm context — polluting Phase 5.
+		const GENERIC_SEED_PATTERNS = [
+			/^search engine optimization$/i,
+			/^seo$/i,
+			/^digital marketing$/i,
+			/^content marketing$/i,
+			/^online marketing$/i,
+			/^internet marketing$/i,
+			/^marketing$/i
+		];
+		const filteredSeeds = seeds.filter((s) => !GENERIC_SEED_PATTERNS.some((p) => p.test(s.trim())));
+		const usableSeeds = filteredSeeds.length > 0 ? filteredSeeds : seeds.slice(0, 1);
 
 		const landscapeRaw = await ai(
-			`You are a senior SEO strategist mapping the COMPLETE competitive landscape of a topic category.
+			`You are a senior SEO content strategist mapping the CONTENT PILLARS for a business's SEO strategy.
 
-Your job: given a business and its seed keywords, identify ALL the distinct topic ZONES within
-this category — every specific sub-topic that people actively search for.
+A content pillar is a topic that warrants its own dedicated piece of content — its own keyword cluster, its own searcher questions, its own SERP. It is NOT a phrasing variant of another pillar.
 
-Zone seeds are used as DataForSEO search queries. Each must be:
-- A specific, searchable phrase (not a broad head term like "seo" or "marketing")
-- Representing a DISTINCT user intent — not a variation of another zone
-- Phrased the way a searcher actually types it
+YOUR SINGLE MOST IMPORTANT RULE:
+Never generate multiple zones that are the same topic with different phrasing.
+"law firm seo", "seo for lawyers", "lawyer seo services" are ALL THE SAME TOPIC.
+Pick ONE phrase that returns the best DFS data and discard the rest.
+Use the freed-up slots for genuinely different content pillars.
 
-IMPORTANT: Be EXHAUSTIVE. Cover every angle of the category. Do not stop at the obvious ones.
-For broad categories, you should always return 15-18 zones. Missing a zone means missing a
-topic opportunity for the user. It is better to return too many than too few.
+WHAT IS A GOOD CONTENT PILLAR:
+✅ Has its own distinct subtopic — different articles rank for it vs. other zones
+✅ A human expert would write a completely separate guide for this topic
+✅ Has its own searcher questions that don't overlap with other pillars
+✅ Returns a different keyword cluster when searched in DataForSEO
 
-FULL EXAMPLE — "ecommerce seo" (broad category → 18 zones):
-"shopify product page seo", "ecommerce category page optimization",
-"duplicate product descriptions seo", "faceted navigation seo crawl budget",
-"ecommerce schema markup", "product image alt text seo",
-"ecommerce internal linking", "online store page speed optimization",
-"ecommerce link building", "local seo ecommerce store",
-"woocommerce seo", "ecommerce technical seo audit",
-"ecommerce site architecture seo", "product page conversion seo",
-"ecommerce blog content strategy", "seasonal seo ecommerce",
-"international ecommerce seo", "ecommerce keyword research"
+WHAT IS NOT A CONTENT PILLAR (reject these):
+❌ The same topic with different phrasing ("seo for lawyers" AND "lawyer seo" — pick one)
+❌ The same audience with slightly different wording ("law firm seo" AND "attorney seo")
+❌ A root category term that covers the entire niche (e.g. "search engine optimization")
+❌ An overly long phrase that returns 0 DFS keywords ("law firm google my business optimization")
 
-FULL EXAMPLE — "private investigator" (medium category → 10 zones):
-"surveillance investigation services", "infidelity investigation private investigator",
-"background check investigator", "cyber crime investigation services",
-"bug sweep hidden camera detection", "missing persons investigator",
-"insurance fraud investigation", "corporate espionage investigation",
-"private investigator cost", "private investigator laws"
+CORRECT APPROACH — niche: "seo for law firms" → 10 DISTINCT content pillars:
+Pillar 1: "law firm local seo" → local pack, Google Business Profile, citations, local rankings
+Pillar 2: "attorney keyword research" → how to find terms clients search, practice area keyword lists
+Pillar 3: "law firm link building" → backlinks for lawyers, legal directories, PR strategies
+Pillar 4: "law firm content strategy" → what pages to build, blog topics, practice area pages
+Pillar 5: "lawyer technical seo" → site speed, mobile, schema markup for attorneys
+Pillar 6: "personal injury lawyer seo" → PI-specific SEO (different SERP, different keywords)
+Pillar 7: "family law seo" → family law firm SEO (different SERP, different audience)
+Pillar 8: "criminal defense seo" → criminal defense attorney SEO (distinct practice area)
+Pillar 9: "law firm website seo" → on-page optimization, URL structure, meta tags
+Pillar 10: "lawyer online reviews" → Google reviews, reputation management for attorneys
+→ Notice: "law firm seo" appears as a concept ONCE in pillar 1. All others are genuinely different.
 
-FULL EXAMPLE — "hydrating moisturizer" (narrow category → 6 zones):
-"moisturizer for dry skin", "hyaluronic acid moisturizer",
-"moisturizer for sensitive skin", "lightweight hydrating moisturizer",
-"moisturizer vs serum hydration", "best moisturizer ingredients"
+WRONG APPROACH — what NOT to do:
+❌ "law firm seo", "seo for lawyers", "lawyer seo", "attorney seo", "law firm seo services"
+→ These are all the same topic. You get one zone. Use the other slots for real pillars.
 
-Category breadth rules:
-- narrow (single product/ingredient/service): 5-8 zones
-- medium (product line/service category): 8-12 zones
-- broad (full discipline/domain/industry): 12-16 zones
-
-IMPORTANT: Each zone seed will be searched in DataForSEO. Zones that are too niche or
-too long-tail will return 0 keywords. Prefer zone seeds that are specific enough to be
-focused but common enough that people actually search for them as a category.
-Bad zone (too obscure): "ecommerce hreflang tag implementation for international stores"
-Good zone (searchable): "international ecommerce seo"
-Bad zone: "ecommerce javascript rendering seo issues"
-Good zone: "ecommerce technical seo audit"
-Quality over quantity — 12 searchable zones beat 18 obscure ones.
+ZONE SEED FORMAT:
+- 2-4 words maximum (shorter seeds return more DFS data)
+- The actual phrase people type when searching this subtopic
+- Niche-specific enough to pull relevant keywords
+- General enough to actually have search volume
 
 Return ONLY valid JSON, no markdown.`,
 			`Business: ${site.name}
 Niche: ${site.niche}
 Customer: ${site.customer_description || 'general audience'}
-Seed keywords: ${seeds.join(', ')}
+Seed keywords (understand the niche from these, do NOT use them all as zone seeds verbatim): ${usableSeeds.join(', ')}
 ${destContext}
 
-Map the distinct topic zones in this category. For broad categories, return 12-16 zones.
-For medium categories, return 8-12 zones. For narrow, return 5-8 zones.
-Prioritize zones that are specific enough to be focused but common enough to return
-keyword data — avoid overly technical or niche phrases that nobody searches directly.
+Map 8-12 genuinely DISTINCT content pillars for this niche.
+The test: would each pillar produce a completely different piece of content from a different expert?
+If two pillars would produce similar content, merge them into one and use the freed slot for a new pillar.
 
 Return:
 {
   "category_breadth": "narrow|medium|broad",
-  "breadth_reasoning": "1 sentence why — include how many zones you identified",
-  "zone_seeds": ["all zone seeds — push toward the maximum for the breadth level"],
-  "high_commercial_zones": ["3-5 zone seeds most likely high CPC / commercial intent"],
-  "high_navboost_zones": ["2-4 zone seeds likely to produce long-session content"]
+  "breadth_reasoning": "1 sentence: how many distinct content pillars this niche has",
+  "zone_seeds": ["8-12 zone seeds, each a genuinely DIFFERENT content pillar, 2-4 words each"],
+  "high_commercial_zones": ["3-5 zone seeds with highest commercial intent / CPC"],
+  "high_navboost_zones": ["2-4 zone seeds that produce long-session comparison/decision content"]
 }`,
 			1500
 		);
@@ -659,15 +680,54 @@ Return:
 		}>(landscapeRaw, {
 			category_breadth: 'medium',
 			breadth_reasoning: 'Defaulted.',
-			zone_seeds: seeds,
+			zone_seeds: usableSeeds,
 			high_commercial_zones: [],
 			high_navboost_zones: []
 		});
 
-		// Always include the user's original seeds
-		const allZoneSeeds = [...new Set([...seeds, ...landscape.zone_seeds])].slice(0, 16);
+		// De-duplicate zone seeds: remove any seed that is a near-phrasing variant
+		// of another seed in the list. Keep the first occurrence (usually the most
+		// specific / niche phrase). This is a last-resort guard — the AI prompt
+		// above already instructs against variants, but just in case.
+		const deduplicatedZoneSeeds: string[] = [];
+		const seenZoneCore = new Set<string>();
+		for (const z of landscape.zone_seeds) {
+			// Extract meaningful words (3+ chars, not stopwords) as the "core"
+			const ZONE_STOPS = new Set([
+				'seo',
+				'for',
+				'and',
+				'the',
+				'with',
+				'how',
+				'law',
+				'firm',
+				'lawyer',
+				'attorney',
+				'lawyers',
+				'attorneys',
+				'firms'
+			]);
+			const core = z
+				.toLowerCase()
+				.replace(/[^a-z0-9\s]/g, '')
+				.split(/\s+/)
+				.filter((w) => w.length >= 3 && !ZONE_STOPS.has(w))
+				.sort()
+				.join('|');
+			if (!seenZoneCore.has(core) || core === '') {
+				seenZoneCore.add(core);
+				deduplicatedZoneSeeds.push(z);
+			} else {
+				console.log(`[Strategy] Phase 1: dropped duplicate zone seed "${z}" (core: "${core}")`);
+			}
+		}
+
+		// Include usable user seeds, but NOT the raw generic seeds that were filtered above.
+		// This ensures "search engine optimization" doesn't pollute zones even if user typed it.
+		const allZoneSeeds = [...new Set([...usableSeeds, ...deduplicatedZoneSeeds])].slice(0, 14);
 		console.log(
-			`[Strategy] Phase 1: breadth=${landscape.category_breadth} | ${allZoneSeeds.length} zones`
+			`[Strategy] Phase 1: breadth=${landscape.category_breadth} | ${allZoneSeeds.length} zones — ${allZoneSeeds.join(' | ')}`
 		);
 
 		// =====================================================================
@@ -888,64 +948,69 @@ Return:
 		const zonesBriefing = zoneProfiles.map((z, i) => formatZoneForPrompt(z, i)).join('\n\n');
 
 		const synthesisRaw = await ai(
-			`You are a senior SEO strategist analyzing real keyword research data to build a content strategy.
-You have zone profiles — each zone is a sub-topic area with real DataForSEO keyword data.
+			`You are a senior SEO content strategist building a content strategy for a real business.
+You have zone profiles — each zone is a content pillar with real DataForSEO keyword data.
 
 YOUR JOB:
-For each strong zone (has keyword data): synthesize a MoFu focus page topic derived FROM the data.
-For weak zones (no data but PAA/SERP signal): suggest an AI-backed topic with explicit reasoning.
+For each zone with keyword data: design ONE MoFu focus page topic that is the definitive resource for that pillar.
+For zones with no keyword data but PAA/SERP signal: suggest a topic with explicit reasoning.
 
-CRITICAL RULES:
-1. The topic title must represent what the keyword data SHOWS people are searching for
-2. primary_keyword MUST be an exact keyword from that zone's DataForSEO results
-3. primary_keyword_volume/kd/cpc MUST match that keyword's real DataForSEO values
-4. Do NOT invent keywords. If a zone has no data, use the best_keyword field and mark as paa_backed/ai_suggested
+CRITICAL DATA RULES:
+1. primary_keyword MUST be an exact keyword from that zone's DataForSEO results — not invented
+2. primary_keyword_volume/kd/cpc MUST match that keyword's real values from the zone data
+3. The topic title must reflect what the keyword data shows people actually search for
+4. Do NOT invent keywords. If a zone has no data, mark as paa_backed/ai_suggested
 
-TOPIC TITLE RULES:
-- mofu_article: "How to [action]", "[X] for [specific audience/situation]", "[X] Guide for [use case]"
-- mofu_comparison: "[X] vs [Y]", "[X] Alternatives", "Compare [X] Options"
-- Avoid: "Complete Guide", "Everything About", "Best X" (overused, low IGS)
+TOPIC TITLE — WHAT MAKES A GREAT FOCUS PAGE TITLE:
+The title should be the DEFINITIVE resource a practitioner needs for this specific subtopic.
+Think: what would a smart person google when they need to understand this pillar deeply?
 
-IGS FEASIBILITY [US20190155948A1 — Helpful Content Update]:
-- "strong": business has genuine first-hand data/experience/expertise specific to this topic
-- "borderline": some angle possible but requires effort to differentiate from generic content
-- "failed": dominated by major authorities; business cannot add original value — SKIP THESE
+GOOD title patterns:
+- "Law Firm Local SEO: How to Rank in Google Maps and Local Pack"
+- "Keyword Research for Lawyers: Finding the Terms Your Clients Actually Search"
+- "Link Building for Law Firms: The Strategies That Actually Work"
+- "Law Firm Website SEO Checklist: Every On-Page Element That Matters"
+- "SEO for Personal Injury Lawyers: The Complete Case Acquisition Strategy"
+- "How to Do Technical SEO for a Law Firm Website"
 
-NAVBOOST POTENTIAL [US8595225B1 — DOJ confirmed most important ranking signal]:
-- "high": comparison/decision content, 5+ PAA questions, commercial proximity → long dwell
-- "medium": moderate engagement depth expected
-- "low": quick informational, user leaves fast
+BAD title patterns (reject these):
+❌ "Is [X] Worth the Investment?" — service-buyer content, not practitioner content
+❌ "In-House vs. Agency vs. Consultant" — generic, not niche-specific practitioner value
+❌ "What to Expect When Hiring..." — buying guide, not practitioner resource
+❌ "How to Choose an SEO Agency" — this serves people looking to hire, not practitioners
+❌ "Complete Guide to Everything About X" — too vague, overused format
+❌ Anything that sounds like it belongs in a generic marketing blog rather than a niche expert site
+
+THE RULE: every topic must be something the TARGET CUSTOMER needs to DO or UNDERSTAND themselves,
+not something about buying or hiring services. Practitioners want to know HOW to do things,
+not which service to buy.
+
+IGS FEASIBILITY [US20190155948A1]:
+- "strong": business has first-hand data/experience/expertise specific to this subtopic
+- "borderline": original angle possible with effort
+- "failed": dominated by major authorities with no original value possible — SKIP
+
+NAVBOOST POTENTIAL [US8595225B1]:
+- "high": comparison/decision/how-to content with 5+ sub-questions → long dwell time
+- "medium": moderate engagement depth
+- "low": quick answer content, user leaves fast
 
 DATA CONFIDENCE:
-- "data_backed": zone has keyword data (keyword_count > 0) — PREFERRED
-- "paa_backed": no keyword data but 4+ PAA questions confirming real user demand
-- "ai_suggested": minimal signals — only use to fill genuine gaps, NOT as padding
+- "data_backed": zone has keyword data (keyword_count > 0)
+- "paa_backed": no keyword data but 4+ PAA questions confirm real demand
+- "ai_suggested": minimal signals — max 2-3 total, only for genuine critical gaps
 
-TOPIC COUNT RULE — DATA FIRST:
-The strategy must be built on hard data, not inflated with AI guesses.
+TOPIC SELECTION RULES:
+STEP 1: Include ALL zones with keyword data (keyword_count > 0). These are the spine.
+STEP 2: Include paa_backed zones only if 4+ PAA questions AND genuinely different from existing topics.
+STEP 3: ai_suggested: max 2-3 total, only for critical gaps the business clearly covers.
+STEP 4: SKIP any zone where you cannot write a practitioner-useful, niche-specific topic title.
 
-STEP 1: Include ALL strong zones (has keyword data, keyword_count > 0). These are the spine.
-STEP 2: Include paa_backed zones ONLY if they cover a genuinely distinct angle not already
-  covered by a strong zone, AND have 4+ PAA questions as evidence of real demand.
-STEP 3: Include ai_suggested topics ONLY to fill critical gaps where:
-  - The business clearly serves this need (e.g. a Shopify SEO tool covering WooCommerce)
-  - AND no strong zone already covers this angle
-  - AND there is at least some PAA or organic title signal
-  - MAXIMUM 2-3 ai_suggested topics regardless of category breadth
-
-TOPIC CAPS BY BREADTH:
-- narrow: 4-6 total (mostly data_backed)
-- medium: 6-10 total (mostly data_backed, 1-2 gap fills)
-- broad: 8-14 total (mostly data_backed, 2-3 gap fills max)
-
-SKIP a zone if ANY of these are true:
-- Zero keyword data AND fewer than 4 PAA questions AND no strong organic title signal
-- Topic is already covered by another stronger zone in this list
-- No meaningful commercial connection to this business
-- You would only include it to hit a target number — do NOT pad
-
-QUALITY OVER QUANTITY. 8 data-backed topics beat 18 half-empty ones.
-A user acting on hollow AI suggestions wastes real time and effort with no results.
+QUALITY GATE — before including any topic, ask:
+- Is this a resource a practitioner in this niche genuinely needs?
+- Is the title specific to this niche or could it appear on any generic marketing blog?
+- Is it clearly different from every other topic in the list?
+If any answer is no, skip it or rework it until it passes.
 
 Return ONLY valid JSON array, no markdown.`,
 			`Business: ${site.name} | Niche: ${site.niche}
@@ -957,7 +1022,7 @@ ${destContext}
 ZONE PROFILES (real keyword research):
 ${zonesBriefing}
 
-ALL PAA QUESTIONS:
+ALL PAA QUESTIONS (use these to understand what practitioners actually want to know):
 ${uniquePAA.slice(0, 30).join('\n')}
 
 RELATED SEARCHES:
@@ -971,20 +1036,20 @@ HIGH NAVBOOST ZONES: ${landscape.high_navboost_zones.join(', ')}
 
 Existing topics to skip: ${existingTitles.size > 0 ? [...existingTitles].join(', ') : 'none'}
 
-For each valid zone return:
+For each valid zone return ONE topic:
 [
   {
-    "title": "MoFu focus page title derived from the keyword data",
+    "title": "Specific, practitioner-useful MoFu focus page title",
     "primary_keyword": "exact keyword from this zone's DataForSEO results",
     "primary_keyword_volume": 0,
     "primary_keyword_kd": 0,
     "primary_keyword_cpc": 0.0,
-    "topic_description": "1 sentence: what content lives here and why it serves this business",
+    "topic_description": "1 sentence: what the practitioner learns from this page and why it matters",
     "example_keywords": ["3-5 real keywords from the zone's DataForSEO data"],
     "funnel_stage": "mofu",
     "mofu_type": "mofu_article|mofu_comparison",
     "igs_feasibility": "strong|borderline|failed",
-    "original_angle": "specific: what first-hand data, experience, or expertise this business has for THIS topic",
+    "original_angle": "specific: what first-hand data or expertise this business brings to THIS subtopic",
     "navboost_potential": "high|medium|low",
     "data_confidence": "data_backed|paa_backed|ai_suggested",
     "source_zone": "the zone seed this came from",
@@ -1460,7 +1525,7 @@ Return: { "rationale": "2-3 sentences", "topics": [{ "title": "exact title", "ai
 
 		const researchContext = {
 			// v5.0 fields
-			strategy_version: '5.0',
+			strategy_version: '6.0',
 			category_breadth: landscape.category_breadth,
 			breadth_reasoning: landscape.breadth_reasoning,
 			zone_seeds_generated: allZoneSeeds.length,
@@ -1509,7 +1574,7 @@ Return: { "rationale": "2-3 sentences", "topics": [{ "title": "exact title", "ai
 			.select('id')
 			.single();
 		if (runErr) console.error('[Strategy] Failed to save run:', runErr.message);
-		else console.log(`[Strategy] Run saved: ${runRow?.id} | ${suggestions.length} topics | v5.0`);
+		else console.log(`[Strategy] Run saved: ${runRow?.id} | ${suggestions.length} topics | v6.0`);
 
 		writeNdjson(res, {
 			type: 'done',

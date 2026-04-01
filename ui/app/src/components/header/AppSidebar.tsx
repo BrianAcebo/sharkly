@@ -17,7 +17,8 @@ import {
 	ShoppingBag,
 	Target,
 	Lock,
-	BadgeDollarSign
+	BadgeDollarSign,
+	ChevronDown
 } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
@@ -285,7 +286,15 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 										>
 											<item.icon className={isExpanded || isMobileOpen ? 'size-4' : 'w-full'} />
 											{(isExpanded || isMobileOpen) && (
-												<span className="font-medium">{item.label}</span>
+												<span className="flex w-full items-center justify-between gap-2 font-medium">
+													{item.label}
+													<ChevronDown
+														className={cn(
+															'size-4 shrink-0 text-gray-500 transition-transform duration-200',
+															isOpen ? 'rotate-180' : ''
+														)}
+													/>
+												</span>
 											)}
 										</button>
 									)}
@@ -419,8 +428,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 								: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
 						}`;
 
-						const assistantHomeClick =
-							item.path === '/assistant' ? () => clearChat() : undefined;
+						const assistantHomeClick = item.path === '/assistant' ? () => clearChat() : undefined;
 
 						return (
 							<li key={`${item.path ?? item.label}${index}`}>
