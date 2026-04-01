@@ -5,6 +5,7 @@ import { cn } from '../../utils/common';
 export interface TooltipProps {
 	content: string;
 	children: React.ReactNode;
+	/** Merged last via `cn` / tailwind-merge — override default width, e.g. `min-w-0 w-max` for content-sized bubbles. */
 	className?: string;
 	tooltipPosition?: 'top' | 'bottom' | 'left' | 'right';
 	/** Render in portal to avoid overflow clipping (use for long content) */
@@ -79,7 +80,7 @@ export function Tooltip({
 	const tooltipContent = (
 		<span
 			className={cn(
-				'pointer-events-none z-[9999] min-w-[220px] max-w-[340px] whitespace-normal rounded bg-black px-3 py-2 text-left text-xs text-white',
+				'pointer-events-none z-[9999] min-w-[220px] w-max max-w-[340px] whitespace-normal rounded bg-black px-3 py-2 text-left text-xs text-white',
 				usePortal ? 'fixed' : 'absolute',
 				!usePortal && tooltipPositionClasses[tooltipPosition],
 				!usePortal && 'scale-0 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100',

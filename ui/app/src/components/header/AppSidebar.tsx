@@ -37,6 +37,9 @@ import { Tooltip } from '../ui/tooltip';
 import { cn } from '../../utils/common';
 import { useChat } from '../../contexts/ChatContext';
 
+/** Collapsed / portal tooltips: drop default `min-w-[220px]` so labels fit tightly. */
+const SIDEBAR_TOOLTIP_BUBBLE = 'min-w-0 w-max';
+
 type MenuItem = {
 	icon: React.ComponentType<{ className?: string }>;
 	label: string;
@@ -229,7 +232,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 			</div>
 
 			<nav className="mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
-				<div className="scrollbar-branded min-h-0 flex-1 overflow-x-hidden overflow-y-auto py-8 contain-[layout]">
+				<div className="scrollbar-branded min-h-0 flex-1 overflow-x-hidden overflow-y-auto py-4 contain-[layout]">
 					<ul className="w-full min-w-0 space-y-2 px-2">
 						{menuItems.map((item: MenuItem, index) => {
 							const isActive = (it: MenuItem): boolean => {
@@ -250,29 +253,34 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 													onMouseEnter={() => handleFlyoutEnter(item.label)}
 													onMouseLeave={() => handleFlyoutLeave(item.label)}
 													className={cn(
-														'flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
+														'mx-auto flex w-fit items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
 														active
 															? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
 															: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white',
 														!wide ? 'justify-center' : 'justify-start'
 													)}
 												>
-													<item.icon className="size-5" />
+													<item.icon className="size-5 shrink-0" />
 												</button>
 											) : (
-												<Tooltip content={item.label} tooltipPosition="right" usePortal>
+												<Tooltip
+													className={SIDEBAR_TOOLTIP_BUBBLE}
+													content={item.label}
+													tooltipPosition="right"
+													usePortal
+												>
 													<button
 														onMouseEnter={() => handleFlyoutEnter(item.label)}
 														onMouseLeave={() => handleFlyoutLeave(item.label)}
 														className={cn(
-															'flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
+															'mx-auto flex w-fit items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
 															active
 																? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
 																: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white',
 															!wide ? 'justify-center' : 'justify-start'
 														)}
 													>
-														<item.icon className="size-5" />
+														<item.icon className="size-5 shrink-0" />
 													</button>
 												</Tooltip>
 											)
@@ -285,9 +293,9 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 														: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
 												}`}
 											>
-												<item.icon className="size-5" />
+												<item.icon className="size-5 shrink-0" />
 												{wide && (
-													<span className="flex w-full items-center justify-between gap-2 font-medium">
+													<span className="flex min-w-0 flex-1 items-center justify-between gap-2 font-medium">
 														{item.label}
 														<ChevronDown
 															className={cn(
@@ -306,6 +314,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 													r.locked ? (
 														<li key={r.path as string}>
 															<Tooltip
+																className={SIDEBAR_TOOLTIP_BUBBLE}
 																content={r.lockTooltip ?? 'Upgrade to unlock'}
 																tooltipPosition="right"
 																usePortal
@@ -317,7 +326,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 																	}
 																	className="flex w-full items-center space-x-3 rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-500 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-400"
 																>
-																	<r.icon className="size-4" />
+																	<r.icon className="size-4 shrink-0" />
 																	<span>{r.label}</span>
 																	<Lock className="size-3 shrink-0 opacity-70" />
 																</button>
@@ -333,7 +342,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 																			: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
 																	}`}
 																>
-																	<r.icon className="size-4" />
+																	<r.icon className="size-4 shrink-0" />
 																	<span>{r.label}</span>
 																</button>
 															</Link>
@@ -352,25 +361,35 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 								return (
 									<li key={`${item.path ?? item.label}${index}`}>
 										{!wide ? (
-											<Tooltip content={item.lockTooltip} tooltipPosition="right" usePortal>
+											<Tooltip
+												className={SIDEBAR_TOOLTIP_BUBBLE}
+												content={item.lockTooltip}
+												tooltipPosition="right"
+												usePortal
+											>
 												<button
 													type="button"
 													onClick={() => openTierUpgradeModal(item.requiredTier!, item.label)}
 													className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
 												>
-													<item.icon className={wide ? 'size-5' : 'w-full'} />
+													<item.icon className="size-5 shrink-0" />
 													{wide && <span className="font-medium">{item.label}</span>}
 													<Lock className="size-3.5 shrink-0 opacity-70" />
 												</button>
 											</Tooltip>
 										) : (
-											<Tooltip content={item.lockTooltip} tooltipPosition="right" usePortal>
+											<Tooltip
+												className={SIDEBAR_TOOLTIP_BUBBLE}
+												content={item.lockTooltip}
+												tooltipPosition="right"
+												usePortal
+											>
 												<button
 													type="button"
 													onClick={() => openTierUpgradeModal(item.requiredTier!, item.label)}
 													className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
 												>
-													<item.icon className="size-5" />
+													<item.icon className="size-5 shrink-0" />
 													<span className="font-medium">{item.label}</span>
 													<Lock className="size-3.5 shrink-0 opacity-70" />
 												</button>
@@ -390,6 +409,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 									<li key={`${item.path ?? item.label}${index}`}>
 										{!wide ? (
 											<Tooltip
+												className={SIDEBAR_TOOLTIP_BUBBLE}
 												content="Add CRO Studio ($29/mo) to unlock"
 												tooltipPosition="right"
 												usePortal
@@ -403,7 +423,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 														!wide ? 'justify-center' : 'justify-start'
 													)}
 												>
-													<Target className="size-5" />
+													<Target className="size-5 shrink-0" />
 													{wide && (
 														<>
 															<span className="font-medium">{item.label}</span>
@@ -418,7 +438,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 												onClick={openCROStudioUpgradeModal}
 												className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
 											>
-												<Target className="size-5" />
+												<Target className="size-5 shrink-0" />
 												<span className="font-medium">{item.label}</span>
 												<Lock className="size-3.5 shrink-0 opacity-70" />
 											</button>
@@ -427,23 +447,30 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 								);
 							}
 
-							const linkClassName = `flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
+							const linkClassName = cn(
+								'mx-auto flex mx-auto items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
 								active
 									? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
-									: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
-							}`;
+									: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white',
+								wide ? 'w-full' : 'w-fit'
+							);
 
 							const assistantHomeClick = item.path === '/assistant' ? () => clearChat() : undefined;
 
 							return (
 								<li key={`${item.path ?? item.label}${index}`}>
 									{!wide ? (
-										<Tooltip content={item.label} tooltipPosition="right" usePortal>
+										<Tooltip
+											className={SIDEBAR_TOOLTIP_BUBBLE}
+											content={item.label}
+											tooltipPosition="right"
+											usePortal
+										>
 											<Link to={item.path as string} onClick={assistantHomeClick}>
 												<button
 													className={cn(linkClassName, !wide ? 'justify-center' : 'justify-start')}
 												>
-													<item.icon className="size-5" />
+													<item.icon className="size-5 shrink-0" />
 													{wide && <span className="font-medium">{item.label}</span>}
 												</button>
 											</Link>
@@ -453,7 +480,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 											<button
 												className={cn(linkClassName, !wide ? 'justify-center' : 'justify-start')}
 											>
-												<item.icon className="size-5" />
+												<item.icon className="size-5 shrink-0" />
 												{wide && <span className="font-medium">{item.label}</span>}
 											</button>
 										</Link>
@@ -478,11 +505,12 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 							onMouseLeave={() => handleFlyoutLeave(openFlyoutItem.label)}
 						>
 							<p className="pl-2 text-sm font-semibold">{openFlyoutItem.label}</p>
-							<ul className="space-y-1 border-t">
+							<ul className="space-y-1 border-t pt-2">
 								{(openFlyoutItem.children ?? []).map((r: MenuItem) =>
 									r.locked ? (
 										<li key={r.path as string}>
 											<Tooltip
+												className={SIDEBAR_TOOLTIP_BUBBLE}
 												content={r.lockTooltip ?? 'Upgrade to unlock'}
 												tooltipPosition="right"
 												usePortal
@@ -495,7 +523,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 													}}
 													className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm text-gray-400 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-500 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-400"
 												>
-													<r.icon className="size-4" />
+													<r.icon className="size-5 shrink-0" />
 													<span>{r.label}</span>
 													<Lock className="size-3 shrink-0 opacity-70" />
 												</button>
@@ -516,7 +544,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 															: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-700 dark:text-gray-300'
 													}`}
 												>
-													<r.icon className="size-4" />
+													<r.icon className="size-5 shrink-0" />
 													<span>{r.label}</span>
 												</button>
 											</Link>
