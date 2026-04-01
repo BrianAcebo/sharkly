@@ -18,7 +18,8 @@ import {
 	Target,
 	Lock,
 	BadgeDollarSign,
-	ChevronDown
+	ChevronDown,
+	GitCompare
 } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
@@ -146,7 +147,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 		// Technical: Schema Generator (Builder+), Site Audit (Scale+) — always show Site Audit, disabled when locked
 		const technicalChildren: MenuItem[] = [
 			{
-				icon: Wrench,
+				icon: GitCompare,
 				label: 'Site Audit',
 				path: '/technical',
 				locked: techLocked,
@@ -202,7 +203,8 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 
 	useEffect(() => () => clearCloseTimeout(), [clearCloseTimeout]);
 
-	const isCollapsed = !(isExpanded || isMobileOpen);
+	const wide = isExpanded || isMobileOpen;
+	const isCollapsed = !wide;
 	const openFlyoutItem = menuItems.find(
 		(item) => item.children && (openGroups[item.label] ?? false) && isCollapsed
 	);
@@ -218,53 +220,33 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 
 	return (
 		<aside
-			className={`fixed top-0 left-0 z-50 mt-16 flex h-screen flex-col overflow-x-visible border-r border-gray-200 bg-white text-gray-900 transition-all duration-300 ease-in-out lg:mt-0 dark:border-gray-600 dark:bg-gray-900 ${isExpanded || isMobileOpen ? 'w-55' : 'w-22'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+			className={`fixed top-0 left-0 isolate z-50 mt-16 flex h-screen flex-col overflow-x-hidden border-r border-gray-200 bg-white text-gray-900 transition-[width,transform] duration-220 ease-in-out motion-reduce:transition-none lg:mt-0 dark:border-gray-600 dark:bg-gray-900 ${wide ? 'w-55' : 'w-22'} ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
 		>
-			<div className="h-header-height flex items-center justify-center border-b border-gray-200 pt-4 pb-2 dark:border-gray-600">
-				<Link to="/">
-					<Logo isIcon={!(isExpanded || isMobileOpen)} width={115} height="auto" />
+			<div className="h-header-height flex min-h-10 shrink-0 items-center justify-center overflow-hidden border-b border-gray-200 px-1 pt-4 pb-2 dark:border-gray-600">
+				<Link to="/" className="flex max-h-10 w-full max-w-full items-center justify-center">
+					<Logo isIcon={!wide} width={115} height="auto" className="max-h-8" />
 				</Link>
 			</div>
 
-			<nav
-				className={cn(
-					'scrollbar-branded mb-6 flex flex-1 overflow-y-auto py-8',
-					isExpanded || isMobileOpen ? 'overflow-y-auto' : 'overflow-x-visible'
-				)}
-			>
-				<ul className="w-full space-y-2 overflow-x-visible px-2">
-					{menuItems.map((item: MenuItem, index) => {
-						const isActive = (it: MenuItem): boolean => {
-							if (it.path) return window.location.pathname.startsWith(it.path);
-							if (it.children) return it.children.some((c) => isActive(c));
-							return false;
-						};
-						const active = isActive(item);
-						if (item.children) {
-							const group = item;
-							const isOpen = openGroups[item.label] ?? false;
-							const isCollapsed = !(isExpanded || isMobileOpen);
-							return (
-								<li key={item.label + index} className="relative">
-									{isCollapsed ? (
-										isOpen ? (
-											<button
-												ref={flyoutTriggerRef}
-												onMouseEnter={() => handleFlyoutEnter(item.label)}
-												onMouseLeave={() => handleFlyoutLeave(item.label)}
-												className={cn(
-													'flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
-													active
-														? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
-														: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white',
-													!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
-												)}
-											>
-												<item.icon className="size-5" />
-											</button>
-										) : (
-											<Tooltip content={item.label} tooltipPosition="right" usePortal>
+			<nav className="mb-6 flex min-h-0 flex-1 flex-col overflow-hidden">
+				<div className="scrollbar-branded min-h-0 flex-1 overflow-x-hidden overflow-y-auto py-8 contain-[layout]">
+					<ul className="w-full min-w-0 space-y-2 px-2">
+						{menuItems.map((item: MenuItem, index) => {
+							const isActive = (it: MenuItem): boolean => {
+								if (it.path) return window.location.pathname.startsWith(it.path);
+								if (it.children) return it.children.some((c) => isActive(c));
+								return false;
+							};
+							const active = isActive(item);
+							if (item.children) {
+								const group = item;
+								const isOpen = openGroups[item.label] ?? false;
+								return (
+									<li key={item.label + index} className="relative">
+										{isCollapsed ? (
+											isOpen ? (
 												<button
+													ref={flyoutTriggerRef}
 													onMouseEnter={() => handleFlyoutEnter(item.label)}
 													onMouseLeave={() => handleFlyoutLeave(item.label)}
 													className={cn(
@@ -272,211 +254,215 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 														active
 															? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
 															: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white',
-														!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
+														!wide ? 'justify-center' : 'justify-start'
 													)}
 												>
 													<item.icon className="size-5" />
 												</button>
-											</Tooltip>
-										)
-									) : (
-										<button
-											onClick={() => setOpenGroups((m) => ({ ...m, [item.label]: !isOpen }))}
-											className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
-												active
-													? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
-													: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
-											}`}
-										>
-											<item.icon className="size-5" />
-											{(isExpanded || isMobileOpen) && (
-												<span className="flex w-full items-center justify-between gap-2 font-medium">
-													{item.label}
-													<ChevronDown
+											) : (
+												<Tooltip content={item.label} tooltipPosition="right" usePortal>
+													<button
+														onMouseEnter={() => handleFlyoutEnter(item.label)}
+														onMouseLeave={() => handleFlyoutLeave(item.label)}
 														className={cn(
-															'size-4 shrink-0 text-gray-500 transition-transform duration-200',
-															isOpen ? 'rotate-180' : ''
+															'flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
+															active
+																? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
+																: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white',
+															!wide ? 'justify-center' : 'justify-start'
 														)}
-													/>
-												</span>
-											)}
-										</button>
-									)}
-									{/* Expanded sidebar: inline submenu */}
-									{(isExpanded || isMobileOpen) && isOpen ? (
-										<ul className="mt-1 space-y-1 pl-4">
-											{(group.children ?? []).map((r: MenuItem) =>
-												r.locked ? (
-													<li key={r.path as string}>
-														<Tooltip
-															content={r.lockTooltip ?? 'Upgrade to unlock'}
-															tooltipPosition="right"
-															usePortal
-														>
-															<button
-																type="button"
-																onClick={() =>
-																	r.requiredTier && openTierUpgradeModal(r.requiredTier, r.label)
-																}
-																className="flex w-full items-center space-x-3 rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-500 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-400"
-															>
-																<r.icon className="size-4" />
-																<span>{r.label}</span>
-																<Lock className="size-3 shrink-0 opacity-70" />
-															</button>
-														</Tooltip>
-													</li>
-												) : (
-													<li key={r.path as string}>
-														<Link to={r.path as string}>
-															<button
-																className={`flex w-full items-center space-x-3 rounded-lg px-4 py-2 text-sm transition-colors duration-200 ${
-																	window.location.pathname.startsWith(r.path as string)
-																		? 'bg-brand-50/50 dark:bg-brand-600/10 text-brand-700 dark:text-brand-300'
-																		: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
-																}`}
-															>
-																<r.icon className="size-4" />
-																<span>{r.label}</span>
-															</button>
-														</Link>
-													</li>
-												)
-											)}
-										</ul>
-									) : null}
-								</li>
-							);
-						}
-						// Tier-locked: show but disabled (greyed + lock), click → upgrade modal (like CRO addon)
-						if (item.locked && item.lockTooltip && item.requiredTier) {
-							const lockedClass =
-								'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-500 dark:hover:text-gray-400 cursor-pointer';
-							return (
-								<li key={`${item.path ?? item.label}${index}`}>
-									{!(isExpanded || isMobileOpen) ? (
-										<Tooltip content={item.lockTooltip} tooltipPosition="right" usePortal>
+													>
+														<item.icon className="size-5" />
+													</button>
+												</Tooltip>
+											)
+										) : (
 											<button
-												type="button"
-												onClick={() => openTierUpgradeModal(item.requiredTier!, item.label)}
-												className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
-											>
-												<item.icon className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
-												{(isExpanded || isMobileOpen) && (
-													<span className="font-medium">{item.label}</span>
-												)}
-												<Lock className="size-3.5 shrink-0 opacity-70" />
-											</button>
-										</Tooltip>
-									) : (
-										<Tooltip content={item.lockTooltip} tooltipPosition="right" usePortal>
-											<button
-												type="button"
-												onClick={() => openTierUpgradeModal(item.requiredTier!, item.label)}
-												className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
+												onClick={() => setOpenGroups((m) => ({ ...m, [item.label]: !isOpen }))}
+												className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
+													active
+														? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
+														: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
+												}`}
 											>
 												<item.icon className="size-5" />
-												<span className="font-medium">{item.label}</span>
-												<Lock className="size-3.5 shrink-0 opacity-70" />
+												{wide && (
+													<span className="flex w-full items-center justify-between gap-2 font-medium">
+														{item.label}
+														<ChevronDown
+															className={cn(
+																'size-4 shrink-0 text-gray-500 transition-transform duration-200',
+																isOpen ? 'rotate-180' : ''
+															)}
+														/>
+													</span>
+												)}
 											</button>
-										</Tooltip>
-									)}
-								</li>
-							);
-						}
+										)}
+										{/* Expanded sidebar: inline submenu */}
+										{wide && isOpen ? (
+											<ul className="mt-1 space-y-1 pl-4">
+												{(group.children ?? []).map((r: MenuItem) =>
+													r.locked ? (
+														<li key={r.path as string}>
+															<Tooltip
+																content={r.lockTooltip ?? 'Upgrade to unlock'}
+																tooltipPosition="right"
+																usePortal
+															>
+																<button
+																	type="button"
+																	onClick={() =>
+																		r.requiredTier && openTierUpgradeModal(r.requiredTier, r.label)
+																	}
+																	className="flex w-full items-center space-x-3 rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-500 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-400"
+																>
+																	<r.icon className="size-4" />
+																	<span>{r.label}</span>
+																	<Lock className="size-3 shrink-0 opacity-70" />
+																</button>
+															</Tooltip>
+														</li>
+													) : (
+														<li key={r.path as string}>
+															<Link to={r.path as string}>
+																<button
+																	className={`flex w-full items-center space-x-3 rounded-lg px-4 py-2 text-sm transition-colors duration-200 ${
+																		window.location.pathname.startsWith(r.path as string)
+																			? 'bg-brand-50/50 dark:bg-brand-600/10 text-brand-700 dark:text-brand-300'
+																			: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
+																	}`}
+																>
+																	<r.icon className="size-4" />
+																	<span>{r.label}</span>
+																</button>
+															</Link>
+														</li>
+													)
+												)}
+											</ul>
+										) : null}
+									</li>
+								);
+							}
+							// Tier-locked: show but disabled (greyed + lock), click → upgrade modal (like CRO addon)
+							if (item.locked && item.lockTooltip && item.requiredTier) {
+								const lockedClass =
+									'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-500 dark:hover:text-gray-400 cursor-pointer';
+								return (
+									<li key={`${item.path ?? item.label}${index}`}>
+										{!wide ? (
+											<Tooltip content={item.lockTooltip} tooltipPosition="right" usePortal>
+												<button
+													type="button"
+													onClick={() => openTierUpgradeModal(item.requiredTier!, item.label)}
+													className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
+												>
+													<item.icon className={wide ? 'size-5' : 'w-full'} />
+													{wide && <span className="font-medium">{item.label}</span>}
+													<Lock className="size-3.5 shrink-0 opacity-70" />
+												</button>
+											</Tooltip>
+										) : (
+											<Tooltip content={item.lockTooltip} tooltipPosition="right" usePortal>
+												<button
+													type="button"
+													onClick={() => openTierUpgradeModal(item.requiredTier!, item.label)}
+													className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
+												>
+													<item.icon className="size-5" />
+													<span className="font-medium">{item.label}</span>
+													<Lock className="size-3.5 shrink-0 opacity-70" />
+												</button>
+											</Tooltip>
+										)}
+									</li>
+								);
+							}
 
-						// CRO Studio locked: show button that opens upgrade modal (greyed + lock icon)
-						const isCROStudioLocked = item.path === '/cro-studio' && croStudioLocked;
+							// CRO Studio locked: show button that opens upgrade modal (greyed + lock icon)
+							const isCROStudioLocked = item.path === '/cro-studio' && croStudioLocked;
 
-						if (isCROStudioLocked) {
-							const lockedClass =
-								'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-500 dark:hover:text-gray-400 cursor-pointer';
-							return (
-								<li key={`${item.path ?? item.label}${index}`}>
-									{!(isExpanded || isMobileOpen) ? (
-										<Tooltip
-											content="Add CRO Studio ($29/mo) to unlock"
-											tooltipPosition="right"
-											usePortal
-										>
+							if (isCROStudioLocked) {
+								const lockedClass =
+									'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-500 dark:hover:text-gray-400 cursor-pointer';
+								return (
+									<li key={`${item.path ?? item.label}${index}`}>
+										{!wide ? (
+											<Tooltip
+												content="Add CRO Studio ($29/mo) to unlock"
+												tooltipPosition="right"
+												usePortal
+											>
+												<button
+													type="button"
+													onClick={openCROStudioUpgradeModal}
+													className={cn(
+														'flex w-full items-center justify-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
+														lockedClass,
+														!wide ? 'justify-center' : 'justify-start'
+													)}
+												>
+													<Target className="size-5" />
+													{wide && (
+														<>
+															<span className="font-medium">{item.label}</span>
+															<Lock className="size-3.5 shrink-0 opacity-70" />
+														</>
+													)}
+												</button>
+											</Tooltip>
+										) : (
 											<button
 												type="button"
 												onClick={openCROStudioUpgradeModal}
-												className={cn(
-													'flex w-full items-center justify-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
-													lockedClass,
-													!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
-												)}
+												className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
 											>
 												<Target className="size-5" />
-												{(isExpanded || isMobileOpen) && (
-													<>
-														<span className="font-medium">{item.label}</span>
-														<Lock className="size-3.5 shrink-0 opacity-70" />
-													</>
-												)}
+												<span className="font-medium">{item.label}</span>
+												<Lock className="size-3.5 shrink-0 opacity-70" />
 											</button>
+										)}
+									</li>
+								);
+							}
+
+							const linkClassName = `flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
+								active
+									? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
+									: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
+							}`;
+
+							const assistantHomeClick = item.path === '/assistant' ? () => clearChat() : undefined;
+
+							return (
+								<li key={`${item.path ?? item.label}${index}`}>
+									{!wide ? (
+										<Tooltip content={item.label} tooltipPosition="right" usePortal>
+											<Link to={item.path as string} onClick={assistantHomeClick}>
+												<button
+													className={cn(linkClassName, !wide ? 'justify-center' : 'justify-start')}
+												>
+													<item.icon className="size-5" />
+													{wide && <span className="font-medium">{item.label}</span>}
+												</button>
+											</Link>
 										</Tooltip>
 									) : (
-										<button
-											type="button"
-											onClick={openCROStudioUpgradeModal}
-											className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
-										>
-											<Target className="size-5" />
-											<span className="font-medium">{item.label}</span>
-											<Lock className="size-3.5 shrink-0 opacity-70" />
-										</button>
+										<Link to={item.path as string} onClick={assistantHomeClick}>
+											<button
+												className={cn(linkClassName, !wide ? 'justify-center' : 'justify-start')}
+											>
+												<item.icon className="size-5" />
+												{wide && <span className="font-medium">{item.label}</span>}
+											</button>
+										</Link>
 									)}
 								</li>
 							);
-						}
-
-						const linkClassName = `flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
-							active
-								? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
-								: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
-						}`;
-
-						const assistantHomeClick = item.path === '/assistant' ? () => clearChat() : undefined;
-
-						return (
-							<li key={`${item.path ?? item.label}${index}`}>
-								{!(isExpanded || isMobileOpen) ? (
-									<Tooltip content={item.label} tooltipPosition="right" usePortal>
-										<Link to={item.path as string} onClick={assistantHomeClick}>
-											<button
-												className={cn(
-													linkClassName,
-													!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
-												)}
-											>
-												<item.icon className="size-5" />
-												{(isExpanded || isMobileOpen) && (
-													<span className="font-medium">{item.label}</span>
-												)}
-											</button>
-										</Link>
-									</Tooltip>
-								) : (
-									<Link to={item.path as string} onClick={assistantHomeClick}>
-										<button
-											className={cn(
-												linkClassName,
-												!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
-											)}
-										>
-											<item.icon className="size-5" />
-											{(isExpanded || isMobileOpen) && (
-												<span className="font-medium">{item.label}</span>
-											)}
-										</button>
-									</Link>
-								)}
-							</li>
-						);
-					})}
-				</ul>
+						})}
+					</ul>
+				</div>
 			</nav>
 
 			{/* Collapsed sidebar: flyout submenu via portal (avoids overflow clip) */}
@@ -504,7 +490,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 												<button
 													type="button"
 													onClick={() => {
-														r.requiredTier && openTierUpgradeModal(r.requiredTier, r.label);
+														if (r.requiredTier) openTierUpgradeModal(r.requiredTier, r.label);
 														setOpenGroups((m) => ({ ...m, [openFlyoutItem.label]: false }));
 													}}
 													className="flex w-full items-center space-x-3 rounded-md px-3 py-2 text-sm text-gray-400 transition-colors duration-200 hover:bg-gray-100 hover:text-gray-500 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-400"
@@ -544,7 +530,12 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 				)}
 
 			<div className="border-t border-gray-200 py-2 dark:border-gray-600">
-				<div className="mb-4 flex items-center justify-start space-x-2 border-b border-gray-200 px-4 pb-2 dark:border-gray-600">
+				<div
+					className={cn(
+						'mb-4 flex items-center space-x-2 border-b border-gray-200 px-4 pb-2 dark:border-gray-600',
+						wide ? 'justify-start' : 'justify-center'
+					)}
+				>
 					<div className="rounded-full border border-gray-200 dark:border-gray-600">
 						<UserAvatar
 							user={{
@@ -557,7 +548,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 							size="sm"
 						/>
 					</div>
-					{(isExpanded || isMobileOpen) && (
+					{wide && (
 						<div>
 							<p className="text-xs font-medium text-black dark:text-white">
 								{user?.first_name} {user?.last_name}
@@ -569,10 +560,13 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 
 				<button
 					onClick={signOut}
-					className="text-brand-500 bg-brand-100/50 dark:text-brand-400 dark:bg-brand-900/30 mx-auto mb-4 flex w-5/6 items-center justify-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200"
+					className={cn(
+						'text-brand-500 bg-brand-100/50 dark:text-brand-400 dark:bg-brand-900/30 mx-auto mb-4 flex items-center justify-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
+						wide ? 'w-5/6' : 'w-fit'
+					)}
 				>
-					<LogOut className={isExpanded || isMobileOpen ? 'size-4' : 'w-full'} />
-					{(isExpanded || isMobileOpen) && <span className="text-sm font-medium">Sign Out</span>}
+					<LogOut className="size-4" />
+					{wide && <span className="text-sm font-medium">Sign Out</span>}
 				</button>
 			</div>
 		</aside>

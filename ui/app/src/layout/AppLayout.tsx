@@ -279,7 +279,7 @@ const LayoutContent: React.FC = () => {
 					<Backdrop />
 				</div>
 				<div
-					className={`flex-1 transition-all duration-300 ease-in-out ${isExpanded ? 'lg:ml-55' : 'lg:ml-22'} ${isMobileOpen ? 'ml-0' : ''}`}
+					className={`flex-1 transition-[margin-left] duration-220 ease-in-out motion-reduce:transition-none ${isExpanded ? 'lg:ml-55' : 'lg:ml-22'} ${isMobileOpen ? 'ml-0' : ''}`}
 				>
 					<AppHeader />
 
