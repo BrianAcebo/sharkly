@@ -252,26 +252,30 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 												ref={flyoutTriggerRef}
 												onMouseEnter={() => handleFlyoutEnter(item.label)}
 												onMouseLeave={() => handleFlyoutLeave(item.label)}
-												className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
+												className={cn(
+													'flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
 													active
 														? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
-														: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
-												}`}
+														: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white',
+													!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
+												)}
 											>
-												<item.icon className="w-full" />
+												<item.icon className="size-5" />
 											</button>
 										) : (
 											<Tooltip content={item.label} tooltipPosition="right" usePortal>
 												<button
 													onMouseEnter={() => handleFlyoutEnter(item.label)}
 													onMouseLeave={() => handleFlyoutLeave(item.label)}
-													className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${
+													className={cn(
+														'flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
 														active
 															? 'bg-brand-50 dark:bg-brand-900/20 text-brand-700 dark:text-brand-300 border-brand-600 border-l-4'
-															: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
-													}`}
+															: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white',
+														!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
+													)}
 												>
-													<item.icon className="w-full" />
+													<item.icon className="size-5" />
 												</button>
 											</Tooltip>
 										)
@@ -284,7 +288,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 													: 'hover:bg-brand-50 dark:hover:bg-brand-700/20 text-gray-600 hover:text-black dark:text-gray-400 dark:hover:text-white'
 											}`}
 										>
-											<item.icon className={isExpanded || isMobileOpen ? 'size-4' : 'w-full'} />
+											<item.icon className="size-5" />
 											{(isExpanded || isMobileOpen) && (
 												<span className="flex w-full items-center justify-between gap-2 font-medium">
 													{item.label}
@@ -398,13 +402,19 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 											<button
 												type="button"
 												onClick={openCROStudioUpgradeModal}
-												className={`flex w-full items-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200 ${lockedClass}`}
-											>
-												<Target className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
-												{(isExpanded || isMobileOpen) && (
-													<span className="font-medium">{item.label}</span>
+												className={cn(
+													'flex w-full items-center justify-center space-x-3 rounded-lg px-4 py-3 transition-colors duration-200',
+													lockedClass,
+													!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
 												)}
-												<Lock className="size-3.5 shrink-0 opacity-70" />
+											>
+												<Target className="size-5" />
+												{(isExpanded || isMobileOpen) && (
+													<>
+														<span className="font-medium">{item.label}</span>
+														<Lock className="size-3.5 shrink-0 opacity-70" />
+													</>
+												)}
 											</button>
 										</Tooltip>
 									) : (
@@ -435,8 +445,13 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 								{!(isExpanded || isMobileOpen) ? (
 									<Tooltip content={item.label} tooltipPosition="right" usePortal>
 										<Link to={item.path as string} onClick={assistantHomeClick}>
-											<button className={linkClassName}>
-												<item.icon className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
+											<button
+												className={cn(
+													linkClassName,
+													!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
+												)}
+											>
+												<item.icon className="size-5" />
 												{(isExpanded || isMobileOpen) && (
 													<span className="font-medium">{item.label}</span>
 												)}
@@ -445,8 +460,13 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 									</Tooltip>
 								) : (
 									<Link to={item.path as string} onClick={assistantHomeClick}>
-										<button className={linkClassName}>
-											<item.icon className={isExpanded || isMobileOpen ? 'size-5' : 'w-full'} />
+										<button
+											className={cn(
+												linkClassName,
+												!(isExpanded || isMobileOpen) ? 'justify-center' : 'justify-start'
+											)}
+										>
+											<item.icon className="size-5" />
 											{(isExpanded || isMobileOpen) && (
 												<span className="font-medium">{item.label}</span>
 											)}
@@ -466,7 +486,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 				createPortal(
 					<>
 						<div
-							className="fixed z-[100] w-56 space-y-2 rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+							className="fixed z-100 w-56 space-y-2 rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-900"
 							style={{ top: flyoutPosition.top, left: flyoutPosition.left }}
 							onMouseEnter={() => handleFlyoutEnter(openFlyoutItem.label)}
 							onMouseLeave={() => handleFlyoutLeave(openFlyoutItem.label)}
