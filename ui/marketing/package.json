@@ -16,7 +16,8 @@
 		"astro": "^5.0.0",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
-		"tailwind-merge": "^3.5.0"
+		"tailwind-merge": "^3.5.0",
+		"lowlight": "^3.3.0"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",

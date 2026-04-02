@@ -9,7 +9,6 @@ import CharacterCount from '@tiptap/extension-character-count';
 import Youtube from '@tiptap/extension-youtube';
 import { TableKit } from '@tiptap/extension-table';
 import type { Extensions } from '@tiptap/core';
-import type { Lowlight } from 'lowlight';
 
 /** Prose surface inside the editor — keep in sync with Workspace article view. */
 export const SHARKLY_ARTICLE_PROSE_CLASS =
@@ -19,7 +18,7 @@ export const SHARKLY_ARTICLE_PROSE_CLASS =
 export const SHARKLY_ARTICLE_EDITOR_CONTENT_CLASS =
 	'flex h-full min-h-0 min-w-0 flex-1 flex-col [&_.tiptap]:min-h-[800px] [&_.tiptap]:min-w-0 [&_.tiptap]:flex-1';
 
-export function createSharklyArticleExtensions(lowlight: Lowlight): Extensions {
+export function createSharklyArticleExtensions(lowlight: any): Extensions {
 	return [
 		StarterKit.configure({ codeBlock: false, link: false, underline: false }),
 		TableKit,
@@ -47,11 +46,11 @@ export function buildSharklyArticleEditorProps(cleanPastedHTML: (html: string) =
 		},
 		transformPastedHTML: cleanPastedHTML,
 		handleDOMEvents: {
-			mousedown: (_view, event: Event) => {
+			mousedown: (_view: any, event: Event) => {
 				const target = event.target as HTMLElement;
 				if (target.closest('a[href]')) event.preventDefault();
 			},
-			click: (_view, event: Event) => {
+			click: (_view: any, event: Event) => {
 				const target = event.target as HTMLElement;
 				if (target.closest('a[href]')) {
 					event.preventDefault();

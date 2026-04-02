@@ -8,6 +8,11 @@ dev:
 	(cd api && npm run ngrok) & \
 	wait
 
+build:
+	cd api && npm run build && \
+	cd ../ui/app && npm run build && \
+	cd ../marketing && npm run build
+
 # Individual services
 dev-api:
 	cd api && npm run dev
