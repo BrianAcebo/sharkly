@@ -1,7 +1,9 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import BlogTocDrawer from '../../../components/BlogTocDrawer.astro';
 import { getPost } from '../../../lib/supabase';
 import { buildBlogPostJsonLd } from '../../../lib/blogPostJsonLd';
+import { injectH2IdsAndBuildToc } from '../../../lib/blogToc';
 
 // SSR — fetch on every request so new posts appear instantly
 const { slug } = Astro.params;
@@ -16,6 +18,8 @@ const date = post.published_at
   : '';
 
 const structuredData = buildBlogPostJsonLd(post, { siteUrl, appUrl });
+const { html: postHtml, toc } = injectH2IdsAndBuildToc(post.content_html);
+const hasToc = toc.length > 0;
 ---
 
 <BaseLayout
@@ -26,8 +30,19 @@ const structuredData = buildBlogPostJsonLd(post, { siteUrl, appUrl });
   schema={structuredData}
   ogType="article"
 >
-  <article class="max-w-[780px] mx-auto py-12 px-6">
+  <article class="py-12 px-6">
+    <div
+      id="blog-post-layout"
+      class="relative mx-auto w-full justify-center flex gap-10 transition-[max-width] duration-300 ease-out"
+      data-toc-open={hasToc ? 'false' : undefined}
+    >
+      {hasToc && (
+        <aside class="sticky top-28 hidden lg:block lg:self-start" data-syncs-blog-layout>
+          <BlogTocDrawer toc={toc} suffix="desktop" />
+        </aside>
+      )}
 
+      <div class="w-full max-w-[780px]">
     <!-- Breadcrumb -->
     <nav class="text-sm text-gray-400 mb-8 flex gap-1.5 items-center flex-wrap dark:text-gray-500">
       <a href="/blog" class="hover:text-gray-600 dark:hover:text-gray-400">Blog</a>
@@ -63,6 +78,12 @@ const structuredData = buildBlogPostJsonLd(post, { siteUrl, appUrl });
       {post.reading_time_minutes && <span>{post.reading_time_minutes} min read</span>}
     </div>
 
+    {hasToc && (
+      <div class="mb-8 lg:hidden">
+        <BlogTocDrawer toc={toc} suffix="mobile" />
+      </div>
+    )}
+
     {post.og_image_url && (
       <img
         src={post.og_image_url}
@@ -72,14 +93,23 @@ const structuredData = buildBlogPostJsonLd(post, { siteUrl, appUrl });
       />
     )}
 
-    <!-- Rendered HTML content from Tiptap -->
-    {post.content_html
-      ? <div class="prose prose-neutral dark:prose-invert max-w-[72ch]" set:html={post.content_html} />
-      : <div class="prose prose-neutral dark:prose-invert max-w-[72ch] text-center py-8 text-gray-400 dark:text-gray-500"><p>Content coming soon.</p></div>
+    <!-- Rendered HTML content from Tiptap (h2 ids injected for TOC anchors) -->
+    {postHtml
+      ? (
+          <div
+            class="prose prose-neutral dark:prose-invert max-w-[72ch] [&_h2]:scroll-mt-28"
+            set:html={postHtml}
+          />
+        )
+      : (
+          <div class="prose prose-neutral dark:prose-invert max-w-[72ch] text-center py-8 text-gray-400 dark:text-gray-500">
+            <p>Content coming soon.</p>
+          </div>
+        )
     }
 
     <!-- CTA block -->
-    <div class="mt-16 p-8 rounded-xl bg-gradient-to-br from-indigo-50 to-fuchsia-50 border border-indigo-200 text-center dark:from-indigo-950/30 dark:to-fuchsia-950/30 dark:border-indigo-800/50">
+    <div class="mt-16 p-8 rounded-xl bg-linear-to-br from-indigo-50 to-fuchsia-50 border border-indigo-200 text-center dark:from-indigo-950/30 dark:to-fuchsia-950/30 dark:border-indigo-800/50">
       <p class="text-lg font-semibold text-neutral-900 mb-2 dark:text-stone-100">
         Ready to put this into practice?
       </p>
@@ -90,5 +120,39 @@ const structuredData = buildBlogPostJsonLd(post, { siteUrl, appUrl });
         Try Sharkly Free
       </a>
     </div>
+      </div>
+    </div>
   </article>
+
+  {hasToc && (
+    <script is:inline>
+      document.querySelectorAll('.blog-toc-drawer').forEach((drawer) => {
+        const btn = drawer.querySelector('.blog-toc-toggle');
+        const panel = drawer.querySelector('.blog-toc-panel');
+        const hamburger = drawer.querySelector('.toc-icon-hamburger');
+        const closeIcon = drawer.querySelector('.toc-icon-close');
+        const layout = document.getElementById('blog-post-layout');
+        const syncsLayout = drawer.closest('[data-syncs-blog-layout]');
+        if (!btn || !panel) return;
+        function setExpanded(next) {
+          panel.setAttribute('data-expanded', String(next));
+          drawer.setAttribute('data-toc-expanded', String(next));
+          btn.setAttribute('aria-expanded', String(next));
+          btn.setAttribute('aria-label', next ? 'Close table of contents' : 'Open table of contents');
+          hamburger?.classList.toggle('hidden', next);
+          closeIcon?.classList.toggle('hidden', !next);
+          if (layout && syncsLayout) layout.setAttribute('data-toc-open', next ? 'true' : 'false');
+        }
+        btn.addEventListener('click', () => {
+          const expanded = panel.getAttribute('data-expanded') === 'true';
+          setExpanded(!expanded);
+        });
+        panel.querySelectorAll('a[href^="#"]').forEach((a) => {
+          a.addEventListener('click', () => {
+            if (window.matchMedia('(max-width: 1023px)').matches) setExpanded(false);
+          });
+        });
+      });
+    </script>
+  )}
 </BaseLayout>
