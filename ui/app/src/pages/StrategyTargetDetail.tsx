@@ -29,7 +29,8 @@ import {
 	FileText,
 	Pencil,
 	Eye,
-	ArrowRightLeft
+	ArrowRightLeft,
+	Download
 } from 'lucide-react';
 import { useSiteContext } from '../contexts/SiteContext';
 import { useTopics } from '../hooks/useTopics';
@@ -66,8 +67,15 @@ import {
 	DialogDescription
 } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger
+} from '../components/ui/dropdown-menu';
 import InputField from '../components/form/input/InputField';
 import { CREDIT_COSTS } from '../lib/credits';
+import { downloadStrategyCsv, downloadStrategyXlsx } from '../lib/strategyTargetExport';
 import { KeywordLookupModal } from '../components/strategy/KeywordLookupModal';
 import { EditTargetModal } from '../components/strategy/EditTargetModal';
 import { MoveTopicModal } from '../components/strategy/MoveTopicModal';
@@ -193,6 +201,19 @@ const FILTERS = [
 	'ToFu',
 	'Quick Wins'
 ] as const;
+
+function strategyFilterLabel(activeFilter: string): string {
+	const m: Record<string, string> = {
+		all: 'All',
+		achievablenow: 'Achievable Now',
+		buildtoward: 'Build Toward',
+		bofu: 'BoFu',
+		mofu: 'MoFu',
+		tofu: 'ToFu',
+		quickwins: 'Quick Wins'
+	};
+	return m[activeFilter] ?? activeFilter;
+}
 
 const FUNNEL_OPTIONS: { value: Topic['funnel']; label: string }[] = [
 	{ value: 'tofu', label: 'ToFu' },
@@ -1484,29 +1505,75 @@ export default function StrategyTargetDetail() {
 				{/* View toggle: Topics | Keywords (V1 — SITEMAP / Roadmap) */}
 				{topics.length > 0 && (
 					<div className="mt-5 flex flex-wrap items-center gap-4">
-						<div className="flex rounded-lg border border-gray-200 bg-white p-0.5 dark:border-gray-700 dark:bg-gray-800">
-							<button
-								type="button"
-								onClick={() => setStrategyView('topics')}
-								className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
-									strategyView === 'topics'
-										? 'bg-brand-500 dark:bg-brand-600 text-white'
-										: 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-								}`}
-							>
-								Topics view
-							</button>
-							<button
-								type="button"
-								onClick={() => setStrategyView('keywords')}
-								className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
-									strategyView === 'keywords'
-										? 'bg-brand-500 dark:bg-brand-600 text-white'
-										: 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-								}`}
-							>
-								Keywords view
-							</button>
+						<div className="flex flex-wrap items-center gap-2">
+							<div className="flex rounded-lg border border-gray-200 bg-white p-0.5 dark:border-gray-700 dark:bg-gray-800">
+								<button
+									type="button"
+									onClick={() => setStrategyView('topics')}
+									className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
+										strategyView === 'topics'
+											? 'bg-brand-500 dark:bg-brand-600 text-white'
+											: 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+									}`}
+								>
+									Topics view
+								</button>
+								<button
+									type="button"
+									onClick={() => setStrategyView('keywords')}
+									className={`rounded-md px-3 py-1.5 text-[13px] font-medium ${
+										strategyView === 'keywords'
+											? 'bg-brand-500 dark:bg-brand-600 text-white'
+											: 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+									}`}
+								>
+									Keywords view
+								</button>
+							</div>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="gap-2 border-gray-200 dark:border-gray-700"
+										disabled={loading || filteredTopics.length === 0}
+									>
+										<Download className="size-4" />
+										Export
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="start">
+									<DropdownMenuItem
+										onSelect={() => {
+											if (filteredTopics.length === 0) return;
+											downloadStrategyCsv({
+												topics: filteredTopics,
+												siteName: selectedSite?.name ?? 'Site',
+												targetName: target?.name ?? 'Target',
+												filterLabel: strategyFilterLabel(activeFilter)
+											});
+											toast.success('CSV downloaded');
+										}}
+									>
+										Download CSV
+									</DropdownMenuItem>
+									<DropdownMenuItem
+										onSelect={() => {
+											if (filteredTopics.length === 0) return;
+											downloadStrategyXlsx({
+												topics: filteredTopics,
+												siteName: selectedSite?.name ?? 'Site',
+												targetName: target?.name ?? 'Target',
+												filterLabel: strategyFilterLabel(activeFilter)
+											});
+											toast.success('Excel workbook downloaded');
+										}}
+									>
+										Download Excel (.xlsx)
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 						<div className="flex flex-wrap gap-2">
 							{FILTERS.map((f) => {
