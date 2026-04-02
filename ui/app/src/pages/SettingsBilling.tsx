@@ -15,6 +15,7 @@ import PageMeta from '../components/common/PageMeta';
 import { Button } from '../components/ui/button';
 import { STRIPE_CUSTOMER_PORTAL_URL, canManageBilling } from '../utils/billing';
 import { WalletDepositModal } from '../components/billing/WalletDepositModal';
+import { UpcomingRenewalSection } from '../components/billing/UpcomingRenewalSection';
 import { formatCurrency } from '../utils/format';
 import {
 	AlertCircle,
@@ -25,7 +26,7 @@ import {
 	Wallet,
 	Coins,
 	MessageSquare,
-	Mail,
+	Mail
 } from 'lucide-react';
 
 interface StripeInvoice {
@@ -39,17 +40,21 @@ interface StripeInvoice {
 }
 
 export default function SettingsBilling() {
-	const { organization, loading: orgLoading } = useOrganization();
+	const { organization, loading: orgLoading, error: orgError } = useOrganization();
 	const trialInfo = useTrial();
 	const { user } = useAuth();
-	const { walletStatus, autoRecharge: walletAutoRecharge, refetch: refetchPayment } = usePaymentStatus();
+	const {
+		walletStatus,
+		autoRecharge: walletAutoRecharge,
+		refetch: refetchPayment
+	} = usePaymentStatus();
 	const credits = useCredits(organization?.id ?? null);
 	const [chatUsage, setChatUsage] = useState<{ used: number; limit: number } | null>(null);
 	const [invoices, setInvoices] = useState<StripeInvoice[] | null>(null);
 	const [invoicePagination, setInvoicePagination] = useState({
 		hasMore: false,
 		startingAfter: null as string | null,
-		endingBefore: null as string | null,
+		endingBefore: null as string | null
 	});
 	const [activeTab, setActiveTab] = useState<'overview' | 'invoices'>('overview');
 	const [depositOpen, setDepositOpen] = useState(false);
@@ -59,13 +64,15 @@ export default function SettingsBilling() {
 		const loadChatUsage = async () => {
 			if (!organization?.id) return;
 			try {
-				const { data: { session } } = await supabase.auth.getSession();
+				const {
+					data: { session }
+				} = await supabase.auth.getSession();
 				if (!session?.access_token) return;
 				const response = await api.get('/api/ai/status', {
 					headers: {
 						Authorization: `Bearer ${session.access_token}`,
-						'x-organization-id': organization.id,
-					},
+						'x-organization-id': organization.id
+					}
 				});
 				if (response.ok) {
 					const data = await response.json();
@@ -85,7 +92,9 @@ export default function SettingsBilling() {
 		endingBefore?: string | null
 	) => {
 		try {
-			const { data: { session } } = await supabase.auth.getSession();
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
 			if (!session?.access_token) return;
 			const query = new URLSearchParams();
 			query.append('customerId', customerId);
@@ -95,8 +104,8 @@ export default function SettingsBilling() {
 			const response = await api.get(`/api/billing/invoices?${query.toString()}`, {
 				headers: {
 					Authorization: `Bearer ${session.access_token}`,
-					'Content-Type': 'application/json',
-				},
+					'Content-Type': 'application/json'
+				}
 			});
 			if (!response.ok) throw new Error('Failed to fetch invoices');
 			const data = await response.json();
@@ -119,7 +128,7 @@ export default function SettingsBilling() {
 	}, [
 		organization?.stripe_customer_id,
 		invoicePagination.startingAfter,
-		invoicePagination.endingBefore,
+		invoicePagination.endingBefore
 	]);
 
 	const goToNextInvoicePage = () => {
@@ -127,7 +136,7 @@ export default function SettingsBilling() {
 			setInvoicePagination((prev) => ({
 				...prev,
 				startingAfter: invoices[invoices.length - 1].id,
-				endingBefore: null,
+				endingBefore: null
 			}));
 		}
 	};
@@ -137,7 +146,7 @@ export default function SettingsBilling() {
 			setInvoicePagination((prev) => ({
 				...prev,
 				endingBefore: invoices[0].id,
-				startingAfter: null,
+				startingAfter: null
 			}));
 		}
 	};
@@ -148,9 +157,7 @@ export default function SettingsBilling() {
 		<>
 			<PageMeta title="Billing" description="Subscription, wallet, and invoices" />
 
-			<h1 className="font-montserrat text-xl font-bold text-gray-900 dark:text-white">
-				Billing
-			</h1>
+			<h1 className="font-montserrat text-xl font-bold text-gray-900 dark:text-white">Billing</h1>
 
 			{/* Tabs: Overview | Invoices */}
 			<div className="mt-4 border-b border-gray-200 dark:border-gray-700">
@@ -235,7 +242,7 @@ export default function SettingsBilling() {
 							</h3>
 							{orgLoading ? (
 								<div className="flex justify-center py-8">
-									<div className="size-6 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+									<div className="border-brand-500 size-6 animate-spin rounded-full border-2 border-t-transparent" />
 								</div>
 							) : organization ? (
 								<>
@@ -243,7 +250,9 @@ export default function SettingsBilling() {
 										<div>
 											<p className="text-lg font-semibold text-gray-900 dark:text-white">
 												{organization.plan_code
-													? organization.plan_code.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+													? organization.plan_code
+															.replace('_', ' ')
+															.replace(/\b\w/g, (l) => l.toUpperCase())
 													: 'No Plan'}
 											</p>
 											<p className="text-sm text-gray-500 dark:text-gray-400">
@@ -267,7 +276,9 @@ export default function SettingsBilling() {
 										</span>
 									</div>
 									<div className="mt-4 space-y-3">
-										<p className="text-sm font-medium text-gray-900 dark:text-white">Included Features</p>
+										<p className="text-sm font-medium text-gray-900 dark:text-white">
+											Included Features
+										</p>
 										<div className="flex flex-wrap gap-4 text-sm">
 											<div className="flex items-center gap-2">
 												<Users className="size-4 text-gray-500" />
@@ -278,10 +289,13 @@ export default function SettingsBilling() {
 												<span>
 													{typeof organization.included_credits_monthly === 'number'
 														? organization.included_credits_monthly
-														: organization.included_credits ?? 0}{' '}
+														: (organization.included_credits ?? 0)}{' '}
 													credits
 													{organization.has_cro_addon && (
-														<span className="text-gray-500 dark:text-gray-400"> (includes +150 from CRO Studio)</span>
+														<span className="text-gray-500 dark:text-gray-400">
+															{' '}
+															(includes +150 from CRO Studio)
+														</span>
 													)}
 												</span>
 											</div>
@@ -325,23 +339,35 @@ export default function SettingsBilling() {
 										<div className="space-y-2">
 											<div className="flex justify-between">
 												<span className="text-gray-500 dark:text-gray-400">Included remaining</span>
-												<strong>{credits.loading ? '…' : (credits.data?.included_remaining ?? 0)}</strong>
+												<strong>
+													{credits.loading ? '…' : (credits.data?.included_remaining ?? 0)}
+												</strong>
 											</div>
 											<div className="flex justify-between">
 												<span className="text-gray-500 dark:text-gray-400">Wallet credits</span>
-												<strong>{credits.loading ? '…' : (credits.data?.wallet_remaining ?? 0)}</strong>
+												<strong>
+													{credits.loading ? '…' : (credits.data?.wallet_remaining ?? 0)}
+												</strong>
 											</div>
 											<div className="flex justify-between">
 												<span className="text-gray-500 dark:text-gray-400">Total remaining</span>
-												<strong>{credits.loading ? '…' : (credits.data?.remaining_total ?? 0)}</strong>
+												<strong>
+													{credits.loading ? '…' : (credits.data?.remaining_total ?? 0)}
+												</strong>
 											</div>
 											<div className="flex justify-between border-t border-gray-200 pt-2 dark:border-gray-600">
 												<span className="text-gray-500 dark:text-gray-400">Fin messages used</span>
-												<strong>{chatUsage ? `${chatUsage.used} / ${chatUsage.limit}` : '…'}</strong>
+												<strong>
+													{chatUsage ? `${chatUsage.used} / ${chatUsage.limit}` : '…'}
+												</strong>
 											</div>
 										</div>
 										{!credits.loading && (credits.data?.remaining_total ?? 0) < 5 && (
-											<Button size="sm" className="mt-3 w-full" onClick={() => setDepositOpen(true)}>
+											<Button
+												size="sm"
+												className="mt-3 w-full"
+												onClick={() => setDepositOpen(true)}
+											>
 												Top Up Wallet
 											</Button>
 										)}
@@ -360,10 +386,17 @@ export default function SettingsBilling() {
 												Wallet: {walletStatus.wallet.status}
 											</span>
 											<span className="text-gray-700 dark:text-gray-300">
-												Balance: {formatCurrency(credits.data?.wallet_balance_cents ?? walletStatus.wallet.balance_cents ?? 0)}
+												Balance:{' '}
+												{formatCurrency(
+													credits.data?.wallet_balance_cents ??
+														walletStatus.wallet.balance_cents ??
+														0
+												)}
 											</span>
 											{walletStatus.depositRequired && (
-												<Button size="sm" onClick={() => setDepositOpen(true)}>Deposit</Button>
+												<Button size="sm" onClick={() => setDepositOpen(true)}>
+													Deposit
+												</Button>
 											)}
 										</div>
 									)}
@@ -372,10 +405,13 @@ export default function SettingsBilling() {
 											<p className="font-medium text-gray-900 dark:text-white">Auto-recharge</p>
 											{walletAutoRecharge?.enabled ? (
 												<p className="text-xs text-gray-500 dark:text-gray-400">
-													Enabled · {formatCurrency(walletAutoRecharge.amount_cents ?? 0)} when below {formatCurrency(walletAutoRecharge.threshold_cents ?? 0)}
+													Enabled · {formatCurrency(walletAutoRecharge.amount_cents ?? 0)} when
+													below {formatCurrency(walletAutoRecharge.threshold_cents ?? 0)}
 												</p>
 											) : (
-												<p className="text-xs text-gray-500 dark:text-gray-400">Currently disabled</p>
+												<p className="text-xs text-gray-500 dark:text-gray-400">
+													Currently disabled
+												</p>
 											)}
 										</div>
 										<Button size="sm" variant="outline" onClick={() => setAutoRechargeOpen(true)}>
@@ -383,8 +419,12 @@ export default function SettingsBilling() {
 										</Button>
 									</div>
 									<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-										<Button variant="secondary" onClick={() => setDepositOpen(true)}>Deposit Funds</Button>
-										<Button variant="outline" onClick={() => setAutoRechargeOpen(true)}>Manage Auto-Recharge</Button>
+										<Button variant="secondary" onClick={() => setDepositOpen(true)}>
+											Deposit Funds
+										</Button>
+										<Button variant="outline" onClick={() => setAutoRechargeOpen(true)}>
+											Manage Auto-Recharge
+										</Button>
 									</div>
 								</div>
 							) : (
@@ -392,6 +432,8 @@ export default function SettingsBilling() {
 							)}
 						</div>
 					</div>
+
+					<UpcomingRenewalSection organization={organization} orgLoading={orgLoading} />
 
 					{/* Refunds & Support */}
 					<div className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-900">
@@ -404,7 +446,10 @@ export default function SettingsBilling() {
 						</p>
 						<Button
 							variant="outline"
-							onClick={() => (window.location.href = 'mailto:hello@sharkly.co?subject=Billing%20Support%20Request')}
+							onClick={() =>
+								(window.location.href =
+									'mailto:hello@sharkly.co?subject=Billing%20Support%20Request')
+							}
 						>
 							<Mail className="mr-2 size-4" />
 							Contact Support
@@ -417,25 +462,41 @@ export default function SettingsBilling() {
 				<div className="mt-6 rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
 					<div className="p-5">
 						<h3 className="mb-4 font-semibold text-gray-900 dark:text-white">Invoices</h3>
-						{invoices && invoices.length > 0 ? (
+						{orgLoading ? (
+							<div className="flex justify-center py-12">
+								<div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500" />
+							</div>
+						) : orgError || !organization ? (
+							<div className="py-12 text-center">
+								<p className="text-gray-500 dark:text-gray-400">
+									{orgError ?? 'Could not load organization. Try refreshing the page.'}
+								</p>
+							</div>
+						) : !organization.stripe_customer_id ? (
+							<div className="py-12 text-center">
+								<p className="text-gray-500 dark:text-gray-400">
+									No customer found, invoices can’t be loaded.
+								</p>
+							</div>
+						) : invoices && invoices.length > 0 ? (
 							<>
 								<div className="overflow-x-auto">
 									<table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
 										<thead className="bg-gray-50 dark:bg-gray-800">
 											<tr>
-												<th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+												<th className="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
 													Invoice
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+												<th className="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
 													Amount
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+												<th className="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
 													Status
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+												<th className="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
 													Created
 												</th>
-												<th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+												<th className="px-4 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
 													Actions
 												</th>
 											</tr>
@@ -443,19 +504,21 @@ export default function SettingsBilling() {
 										<tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900">
 											{invoices.map((invoice) => (
 												<tr key={invoice.id}>
-													<td className="whitespace-nowrap px-4 py-3 text-sm text-gray-900 dark:text-white">
+													<td className="px-4 py-3 text-sm whitespace-nowrap text-gray-900 dark:text-white">
 														{invoice.number ?? invoice.id}
 													</td>
-													<td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
+													<td className="px-4 py-3 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">
 														{formatCurrency(invoice.total ?? 0)}
 													</td>
-													<td className="whitespace-nowrap px-4 py-3 text-sm capitalize text-gray-500 dark:text-gray-400">
+													<td className="px-4 py-3 text-sm whitespace-nowrap text-gray-500 capitalize dark:text-gray-400">
 														{invoice.status}
 													</td>
-													<td className="whitespace-nowrap px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-														{invoice.created ? new Date(invoice.created * 1000).toLocaleDateString() : ''}
+													<td className="px-4 py-3 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">
+														{invoice.created
+															? new Date(invoice.created * 1000).toLocaleDateString()
+															: ''}
 													</td>
-													<td className="whitespace-nowrap px-4 py-3">
+													<td className="px-4 py-3 whitespace-nowrap">
 														<Button
 															variant="ghost"
 															size="sm"

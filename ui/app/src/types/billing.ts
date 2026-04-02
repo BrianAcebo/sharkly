@@ -74,6 +74,10 @@ export interface OrganizationRow {
 	stripe_trial_end: string | null;
 	/** API may return trial_end - alias for stripe_trial_end */
 	trial_end?: string | null;
+	/** ISO timestamp — start of current Stripe billing period (from GET /api/subscription/:id). */
+	current_period_start?: string | null;
+	/** ISO timestamp — end of current period; subscription renews / next invoice is typically aligned with this. */
+	current_period_end?: string | null;
 	stripe_cancel_at_period_end?: boolean | null;
 	payment_action_required?: boolean | null;
 	dunning_enabled?: boolean | null;

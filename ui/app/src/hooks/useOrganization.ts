@@ -14,11 +14,15 @@ interface SubscriptionStatusResponse {
     plan_price_cents: number | null;
     included_seats: number | null;
     included_credits: number | null;
+    /** From DB via GET /api/subscription/:id — required for Stripe invoice list, portal, etc. */
+    stripe_customer_id?: string | null;
   };
   subscription: {
     id: string | null;
     status: StripeSubStatus | null;
     trial_end: string | null;
+    current_period_start: string | null;
+    current_period_end: string | null;
     is_on_trial: boolean;
     trial_has_ended: boolean;
     trial_status: 'none' | 'active' | 'ended' | 'invalid';
@@ -68,7 +72,10 @@ export function useOrganization() {
       }
 
       const data: SubscriptionStatusResponse = await response.json();
-      
+
+      const customerIdFromStripeData =
+        typeof data.stripe_data?.customer_id === 'string' ? data.stripe_data.customer_id : null;
+
       // Convert API response to OrganizationRow format
       const orgData: OrganizationRow = {
         id: data.organization.id,
@@ -83,7 +90,8 @@ export function useOrganization() {
         address_zip: null,
         address_country: null,
         tz: 'UTC',
-        stripe_customer_id: null,
+        stripe_customer_id:
+          data.organization.stripe_customer_id ?? customerIdFromStripeData ?? null,
         stripe_subscription_id: data.subscription.id,
         stripe_status: data.subscription.status,
         // Use server-reported status; fall back to 'pending' if missing
@@ -99,6 +107,11 @@ export function useOrganization() {
         chat_messages_remaining: (data.organization as unknown as { chat_messages_remaining?: number | null })?.chat_messages_remaining ?? null,
         trial_end: data.subscription.trial_end,
         stripe_trial_end: data.subscription.trial_end ?? null,
+        current_period_start: data.subscription.current_period_start ?? null,
+        current_period_end: data.subscription.current_period_end ?? null,
+        stripe_cancel_at_period_end:
+          (data.organization as unknown as { cancel_at_period_end?: boolean | null })
+            ?.cancel_at_period_end ?? null,
         has_cro_addon: (data.organization as unknown as { has_cro_addon?: boolean | null })?.has_cro_addon ?? false,
         payment_action_required: null,
         dunning_enabled: null,

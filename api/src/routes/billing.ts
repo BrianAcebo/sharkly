@@ -1,6 +1,6 @@
 import express from 'express';
 
-import type Stripe from 'stripe';
+import Stripe from 'stripe';
 import { requireAuth } from '../middleware/auth.js';
 import { getWalletStatus, getUsageCatalog } from '../controllers/billingUsage.js';
 import { getStripeClient } from '../utils/stripe.js';
@@ -247,8 +247,7 @@ router.get('/invoices', async (req, res) => {
 			customer: customerId,
 			limit,
 			starting_after: startingAfter,
-			ending_before: endingBefore,
-			expand: ['data.charge']
+			ending_before: endingBefore
 		});
 
 		return res.json({
@@ -260,6 +259,65 @@ router.get('/invoices', async (req, res) => {
 		console.error('Invoices fetch error', error);
 		captureApiError(error, req, { feature: 'billing-invoices-list' });
 		return res.status(500).json({ error: 'Failed to fetch invoices' });
+	}
+});
+
+/**
+ * Preview of the next invoice (same idea as Stripe Dashboard “Upcoming invoice”).
+ */
+router.get('/upcoming-invoice', async (req, res) => {
+	try {
+		const customerId = req.query.customerId as string | undefined;
+		const subscriptionId = (req.query.subscriptionId as string | undefined) || undefined;
+		if (!customerId) {
+			return res.status(400).json({ error: 'customerId is required' });
+		}
+
+		const params: Stripe.InvoiceCreatePreviewParams = { customer: customerId };
+		if (subscriptionId) {
+			params.subscription = subscriptionId;
+		}
+
+		try {
+			const upcoming = await stripe.invoices.createPreview(params);
+			const billedAt =
+				upcoming.next_payment_attempt ?? upcoming.period_end ?? null;
+			const lines = upcoming.lines.data.map((line: Stripe.InvoiceLineItem) => ({
+				id: line.id,
+				description: line.description ?? '(Subscription item)',
+				amount: line.amount,
+				quantity: line.quantity ?? 1,
+				period:
+					line.period && typeof line.period.start === 'number'
+						? { start: line.period.start, end: line.period.end }
+						: null
+			}));
+
+			return res.json({
+				upcoming: {
+					billed_at: billedAt,
+					next_payment_attempt: upcoming.next_payment_attempt,
+					period_end: upcoming.period_end,
+					amount_due: upcoming.amount_due,
+					total: upcoming.total,
+					currency: upcoming.currency,
+					lines
+				}
+			});
+		} catch (err) {
+			if (
+				err instanceof Stripe.errors.StripeInvalidRequestError &&
+				(err.code === 'invoice_upcoming_none' ||
+					/(invoice_upcoming|no upcoming|upcoming invoice)/i.test(err.message ?? ''))
+			) {
+				return res.json({ upcoming: null });
+			}
+			throw err;
+		}
+	} catch (error) {
+		console.error('Upcoming invoice fetch error', error);
+		captureApiError(error, req, { feature: 'billing-upcoming-invoice' });
+		return res.status(500).json({ error: 'Failed to fetch upcoming invoice' });
 	}
 });
 

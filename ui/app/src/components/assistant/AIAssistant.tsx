@@ -1,4 +1,12 @@
-import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
+import {
+	useState,
+	useRef,
+	useEffect,
+	useLayoutEffect,
+	useCallback,
+	KeyboardEvent,
+	ChangeEvent
+} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useChat, ChatMessage, ToolExecution } from '../../contexts/ChatContext';
 import { useOrganization } from '../../hooks/useOrganization';
@@ -118,8 +126,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 				{isUser ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
 			</div>
 
-			{/* Message Content — wide column; cap width for readability on very large screens */}
-			<div className="min-w-0 max-w-[min(88%,52rem)]">
+			{/* ~672px max — readable on wide monitors (replaces min(88%,52rem) which grew too wide) */}
+			<div className="min-w-0 max-w-2xl">
 				{/* Attached Files */}
 				{message.files && message.files.length > 0 && (
 					<div className="mb-2 flex flex-wrap gap-2">
@@ -425,6 +433,10 @@ const ALLOWED_FILE_TYPES = [
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
+/** Composer: one line min, grows with content up to cap (px). */
+const COMPOSER_MIN_H = 52;
+const COMPOSER_MAX_H = 240;
+
 const AIAssistant: React.FC = () => {
 	const {
 		messages,
@@ -469,6 +481,18 @@ const AIAssistant: React.FC = () => {
 	useEffect(() => {
 		inputRef.current?.focus();
 	}, []);
+
+	const adjustComposerHeight = useCallback(() => {
+		const ta = inputRef.current;
+		if (!ta) return;
+		ta.style.height = 'auto';
+		const h = Math.min(Math.max(ta.scrollHeight, COMPOSER_MIN_H), COMPOSER_MAX_H);
+		ta.style.height = `${h}px`;
+	}, []);
+
+	useLayoutEffect(() => {
+		adjustComposerHeight();
+	}, [input, adjustComposerHeight]);
 
 	const handleSubmit = async () => {
 		if ((!input.trim() && attachedFiles.length === 0) || isLoading || isUploading) return;
@@ -729,7 +753,7 @@ const AIAssistant: React.FC = () => {
 							</div>
 						)}
 
-						<div className="flex items-start gap-3">
+						<div className="flex items-end gap-3">
 							{/* File Upload Button */}
 							<input
 								ref={fileInputRef}
@@ -742,15 +766,15 @@ const AIAssistant: React.FC = () => {
 							<Button
 								variant="outline"
 								size="icon"
-								className="h-[52px] w-[52px] flex-shrink-0 rounded-xl"
+								className="h-[52px] w-[52px] shrink-0 rounded-xl"
 								onClick={() => fileInputRef.current?.click()}
 								title="Attach file"
 							>
 								<Paperclip className="h-5 w-5" />
 							</Button>
 
-							{/* Text Input */}
-							<div className="relative flex-1">
+							{/* Text Input — auto height between min and max (Shift+Enter for new lines) */}
+							<div className="relative min-h-0 flex-1">
 								<textarea
 									ref={inputRef}
 									value={input}
@@ -759,16 +783,15 @@ const AIAssistant: React.FC = () => {
 									placeholder="Ask me anything about your case..."
 									rows={1}
 									className={cn(
-										'w-full px-4 py-3',
+										'box-border min-h-[52px] w-full overflow-y-auto px-4 py-3',
 										'bg-gray-50 dark:bg-gray-800',
 										'border border-gray-200 dark:border-gray-700',
 										'resize-none rounded-xl',
 										'text-gray-900 dark:text-white',
 										'placeholder:text-gray-500 dark:placeholder:text-gray-400',
-										'focus:border-transparent focus:ring-2 focus:ring-indigo-500 focus:outline-none',
-										'max-h-40'
+										'focus:border-transparent focus:ring-2 focus:ring-indigo-500 focus:outline-none'
 									)}
-									style={{ minHeight: '52px' }}
+									style={{ maxHeight: COMPOSER_MAX_H }}
 								/>
 							</div>
 
@@ -777,7 +800,7 @@ const AIAssistant: React.FC = () => {
 								onClick={handleSubmit}
 								disabled={(!input.trim() && attachedFiles.length === 0) || isLoading || isUploading}
 								className={cn(
-									'h-[52px] rounded-xl px-6',
+									'h-[52px] shrink-0 rounded-xl px-6',
 									'bg-gradient-to-r from-indigo-500 to-purple-600',
 									'hover:from-indigo-600 hover:to-purple-700',
 									'disabled:cursor-not-allowed disabled:opacity-50'

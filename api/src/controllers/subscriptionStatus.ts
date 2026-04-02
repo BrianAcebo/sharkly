@@ -45,11 +45,20 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
     }
 
     // If we have a Stripe subscription ID, fetch the latest data from Stripe
-    let stripeData = null;
+    let stripeData: Record<string, unknown> | null = null;
+    /** Customer id from the Stripe subscription object (fallback if DB column is stale or omitted). */
+    let stripeCustomerIdFromSubscription: string | null = null;
     if (org.stripe_subscription_id) {
       try {
         const subscription = await stripe.subscriptions.retrieve(org.stripe_subscription_id);
-        
+        const customer = subscription.customer;
+        stripeCustomerIdFromSubscription =
+          typeof customer === 'string'
+            ? customer
+            : customer && typeof customer === 'object' && 'id' in customer
+              ? (customer as Stripe.Customer).id
+              : null;
+
         stripeData = {
           id: subscription.id,
           status: subscription.status,
@@ -57,6 +66,7 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
           cancel_at_period_end: subscription.cancel_at_period_end,
           created: unixToISO(subscription.created),
           ended_at: subscription.ended_at ? unixToISO(subscription.ended_at) : null,
+          customer_id: stripeCustomerIdFromSubscription,
         };
 
         // Update the organization with the latest Stripe data
@@ -123,8 +133,13 @@ export const getSubscriptionStatus = async (req: Request, res: Response) => {
       trialStatus = 'invalid'; // trialing status but no trial_end date
     }
 
+    const resolvedStripeCustomerId =
+      (org.stripe_customer_id && String(org.stripe_customer_id).trim()) ||
+      stripeCustomerIdFromSubscription ||
+      null;
+
     const response = {
-      organization: {...org},
+      organization: { ...org, stripe_customer_id: resolvedStripeCustomerId },
       subscription: {
         id: org.stripe_subscription_id,
         status: org.stripe_status,

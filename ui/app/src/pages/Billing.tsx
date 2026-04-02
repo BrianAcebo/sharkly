@@ -25,6 +25,7 @@ import { STRIPE_CUSTOMER_PORTAL_URL, canManageBilling } from '../utils/billing';
 import { useAuth } from '../hooks/useAuth';
 import { usePaymentStatus } from '../hooks/usePaymentStatus';
 import { WalletDepositModal } from '../components/billing/WalletDepositModal';
+import { UpcomingRenewalSection } from '../components/billing/UpcomingRenewalSection';
 import { useNavigate } from 'react-router-dom';
 import { useCredits } from '../hooks/useCredits';
 import { getOrgCreditUsageMonth } from '../api/billingCredits';
@@ -171,7 +172,7 @@ interface StripeInvoice {
 }
 
 const Billing: React.FC = () => {
-	const { organization, loading: orgLoading } = useOrganization();
+	const { organization, loading: orgLoading, error: orgError } = useOrganization();
 	const trialInfo = useTrial();
 	const { setTitle, setReturnTo } = useBreadcrumbs();
 	const { user } = useAuth();
@@ -514,7 +515,10 @@ const Billing: React.FC = () => {
 															: organization.included_credits || 0}{' '}
 														credits
 														{organization.has_cro_addon && (
-															<span className="text-gray-500 dark:text-gray-400"> (includes +150 from CRO Studio)</span>
+															<span className="text-gray-500 dark:text-gray-400">
+																{' '}
+																(includes +150 from CRO Studio)
+															</span>
 														)}
 													</span>
 												</div>
@@ -704,6 +708,8 @@ const Billing: React.FC = () => {
 						</Card>
 					</div>
 
+					<UpcomingRenewalSection organization={organization} orgLoading={orgLoading} />
+
 					{/* Refund Support Notice */}
 					<Card className="max-w-md">
 						<CardHeader>
@@ -814,7 +820,23 @@ const Billing: React.FC = () => {
 						<CardTitle>Invoices</CardTitle>
 					</CardHeader>
 					<CardContent>
-						{invoices && invoices.length > 0 ? (
+						{orgLoading ? (
+							<div className="flex justify-center py-12">
+								<div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500" />
+							</div>
+						) : orgError || !organization ? (
+							<div className="py-8 text-center">
+								<p className="text-gray-500 dark:text-gray-400">
+									{orgError ?? 'Could not load organization. Try refreshing the page.'}
+								</p>
+							</div>
+						) : !organization.stripe_customer_id ? (
+							<div className="py-8 text-center">
+								<p className="text-gray-500 dark:text-gray-400">
+									No customer found, invoices can’t be loaded.
+								</p>
+							</div>
+						) : invoices && invoices.length > 0 ? (
 							<table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
 								<thead className="bg-gray-50 dark:bg-gray-800">
 									<tr>
