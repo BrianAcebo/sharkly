@@ -1,17 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { BubbleMenu } from '@tiptap/react/menus';
-import StarterKit from '@tiptap/starter-kit';
-import LinkExtension from '@tiptap/extension-link';
-import Underline from '@tiptap/extension-underline';
-import Placeholder from '@tiptap/extension-placeholder';
-import Image from '@tiptap/extension-image';
-import TextAlign from '@tiptap/extension-text-align';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import CharacterCount from '@tiptap/extension-character-count';
-import Youtube from '@tiptap/extension-youtube';
-import { TableKit } from '@tiptap/extension-table';
 import { createLowlight, all } from 'lowlight';
 import 'highlight.js/styles/github.css';
 import {
@@ -23,44 +12,23 @@ import {
 	ChevronUp,
 	Loader2,
 	Star,
-	Info,
-	Bold,
-	Italic,
-	Strikethrough,
-	Code,
-	Underline as UnderlineIcon,
-	Heading1,
-	Heading2,
-	Heading3,
-	Heading4,
-	Heading5,
-	Heading6,
-	List,
-	ListOrdered,
-	Quote,
-	Link as LinkIcon,
-	AlignLeft,
-	AlignCenter,
-	AlignRight,
-	AlignJustify,
-	Image as ImageIcon,
-	Minus,
-	Type,
-	WrapText,
-	RotateCcw,
-	RotateCw,
-	Eraser,
-	ScrollText,
-	Youtube as YoutubeIcon,
-	Columns,
-	Table2
+	Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
-import { Tooltip } from '../../components/ui/tooltip';
 import PageMeta from '../../components/common/PageMeta';
 import { useBlogCategories, fetchBlogPost, saveBlogPost, type BlogPost } from '../../hooks/useBlog';
 import { cleanPastedHTML } from '../../lib/editorUtils';
+import {
+	createSharklyArticleExtensions,
+	buildSharklyArticleEditorProps,
+	SHARKLY_ARTICLE_EDITOR_CONTENT_CLASS
+} from '../../components/editor/sharklyArticleEditor';
+import {
+	ArticleEditorToolbar,
+	ArticleEditorBubbleMenu
+} from '../../components/editor/ArticleEditorChrome';
+import { ArticleEditorWordCount } from '../../components/editor/ArticleEditorWordCount';
 
 const lowlight = createLowlight(all);
 
@@ -108,23 +76,6 @@ const EMPTY_FORM: FormState = {
 	canonical_url: '',
 	featured: false
 };
-
-// Shared toolbar button class (matches Workspace exactly)
-const tbBtn = (active?: boolean) =>
-	`rounded p-2 transition-colors ${
-		active
-			? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white'
-			: 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'
-	}`;
-
-const bubbleBtn = (active?: boolean) =>
-	`rounded p-1.5 transition-colors ${
-		active
-			? 'bg-gray-200 text-gray-900 dark:bg-gray-600 dark:text-white'
-			: 'hover:bg-gray-100 dark:hover:bg-gray-700'
-	}`;
-
-const sep = <div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700" />;
 
 export default function BlogEditor() {
 	const { id } = useParams<{ id?: string }>();
@@ -179,50 +130,15 @@ export default function BlogEditor() {
 	// Accepts either a Tiptap JSON object or an HTML string (fallback for seeded/legacy posts).
 	const editor = useEditor(
 		{
-			extensions: [
-				StarterKit.configure({ codeBlock: false, link: false }),
-				TableKit,
-				CharacterCount,
-				CodeBlockLowlight.configure({ lowlight }),
-				LinkExtension.configure({
-					openOnClick: false,
-					enableClickSelection: true,
-					validate: (href) => /^https?:\/\//.test(href),
-					HTMLAttributes: { rel: null, target: null }
-				}),
-				Underline,
-				Placeholder.configure({ placeholder: 'Write something awesome...' }),
-				Image,
-				TextAlign.configure({ types: ['heading', 'paragraph'] }),
-				Youtube.configure({ controls: false, nocookie: true })
-			],
-		content: (initialContent as string | object) ?? '',
-		editorProps: {
-			attributes: {
-				class: 'w-full mx-auto focus:outline-none text-gray-800 dark:text-gray-300 p-10 min-h-[400px]'
-			},
-			transformPastedHTML: cleanPastedHTML,
-			handleDOMEvents: {
-				mousedown: (_view, event) => {
-					const target = event.target as HTMLElement;
-					if (target.closest('a[href]')) event.preventDefault();
-				},
-				click: (_view, event) => {
-					const target = event.target as HTMLElement;
-					if (target.closest('a[href]')) {
-						event.preventDefault();
-						event.stopPropagation();
-						return true;
-					}
-				}
+			extensions: createSharklyArticleExtensions(lowlight),
+			content: (initialContent as string | object) ?? '',
+			editorProps: buildSharklyArticleEditorProps(cleanPastedHTML),
+			onTransaction: () => {
+				setEditorVersion((v) => v + 1);
 			}
 		},
-		onTransaction: () => {
-			setEditorVersion((v) => v + 1);
-		}
-	},
-	[initialContent] // recreate editor once content arrives
-);
+		[initialContent]
+	);
 
 // Auto-save: 2s debounce after editor changes, only for existing posts
 useEffect(() => {
@@ -252,47 +168,6 @@ useEffect(() => {
 		},
 		[slugManual]
 	);
-
-	// ── Link / Image / YouTube handlers (identical to Workspace) ────────────
-
-	const setLinkHandler = useCallback(() => {
-		if (!editor) return;
-		if (editor.isActive('link')) {
-			editor.chain().focus().extendMarkRange('link').unsetLink().run();
-			return;
-		}
-		const previousUrl = editor.getAttributes('link').href as string | undefined;
-		const url = window.prompt('URL', previousUrl);
-		if (url === null) return;
-		if (url === '') {
-			editor.chain().focus().extendMarkRange('link').unsetLink().run();
-			return;
-		}
-		if (!/^https?:\/\//.test(url)) {
-			window.alert('Invalid Link');
-			return;
-		}
-		editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-	}, [editor]);
-
-	const addImageHandler = useCallback(() => {
-		if (!editor) return;
-		const url = window.prompt('Enter Image URL');
-		if (url) editor.chain().focus().setImage({ src: url }).run();
-	}, [editor]);
-
-	const addYoutubeHandler = useCallback(() => {
-		if (!editor) return;
-		const url = window.prompt('Enter YouTube URL');
-		if (url) {
-			const height = window.prompt('Enter height in px', '480');
-			editor.commands.setYoutubeVideo({
-				src: url,
-				width: 640,
-				height: height ? Math.max(180, parseInt(height, 10)) : 480
-			});
-		}
-	}, [editor]);
 
 	// ── Save ────────────────────────────────────────────────────────────────
 
@@ -369,7 +244,6 @@ useEffect(() => {
 						>
 							{form.status}
 						</span>
-						<span className="text-xs text-gray-400">{wordCount.toLocaleString()} words</span>
 					</div>
 				<div className="flex items-center gap-3">
 					{/* Auto-save indicator */}
@@ -440,280 +314,15 @@ useEffect(() => {
 						</div>
 					</div>
 
-						{/* ── Toolbar (exact copy of Workspace) ─────────────────── */}
-						{editor && (
-							<div className="z-10 mx-6 mb-4 flex shrink-0 flex-wrap items-center justify-between gap-1 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
-								<Tooltip content="Align left" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().setTextAlign('left').run()}
-										className={tbBtn(editor.isActive({ textAlign: 'left' }))}
-										aria-label="Align left"
-									>
-										<AlignLeft className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Align center" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().setTextAlign('center').run()}
-										className={tbBtn(editor.isActive({ textAlign: 'center' }))}
-										aria-label="Align center"
-									>
-										<AlignCenter className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Align right" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().setTextAlign('right').run()}
-										className={tbBtn(editor.isActive({ textAlign: 'right' }))}
-										aria-label="Align right"
-									>
-										<AlignRight className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Align justify" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-										className={tbBtn(editor.isActive({ textAlign: 'justify' }))}
-										aria-label="Align justify"
-									>
-										<AlignJustify className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Unset text align" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().unsetTextAlign().run()}
-										className={tbBtn()}
-										aria-label="Unset align"
-									>
-										<Columns className="size-4" />
-									</button>
-								</Tooltip>
-								{sep}
-								<Tooltip content="Image" tooltipPosition="bottom">
-									<button onClick={addImageHandler} className={tbBtn()} aria-label="Image">
-										<ImageIcon className="size-4" />
-									</button>
-								</Tooltip>
-								{sep}
-								<Tooltip content="Bullet list" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().toggleBulletList().run()}
-										className={tbBtn(editor.isActive('bulletList'))}
-										aria-label="Bullet list"
-									>
-										<List className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Ordered list" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().toggleOrderedList().run()}
-										className={tbBtn(editor.isActive('orderedList'))}
-										aria-label="Ordered list"
-									>
-										<ListOrdered className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Code block" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-										className={tbBtn(editor.isActive('codeBlock'))}
-										aria-label="Code block"
-									>
-										<Code className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Blockquote" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().toggleBlockquote().run()}
-										className={tbBtn(editor.isActive('blockquote'))}
-										aria-label="Blockquote"
-									>
-										<Quote className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Horizontal rule" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().setHorizontalRule().run()}
-										className={tbBtn()}
-										aria-label="HR"
-									>
-										<Minus className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Insert table" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run()}
-										className={tbBtn()}
-										aria-label="Table"
-									>
-										<Table2 className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Hard break" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().setHardBreak().run()}
-										className={tbBtn()}
-										aria-label="Hard break"
-									>
-										<WrapText className="size-4" />
-									</button>
-								</Tooltip>
-								{sep}
-								<Tooltip content="Undo" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().undo().run()}
-										disabled={!editor.can().undo()}
-										className={tbBtn()}
-										aria-label="Undo"
-									>
-										<RotateCcw className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Redo" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().redo().run()}
-										disabled={!editor.can().redo()}
-										className={tbBtn()}
-										aria-label="Redo"
-									>
-										<RotateCw className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Unset all marks" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().unsetAllMarks().run()}
-										className={tbBtn()}
-										aria-label="Clear marks"
-									>
-										<Eraser className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="Clear nodes" tooltipPosition="bottom">
-									<button
-										onClick={() => editor.chain().focus().clearNodes().run()}
-										className={tbBtn()}
-										aria-label="Clear nodes"
-									>
-										<ScrollText className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip content="YouTube" tooltipPosition="bottom">
-									<button onClick={addYoutubeHandler} className={tbBtn()} aria-label="YouTube">
-										<YoutubeIcon className="size-4" />
-									</button>
-								</Tooltip>
-								<Tooltip
-									content="Styles you see here may not look the same on your website, as they depend on your website's styling."
-									tooltipPosition="bottom"
-									usePortal
-									className="max-w-xs text-center whitespace-normal"
-								>
-									<button
-										type="button"
-										className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-										aria-label="Info"
-									>
-										<Info className="size-4" />
-									</button>
-								</Tooltip>
-							</div>
-						)}
+					<ArticleEditorToolbar editor={editor} className="mx-6" />
 
-						{/* ── Editor + BubbleMenu ────────────────────────────────── */}
-						<div className="scrollbar-branded relative mx-6 mb-6 flex min-h-[300px] min-w-0 flex-1 flex-col overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-							{editor && (
-								<BubbleMenu
-									editor={editor}
-									className="flex flex-wrap items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-								>
-									<Tooltip content="Bold" tooltipPosition="bottom">
-										<button
-											onClick={() => editor.chain().focus().toggleBold().run()}
-											className={bubbleBtn(editor.isActive('bold'))}
-											aria-label="Bold"
-										>
-											<Bold className="size-4" />
-										</button>
-									</Tooltip>
-									<Tooltip content="Italic" tooltipPosition="bottom">
-										<button
-											onClick={() => editor.chain().focus().toggleItalic().run()}
-											className={bubbleBtn(editor.isActive('italic'))}
-											aria-label="Italic"
-										>
-											<Italic className="size-4" />
-										</button>
-									</Tooltip>
-									<Tooltip content="Strikethrough" tooltipPosition="bottom">
-										<button
-											onClick={() => editor.chain().focus().toggleStrike().run()}
-											className={bubbleBtn(editor.isActive('strike'))}
-											aria-label="Strike"
-										>
-											<Strikethrough className="size-4" />
-										</button>
-									</Tooltip>
-									<Tooltip content="Underline" tooltipPosition="bottom">
-										<button
-											onClick={() => editor.chain().focus().toggleUnderline().run()}
-											className={bubbleBtn(editor.isActive('underline'))}
-											aria-label="Underline"
-										>
-											<UnderlineIcon className="size-4" />
-										</button>
-									</Tooltip>
-									<Tooltip content="Code" tooltipPosition="bottom">
-										<button
-											onClick={() => editor.chain().focus().toggleCode().run()}
-											className={bubbleBtn(editor.isActive('code'))}
-											aria-label="Code"
-										>
-											<Code className="size-4" />
-										</button>
-									</Tooltip>
-									<div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-600" />
-									<Tooltip content="Paragraph" tooltipPosition="bottom">
-										<button
-											onClick={() => editor.chain().focus().setParagraph().run()}
-											className={tbBtn(editor.isActive('paragraph'))}
-											aria-label="Paragraph"
-										>
-											<Type className="size-4" />
-										</button>
-									</Tooltip>
-									{([1, 2, 3, 4, 5, 6] as const).map((level) => (
-										<Tooltip key={level} content={`Heading ${level}`} tooltipPosition="bottom">
-											<button
-												onClick={() => editor.chain().focus().toggleHeading({ level }).run()}
-												className={tbBtn(editor.isActive('heading', { level }))}
-												aria-label={`H${level}`}
-											>
-												{level === 1 && <Heading1 className="size-4" />}
-												{level === 2 && <Heading2 className="size-4" />}
-												{level === 3 && <Heading3 className="size-4" />}
-												{level === 4 && <Heading4 className="size-4" />}
-												{level === 5 && <Heading5 className="size-4" />}
-												{level === 6 && <Heading6 className="size-4" />}
-											</button>
-										</Tooltip>
-									))}
-									<div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-600" />
-									<Tooltip content="Link" tooltipPosition="bottom">
-										<button
-											onClick={setLinkHandler}
-											className={bubbleBtn(editor.isActive('link'))}
-											aria-label="Link"
-										>
-											<LinkIcon className="size-4" />
-										</button>
-									</Tooltip>
-								</BubbleMenu>
-							)}
-							<EditorContent
-								editor={editor}
-								className="flex min-h-0 min-w-0 flex-1 flex-col [&_.tiptap]:min-h-[300px] [&_.tiptap]:min-w-0 [&_.tiptap]:flex-1"
-							/>
-						</div>
+					{/* ── Editor + BubbleMenu (shared with Workspace) ─────── */}
+					<div className="scrollbar-branded relative mx-6 mb-6 flex min-h-[300px] min-w-0 flex-1 flex-col overflow-auto rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+						<ArticleEditorBubbleMenu editor={editor} />
+						<EditorContent editor={editor} className={SHARKLY_ARTICLE_EDITOR_CONTENT_CLASS} />
+					</div>
+					<ArticleEditorWordCount wordCount={wordCount} showPlainWordCount />
+
 					</div>
 
 					{/* ── Sidebar ───────────────────────────────────────────── */}

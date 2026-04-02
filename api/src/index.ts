@@ -107,9 +107,7 @@ app.post('/webhooks/shopify/customers/data_request', shopifyWebhookRaw, (req, re
 app.post('/webhooks/shopify/customers/redact', shopifyWebhookRaw, (req, res) =>
 	customersRedact(req, res)
 );
-app.post('/webhooks/shopify/shop/redact', shopifyWebhookRaw, (req, res) =>
-	shopRedact(req, res)
-);
+app.post('/webhooks/shopify/shop/redact', shopifyWebhookRaw, (req, res) => shopRedact(req, res));
 app.post('/webhooks/shopify/app-uninstalled', shopifyWebhookRaw, (req, res) =>
 	appUninstalled(req, res)
 );

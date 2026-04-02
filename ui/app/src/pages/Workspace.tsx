@@ -1,19 +1,18 @@
 import { useParams, Link, useNavigate } from 'react-router';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import { BubbleMenu } from '@tiptap/react/menus';
-import StarterKit from '@tiptap/starter-kit';
-import LinkExtension from '@tiptap/extension-link';
-import Underline from '@tiptap/extension-underline';
-import Placeholder from '@tiptap/extension-placeholder';
-import Image from '@tiptap/extension-image';
-import TextAlign from '@tiptap/extension-text-align';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
-import CharacterCount from '@tiptap/extension-character-count';
-import Youtube from '@tiptap/extension-youtube';
-import { TableKit } from '@tiptap/extension-table';
 import { createLowlight, all } from 'lowlight';
 import 'highlight.js/styles/github.css';
+import {
+	createSharklyArticleExtensions,
+	buildSharklyArticleEditorProps,
+	SHARKLY_ARTICLE_EDITOR_CONTENT_CLASS
+} from '../components/editor/sharklyArticleEditor';
+import {
+	ArticleEditorToolbar,
+	ArticleEditorBubbleMenu
+} from '../components/editor/ArticleEditorChrome';
+import { ArticleEditorWordCount } from '../components/editor/ArticleEditorWordCount';
 import { toast } from 'sonner';
 import PageMeta from '../components/common/PageMeta';
 import { CreditBadge, CreditCost } from '../components/shared/CreditBadge';
@@ -74,40 +73,13 @@ import {
 import { Tabs, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../components/ui/collapsible';
 import {
-	Bold,
-	Italic,
-	Strikethrough,
-	Code,
-	Underline as UnderlineIcon,
-	Heading1,
-	Heading2,
-	Heading3,
-	Heading4,
-	Heading5,
-	Heading6,
-	List,
-	ListOrdered,
-	Quote,
 	Link as LinkIcon,
 	Sparkles,
 	AlertTriangle,
 	Check,
 	X,
-	AlignLeft,
-	AlignCenter,
-	AlignRight,
-	AlignJustify,
-	Image as ImageIcon,
-	Minus,
 	Type,
-	WrapText,
-	RotateCcw,
-	RotateCw,
-	Eraser,
 	ScrollText,
-	Youtube as YoutubeIcon,
-	Columns,
-	Table2,
 	Info,
 	ArrowLeft,
 	Star,
@@ -1424,6 +1396,7 @@ export default function Workspace() {
 	}, [id, refetchOrg]);
 
 	const lowlight = useMemo(() => createLowlight(all), []);
+	const sharklyExtensions = useMemo(() => createSharklyArticleExtensions(lowlight), [lowlight]);
 
 	const initialContent = useMemo(() => {
 		if (!page?.content) return null;
@@ -1436,31 +1409,9 @@ export default function Workspace() {
 	}, [page?.content]);
 
 	const editor = useEditor({
-		extensions: [
-			StarterKit.configure({ codeBlock: false, link: false, underline: false }),
-			TableKit,
-			CharacterCount,
-			CodeBlockLowlight.configure({ lowlight }),
-			LinkExtension.configure({
-				// openOnClick: false prevents navigation but blocks cursor placement in some setups.
-				// To edit link text: click before the link, then arrow-key into it, or drag-select the text.
-				validate: (href) => /^https?:\/\//.test(href),
-				HTMLAttributes: { rel: null, target: null }
-			}),
-			Underline,
-			Placeholder.configure({ placeholder: 'Write something awesome...' }),
-			Image,
-			TextAlign.configure({ types: ['heading', 'paragraph'] }),
-			Youtube.configure({ controls: false, nocookie: true })
-		],
+		extensions: sharklyExtensions,
 		content: (page?.wordCount ?? 0) > 0 && initialContent ? initialContent : '',
-		editorProps: {
-			attributes: {
-				class:
-					'w-full mx-auto focus:outline-none text-gray-800 dark:text-gray-300 p-10 min-h-[200px]'
-			},
-			transformPastedHTML: cleanPastedHTML
-		},
+		editorProps: buildSharklyArticleEditorProps(cleanPastedHTML),
 		onTransaction: () => {
 			setContentVersion((v) => v + 1);
 			forceUpdate((n) => n + 1);
@@ -1550,45 +1501,6 @@ export default function Workspace() {
 		}, 2000);
 		return () => clearTimeout(timer);
 	}, [editor, id, contentVersion]);
-
-	const setLinkHandler = useCallback(() => {
-		if (!editor) return;
-		if (editor.isActive('link')) {
-			editor.chain().focus().extendMarkRange('link').unsetLink().run();
-			return;
-		}
-		const previousUrl = editor.getAttributes('link').href;
-		const url = window.prompt('URL', previousUrl);
-		if (url === null) return;
-		if (url === '') {
-			editor.chain().focus().extendMarkRange('link').unsetLink().run();
-			return;
-		}
-		if (!/^https?:\/\//.test(url)) {
-			window.alert('Invalid Link');
-			return;
-		}
-		editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
-	}, [editor]);
-
-	const addImageHandler = useCallback(() => {
-		if (!editor) return;
-		const url = window.prompt('Enter Image URL');
-		if (url) editor.chain().focus().setImage({ src: url }).run();
-	}, [editor]);
-
-	const addYoutubeHandler = useCallback(() => {
-		if (!editor) return;
-		const url = window.prompt('Enter YouTube URL');
-		if (url) {
-			const height = window.prompt('Enter height in px', '480');
-			editor.commands.setYoutubeVideo({
-				src: url,
-				width: 640,
-				height: height ? Math.max(180, parseInt(height, 10)) : 480
-			});
-		}
-	}, [editor]);
 
 	const isArticleEditorVisible =
 		activeTab === 'article' && ((page?.wordCount ?? 0) > 0 || showEditorFromScratch);
@@ -2509,198 +2421,7 @@ export default function Workspace() {
 									</div>
 								) : (
 									<>
-										{/* Tiptap Toolbar */}
-										{editor && (
-											<div className="sticky top-0 z-10 mb-4 flex shrink-0 flex-wrap items-center justify-between gap-1 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-900">
-												<Tooltip content="Align left" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().setTextAlign('left').run()}
-														className={`rounded p-2 transition-colors ${editor.isActive({ textAlign: 'left' }) ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-														aria-label="Align left"
-													>
-														<AlignLeft className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Align center" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().setTextAlign('center').run()}
-														className={`rounded p-2 transition-colors ${editor.isActive({ textAlign: 'center' }) ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-														aria-label="Align center"
-													>
-														<AlignCenter className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Align right" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().setTextAlign('right').run()}
-														className={`rounded p-2 transition-colors ${editor.isActive({ textAlign: 'right' }) ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-														aria-label="Align right"
-													>
-														<AlignRight className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Align justify" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-														className={`rounded p-2 transition-colors ${editor.isActive({ textAlign: 'justify' }) ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-														aria-label="Align justify"
-													>
-														<AlignJustify className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Unset text align" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().unsetTextAlign().run()}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="Unset text align"
-													>
-														<Columns className="size-4" />
-													</button>
-												</Tooltip>
-												<div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700" />
-												<Tooltip content="Image" tooltipPosition="bottom">
-													<button
-														onClick={addImageHandler}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="Image"
-													>
-														<ImageIcon className="size-4" />
-													</button>
-												</Tooltip>
-												<div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700" />
-												<Tooltip content="Bullet list" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().toggleBulletList().run()}
-														className={`rounded p-2 transition-colors ${editor.isActive('bulletList') ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-														aria-label="Bullet list"
-													>
-														<List className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Ordered list" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().toggleOrderedList().run()}
-														className={`rounded p-2 transition-colors ${editor.isActive('orderedList') ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-														aria-label="Ordered list"
-													>
-														<ListOrdered className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Code block" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-														className={`rounded p-2 transition-colors ${editor.isActive('codeBlock') ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-														aria-label="Code block"
-													>
-														<Code className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Blockquote" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().toggleBlockquote().run()}
-														className={`rounded p-2 transition-colors ${editor.isActive('blockquote') ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-														aria-label="Blockquote"
-													>
-														<Quote className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Horizontal rule" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().setHorizontalRule().run()}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="Horizontal rule"
-													>
-														<Minus className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Insert table" tooltipPosition="bottom">
-													<button
-														onClick={() =>
-															editor
-																.chain()
-																.focus()
-																.insertTable({ rows: 3, cols: 2, withHeaderRow: true })
-																.run()
-														}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="Table"
-													>
-														<Table2 className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Hard break" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().setHardBreak().run()}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="Hard break"
-													>
-														<WrapText className="size-4" />
-													</button>
-												</Tooltip>
-												<div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-700" />
-												<Tooltip content="Undo" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().undo().run()}
-														disabled={!editor.can().undo()}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="Undo"
-													>
-														<RotateCcw className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Redo" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().redo().run()}
-														disabled={!editor.can().redo()}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="Redo"
-													>
-														<RotateCw className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Unset all marks" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().unsetAllMarks().run()}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="Unset all marks"
-													>
-														<Eraser className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="Clear nodes" tooltipPosition="bottom">
-													<button
-														onClick={() => editor.chain().focus().clearNodes().run()}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="Clear nodes"
-													>
-														<ScrollText className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip content="YouTube" tooltipPosition="bottom">
-													<button
-														onClick={addYoutubeHandler}
-														className="rounded border border-transparent p-2 transition-colors hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400"
-														aria-label="YouTube"
-													>
-														<YoutubeIcon className="size-4" />
-													</button>
-												</Tooltip>
-												<Tooltip
-													content="Styles you see here may not look the same on your website, as they depend on your website's styling."
-													tooltipPosition="bottom"
-													usePortal
-													className="max-w-xs text-center whitespace-normal"
-												>
-													<button
-														type="button"
-														className="rounded p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-300"
-														aria-label="Editor styling note"
-													>
-														<Info className="size-4" />
-													</button>
-												</Tooltip>
-											</div>
-										)}
+										<ArticleEditorToolbar editor={editor} />
 
 										{/* L9: AI detection education — dismissable, persistent on first view */}
 										{editor && !aiDetectionDismissed && (
@@ -2734,127 +2455,19 @@ export default function Workspace() {
 										)}
 
 										<div className="min-h-screen-height-visible relative flex min-w-0 flex-1 flex-col rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-											{editor && (
-												<BubbleMenu
-													editor={editor}
-													className="flex flex-wrap items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-												>
-													<Tooltip content="Bold" tooltipPosition="bottom">
-														<button
-															onClick={() => editor.chain().focus().toggleBold().run()}
-															className={`rounded p-1.5 transition-colors ${editor.isActive('bold') ? 'bg-gray-200 text-gray-900 dark:bg-gray-600 dark:text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-															aria-label="Bold"
-														>
-															<Bold className="size-4" />
-														</button>
-													</Tooltip>
-													<Tooltip content="Italic" tooltipPosition="bottom">
-														<button
-															onClick={() => editor.chain().focus().toggleItalic().run()}
-															className={`rounded p-1.5 transition-colors ${editor.isActive('italic') ? 'bg-gray-200 text-gray-900 dark:bg-gray-600 dark:text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-															aria-label="Italic"
-														>
-															<Italic className="size-4" />
-														</button>
-													</Tooltip>
-													<Tooltip content="Strikethrough" tooltipPosition="bottom">
-														<button
-															onClick={() => editor.chain().focus().toggleStrike().run()}
-															className={`rounded p-1.5 transition-colors ${editor.isActive('strike') ? 'bg-gray-200 text-gray-900 dark:bg-gray-600 dark:text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-															aria-label="Strikethrough"
-														>
-															<Strikethrough className="size-4" />
-														</button>
-													</Tooltip>
-													<Tooltip content="Underline" tooltipPosition="bottom">
-														<button
-															onClick={() => editor.chain().focus().toggleUnderline().run()}
-															className={`rounded p-1.5 transition-colors ${editor.isActive('underline') ? 'bg-gray-200 text-gray-900 dark:bg-gray-600 dark:text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-															aria-label="Underline"
-														>
-															<UnderlineIcon className="size-4" />
-														</button>
-													</Tooltip>
-													<Tooltip content="Code" tooltipPosition="bottom">
-														<button
-															onClick={() => editor.chain().focus().toggleCode().run()}
-															className={`rounded p-1.5 transition-colors ${editor.isActive('code') ? 'bg-gray-200 text-gray-900 dark:bg-gray-600 dark:text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-															aria-label="Code"
-														>
-															<Code className="size-4" />
-														</button>
-													</Tooltip>
-													<div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-600" />
-													<Tooltip content="Paragraph" tooltipPosition="bottom">
-														<button
-															onClick={() => editor.chain().focus().setParagraph().run()}
-															className={`rounded p-2 transition-colors ${editor.isActive('paragraph') ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-															aria-label="Paragraph"
-														>
-															<Type className="size-4" />
-														</button>
-													</Tooltip>
-													{[1, 2, 3, 4, 5, 6].map((level) => (
-														<Tooltip
-															key={level}
-															content={`Heading ${level}`}
-															tooltipPosition="bottom"
-														>
-															<button
-																onClick={() =>
-																	editor
-																		.chain()
-																		.focus()
-																		.toggleHeading({ level: level as 1 | 2 | 3 | 4 | 5 | 6 })
-																		.run()
-																}
-																className={`rounded p-2 transition-colors ${editor.isActive('heading', { level }) ? 'border border-gray-300 bg-gray-100 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white' : 'border border-transparent hover:bg-gray-50 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-400'}`}
-																aria-label={`Heading ${level}`}
-															>
-																{level === 1 && <Heading1 className="size-4" />}
-																{level === 2 && <Heading2 className="size-4" />}
-																{level === 3 && <Heading3 className="size-4" />}
-																{level === 4 && <Heading4 className="size-4" />}
-																{level === 5 && <Heading5 className="size-4" />}
-																{level === 6 && <Heading6 className="size-4" />}
-															</button>
-														</Tooltip>
-													))}
-													<div className="mx-1 h-4 w-px bg-gray-200 dark:bg-gray-600" />
-													<Tooltip content="Link" tooltipPosition="bottom">
-														<button
-															onClick={setLinkHandler}
-															className={`rounded p-1.5 transition-colors ${editor.isActive('link') ? 'bg-gray-200 text-gray-900 dark:bg-gray-600 dark:text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-700'}`}
-															aria-label="Link"
-														>
-															<LinkIcon className="size-4" />
-														</button>
-													</Tooltip>
-												</BubbleMenu>
-											)}
+											<ArticleEditorBubbleMenu editor={editor} />
 											<EditorContent
 												editor={editor}
-												className="flex h-full min-h-0 min-w-0 flex-1 flex-col [&_.tiptap]:min-h-[800px] [&_.tiptap]:min-w-0 [&_.tiptap]:flex-1"
+												className={SHARKLY_ARTICLE_EDITOR_CONTENT_CLASS}
 											/>
 										</div>
 
-										{page.targetWordCount > 0 && (
-											<div className="flex justify-end p-3">
-												<span
-													className={`text-xs ${
-														liveWordCount >= Math.round(page.targetWordCount * 0.7) &&
-														liveWordCount <= Math.round(page.targetWordCount * 1.3)
-															? 'text-success-500 dark:text-success-400'
-															: liveWordCount > Math.round(page.targetWordCount * 1.3)
-																? 'text-warning-500 dark:text-warning-400'
-																: 'text-gray-500 dark:text-gray-400'
-													}`}
-												>
-													{liveWordCount.toLocaleString()} / {page.targetWordCount.toLocaleString()}{' '}
-													target
-												</span>
-											</div>
-										)}
+										<ArticleEditorWordCount
+											wordCount={liveWordCount}
+											targetWordCount={
+												page && page.targetWordCount > 0 ? page.targetWordCount : undefined
+											}
+										/>
 									</>
 								)}
 							</>
