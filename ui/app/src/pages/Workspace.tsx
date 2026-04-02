@@ -811,12 +811,15 @@ export default function Workspace() {
 		}
 	}, [id, isFocusPage, authorForBrief, refetch, refetchOrg, briefCost, creditsRemaining]);
 
-	const openIgsModalForPending = useCallback((pending: 'article' | 'research_article') => {
-		setPendingAfterIgs(pending);
-		setIgsModalDraft((siteForAuthor?.originalInsight ?? '').trim());
-		setIgsModalError(null);
-		setIgsModalOpen(true);
-	}, [siteForAuthor?.originalInsight]);
+	const openIgsModalForPending = useCallback(
+		(pending: 'article' | 'research_article') => {
+			setPendingAfterIgs(pending);
+			setIgsModalDraft((siteForAuthor?.originalInsight ?? '').trim());
+			setIgsModalError(null);
+			setIgsModalOpen(true);
+		},
+		[siteForAuthor?.originalInsight]
+	);
 
 	/** Step 2 of Research & Write — article NDJSON stream (switches widget to detailed article steps) */
 	const runResearchWriteArticleOnly = useCallback(async () => {
@@ -1897,10 +1900,10 @@ export default function Workspace() {
 										<Stethoscope className="mr-2 size-3.5" />
 										Diagnose
 									</DropdownMenuItem>
-									<DropdownMenuItem onClick={() => setShopifyPublishOpen(true)}>
+									{/* <DropdownMenuItem onClick={() => setShopifyPublishOpen(true)}>
 										<ShoppingBag className="mr-2 size-3.5" />
 										Publish to Shopify
-									</DropdownMenuItem>
+									</DropdownMenuItem> */}
 								</DropdownMenuContent>
 							</DropdownMenu>
 							<div className="h-6 w-px shrink-0 bg-gray-200 dark:bg-gray-600" />
@@ -1911,7 +1914,8 @@ export default function Workspace() {
 									content={
 										(localPageType || 'Blog Post') &&
 										PAGE_TYPE_CONFIGS[canonicalPageType(localPageType || 'Blog Post')]
-											? PAGE_TYPE_CONFIGS[canonicalPageType(localPageType || 'Blog Post')].description
+											? PAGE_TYPE_CONFIGS[canonicalPageType(localPageType || 'Blog Post')]
+													.description
 											: 'Select the type of page you are building — this changes the on-page SEO rules, heading format, schema type, and generation strategy.'
 									}
 									tooltipPosition="bottom"
