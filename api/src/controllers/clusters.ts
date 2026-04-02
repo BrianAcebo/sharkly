@@ -5,7 +5,7 @@ import { serperSearch } from '../utils/serper.js';
 import { getKeywordSuggestions } from '../utils/dataforseo.js';
 import type { DfsKeyword } from '../utils/dataforseo.js';
 import { CREDIT_COSTS } from '../utils/credits.js';
-import { classifyPageType } from '../utils/croChecklist.js';
+import { inferClusterContentPageType } from '../utils/clusterContentPageType.js';
 import { detectKeywordCannibalization } from '../utils/keywordCannibalization.js';
 import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
 
@@ -1494,7 +1494,7 @@ Return:
 				keyword_difficulty: topic.keyword_difficulty || null,
 				cpc: (topic as { cpc?: number | null }).cpc ?? null,
 				funnel_stage: focusFunnelStage,
-				page_type: classifyPageType(topic.keyword, focusFunnelStage, focusIntent, 'focus'),
+				page_type: inferClusterContentPageType(topic.keyword, topic.title ?? ''),
 				status: 'planned',
 				target_word_count: 1400,
 				sort_order: 0,
@@ -1518,7 +1518,6 @@ Return:
 			const title =
 				(article as ArticleCandidate & { aiTitle?: string }).aiTitle ??
 				article.keyword.charAt(0).toUpperCase() + article.keyword.slice(1);
-			const articleIntent = detectSearchIntent(article.keyword);
 			const stage: 'tofu' | 'mofu' | 'bofu' = 'tofu';
 			return {
 				cluster_id: cluster.id,
@@ -1530,7 +1529,10 @@ Return:
 				keyword_difficulty: article.keyword_difficulty,
 				cpc: article.cpc ?? null,
 				funnel_stage: stage,
-				page_type: classifyPageType(article.keyword, stage, articleIntent, 'article'),
+				page_type: inferClusterContentPageType(
+					article.keyword,
+					(article as ArticleCandidate & { aiTitle?: string }).aiTitle
+				),
 				status: 'planned',
 				target_word_count: 900,
 				sort_order: i + 1,
@@ -1867,7 +1869,10 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 				keyword_difficulty: a.keyword_difficulty,
 				cpc: a.cpc,
 				funnel_stage: stage,
-				page_type: detectPageType(a.keyword),
+				page_type: inferClusterContentPageType(
+					a.keyword,
+					(a as ArticleCandidate & { aiTitle?: string }).aiTitle
+				),
 				source: a.source
 			};
 		});

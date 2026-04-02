@@ -57,10 +57,11 @@ export function classifyPageType(
 
 	if (page_role === 'focus') {
 		if (dominant_intent === 'transactional') return 'money_page';
+		// Only true head-to-head / alternatives keywords — not every mofu cluster hub is a comparison page.
 		if (/vs|versus|alternative|compare/i.test(kw)) return 'mofu_comparison';
 		if (stage === 'bofu') return 'service_page';
-		if (stage === 'mofu') return 'mofu_comparison';
-		return 'service_page'; // default for focus pages
+		if (stage === 'mofu') return 'mofu_article';
+		return 'service_page'; // tofu / default focus pages
 	}
 
 	if (page_role === 'article') {

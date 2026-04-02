@@ -156,8 +156,8 @@ export default function BlogEditor() {
 					category_id: post.category_id ?? '',
 					status: post.status as FormState['status'],
 					author_name: post.author_name,
-					meta_title: post.meta_title ?? '',
-					meta_description: post.meta_description ?? '',
+					meta_title: post.meta_title?.trim() || post.title,
+					meta_description: post.meta_description?.trim() || (post.excerpt ?? ''),
 					og_image_url: post.og_image_url ?? '',
 					canonical_url: post.canonical_url ?? '',
 					featured: post.featured
@@ -304,8 +304,12 @@ useEffect(() => {
 		setSaving(true);
 		try {
 			const content = editor?.getJSON() ?? null;
+			const metaTitle = form.meta_title.trim() || form.title.trim();
+			const metaDescription = form.meta_description.trim() || form.excerpt.trim();
 			const payload: Partial<BlogPost> = {
 				...form,
+				meta_title: metaTitle,
+				meta_description: metaDescription,
 				category_id: form.category_id || null,
 				content: content as object,
 				status: publish ? 'published' : form.status
@@ -313,7 +317,13 @@ useEffect(() => {
 			const saved = await saveBlogPost(id ?? null, payload);
 			toast.success(publish ? 'Published!' : 'Saved');
 			if (!id) navigate(`/admin/blog/edit/${saved.id}`, { replace: true });
-			else setForm((f) => ({ ...f, status: saved.status as FormState['status'] }));
+			else
+				setForm((f) => ({
+					...f,
+					status: saved.status as FormState['status'],
+					meta_title: saved.meta_title ?? '',
+					meta_description: saved.meta_description ?? ''
+				}));
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Save failed');
 		} finally {

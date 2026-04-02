@@ -43,6 +43,7 @@ import {
 import { Label } from '../components/ui/label';
 import InputField from '../components/form/input/InputField';
 import type { Cluster } from '../hooks/useClusters';
+import { inferClusterContentPageType } from '../lib/seoUtils';
 
 export default function Clusters() {
 	const { selectedSite } = useSiteContext();
@@ -124,6 +125,7 @@ export default function Clusters() {
 				monthly_searches: topic?.volume ?? 0,
 				keyword_difficulty: topic?.kd ?? 0,
 				funnel_stage: topic?.funnel ?? 'mofu',
+				page_type: inferClusterContentPageType(targetKeyword, topic?.title ?? title),
 				status: 'planned',
 				target_word_count: 1400,
 				sort_order: 0,

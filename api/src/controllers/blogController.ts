@@ -248,6 +248,11 @@ export async function createPost(req: Request, res: Response): Promise<void> {
 
   if (!body.title?.trim()) { res.status(400).json({ error: 'title is required' }); return; }
 
+  const titleTrim = body.title.trim();
+  const excerptTrim = typeof body.excerpt === 'string' ? body.excerpt.trim() : '';
+  const metaTitleResolved = (body.meta_title?.trim() || titleTrim) || null;
+  const metaDescriptionResolved = (body.meta_description?.trim() || excerptTrim) || null;
+
   const slug = body.slug?.trim() || slugify(body.title);
   const content_html = body.content ? tiptapToHtml(body.content) : '';
   const reading_time_minutes = content_html ? estimateReadingTime(content_html) : null;
@@ -257,14 +262,14 @@ export async function createPost(req: Request, res: Response): Promise<void> {
   const { data, error } = await supabase
     .from('blog_posts')
     .insert({
-      title: body.title.trim(),
+      title: titleTrim,
       slug,
       category_id: body.category_id ?? null,
       excerpt: body.excerpt ?? null,
       content: body.content ?? null,
       content_html: content_html || null,
-      meta_title: body.meta_title ?? null,
-      meta_description: body.meta_description ?? null,
+      meta_title: metaTitleResolved,
+      meta_description: metaDescriptionResolved,
       og_image_url: body.og_image_url ?? null,
       status: body.status ?? 'draft',
       author_name: body.author_name ?? 'Sharkly Team',
@@ -299,10 +304,10 @@ export async function updatePost(req: Request, res: Response): Promise<void> {
     schema_markup?: object;
   };
 
-  // Fetch existing to check if we need to set published_at
+  // Fetch existing to check if we need to set published_at and to resolve meta defaults
   const { data: existing } = await supabase
     .from('blog_posts')
-    .select('status, published_at')
+    .select('status, published_at, title, excerpt')
     .eq('id', id)
     .single();
 
@@ -311,8 +316,16 @@ export async function updatePost(req: Request, res: Response): Promise<void> {
   if (body.slug !== undefined)         { updates.slug = body.slug.trim(); }
   if (body.category_id !== undefined)  { updates.category_id = body.category_id; }
   if (body.excerpt !== undefined)      { updates.excerpt = body.excerpt; }
-  if (body.meta_title !== undefined)   { updates.meta_title = body.meta_title; }
-  if (body.meta_description !== undefined) { updates.meta_description = body.meta_description; }
+  if (body.meta_title !== undefined) {
+    const titleForMeta = (body.title !== undefined ? body.title.trim() : existing?.title ?? '').trim();
+    updates.meta_title = (body.meta_title.trim() || titleForMeta) || null;
+  }
+  if (body.meta_description !== undefined) {
+    const excerptForMeta = (
+      body.excerpt !== undefined ? String(body.excerpt) : existing?.excerpt ?? ''
+    ).trim();
+    updates.meta_description = (body.meta_description.trim() || excerptForMeta) || null;
+  }
   if (body.og_image_url !== undefined) { updates.og_image_url = body.og_image_url; }
   if (body.author_name !== undefined)  { updates.author_name = body.author_name; }
   if (body.featured !== undefined)     { updates.featured = body.featured; }

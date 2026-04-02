@@ -12,6 +12,7 @@ import {
 	detectCTAsInFirst20,
 	detectTrustSignals
 } from '../utils/croChecklist.js';
+import { inferClusterContentPageType } from '../utils/clusterContentPageType.js';
 import { extractPlainText, extractH1s } from '../utils/tiptapExtract.js';
 import { YMYL_PROMPT_ADDITIONS } from '../utils/ymyl.js';
 import { createNotificationForUser } from '../utils/notifications.js';
@@ -516,6 +517,36 @@ function getPageTypeInstructions(rawPageType: string | null | undefined): {
 // ---------------------------------------------------------------------------
 function getCroContextBlock(canonicalPageType: string): string {
 	const pt = (canonicalPageType ?? '').toLowerCase();
+	// Cluster / workspace display types (inferClusterContentPageType) — same funnel as MoFu consideration
+	if (pt.includes('blog post')) {
+		return `
+CRO CONTEXT FOR THIS PAGE:
+This is a cluster SEO article (informational / educational). The reader is learning.
+Use soft CTAs only at the end — email opt-in, related guide, or low-commitment next step.
+Do not hard-sell. Build trust and completeness first.
+`;
+	}
+	if (pt.includes('how-to') || pt.includes('how to')) {
+		return `
+CRO CONTEXT FOR THIS PAGE:
+This is instructional (how-to) content. The reader wants steps and outcomes, not a sales pitch.
+Place any product mention after the steps are complete. One soft CTA after the final step only.
+`;
+	}
+	if (pt.includes('complete guide')) {
+		return `
+CRO CONTEXT FOR THIS PAGE:
+This is pillar / long-form reference content. Readers expect depth and navigation (TOC).
+Use medium-soft CTAs in the conclusion — "download checklist", "next article", not hard buy pressure.
+`;
+	}
+	if (pt.includes('comparison') || pt.includes('review')) {
+		return `
+CRO CONTEXT FOR THIS PAGE:
+This is consideration-stage content. The reader is weighing options.
+Include a medium-commitment CTA (free trial, demo, assessment). Build trust with specifics before the ask.
+`;
+	}
 	if (pt === 'tofu_article') {
 		return `
 CRO CONTEXT FOR THIS PAGE:
@@ -936,20 +967,19 @@ export const generateBrief = async (req: Request, res: Response) => {
 		const siteCtxBrief = resolveSiteContext(site.name as string | null, site.niche as string | null, site.customer_description as string | null, brandTone);
 		const targetLanguage = (site.target_language as string | null) || 'English';
 		const targetRegion = (site.target_region as string | null) || 'United States';
-		const pageTypeInstr = getPageTypeInstructions(page.page_type as string | null);
-		const resolvedWc = pageTypeInstr.targetWcOverride ?? targetWc;
 
-		// Compute canonical page type for CRO context injection (system-1-cro-layer §8.2)
+		const kw = page.keyword ?? page.title ?? '';
 		const pageRole = page.type === 'focus_page' ? 'focus' : 'article';
 		const funnelStage = page.funnel_stage ?? 'mofu';
-		const dominantIntent = inferDominantIntentFromKeyword(page.keyword ?? page.title ?? '');
-		const canonicalPageType = classifyPageType(
-			page.keyword ?? page.title ?? '',
-			funnelStage,
-			dominantIntent,
-			pageRole
-		);
-		const croContextBlock = getCroContextBlock(canonicalPageType);
+		const dominantIntent = inferDominantIntentFromKeyword(kw);
+		// Cluster/strategy pages use inferred content types (Blog Post, How-To, etc.); other pages use CRO codes.
+		const persistedPageType = page.cluster_id
+			? inferClusterContentPageType(kw, page.title ?? '')
+			: classifyPageType(kw, funnelStage, dominantIntent, pageRole);
+		const pageTypeInstr = getPageTypeInstructions(persistedPageType);
+		const resolvedWc = pageTypeInstr.targetWcOverride ?? targetWc;
+
+		const croContextBlock = getCroContextBlock(persistedPageType);
 
 		// L7: Author / EEAT — resolve from body override, page override, or site default
 		const authorOverrideFromBody = (req.body as { authorOverride?: string } | undefined)?.authorOverride;
@@ -993,7 +1023,7 @@ Research confirms body text links in the first 400 words pass the most equity. Y
 
 		writeNdjson(res, { type: 'step', id: '3' }); // Aggregating competitor signals (prompt prep)
 
-		const userPrompt = `PAGE TYPE: ${page.page_type || 'Blog Post / Article'}
+		const userPrompt = `PAGE TYPE: ${persistedPageType || 'Blog Post / Article'}
 ${pageTypeInstr.systemNote}
 ${croContextBlock}
 ${authorBlock}
@@ -1271,7 +1301,7 @@ Requirements:
 		const updatePayload: Record<string, unknown> = {
 			brief_data: briefData,
 			status: 'brief_generated',
-			page_type: canonicalPageType,
+			page_type: persistedPageType,
 			meta_title: (briefData.meta_title_suggestion as string) || null,
 			meta_description: (briefData.meta_description_suggestion as string) || null,
 			updated_at: new Date().toISOString()

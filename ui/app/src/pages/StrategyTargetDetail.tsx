@@ -3,7 +3,7 @@ import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
 import { FunnelTag } from '../components/shared/FunnelTag';
-import { detectPageType, pageTypeColor } from '../lib/seoUtils';
+import { inferClusterContentPageType, pageTypeColor } from '../lib/seoUtils';
 import { CreditBadge, CreditCost } from '../components/shared/CreditBadge';
 import { TaskProgressWidget } from '../components/shared/TaskProgressWidget';
 import type { TaskStep, TaskStatus } from '../components/shared/TaskProgressWidget';
@@ -1724,7 +1724,7 @@ export default function StrategyTargetDetail() {
 													</td>
 													<td className="px-4 py-3">
 														{(() => {
-															const pt = detectPageType(topic.keyword);
+															const pt = inferClusterContentPageType(topic.keyword, topic.title);
 															return (
 																<span
 																	className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${pageTypeColor(pt)}`}

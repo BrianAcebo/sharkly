@@ -19,7 +19,7 @@ import FloatingEdge from '../components/graphs/FloatingEdges/FloatingEdge';
 import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
-import { detectPageType, formatPageTypeDisplay, pageTypeColor } from '../lib/seoUtils';
+import { formatPageTypeDisplay, inferClusterContentPageType, pageTypeColor } from '../lib/seoUtils';
 import { ReverseSiloAlert } from '../components/shared/ReverseSiloAlert';
 import { Button } from '../components/ui/button';
 import { useTheme } from '../hooks/useTheme';
@@ -2032,7 +2032,7 @@ export default function ClusterDetail() {
 																	</td>
 																	<td className="px-4 py-3">
 																		{(() => {
-																			const pt = p.pageType ?? detectPageType(p.keyword);
+																			const pt = p.pageType ?? inferClusterContentPageType(p.keyword, p.title);
 																			return (
 																				<span
 																					className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${pageTypeColor(pt)}`}

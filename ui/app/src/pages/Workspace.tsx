@@ -32,8 +32,10 @@ import { CREDIT_COSTS } from '../lib/credits'; // FOCUS_PAGE_FULL=40, FOCUS_PAGE
 import { computeSeoScore, isPassageReadyH2, type SeoScoreBreakdown } from '../lib/seoScore';
 import {
 	PAGE_TYPES,
+	CLUSTER_CONTENT_PAGE_TYPES,
 	PAGE_TYPE_CONFIGS,
 	canonicalPageType,
+	canonicalClusterContentPageType,
 	formatPageTypeDisplay,
 	pageTypeColor
 } from '../lib/seoUtils';
@@ -614,11 +616,23 @@ export default function Workspace() {
 		[page?.id]
 	);
 
-	// Sync page type from DB — DB stores classifyPageType() codes (e.g. mofu_comparison);
-	// the select only accepts PAGE_TYPES labels (e.g. Comparison). Map so the control isn't blank.
+	// Cluster pages: DB stores inferred content types (Blog Post, How-To, …); map legacy CRO codes for the dropdown.
 	useEffect(() => {
-		setLocalPageType(page?.pageType ? canonicalPageType(page.pageType) : '');
-	}, [page?.pageType]);
+		if (!page?.pageType) {
+			setLocalPageType('Blog Post');
+			return;
+		}
+		setLocalPageType(
+			page.clusterId
+				? canonicalClusterContentPageType(page.pageType)
+				: canonicalPageType(page.pageType)
+		);
+	}, [page?.pageType, page?.clusterId]);
+
+	const workspacePageTypeOptions = useMemo(
+		() => (page?.clusterId ? CLUSTER_CONTENT_PAGE_TYPES : PAGE_TYPES),
+		[page?.clusterId]
+	);
 
 	// Fetch minimal site settings (language/region) for display
 	const [siteLanguage, setSiteLanguage] = useState<{ language: string; region: string } | null>(
@@ -1983,25 +1997,25 @@ export default function Workspace() {
 							<div className="relative flex shrink-0 items-center gap-1">
 								<Tooltip
 									content={
-										localPageType && PAGE_TYPE_CONFIGS[canonicalPageType(localPageType)]
-											? PAGE_TYPE_CONFIGS[canonicalPageType(localPageType)].description
+										(localPageType || 'Blog Post') &&
+										PAGE_TYPE_CONFIGS[canonicalPageType(localPageType || 'Blog Post')]
+											? PAGE_TYPE_CONFIGS[canonicalPageType(localPageType || 'Blog Post')].description
 											: 'Select the type of page you are building — this changes the on-page SEO rules, heading format, schema type, and generation strategy.'
 									}
 									tooltipPosition="bottom"
 								>
 									<div className="relative">
 										<select
-											value={localPageType}
+											value={localPageType || 'Blog Post'}
 											onChange={(e) => handlePageTypeChange(e.target.value)}
 											disabled={pageTypeSaving}
 											className={`focus:ring-brand-500 cursor-pointer appearance-none rounded-md border py-1.5 pr-6 pl-7 text-xs font-medium focus:ring-2 focus:outline-none dark:bg-gray-900 dark:text-gray-200 ${
-												localPageType
-													? pageTypeColor(localPageType)
+												localPageType || 'Blog Post'
+													? pageTypeColor(localPageType || 'Blog Post')
 													: 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700'
 											}`}
 										>
-											<option value="">Page Type</option>
-											{PAGE_TYPES.map((pt) => (
+											{workspacePageTypeOptions.map((pt) => (
 												<option key={pt} value={pt}>
 													{pt}
 												</option>
