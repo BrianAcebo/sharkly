@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { createLowlight, all } from 'lowlight';
 import 'highlight.js/styles/github.css';
@@ -86,6 +86,8 @@ import {
 	Tag,
 	Loader2,
 	FileText,
+	Globe,
+	CheckCircle2,
 	ChevronDown,
 	ChevronUp,
 	BarChart3,
@@ -466,6 +468,13 @@ export default function Workspace() {
 
 	const { sites, selectedSite, refetchSites } = useSiteContext();
 
+	const siteUrlForSeo = useMemo(() => {
+		const sid = cluster?.siteId;
+		const row = sid ? sites.find((s) => s.id === sid) : null;
+		const url = (row ?? selectedSite)?.url?.trim();
+		return url && url.length > 0 ? url.replace(/\/$/, '') : undefined;
+	}, [cluster?.siteId, sites, selectedSite]);
+
 	// Mode tabs: each page type defaults to its natural mode but can switch
 	const [activeTab, setActiveTab] = useState<'brief' | 'article'>(
 		isFocusPage ? 'brief' : 'article'
@@ -490,6 +499,7 @@ export default function Workspace() {
 	const [contentVersion, setContentVersion] = useState(0);
 	const [, forceUpdate] = useState(0);
 	const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+	const [markPublishedLoading, setMarkPublishedLoading] = useState(false);
 	const [diagnoseOpen, setDiagnoseOpen] = useState(false);
 	const [shopifyPublishOpen, setShopifyPublishOpen] = useState(false);
 	const [addToCROModalOpen, setAddToCROModalOpen] = useState(false);
@@ -1398,6 +1408,30 @@ export default function Workspace() {
 		}
 	}, [id, refetchOrg]);
 
+	/** Sets DB status to published — cluster map / analytics; not the same as pushing to Shopify. */
+	const handleMarkPublished = useCallback(async () => {
+		if (!id || !page) return;
+		if ((page.wordCount ?? 0) < 1) {
+			toast.error('Add article content before marking as published');
+			return;
+		}
+		setMarkPublishedLoading(true);
+		try {
+			const { error: updErr } = await supabase
+				.from('pages')
+				.update({ status: 'published', updated_at: new Date().toISOString() })
+				.eq('id', id);
+			if (updErr) {
+				toast.error(updErr.message);
+				return;
+			}
+			toast.success('Marked as published — your cluster map will show this as live.');
+			await refetch();
+		} finally {
+			setMarkPublishedLoading(false);
+		}
+	}, [id, page, refetch]);
+
 	const lowlight = useMemo(() => createLowlight(all), []);
 	const sharklyExtensions = useMemo(() => createSharklyArticleExtensions(lowlight), [lowlight]);
 
@@ -1439,6 +1473,7 @@ export default function Workspace() {
 				content: json as { type: string; content?: unknown[] },
 				keyword: page.keyword || page.title,
 				targetWordCount: page.targetWordCount || 1000,
+				baseUrl: siteUrlForSeo,
 				metaTitle: page.metaTitle,
 				metaDescription: page.metaDescription,
 				urlSlug:
@@ -1472,9 +1507,17 @@ export default function Workspace() {
 			setLiveSeoBreakdown(breakdown);
 		}, 500);
 		return () => clearTimeout(timer);
-	}, [editor, page, activeTab, contentVersion]);
+	}, [editor, page, activeTab, contentVersion, siteUrlForSeo]);
 
 	const displaySeoScore = liveSeoBreakdown?.total ?? page?.seoScore ?? 0;
+	const internalLinksDetected = liveSeoBreakdown?.module5.internalLinksCount ?? 0;
+
+	const lastSeoTotalRef = useRef<number | null>(null);
+	useEffect(() => {
+		if (liveSeoBreakdown != null) {
+			lastSeoTotalRef.current = Math.round(liveSeoBreakdown.total);
+		}
+	}, [liveSeoBreakdown]);
 
 	// Auto-save: 2s debounce after every editor change, only when content exists
 	// CRO evaluation is done in CRO Studio
@@ -1494,6 +1537,7 @@ export default function Workspace() {
 					.update({
 						content: JSON.stringify(json),
 						word_count: wc,
+						seo_score: lastSeoTotalRef.current ?? page?.seoScore ?? 0,
 						updated_at: new Date().toISOString()
 					})
 					.eq('id', id);
@@ -1503,7 +1547,7 @@ export default function Workspace() {
 			}
 		}, 2000);
 		return () => clearTimeout(timer);
-	}, [editor, id, contentVersion]);
+	}, [editor, id, contentVersion, page?.seoScore]);
 
 	const isArticleEditorVisible =
 		activeTab === 'article' && ((page?.wordCount ?? 0) > 0 || showEditorFromScratch);
@@ -1975,6 +2019,35 @@ export default function Workspace() {
 									)}
 								</span>
 							)}
+							{page?.status === 'published' ? (
+								<span className="border-success-200 bg-success-50 text-success-800 dark:border-success-800/60 dark:bg-success-950/40 dark:text-success-300 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold">
+									<CheckCircle2 className="size-3.5 shrink-0" />
+									Published
+								</span>
+							) : (
+								hasContent && (
+									<Tooltip
+										content="Updates this page to published in Sharkly (cluster map, status). To push HTML to Shopify, use Tools when that integration is available."
+										tooltipPosition="bottom"
+									>
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											className="border-success-200 text-success-800 hover:bg-success-50 dark:border-success-800 dark:text-success-300 dark:hover:bg-success-950/40"
+											disabled={markPublishedLoading}
+											onClick={() => void handleMarkPublished()}
+										>
+											{markPublishedLoading ? (
+												<Loader2 className="mr-1.5 size-3.5 animate-spin" />
+											) : (
+												<Globe className="mr-1.5 size-3.5" />
+											)}
+											Mark as published
+										</Button>
+									</Tooltip>
+								)
+							)}
 							{renderMainGenerateButton()}
 						</div>
 
@@ -2075,8 +2148,12 @@ export default function Workspace() {
 									: (page?.wordCount ?? 0) > 0
 										? displaySeoScore >= 80
 											? isFocusPage
-												? `SEO score looks good at ${displaySeoScore}/115. Add 1–2 internal links to your topic cluster articles to pass the UX signals check.`
-												: `SEO score looks good at ${displaySeoScore}/115. Add 1–2 internal links to your focus page to pass the UX signals check.`
+												? internalLinksDetected >= 1
+													? `SEO score looks good at ${displaySeoScore}/115. Internal links to cluster articles are detected — you’re in good shape for UX signals.`
+													: `SEO score looks good at ${displaySeoScore}/115. Add 1–2 internal links to your topic cluster articles to pass the UX signals check.`
+												: internalLinksDetected >= 1
+													? `SEO score looks good at ${displaySeoScore}/115. Internal links are detected — you’re in good shape for UX signals.`
+													: `SEO score looks good at ${displaySeoScore}/115. Add 1–2 internal links to your focus page to pass the UX signals check.`
 											: displaySeoScore >= 60
 												? isFocusPage
 													? `You're at ${displaySeoScore}/115. Check the panel: add the keyword to H1, hit word count, or link to topic cluster articles to improve.`
@@ -2653,17 +2730,19 @@ export default function Workspace() {
 											{/* Skyscraper Warning */}
 											{liveSeoBreakdown?.skyscraperWarning && (
 												<div className="bg-warning-50 dark:bg-warning-900/20 border-warning-200 dark:border-warning-700 mb-4 rounded-lg border p-3">
-													<div className="text-warning-700 dark:text-warning-400 flex items-start gap-2 text-[13px] font-semibold">
-														<AlertTriangle className="mt-0.5 size-4 shrink-0" />
-														<span className="flex items-center gap-1">
-															Skyscraper Alert:
+													<div className="text-warning-700 dark:text-warning-400 flex flex-col justify-between gap-2 text-[13px] font-semibold">
+														<div className="flex items-start gap-2">
+															<AlertTriangle className="mt-0.5 size-4 shrink-0" />
+															<span className="flex items-center gap-1">Skyscraper Alert:</span>
+														</div>
+														<div className="flex items-start gap-1">
 															<LawTooltip lawId="quality_before_volume" />
-														</span>
-														<span>
-															Your content covers the same ground as every competitor. Add original
-															data, an expert quote, or first-hand experience to earn the
-															information gain bonus.
-														</span>
+															<span>
+																Your content covers the same ground as every competitor. Add
+																original data, an expert quote, or first-hand experience to earn the
+																information gain bonus.
+															</span>
+														</div>
 													</div>
 												</div>
 											)}

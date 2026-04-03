@@ -9,6 +9,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { captureApiError } from '../utils/sentryCapture.js';
+import { resolveSiteDomainAuthority } from '../utils/siteDomainAuthority.js';
 
 function normalizePath(url: string): string {
 	if (!url || typeof url !== 'string') return '';
@@ -79,7 +80,7 @@ export async function diagnosePage(req: Request, res: Response): Promise<void> {
 
 		const { data: site, error: siteErr } = await supabase
 			.from('sites')
-			.select('id, url, organization_id')
+			.select('id, url, organization_id, domain_authority, domain_authority_estimated, last_audit_at')
 			.eq('id', page.site_id)
 			.eq('organization_id', userOrg.organization_id)
 			.single();
@@ -89,13 +90,9 @@ export async function diagnosePage(req: Request, res: Response): Promise<void> {
 			return;
 		}
 
-		const { data: org } = await supabase
-			.from('organizations')
-			.select('da_estimate')
-			.eq('id', site.organization_id)
-			.single();
-
-		const siteDa = org?.da_estimate ?? 20;
+		const daRes = resolveSiteDomainAuthority(site);
+		const siteDa = daRes.known && daRes.value != null ? daRes.value : 0;
+		const siteAuthorityKnown = daRes.known;
 		const pageUrl = page.published_url ?? (site?.url ? `${site.url.replace(/\/$/, '')}/${page.keyword?.replace(/\s+/g, '-').toLowerCase()}` : null);
 
 		// 2. Technical issues for this page URL
@@ -261,11 +258,11 @@ export async function diagnosePage(req: Request, res: Response): Promise<void> {
 			return;
 		}
 
-		// Step 4: Content quality (UPSA)
+		// Step 4: Content quality (UPSA — same 0–115 scale as Live SEO score in the workspace)
 		const upsa = page.seo_score ?? 0;
 		const contentPassed = upsa >= 70;
 		if (!contentPassed && upsa > 0) {
-			primaryDiagnosis = `Content score is ${upsa}/100 — below the 70 target`;
+			primaryDiagnosis = `Content score is ${upsa}/115 — below the 70 target`;
 			firstAction =
 				'Improve headings, word count, and originality. Add question-format H2s, cover key entities, and include unique insights or data.';
 		}
@@ -274,10 +271,10 @@ export async function diagnosePage(req: Request, res: Response): Promise<void> {
 			name: 'Content quality',
 			passed: contentPassed,
 			message: contentPassed
-				? `Content score ${upsa}/100 — competitive`
+				? `Content score ${upsa}/115 — competitive`
 				: upsa > 0
-					? `Content score ${upsa}/100 — improve to 70+`
-					: 'Run SEO score to see content gaps'
+					? `Content score ${upsa}/115 — improve to 70+`
+					: 'No saved SEO score yet — open the Article tab: Live SEO score updates as you edit and saves after a short pause; run Diagnose again'
 		});
 
 		if (!contentPassed && upsa > 0) {
@@ -290,23 +287,34 @@ export async function diagnosePage(req: Request, res: Response): Promise<void> {
 			return;
 		}
 
-		// Step 5: Domain authority (simplified — we don't have competitor DA without extra API)
-		const authorityPassed = siteDa >= 25;
-		if (!authorityPassed) {
-			primaryDiagnosis = `Your site's authority (${siteDa}) may be too low to compete for this keyword`;
-			firstAction =
-				'Focus on earning links before publishing more content. Publishing alone rarely works when your site has fewer links than competitors.';
+		// Step 5: Domain authority (audit DA preferred; Moz when non-zero; never org guess)
+		let authorityPassed = true;
+		if (siteAuthorityKnown) {
+			authorityPassed = siteDa >= 25;
+			if (!authorityPassed) {
+				primaryDiagnosis = `Your site's authority (${siteDa}) may be too low to compete for this keyword`;
+				firstAction =
+					'Focus on earning links before publishing more content. Publishing alone rarely works when your site has fewer links than competitors.';
+			}
+			steps.push({
+				step: 5,
+				name: 'Site authority',
+				passed: authorityPassed,
+				message: authorityPassed
+					? `Site authority ${siteDa} — likely sufficient`
+					: `Site authority ${siteDa} — consider link building first`
+			});
+		} else {
+			steps.push({
+				step: 5,
+				name: 'Site authority',
+				passed: true,
+				message:
+					'Site authority not measured yet — run a technical audit (or refresh domain authority in Site settings) so we can use a real number instead of guessing'
+			});
 		}
-		steps.push({
-			step: 5,
-			name: 'Site authority',
-			passed: authorityPassed,
-			message: authorityPassed
-				? `Site authority ${siteDa} — likely sufficient`
-				: `Site authority ${siteDa} — consider link building first`
-		});
 
-		if (!authorityPassed) {
+		if (siteAuthorityKnown && !authorityPassed) {
 			res.json({
 				steps,
 				primaryDiagnosis: primaryDiagnosis ?? 'Authority gap',

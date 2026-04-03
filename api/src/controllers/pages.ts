@@ -18,6 +18,7 @@ import { YMYL_PROMPT_ADDITIONS } from '../utils/ymyl.js';
 import { createNotificationForUser } from '../utils/notifications.js';
 import { summarizeAnthropicFailure } from '../utils/anthropicErrors.js';
 import { captureApiError, captureApiWarning, captureFeatureFailure, flushSentry } from '../utils/sentryCapture.js';
+import { resolveSiteDomainAuthority } from '../utils/siteDomainAuthority.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const CLAUDE_MODEL = process.env.CLAUDE_SONNET_MODEL || 'claude-sonnet-4-5-20250929';
@@ -802,7 +803,7 @@ export const generateBrief = async (req: Request, res: Response) => {
 		const { data: site } = await supabase
 			.from('sites')
 			.select(
-				'id, name, niche, customer_description, url, organization_id, domain_authority, tone, include_terms, avoid_terms, target_language, target_region, author_bio'
+				'id, name, niche, customer_description, url, organization_id, domain_authority, domain_authority_estimated, last_audit_at, tone, include_terms, avoid_terms, target_language, target_region, author_bio'
 			)
 			.eq('id', page.site_id)
 			.single();
@@ -1023,6 +1024,12 @@ Research confirms body text links in the first 400 words pass the most equity. Y
 
 		writeNdjson(res, { type: 'step', id: '3' }); // Aggregating competitor signals (prompt prep)
 
+		const daResolution = resolveSiteDomainAuthority(site);
+		const domainAuthorityLine =
+			daResolution.known && daResolution.value != null
+				? `Domain Authority (measured): ${daResolution.value}`
+				: 'Domain Authority: not measured yet — treat as a new/low-authority site until a technical audit or Moz refresh provides a real number';
+
 		const userPrompt = `PAGE TYPE: ${persistedPageType || 'Blog Post / Article'}
 ${pageTypeInstr.systemNote}
 ${croContextBlock}
@@ -1037,7 +1044,7 @@ Language: ${targetLanguage}
 Region / dialect: ${targetRegion}
 Must include these terms: ${includeTerms}
 Avoid these terms: ${avoidTerms}
-Domain Authority: ${site.domain_authority || 0}
+${domainAuthorityLine}
 
 Competitor analysis (real H2s and word counts crawled from top-ranking pages):
 ${competitorBlock}

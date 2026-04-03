@@ -13,6 +13,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { captureApiError } from '../utils/sentryCapture.js';
+import { resolveSiteDomainAuthority } from '../utils/siteDomainAuthority.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
@@ -705,7 +706,7 @@ export const generateContentBrief = async (req: Request, res: Response) => {
 	// ─── Load site + target context ────────────────────────────────────────
 	const { data: site } = await supabase
 		.from('sites')
-		.select('id, name, niche, customer_description, url, domain_authority')
+		.select('id, name, niche, customer_description, url, domain_authority, domain_authority_estimated, last_audit_at')
 		.eq('id', target.site_id)
 		.single();
 
@@ -722,8 +723,9 @@ export const generateContentBrief = async (req: Request, res: Response) => {
 		.update({ included_credits_remaining: newCredits })
 		.eq('id', orgId);
 
-	const da = Number(site?.domain_authority ?? 0);
-	const isNewDomain = da <= 5;
+	const daRes = resolveSiteDomainAuthority(site);
+	const da = daRes.known && daRes.value != null ? daRes.value : 0;
+	const isNewDomain = !daRes.known || da <= 5;
 	const pageType =
 		briefType === 'focus_page' ? 'Focus Page (L2 MoFu)' : 'Supporting Article (L3 ToFu)';
 	const targetTitle = briefType === 'focus_page' ? topic.title : (articleTitle ?? topic.title);
@@ -788,7 +790,11 @@ BUSINESS CONTEXT:
 Name: ${site?.name ?? 'Unknown'}
 Niche: ${site?.niche ?? 'Unknown'}
 Customer: ${site?.customer_description ?? 'small business owners'}
-Domain Authority: ${da} ${isNewDomain ? '(new domain — prioritize low-competition angles)' : ''}
+Domain Authority: ${
+		daRes.known && daRes.value != null
+			? `${da}${isNewDomain ? ' (new/low — prioritize low-competition angles)' : ''}`
+			: 'not measured — assume new/low authority until a technical audit or Moz refresh provides a number'
+	}
 
 TARGET / DESTINATION:
 Target name: ${targetRow?.name ?? 'Unknown'}

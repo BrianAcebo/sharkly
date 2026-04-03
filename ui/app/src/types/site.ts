@@ -9,7 +9,12 @@ export interface Site {
 	niche: string;
 	customerDescription: string;
 	competitorUrls: string[];
+	/** Moz / onboarding DA (0 until refresh) */
 	domainAuthority: number;
+	/** From technical audit (sites.domain_authority_estimated) */
+	domainAuthorityEstimated?: number;
+	/** Last audit timestamp — when set, audit DA is available */
+	lastAuditAt?: string | null;
 	tone?: string | null;
 	includeTerms?: string | null;
 	avoidTerms?: string | null;

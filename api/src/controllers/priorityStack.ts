@@ -9,6 +9,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { captureApiError } from '../utils/sentryCapture.js';
 import { findPageIdForGscUrl } from '../utils/gscUrlMatch.js';
+import { resolveSiteDomainAuthority } from '../utils/siteDomainAuthority.js';
 
 export type PriorityCategory = 'high' | 'medium' | 'keep_going';
 
@@ -61,7 +62,7 @@ export const getPriorityStack = async (req: Request, res: Response): Promise<voi
 		// Verify user has access to site
 		const { data: site } = await supabase
 			.from('sites')
-			.select('id, organization_id, domain_authority')
+			.select('id, organization_id, domain_authority, domain_authority_estimated, last_audit_at')
 			.eq('id', siteId)
 			.single();
 
@@ -70,7 +71,9 @@ export const getPriorityStack = async (req: Request, res: Response): Promise<voi
 			return;
 		}
 
-		const siteDa = Number((site as { domain_authority?: number }).domain_authority ?? 0);
+		const daRes = resolveSiteDomainAuthority(site);
+		/** Cadence: unknown DA → treat as 0 so stage stays 1 (conservative) */
+		const siteDaForStage = daRes.known && daRes.value != null ? daRes.value : 0;
 
 		const { data: userOrg } = await supabase
 			.from('user_organizations')
@@ -354,7 +357,15 @@ export const getPriorityStack = async (req: Request, res: Response): Promise<voi
 			.eq('status', 'published')
 			.gte('updated_at', startOfMonth);
 
-		const stage: 1 | 2 | 3 | 4 = siteDa >= 30 ? 4 : siteDa >= 20 ? 3 : siteDa >= 10 ? 2 : 1;
+		const stage: 1 | 2 | 3 | 4 = !daRes.known
+			? 1
+			: siteDaForStage >= 30
+				? 4
+				: siteDaForStage >= 20
+					? 3
+					: siteDaForStage >= 10
+						? 2
+						: 1;
 		const cadenceConfig = CADENCE_BY_STAGE[stage] ?? CADENCE_BY_STAGE[1];
 		const rec = cadenceConfig ?? { min: 2, max: 4 };
 		const pubCount = publishedThisMonth ?? 0;

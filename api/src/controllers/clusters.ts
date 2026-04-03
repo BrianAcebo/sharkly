@@ -8,6 +8,7 @@ import { CREDIT_COSTS } from '../utils/credits.js';
 import { inferClusterContentPageType } from '../utils/clusterContentPageType.js';
 import { detectKeywordCannibalization } from '../utils/keywordCannibalization.js';
 import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
+import { resolveSiteDomainAuthority } from '../utils/siteDomainAuthority.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
@@ -344,15 +345,19 @@ async function callAICuration(
 		niche?: string | null;
 		customer_description?: string | null;
 		domain_authority?: number | null;
+		domain_authority_estimated?: number | null;
+		last_audit_at?: string | null;
 	}
 ): Promise<AICurationResult> {
 	const differentiators = extractDifferentiatingQualifiers(topicKeyword);
 	const differentiatorPhrase =
 		differentiators.length > 0 ? differentiators.join(', ') : topicKeyword;
 
-	const da = siteContext?.domain_authority ?? 0;
-	const authNote =
-		da <= 5
+	const daRes = resolveSiteDomainAuthority(siteContext ?? null);
+	const da = daRes.known && daRes.value != null ? daRes.value : 0;
+	const authNote = !daRes.known
+		? `Domain authority is not measured yet (no technical audit and Moz DA is still 0). Assume a new/low-authority site: prioritise low-competition angles (KD ≤ 15).`
+		: da <= 5
 			? `New site (DA ${da}). Prioritise low-competition angles (KD ≤ 15).`
 			: `DA ${da}. Achievable KD ≤ ${da + 10}. Avoid KD > ${da + 25}.`;
 
@@ -1024,7 +1029,7 @@ export const createCluster = async (req: Request, res: Response) => {
 		const siteId = topic.site_id;
 		const { data: site } = await supabase
 			.from('sites')
-			.select('name, niche, customer_description, domain_authority')
+			.select('name, niche, customer_description, domain_authority, domain_authority_estimated, last_audit_at')
 			.eq('id', siteId)
 			.single();
 
@@ -1759,6 +1764,12 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 			...otherFocusKeywords.slice(0, 20)
 		];
 
+		const { data: siteForRegen } = await supabase
+			.from('sites')
+			.select('name, niche, customer_description, domain_authority, domain_authority_estimated, last_audit_at')
+			.eq('id', cluster.site_id)
+			.single();
+
 		const aiResult = await callAICuration(
 			cluster.target_keyword,
 			cluster.title,
@@ -1769,7 +1780,8 @@ export const regenerateCluster = async (req: Request, res: Response) => {
 			related,
 			aiRequestCount,
 			blockedForAI,
-			topicalKeywordSupply
+			topicalKeywordSupply,
+			siteForRegen ?? undefined
 		);
 
 		const dfsMap = new Map(dfsResult.keywords.map((k) => [normalizeKw(k.keyword), k]));

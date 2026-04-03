@@ -95,7 +95,7 @@ export function useSites() {
 			const { data, error: fetchError } = await supabase
 				.from('sites')
 				.select(
-					'id, name, description, logo, url, platform, niche, customer_description, competitor_urls, domain_authority, tone, include_terms, avoid_terms, target_language, target_region, author_bio, original_insight, google_review_count, google_average_rating, gbp_url, facebook_url, linkedin_url, twitter_url, yelp_url, wikidata_url, is_ymyl, created_at, updated_at'
+					'id, name, description, logo, url, platform, niche, customer_description, competitor_urls, domain_authority, domain_authority_estimated, last_audit_at, tone, include_terms, avoid_terms, target_language, target_region, author_bio, original_insight, google_review_count, google_average_rating, gbp_url, facebook_url, linkedin_url, twitter_url, yelp_url, wikidata_url, is_ymyl, created_at, updated_at'
 				)
 				.eq('organization_id', organizationId)
 				.order('created_at', { ascending: false });
@@ -114,6 +114,8 @@ export function useSites() {
 				customerDescription: row.customer_description ?? '',
 				competitorUrls: Array.isArray(row.competitor_urls) ? row.competitor_urls : [],
 				domainAuthority: Number(row.domain_authority ?? 0),
+				domainAuthorityEstimated: Number((row as { domain_authority_estimated?: number }).domain_authority_estimated ?? 0),
+				lastAuditAt: (row as { last_audit_at?: string | null }).last_audit_at ?? null,
 			tone: (row.tone as string | null) ?? null,
 			includeTerms: (row.include_terms as string | null) ?? null,
 			avoidTerms: (row.avoid_terms as string | null) ?? null,

@@ -36,6 +36,7 @@ import { useSites } from '../hooks/useSites';
 import { api } from '../utils/api';
 import { TierGate, useTierGateContext } from '../components/common/TierGate';
 import { LawTooltip } from '../components/shared/LawTooltip';
+import { resolveSiteDomainAuthority } from '../lib/siteDomainAuthority';
 
 const RANGE_OPTIONS = ['30d', '90d', 'All time'] as const;
 
@@ -78,7 +79,21 @@ export default function Performance() {
 	const [localDA, setLocalDA] = useState<number | null>(null);
 	const { refreshSiteAuthority } = useSites();
 
-	const displayDA = localDA ?? selectedSite?.domainAuthority ?? null;
+	const measuredDA = useMemo(() => {
+		if (!selectedSite) return null;
+		return resolveSiteDomainAuthority({
+			lastAuditAt: selectedSite.lastAuditAt,
+			domainAuthorityEstimated: selectedSite.domainAuthorityEstimated,
+			domainAuthority: selectedSite.domainAuthority
+		});
+	}, [selectedSite]);
+
+	const displayDA =
+		localDA != null
+			? localDA
+			: measuredDA?.known && measuredDA.value != null
+				? measuredDA.value
+				: null;
 	const tierContext = useTierGateContext();
 	const hasScale = tierContext?.hasScale ?? false;
 
@@ -338,16 +353,18 @@ export default function Performance() {
 						</div>
 						<div className="mt-2 flex items-baseline gap-1">
 							<span className="text-2xl font-bold text-gray-900 dark:text-white">
-								{displayDA != null && displayDA > 0 ? displayDA : '—'}
+								{displayDA != null ? displayDA : '—'}
 							</span>
-							{displayDA != null && displayDA > 0 && (
+							{displayDA != null && (
 								<span className="text-[11px] text-gray-400">/ 100</span>
 							)}
 						</div>
 						<p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-							{displayDA == null || displayDA === 0
-								? 'Click ↺ to fetch'
-								: 'via Moz · refresh monthly'}
+							{displayDA == null
+								? 'Run a technical audit or click ↺ when Moz is configured'
+								: measuredDA?.source === 'audit'
+									? 'from your last technical audit'
+									: 'via Moz · refresh monthly'}
 						</p>
 					</div>
 				</div>

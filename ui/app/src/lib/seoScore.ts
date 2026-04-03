@@ -288,6 +288,23 @@ function extractSections(
 /**
  * Separate internal and external links from the document.
  */
+/** Same registrable host, ignoring leading www (https://www.a.com vs https://a.com/path) */
+function hrefIsSameSite(href: string, baseUrl: string): boolean {
+	const base = baseUrl.trim().replace(/\/$/, '');
+	const hrefLower = href.toLowerCase();
+	const baseLower = base.toLowerCase();
+	if (hrefLower.startsWith(baseLower + '/') || hrefLower === baseLower) return true;
+	if (!href.startsWith('http') && !href.startsWith('//')) return false;
+	try {
+		const h = new URL(href);
+		const b = new URL(baseLower.startsWith('http') ? baseLower : `https://${baseLower}`);
+		const host = (hostname: string) => hostname.replace(/^www\./, '');
+		return host(h.hostname) === host(b.hostname);
+	} catch {
+		return false;
+	}
+}
+
 function extractLinks(
 	doc: TiptapNode | null,
 	baseUrl?: string
@@ -308,7 +325,9 @@ function extractLinks(
 						href.startsWith('#') ||
 						(!href.startsWith('http') && !href.startsWith('mailto:'));
 					const isSameDomain = normalBase
-						? hrefLower.startsWith(normalBase + '/') || hrefLower === normalBase
+						? hrefLower.startsWith(normalBase + '/') ||
+							hrefLower === normalBase ||
+							hrefIsSameSite(href, baseUrl!)
 						: false;
 
 					if (isRelative || isSameDomain) {
@@ -559,7 +578,7 @@ export function calculateIGS(body: string, doc?: TiptapNode | null): IGSBreakdow
 	const lower = body.toLowerCase();
 	let score = 0;
 
-	// +5 Original research / data
+	// +5 Original research / data / first-party insight (heuristic string match)
 	const dataSignals = [
 		'%',
 		'survey',
@@ -571,9 +590,39 @@ export function calculateIGS(body: string, doc?: TiptapNode | null): IGSBreakdow
 		'our analysis',
 		'our research',
 		'according to our',
-		'in our case'
+		'in our case',
+		'original insight',
+		'our expertise',
+		'unique insight',
+		'first-hand experience',
+		'firsthand experience',
+		'proprietary',
+		"we've observed",
+		'we have observed',
+		'our own research',
+		'our team has',
+		'patent',
+		'patent filing',
+		'research published',
+		'backed by',
+		'data points',
+		'specific to your'
 	];
-	const originalResearch = dataSignals.some((s) => lower.includes(s));
+	// Citations, patents, and quantified claims — not just keyword stuffing
+	const hasCitationOrEvidence =
+		/\bpatent\b/i.test(body) ||
+		/research\s+published/i.test(lower) ||
+		/published\s+in\s+[^.]{0,80}patent/i.test(lower) ||
+		/backed\s+by\s+(published\s+)?research/i.test(lower) ||
+		/\d[\d,]*\s+data\s+points/i.test(lower) ||
+		/thousands\s+of\s+data/i.test(lower);
+	// First-party POV: "Brand's approach", "our platform", differentiated positioning
+	const hasFirstPartyPOV =
+		/\b[a-z][a-z0-9'-]{1,24}'s\s+(approach|platform|recommendation|method|analysis|research|findings)\b/i.test(
+			body
+		) || /\bour\s+(approach|platform|recommendation|method|analysis)\b/i.test(lower);
+	const originalResearch =
+		dataSignals.some((s) => lower.includes(s)) || hasCitationOrEvidence || hasFirstPartyPOV;
 	if (originalResearch) score += 5;
 
 	// +4 Expert quotes with attribution (20+ char quoted string + attribution verb)

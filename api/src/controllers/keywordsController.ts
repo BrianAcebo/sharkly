@@ -11,6 +11,7 @@ import { serperSearch } from '../utils/serper.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { CREDIT_COSTS } from '../utils/credits.js';
 import { captureApiError } from '../utils/sentryCapture.js';
+import { resolveSiteDomainAuthority } from '../utils/siteDomainAuthority.js';
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const CLAUDE_HAIKU_MODEL = process.env.CLAUDE_HAIKU_MODEL || 'claude-3-haiku-20240307';
@@ -36,7 +37,7 @@ export async function lookupKeyword(req: Request, res: Response): Promise<void> 
 		// Credit check
 		const { data: org } = await supabase
 			.from('organizations')
-			.select('included_credits_remaining, included_credits, da_estimate')
+			.select('included_credits_remaining, included_credits')
 			.eq('id', organizationId)
 			.single();
 
@@ -69,14 +70,46 @@ export async function lookupKeyword(req: Request, res: Response): Promise<void> 
 		// Get organic results for KD estimation
 		const organic = serperData.organic || [];
 
-		// 2. Claude Haiku: classify keyword metrics
-		const siteDA = org?.da_estimate ?? 20;
+		// 2. Measured site DA (audit or Moz) — never invent from org defaults
+		let siteDA = 0;
+		let siteDAKnown = false;
+		if (siteId && typeof siteId === 'string') {
+			const { data: siteRow } = await supabase
+				.from('sites')
+				.select('last_audit_at, domain_authority_estimated, domain_authority, organization_id')
+				.eq('id', siteId)
+				.maybeSingle();
+			if (siteRow && siteRow.organization_id === organizationId) {
+				const daRes = resolveSiteDomainAuthority(siteRow);
+				if (daRes.known && daRes.value != null) {
+					siteDA = daRes.value;
+					siteDAKnown = true;
+				}
+			}
+		}
+
+		const authorityFitBlock = siteDAKnown
+			? `Site Domain Authority (measured): ${siteDA}
+
+Authority fit rules:
+- "Ready Now": keyword_difficulty < site DA + 5
+- "Build Toward": keyword_difficulty between site DA + 5 and site DA + 20
+- "Not Yet": keyword_difficulty > site DA + 20`
+			: `Site Domain Authority is NOT measured yet (run a technical audit on this site, or refresh domain authority in Site settings, to get Moz/audit DA). Do not invent a DA.
+
+Authority fit (conservative when DA unknown):
+- Default to "Build Toward" unless keyword_difficulty is clearly low (<25)
+- Use "Not Yet" for difficult keywords (KD > 45)
+- In authority_fit_reason, briefly note that domain authority is not measured yet and a technical audit will improve accuracy`;
+
+		// 2b. Claude Haiku: classify keyword metrics
 		const prompt = `You are an SEO keyword analyst. Analyze this keyword and return JSON metrics.
 
 Keyword: "${keyword}"
 Related searches found: ${relatedSearches.slice(0, 5).join(', ')}
 Top results: ${organic.slice(0, 3).map((r: { title: string; link: string }) => r.title).join(' | ')}
-Site Domain Authority: ${siteDA}
+
+${authorityFitBlock}
 
 Return ONLY valid JSON with this exact shape:
 {
@@ -91,11 +124,6 @@ Return ONLY valid JSON with this exact shape:
   "related_keywords": [<6-8 related keyword strings>],
   "related_difficulty": [<6-8 difficulty numbers matching related_keywords>]
 }
-
-Authority fit rules (site DA = ${siteDA}):
-- "Ready Now": KD < DA + 5
-- "Build Toward": KD between DA + 5 and DA + 20
-- "Not Yet": KD > DA + 20
 
 Volume labels:
 - Niche: 0–500/mo

@@ -774,6 +774,52 @@ const EDGE_COLORS = {
 const BG_COLORS = { light: '#E8ECF0', dark: '#4b5563' };
 const SPREAD_FACTOR = 1.8;
 
+/**
+ * Map / table labels: `pages.status` stays `draft` until you publish — but generated
+ * articles have body content, so we surface "Written" when word_count > 0.
+ */
+function clusterPageStatusDisplay(d: Pick<PageData, 'status' | 'wordCount'>) {
+	if (d.status === 'published') {
+		return {
+			label: 'Published' as const,
+			pillClass:
+				'bg-success-600 dark:bg-success-500 text-white',
+			dotClass: 'bg-success-600',
+			textClass: 'text-success-600 dark:text-success-400'
+		};
+	}
+	if (d.status === 'brief_generated') {
+		return {
+			label: 'Brief ready' as const,
+			pillClass: 'bg-blue-500 dark:bg-blue-600 text-white',
+			dotClass: 'bg-blue-500',
+			textClass: 'text-blue-600 dark:text-blue-400'
+		};
+	}
+	if (d.status === 'draft' && d.wordCount > 0) {
+		return {
+			label: 'Written' as const,
+			pillClass: 'bg-teal-600 dark:bg-teal-600 text-white',
+			dotClass: 'bg-teal-500',
+			textClass: 'text-teal-600 dark:text-teal-400'
+		};
+	}
+	if (d.status === 'draft') {
+		return {
+			label: 'Draft' as const,
+			pillClass: 'bg-warning-500 dark:bg-warning-600 text-white',
+			dotClass: 'bg-warning-500',
+			textClass: 'text-warning-600 dark:text-warning-400'
+		};
+	}
+	return {
+		label: 'Planned' as const,
+		pillClass: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+		dotClass: 'bg-gray-400',
+		textClass: 'text-gray-500 dark:text-gray-400'
+	};
+}
+
 type ClusterNodeData = PageData & { label?: string };
 
 const funnelBorderColors: Record<string, string> = {
@@ -784,8 +830,7 @@ const funnelBorderColors: Record<string, string> = {
 
 function FocusPageNode({ data, selected }: NodeProps) {
 	const d = data as ClusterNodeData;
-	const statusLabel =
-		d.status === 'published' ? 'Published' : d.status === 'draft' ? 'Draft' : 'Planned';
+	const st = clusterPageStatusDisplay(d);
 	return (
 		<div
 			className={cn(
@@ -807,16 +852,9 @@ function FocusPageNode({ data, selected }: NodeProps) {
 			</div>
 			<div className="mt-3 flex gap-2">
 				<span
-					className={cn(
-						'rounded-full px-2 py-0.5 text-[11px] font-semibold',
-						d.status === 'published'
-							? 'bg-success-600 dark:bg-success-500 text-white'
-							: d.status === 'draft'
-								? 'bg-warning-500 dark:bg-warning-600 text-white'
-								: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-					)}
+					className={cn('rounded-full px-2 py-0.5 text-[11px] font-semibold', st.pillClass)}
 				>
-					{statusLabel}
+					{st.label}
 				</span>
 				{(d.croScore ?? 0) > 0 && (
 					<span className="bg-warning-500 dark:bg-warning-600 rounded-full px-2 py-0.5 text-[11px] font-semibold text-white">
@@ -830,14 +868,7 @@ function FocusPageNode({ data, selected }: NodeProps) {
 
 function ArticleNode({ data, selected }: NodeProps) {
 	const d = data as ClusterNodeData;
-	const statusLabel =
-		d.status === 'published' ? 'Published' : d.status === 'draft' ? 'Draft' : 'Planned';
-	const statusColor =
-		d.status === 'published'
-			? 'text-success-600 dark:text-success-400'
-			: d.status === 'draft'
-				? 'text-warning-600 dark:text-warning-400'
-				: 'text-gray-500 dark:text-gray-400';
+	const st = clusterPageStatusDisplay(d);
 	const funnelLabel = d.funnel === 'tofu' ? 'ToFu' : d.funnel === 'mofu' ? 'MoFu' : 'BoFu';
 	return (
 		<div
@@ -855,18 +886,9 @@ function ArticleNode({ data, selected }: NodeProps) {
 			<div className="mt-1 font-mono text-[11px] text-gray-500 dark:text-gray-400">
 				{d.keyword} · {d.volume.toLocaleString()}
 			</div>
-			<div className={cn('mt-2 flex items-center gap-1.5 text-[11px]', statusColor)}>
-				<span
-					className={cn(
-						'size-1.5 rounded-full',
-						d.status === 'published'
-							? 'bg-success-600'
-							: d.status === 'draft'
-								? 'bg-warning-500'
-								: 'bg-gray-400'
-					)}
-				/>
-				{statusLabel}
+			<div className={cn('mt-2 flex items-center gap-1.5 text-[11px]', st.textClass)}>
+				<span className={cn('size-1.5 rounded-full', st.dotClass)} />
+				{st.label}
 			</div>
 		</div>
 	);
@@ -1131,6 +1153,7 @@ export default function ClusterDetail() {
 		(p) => p.status === 'published' || p.status === 'draft'
 	).length;
 	const selectedPage = selectedNode ? dbPages.find((p) => p.id === selectedNode.id) : null;
+	const selectedPageStatus = selectedPage ? clusterPageStatusDisplay(selectedPage) : null;
 
 	// Sync settings form when cluster loads
 	useEffect(() => {
@@ -1830,16 +1853,8 @@ export default function ClusterDetail() {
 														</div>
 														<div className="flex justify-between">
 															<span className="text-gray-500 dark:text-gray-400">Status</span>
-															<span
-																className={
-																	selectedPage.status === 'published'
-																		? 'text-success-600 dark:text-success-400'
-																		: selectedPage.status === 'draft'
-																			? 'text-warning-600 dark:text-warning-400'
-																			: 'text-gray-500 dark:text-gray-400'
-																}
-															>
-																{selectedPage.status}
+															<span className={selectedPageStatus?.textClass}>
+																{selectedPageStatus?.label}
 															</span>
 														</div>
 													</div>
@@ -2073,8 +2088,13 @@ export default function ClusterDetail() {
 																			<span className="text-gray-400">—</span>
 																		)}
 																	</td>
-																	<td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
-																		{p.status}
+																	<td
+																		className={cn(
+																			'px-4 py-3 text-sm',
+																			clusterPageStatusDisplay(p).textClass
+																		)}
+																	>
+																		{clusterPageStatusDisplay(p).label}
 																	</td>
 																	<td className="px-4 py-3 text-right">
 																		<Link to={`/workspace/${p.id}`}>
