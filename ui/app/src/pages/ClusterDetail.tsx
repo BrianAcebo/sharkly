@@ -1593,24 +1593,26 @@ export default function ClusterDetail() {
 
 				{/* Cluster health bar */}
 				<div className="mt-6 flex min-h-0 flex-1 flex-col border border-gray-200 dark:border-gray-700">
-					<div className="flex flex-wrap items-center gap-8 border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-700 dark:bg-gray-900">
-						<div>
-							<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
-								Funnel Coverage
-							</div>
-							<div className="flex h-2 w-40 overflow-hidden rounded-full">
-								<div
-									className="bg-blue-light-500 opacity-70"
-									style={{ width: `${Math.max(1, (funnelCoverage.tofu || 0) * 10)}%` }}
-								/>
-								<div
-									className="bg-warning-500"
-									style={{ width: `${Math.max(1, (funnelCoverage.mofu || 0) * 10)}%` }}
-								/>
-								<div
-									className="bg-success-600"
-									style={{ width: `${Math.max(1, (funnelCoverage.bofu || 0) * 10)}%` }}
-								/>
+					<div className="flex flex-wrap items-start gap-8 border-b border-gray-200 bg-white px-6 py-3 dark:border-gray-700 dark:bg-gray-900">
+						<div className="flex flex-col gap-2">
+							<div className="flex items-center gap-2">
+								<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
+									Funnel Coverage
+								</div>
+								<div className="flex h-2 w-40 overflow-hidden rounded-full">
+									<div
+										className="bg-blue-light-500 opacity-70"
+										style={{ width: `${Math.max(1, (funnelCoverage.tofu || 0) * 10)}%` }}
+									/>
+									<div
+										className="bg-warning-500"
+										style={{ width: `${Math.max(1, (funnelCoverage.mofu || 0) * 10)}%` }}
+									/>
+									<div
+										className="bg-success-600"
+										style={{ width: `${Math.max(1, (funnelCoverage.bofu || 0) * 10)}%` }}
+									/>
+								</div>
 							</div>
 							<p className="mt-1 flex flex-col gap-0.5 text-[11px]">
 								{totalPieces === 0 ? (
@@ -1618,30 +1620,30 @@ export default function ClusterDetail() {
 										Add articles to build your cluster
 									</span>
 								) : (
-									<>
+									<span className="flex items-center gap-1">
 										<span className="text-blue-light-600 dark:text-blue-light-400">
 											Supporting articles (ToFu)
 										</span>
-										<span className="leading-none text-gray-400">↓</span>
+										<span className="leading-none text-gray-400">→</span>
 										<span className="text-warning-600 dark:text-warning-400">
 											Focus page (MoFu)
 										</span>
-										<span className="leading-none text-gray-400">↓</span>
+										<span className="leading-none text-gray-400">→</span>
 										<span className="text-success-600 dark:text-success-400">
 											Destination (separate)
 										</span>
-									</>
+									</span>
 								)}
 							</p>
 						</div>
-						<div>
+						{/* <div>
 							<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
 								CRO Score
 							</div>
 							<div className="font-montserrat text-warning-600 dark:text-warning-400 text-2xl font-extrabold">
 								{displayCluster.croScore ?? 0}/100
 							</div>
-						</div>
+						</div> */}
 						<div>
 							<div className="text-[11px] font-semibold text-gray-500 uppercase dark:text-gray-400">
 								Authority Fit
