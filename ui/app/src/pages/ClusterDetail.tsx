@@ -2032,7 +2032,9 @@ export default function ClusterDetail() {
 																	</td>
 																	<td className="px-4 py-3">
 																		{(() => {
-																			const pt = p.pageType ?? inferClusterContentPageType(p.keyword, p.title);
+																			const pt =
+																				p.pageType ??
+																				inferClusterContentPageType(p.keyword, p.title);
 																			return (
 																				<span
 																					className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap ${pageTypeColor(pt)}`}
@@ -2127,7 +2129,10 @@ export default function ClusterDetail() {
 									</div>
 									<div className="mt-6">
 										<p className="mb-3 text-[12px] font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
-											Suggested Links
+											Suggested Links -{' '}
+											<span className="text-[10px] text-gray-400 dark:text-gray-500">
+												Use a maximum of 3-4 internal links per page to not dilute the link equity
+											</span>
 										</p>
 										<InternalLinksTable
 											pages={dbPages}
