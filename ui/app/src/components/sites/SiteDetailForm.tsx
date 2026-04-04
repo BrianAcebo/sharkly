@@ -38,9 +38,11 @@ const ALLOWED_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'
 
 const PLATFORM_OPTIONS = [
 	{ value: 'shopify', label: 'Shopify' },
+	{ value: 'woocommerce', label: 'WooCommerce' },
 	{ value: 'wordpress', label: 'WordPress' },
 	{ value: 'wix', label: 'Wix' },
 	{ value: 'squarespace', label: 'Squarespace' },
+	{ value: 'webflow', label: 'Webflow' },
 	{ value: 'custom', label: 'Custom' }
 ];
 

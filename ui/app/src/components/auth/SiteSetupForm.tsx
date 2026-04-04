@@ -14,11 +14,11 @@ const PLATFORMS = [
 	{ value: 'shopify', label: 'Shopify' },
 	{ value: 'woocommerce', label: 'WooCommerce' },
 	{ value: 'wordpress', label: 'WordPress' },
+	{ value: 'wix', label: 'Wix' },
+	{ value: 'squarespace', label: 'Squarespace' },
 	{ value: 'webflow', label: 'Webflow' },
-	{ value: 'custom', label: 'Custom' },
-	{ value: 'other', label: 'Other' }
+	{ value: 'custom', label: 'Custom' }
 ];
-
 type Step = 1 | 2 | 3 | 4;
 
 export default function SiteSetupForm() {
