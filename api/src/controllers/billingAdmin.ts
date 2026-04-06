@@ -6,8 +6,20 @@ import { captureApiError } from '../utils/sentryCapture.js';
 
 const stripe = getStripeClient();
 
-// Admin password hash (SHA-256)
-const ADMIN_PASSWORD_HASH = '07375a6c93880188fac0d75a37b0def86f7826d36db61dcb5f5771974e390f07';
+/**
+ * Expected SHA-256 digest (64 hex chars) of the billing admin password.
+ * Set `ADMIN_PASSWORD_SHA256` in the API environment — never commit real values.
+ */
+function getBillingAdminPasswordSha256Hex(): string | null {
+	const raw = process.env.ADMIN_PASSWORD_SHA256?.trim();
+	if (!raw) return null;
+	const lower = raw.toLowerCase();
+	if (!/^[0-9a-f]{64}$/.test(lower)) {
+		console.warn('[ADMIN] ADMIN_PASSWORD_SHA256 must be a 64-character lowercase hex SHA-256 digest');
+		return null;
+	}
+	return lower;
+}
 
 // =====================================================
 // Admin Credit Adjustment
@@ -913,8 +925,17 @@ export const verifyAdminPassword = async (req: Request, res: Response) => {
 			return res.status(400).json({ valid: false, error: 'Password required' });
 		}
 
+		const expected = getBillingAdminPasswordSha256Hex();
+		if (!expected) {
+			console.error('[ADMIN] ADMIN_PASSWORD_SHA256 is missing or invalid — admin password check disabled');
+			return res.status(503).json({
+				valid: false,
+				error: 'Admin authentication is not configured'
+			});
+		}
+
 		const hash = crypto.createHash('sha256').update(password).digest('hex');
-		const valid = hash === ADMIN_PASSWORD_HASH;
+		const valid = hash === expected;
 
 		if (!valid) {
 			console.warn('[ADMIN] Invalid admin password attempt');
