@@ -7,7 +7,7 @@ import type { APIRoute } from 'astro';
 
 export const GET: APIRoute = ({ site }) => {
 	const siteUrl = site?.toString().replace(/\/$/, '') ?? 'https://sharkly.co';
-	const sitemapUrl = `${siteUrl}/sitemap-index.xml`;
+	const sitemapUrl = `${siteUrl}/sitemap.xml`;
 
 	const content = `User-agent: *
 Allow: /

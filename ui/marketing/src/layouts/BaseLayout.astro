@@ -32,6 +32,11 @@ const {
 
 const canonicalUrl = canonical ?? `${siteUrl}${Astro.url.pathname}`;
 
+/** Dynamic CMS-aware sitemap (see src/pages/sitemap.xml.ts) */
+const sitemapHref = Astro.site
+	? new URL('sitemap.xml', Astro.site).href
+	: `${String(siteUrl).replace(/\/$/, '')}/sitemap.xml`;
+
 const defaultSchema = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
@@ -103,7 +108,7 @@ const navLinks = [
     <link rel="alternate" type="application/rss+xml" title="Sharkly Blog" href="/blog/rss.xml" />
 
     <!-- Sitemap -->
-    <link rel="sitemap" type="application/xml" href="/sitemap-index.xml" />
+    <link rel="sitemap" type="application/xml" href={sitemapHref} />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
