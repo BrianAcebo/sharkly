@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useState, useLayoutEffect } from 'react';
 import { useSearchParams } from 'react-router';
-import { getBackendUrl } from '../../utils/urls';
+import { api } from '../../utils/api';
 import { api } from '../../utils/api';
 import useAuth from '../../hooks/useAuth';
 import { useSites } from '../../hooks/useSites';
@@ -24,12 +24,7 @@ import PageMeta from '../../components/common/PageMeta';
 import { Logo } from '../../components/common/Logo';
 
 function getInstallUrl(shopDomain: string): string {
-	try {
-		const base = getBackendUrl();
-		return `${base}/auth/shopify/install?shop=${encodeURIComponent(shopDomain)}`;
-	} catch {
-		return `https://sharkly-api.fly.dev/auth/shopify/install?shop=${encodeURIComponent(shopDomain)}`;
-	}
+	return api.url(`/auth/shopify/install?shop=${encodeURIComponent(shopDomain)}`);
 }
 
 export default function AuthShopify() {

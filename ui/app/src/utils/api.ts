@@ -8,6 +8,11 @@ export function setApiAuthGetter(getter: () => Promise<Record<string, string>>):
 }
 
 export const api = {
+  /** Same absolute origin as `request` / `get` / `post` — use for full-page navigations (OAuth, etc.). */
+  url(endpoint: string): string {
+    return buildApiUrl(endpoint);
+  },
+
   async request(endpoint: string, options: RequestInit & { data?: unknown } = {}): Promise<Response> {
     const { data, ...init } = options;
 

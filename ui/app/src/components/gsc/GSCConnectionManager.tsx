@@ -10,6 +10,7 @@ import { Button } from '../ui/button';
 import { supabase } from '../../utils/supabaseClient';
 import { AlertCircle, Check, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { api } from '../../utils/api';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -68,8 +69,8 @@ export function GSCConnectionManager({ siteId, siteName }: Props) {
 
 	const handleConnect = async () => {
 		try {
-			// Redirect to backend OAuth flow
-			window.location.href = `/api/gsc/oauth/start?siteId=${siteId}`;
+			// Same API base as api.get/post (see utils/api + urls.getApiUrl); not same-origin on production.
+			window.location.href = api.url(`/api/gsc/oauth/start?siteId=${encodeURIComponent(siteId)}`);
 		} catch (err) {
 			console.error('Error starting GSC connection:', err);
 			toast.error('Failed to start Google Search Console connection');
