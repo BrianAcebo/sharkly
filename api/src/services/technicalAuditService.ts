@@ -149,7 +149,7 @@ export class TechnicalAuditService {
 		console.log('[TechnicalAudit] Step 5: Checking indexation status...');
 		let indexationStatus;
 		try {
-			indexationStatus = await this.checkIndexationStatus(organizationId, siteUrl);
+			indexationStatus = await this.checkIndexationStatus(siteId);
 		} catch (e) {
 			const errorMsg = e instanceof Error ? e.message : 'Unknown error';
 			console.error('[TechnicalAudit] Indexation check failed:', errorMsg);
@@ -367,23 +367,23 @@ export class TechnicalAuditService {
 
 	/**
 	 * Check indexation status from GSC
+	 * Tokens are per-site (`gsc_tokens.site_id`), not organization-wide.
 	 */
-	private async checkIndexationStatus(organizationId: string, siteUrl: string): Promise<{
+	private async checkIndexationStatus(siteId: string): Promise<{
 		pagesIndexed: number | null;
 		totalPages: number;
 		estimatedCrawlBudget: string;
 		gscConnected: boolean;
 	}> {
 		try {
-			// Check if org has GSC connection
 			const { data: gscData, error: gscError } = await supabase
 				.from('gsc_tokens')
 				.select('site_id, encrypted_refresh_token, gsc_property_url')
-				.eq('organization_id', organizationId)
+				.eq('site_id', siteId)
 				.maybeSingle();
 
 			if (gscError || !gscData) {
-				console.log('[TechnicalAudit] No GSC connection found for org:', organizationId);
+				console.log('[TechnicalAudit] No GSC connection found for site:', siteId, gscError?.message ?? '');
 				return {
 					pagesIndexed: null,
 					totalPages: 0,
