@@ -41,7 +41,8 @@ import {
 	Mic,
 	Smartphone,
 	PenLine,
-	Handshake
+	Handshake,
+	History
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
@@ -1860,6 +1861,32 @@ export default function Technical() {
 						</Button>
 					</div>
 
+					{/* Saved onboarding / API audits — always reachable (no crawl required) */}
+					<div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-900">
+						<div className="flex items-start gap-3">
+							<div className="rounded-lg bg-brand-500/10 p-2 dark:bg-brand-500/15">
+								<History className="size-5 text-brand-600 dark:text-brand-400" />
+							</div>
+							<div>
+								<p className="font-medium text-gray-900 dark:text-white">Full site audit reports</p>
+								<p className="mt-0.5 max-w-xl text-xs text-gray-500 dark:text-gray-400">
+									Health score, Domain Authority, Core Web Vitals, indexation, and{' '}
+									<strong className="font-medium text-gray-700 dark:text-gray-300">past snapshots</strong>{' '}
+									from onboarding or &quot;Run audit&quot; — separate from crawl history below.
+								</p>
+							</div>
+						</div>
+						<Button
+							type="button"
+							variant="outline"
+							className="shrink-0 border-brand-500/40 text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950/40"
+							onClick={() => navigate(`/audit/${selectedSite.id}`)}
+							startIcon={<FileText className="size-4" />}
+						>
+							View reports & history
+						</Button>
+					</div>
+
 					{crawlHistory.length > 0 && (
 						<div className="rounded-xl border border-gray-200 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-900">
 							<div className="mb-2 flex items-center gap-2">
@@ -1867,16 +1894,8 @@ export default function Technical() {
 								<p className="font-medium text-gray-900 dark:text-white">Past crawl runs</p>
 							</div>
 							<p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
-								Each run stores page counts and issue totals (current issue list always reflects the
-								latest crawl). For DA, Core Web Vitals, and indexation snapshots, open{' '}
-								<button
-									type="button"
-									onClick={() => navigate(`/audit/${selectedSite.id}`)}
-									className="font-medium text-brand-600 underline hover:text-brand-700 dark:text-brand-400"
-								>
-									Full site audit report
-								</button>
-								.
+								Each run stores page counts and issue totals (the issue list below always reflects the
+								latest crawl).
 							</p>
 							<div className="max-h-56 overflow-auto rounded-lg border border-gray-100 dark:border-gray-700">
 								<table className="w-full text-left text-xs">
