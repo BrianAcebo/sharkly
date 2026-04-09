@@ -167,7 +167,7 @@ export async function handleGSCOAuthCallback(req: Request, res: Response): Promi
 				code,
 				client_id: process.env.GOOGLE_CLIENT_ID || '',
 				client_secret: process.env.GOOGLE_CLIENT_SECRET || '',
-				redirect_uri: `${process.env.BACKEND_URL || 'http://localhost'}/api/gsc/oauth/callback`,
+				redirect_uri: `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/gsc/oauth/callback`,
 				grant_type: 'authorization_code'
 			})
 		});
