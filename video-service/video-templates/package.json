@@ -1,0 +1,27 @@
+{
+	"name": "video-templates",
+	"version": "1.0.0",
+	"private": true,
+	"scripts": {
+		"dev": "remotion studio",
+		"render": "remotion render",
+		"build": "remotion render",
+		"generate-textures": "node scripts/generate-noise-textures.cjs"
+	},
+	"dependencies": {
+		"@remotion/cli": "4.0.447",
+		"@remotion/google-fonts": "4.0.447",
+		"@remotion/renderer": "4.0.447",
+		"react": "^18.3.1",
+		"react-dom": "^18.3.1",
+		"remotion": "4.0.447",
+		"recharts": "^2.12.0",
+		"zod": "4.3.6"
+	},
+	"devDependencies": {
+		"@types/react": "^18.3.0",
+		"@types/recharts": "^1.8.29",
+		"pngjs": "^7.0.0",
+		"typescript": "^5.6.0"
+	}
+}

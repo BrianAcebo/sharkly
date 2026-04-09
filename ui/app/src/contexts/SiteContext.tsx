@@ -7,9 +7,12 @@ import type { Site } from '../types/site';
 interface SiteContextValue {
 	selectedSite: Site | null;
 	sites: Site[];
+	/** True while the org sites query is in flight (initial load or non-silent refetch). Use for AppLayout route gates — not selected-site resolution. */
+	sitesListLoading: boolean;
+	/** Sites list loading OR selected-site row loading — use for header/UI that should wait for both. */
 	loading: boolean;
-	/** Reload sites list from the server (e.g. after creating a site). */
-	refetchSites: () => Promise<void>;
+	/** Reload sites list from the server (e.g. after creating a site). Pass `{ silent: true }` to avoid full-app loading shell during background refresh. */
+	refetchSites: (opts?: { silent?: boolean }) => Promise<void>;
 	setSelectedSite: (siteId: string | null) => Promise<void>;
 	refetchSelectedSite: () => Promise<void>;
 }
@@ -18,7 +21,7 @@ const SiteContext = createContext<SiteContextValue | null>(null);
 
 export function SiteProvider({ children }: { children: React.ReactNode }) {
 	const { user } = useAuth();
-	const { sites, loading: sitesLoading, refetch: refetchSites } = useSites();
+	const { sites, loading: sitesListLoading, refetch: refetchSites } = useSites();
 	const [selectedSite, setSelectedSiteState] = useState<Site | null>(null);
 	const [loadingSelected, setLoadingSelected] = useState(true);
 
@@ -70,10 +73,10 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 	}, [user?.id, organizationId, sites]);
 
 	useEffect(() => {
-		if (!sitesLoading) {
+		if (!sitesListLoading) {
 			fetchSelectedSite();
 		}
-	}, [sitesLoading, fetchSelectedSite]);
+	}, [sitesListLoading, fetchSelectedSite]);
 
 	const setSelectedSite = useCallback(
 		async (siteId: string | null) => {
@@ -104,13 +107,14 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
 		[user?.id, organizationId, sites]
 	);
 
-	const loading = sitesLoading || loadingSelected;
+	const loading = sitesListLoading || loadingSelected;
 
 	return (
 		<SiteContext.Provider
 			value={{
 				selectedSite,
 				sites,
+				sitesListLoading,
 				loading,
 				refetchSites,
 				setSelectedSite,

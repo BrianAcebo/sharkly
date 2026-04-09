@@ -13,7 +13,6 @@
 import { useCallback, useEffect, useState, useLayoutEffect } from 'react';
 import { useSearchParams } from 'react-router';
 import { api } from '../../utils/api';
-import { api } from '../../utils/api';
 import useAuth from '../../hooks/useAuth';
 import { useSites } from '../../hooks/useSites';
 import { AuthLoadingState } from '../../contexts/AuthContext';
@@ -50,7 +49,7 @@ export default function AuthShopify() {
 		? (() => {
 				const n = shop.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
 				return n.endsWith('.myshopify.com') ? n : `${n}.myshopify.com`;
-		  })()
+			})()
 		: '';
 
 	// Case 1: No shop — redirect immediately
@@ -174,7 +173,15 @@ export default function AuthShopify() {
 	// Auto-attach ONLY when: user has org, sites have loaded, and there are truly 0 sites.
 	// Never auto-attach when user lacks organization_id — useSites returns [] without fetching, which would wrongly create a new site.
 	useEffect(() => {
-		if (!isPostOAuth || !reconcileDone || sitesLoading || attaching || !user || !session?.access_token) return;
+		if (
+			!isPostOAuth ||
+			!reconcileDone ||
+			sitesLoading ||
+			attaching ||
+			!user ||
+			!session?.access_token
+		)
+			return;
 		if (!user.organization_id) return; // Org not loaded yet — don't assume 0 sites
 		if (sites.length === 0) {
 			handleAttach(null);
@@ -194,23 +201,25 @@ export default function AuthShopify() {
 	if (isInitialInstall) {
 		if (loadingState === AuthLoadingState.LOADING) {
 			return (
-				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950 px-4">
+				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 px-4 dark:bg-gray-950">
 					<Logo width={140} height="auto" className="mb-2" />
-					<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+					<div className="border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
 					<p className="text-muted-foreground">Loading...</p>
 				</div>
 			);
 		}
 		const installUrl = getInstallUrl(shopDomain || shop || '');
 		return (
-			<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950 px-4">
+			<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 px-4 dark:bg-gray-950">
 				<Logo width={140} height="auto" className="mb-2" />
-				<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+				<div className="border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
 				<div className="text-center">
 					<p className="font-medium text-gray-900 dark:text-white">Connecting to Shopify</p>
-					<p className="text-sm text-muted-foreground mt-1">Authorize Sharkly to access your store</p>
+					<p className="text-muted-foreground mt-1 text-sm">
+						Authorize Sharkly to access your store
+					</p>
 				</div>
-				<a href={installUrl} className="text-sm text-brand-500 hover:underline">
+				<a href={installUrl} className="text-brand-500 text-sm hover:underline">
 					If you’re not redirected, click here
 				</a>
 			</div>
@@ -221,9 +230,9 @@ export default function AuthShopify() {
 	if (shop && !hmac && !host) {
 		if (loadingState === AuthLoadingState.LOADING) {
 			return (
-				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950 px-4">
+				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 px-4 dark:bg-gray-950">
 					<Logo width={140} height="auto" />
-					<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+					<div className="border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
 					<p className="text-muted-foreground">Loading your Sharkly account...</p>
 				</div>
 			);
@@ -238,9 +247,9 @@ export default function AuthShopify() {
 		// Still loading sites or reconciling an existing connection
 		if (sitesLoading || !reconcileDone) {
 			return (
-				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950 px-4">
+				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 px-4 dark:bg-gray-950">
 					<Logo width={140} height="auto" />
-					<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+					<div className="border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
 					<p className="text-muted-foreground">Loading your sites...</p>
 				</div>
 			);
@@ -249,10 +258,12 @@ export default function AuthShopify() {
 		// Attaching in progress
 		if (attaching) {
 			return (
-				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950 px-4">
+				<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 px-4 dark:bg-gray-950">
 					<Logo width={140} height="auto" />
-					<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-					<p className="text-muted-foreground">Connecting {shopDomain.replace('.myshopify.com', '')} to Sharkly...</p>
+					<div className="border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
+					<p className="text-muted-foreground">
+						Connecting {shopDomain.replace('.myshopify.com', '')} to Sharkly...
+					</p>
 				</div>
 			);
 		}
@@ -260,8 +271,12 @@ export default function AuthShopify() {
 		// Site picker UI
 		return (
 			<>
-				<PageMeta noIndex title="Connect Shopify Store | Sharkly" description="Connect your Shopify store to Sharkly" />
-				<div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 dark:bg-gray-950 px-4 py-8">
+				<PageMeta
+					noIndex
+					title="Connect Shopify Store | Sharkly"
+					description="Connect your Shopify store to Sharkly"
+				/>
+				<div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4 py-8 dark:bg-gray-950">
 					<div className="w-full max-w-md">
 						<div className="mb-6 text-center">
 							<Logo width={140} height="auto" className="mx-auto mb-4" />
@@ -269,81 +284,89 @@ export default function AuthShopify() {
 								Welcome to Sharkly
 							</h1>
 							<p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-								You’ve connected <span className="font-medium text-gray-900 dark:text-white">{shopDomain.replace('.myshopify.com', '')}</span>. Choose where to add it — or create a new site for your store.
+								You’ve connected{' '}
+								<span className="font-medium text-gray-900 dark:text-white">
+									{shopDomain.replace('.myshopify.com', '')}
+								</span>
+								. Choose where to add it — or create a new site for your store.
 							</p>
 							<p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
 								Sharkly helps you optimize your Shopify store for search and grow organic traffic.
 							</p>
 						</div>
-					<div className="rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
-						<h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
-							Add to existing site or create new
-						</h2>
+						<div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+							<h2 className="mb-4 text-sm font-medium text-gray-700 dark:text-gray-300">
+								Add to existing site or create new
+							</h2>
 
-						<div className="space-y-2 mb-6">
-							{sites.map((site) => (
+							<div className="mb-6 space-y-2">
+								{sites.map((site) => (
+									<button
+										key={site.id}
+										type="button"
+										onClick={() => setSelectedSiteId(selectedSiteId === site.id ? null : site.id)}
+										className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
+											selectedSiteId === site.id
+												? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 dark:border-brand-600'
+												: 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
+										}`}
+									>
+										<Globe className="size-5 shrink-0 text-gray-500 dark:text-gray-400" />
+										<div className="min-w-0">
+											<p className="truncate font-medium text-gray-900 dark:text-white">
+												{site.name}
+											</p>
+											{site.url && (
+												<p className="truncate text-xs text-gray-500 dark:text-gray-400">
+													{site.url}
+												</p>
+											)}
+										</div>
+									</button>
+								))}
+
 								<button
-									key={site.id}
 									type="button"
-									onClick={() => setSelectedSiteId(selectedSiteId === site.id ? null : site.id)}
+									onClick={() =>
+										setSelectedSiteId(selectedSiteId === 'create_new' ? null : 'create_new')
+									}
 									className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
-										selectedSiteId === site.id
+										selectedSiteId === 'create_new'
 											? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 dark:border-brand-600'
-											: 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+											: 'border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800'
 									}`}
 								>
-									<Globe className="size-5 text-gray-500 dark:text-gray-400 shrink-0" />
-									<div className="min-w-0">
-										<p className="font-medium text-gray-900 dark:text-white truncate">{site.name}</p>
-										{site.url && (
-											<p className="text-xs text-gray-500 dark:text-gray-400 truncate">{site.url}</p>
-										)}
+									<Plus className="size-5 shrink-0 text-gray-500 dark:text-gray-400" />
+									<div>
+										<p className="font-medium text-gray-900 dark:text-white">Create new site</p>
+										<p className="text-xs text-gray-500 dark:text-gray-400">
+											New site for {shopDomain.replace('.myshopify.com', '')}
+										</p>
 									</div>
 								</button>
-							))}
+							</div>
 
-							<button
-								type="button"
+							<Button
+								className="w-full"
+								disabled={!selectedSiteId}
 								onClick={() =>
-									setSelectedSiteId(selectedSiteId === 'create_new' ? null : 'create_new')
+									handleAttach(selectedSiteId === 'create_new' ? null : selectedSiteId)
 								}
-								className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${
-									selectedSiteId === 'create_new'
-										? 'border-brand-500 bg-brand-50 dark:bg-brand-900/20 dark:border-brand-600'
-										: 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-								}`}
 							>
-								<Plus className="size-5 text-gray-500 dark:text-gray-400 shrink-0" />
-								<div>
-									<p className="font-medium text-gray-900 dark:text-white">Create new site</p>
-									<p className="text-xs text-gray-500 dark:text-gray-400">
-										New site for {shopDomain.replace('.myshopify.com', '')}
-									</p>
-								</div>
-							</button>
+								{selectedSiteId
+									? selectedSiteId === 'create_new'
+										? 'Create site and connect'
+										: 'Connect to selected site'
+									: 'Choose an option'}
+							</Button>
+
+							<p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+								<a href="/sites" className="text-brand-500 hover:underline">
+									Go to Sites
+								</a>{' '}
+								to connect from a site’s details
+							</p>
 						</div>
-
-						<Button
-							className="w-full"
-							disabled={!selectedSiteId}
-							onClick={() =>
-								handleAttach(selectedSiteId === 'create_new' ? null : selectedSiteId)
-							}
-						>
-							{selectedSiteId
-								? selectedSiteId === 'create_new'
-									? 'Create site and connect'
-									: 'Connect to selected site'
-								: 'Choose an option'}
-						</Button>
-
-						<p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
-							<a href="/sites" className="text-brand-500 hover:underline">
-								Go to Sites
-							</a>{' '}
-							to connect from a site’s details
-						</p>
-					</div>
 					</div>
 				</div>
 			</>
@@ -352,9 +375,9 @@ export default function AuthShopify() {
 
 	// Default loading (case 1 or 2)
 	return (
-		<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950 px-4">
+		<div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-gray-50 px-4 dark:bg-gray-950">
 			<Logo width={140} height="auto" />
-			<div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+			<div className="border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
 			<p className="text-muted-foreground">Connecting your Shopify store...</p>
 		</div>
 	);

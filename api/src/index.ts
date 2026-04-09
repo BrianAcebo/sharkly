@@ -35,6 +35,8 @@ import shopifyRoutes from './routes/shopify.js';
 import ecommerceRoutes from './routes/ecommerce.js';
 import croStudioRoutes from './routes/croStudio.js';
 import seoChecksRoutes from './routes/seoChecks.js';
+import videoVoicesRoutes from './routes/videoVoices.js';
+import videoJobsRoutes from './routes/videoJobs.js';
 import {
 	handleShopifyOAuthCallback,
 	startShopifyOAuthInstall
@@ -153,6 +155,8 @@ app.use('/api/shopify', shopifyRoutes);
 app.use('/api/ecommerce', ecommerceRoutes);
 app.use('/api/seo-checks', seoChecksRoutes);
 app.use('/api/cro-studio', croStudioRoutes);
+app.use('/api/video', videoVoicesRoutes);
+app.use('/api/video', videoJobsRoutes);
 
 // Shopify companion app: OAuth callback and install (path matches SHOPIFY_REDIRECT_URI)
 app.get('/auth/shopify/callback', handleShopifyOAuthCallback);

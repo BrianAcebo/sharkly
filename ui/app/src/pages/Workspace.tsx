@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
@@ -43,6 +44,8 @@ import { Button } from '../components/ui/button';
 import TextArea from '../components/form/input/TextArea';
 import { MetaSidebar } from '../components/workspace/MetaSidebar';
 import { DiagnoseModal } from '../components/workspace/DiagnoseModal';
+import { GenerateVideoModal } from '../components/workspace/GenerateVideoModal';
+import type { VideoDraftPersistPartial } from '../components/workspace/VideoProjectModal';
 import { PublishToShopifyModal } from '../components/workspace/PublishToShopifyModal';
 import { LawTooltip } from '../components/shared/LawTooltip';
 import {
@@ -94,13 +97,28 @@ import {
 	Stethoscope,
 	ShoppingBag,
 	Target,
-	MoreVertical
+	MoreVertical,
+	Video,
+	ExternalLink
 } from 'lucide-react';
 import { useSiteContext } from '../contexts/SiteContext';
 import { useAuth } from '../hooks/useAuth';
 import { useCROStudioUpgrade } from '../contexts/CROStudioUpgradeContext';
-import { canAccessCROStudio } from '../utils/featureGating';
+import { canAccessCROStudio, hasPlanAtLeast } from '../utils/featureGating';
 import { CROAddPageModal } from '../components/cro/CROAddPageModal';
+import {
+	createVideoJob,
+	generateVideoScript,
+	waitForVideo,
+	type VideoJobOptions
+} from '../api/video';
+import {
+	initialScriptGenTaskSteps,
+	initialVideoGenTaskSteps,
+	videoJobToTaskSteps
+} from '../lib/videoGenerationProgress';
+import type { VideoScript } from '../types/videoScript';
+import type { VideoBranding, VideoDraftRenderOptions } from '../types/videoBranding';
 
 /** Task steps for brief generation — summarized, no internal detail */
 // Focus page: unified Research & Write flow (Step 1 = brief, Step 2 = article)
@@ -475,6 +493,13 @@ export default function Workspace() {
 		return url && url.length > 0 ? url.replace(/\/$/, '') : undefined;
 	}, [cluster?.siteId, sites, selectedSite]);
 
+	const videoSiteVoiceId = useMemo(() => {
+		const sid = cluster?.siteId;
+		if (!sid) return undefined;
+		const v = sites.find((s) => s.id === sid)?.cartesiaVoiceId;
+		return v && v.length > 0 ? v : undefined;
+	}, [cluster?.siteId, sites]);
+
 	// Mode tabs: each page type defaults to its natural mode but can switch
 	const [activeTab, setActiveTab] = useState<'brief' | 'article'>(
 		isFocusPage ? 'brief' : 'article'
@@ -507,6 +532,22 @@ export default function Workspace() {
 	const [confirmRegenOpen, setConfirmRegenOpen] = useState(false);
 	const [confirmArticleRegenOpen, setConfirmArticleRegenOpen] = useState(false);
 	const [metaSidebarOpen, setMetaSidebarOpen] = useState(false);
+	const [generateVideoOpen, setGenerateVideoOpen] = useState(false);
+	const [videoJobSubmitting, setVideoJobSubmitting] = useState(false);
+	const [scriptGenSubmitting, setScriptGenSubmitting] = useState(false);
+	const [videoGenWidgetOpen, setVideoGenWidgetOpen] = useState(false);
+	const [videoGenWidgetStatus, setVideoGenWidgetStatus] = useState<TaskStatus>('running');
+	const [videoGenWidgetSteps, setVideoGenWidgetSteps] = useState<TaskStep[]>([]);
+	const [videoGenWidgetError, setVideoGenWidgetError] = useState<string | undefined>();
+	const [videoGenWidgetErrorDetail, setVideoGenWidgetErrorDetail] = useState<string | undefined>();
+
+	const [scriptGenWidgetOpen, setScriptGenWidgetOpen] = useState(false);
+	const [scriptGenWidgetStatus, setScriptGenWidgetStatus] = useState<TaskStatus>('running');
+	const [scriptGenWidgetSteps, setScriptGenWidgetSteps] = useState<TaskStep[]>([]);
+	const [scriptGenWidgetError, setScriptGenWidgetError] = useState<string | undefined>();
+	const [scriptGenWidgetErrorDetail, setScriptGenWidgetErrorDetail] = useState<string | undefined>();
+	/** Final video URL — shown in the progress widget if a new-tab open was blocked. */
+	const [videoGenDoneUrl, setVideoGenDoneUrl] = useState<string | null>(null);
 	const [rewritingSectionIdx, setRewritingSectionIdx] = useState<number | null>(null);
 	const [briefSectionEdits, setBriefSectionEdits] = useState<Record<number, string>>({});
 	const [savingBriefSectionIdx, setSavingBriefSectionIdx] = useState<number | null>(null);
@@ -1554,6 +1595,253 @@ export default function Workspace() {
 	const hasEditorContent = editor && editor.getText().trim().length > 0;
 	const showRegenerate = isArticleEditorVisible && hasEditorContent;
 
+	const handleModalGenerateScript = useCallback(
+		async (opts: { maxDurationSeconds: number; quality: 'low' | 'medium' | 'high' }) => {
+			if (!editor || !page?.id) {
+				throw new Error('Missing article');
+			}
+			if (!editor.getText().trim()) {
+				throw new Error('Add article content first.');
+			}
+			if (creditsRemaining < CREDIT_COSTS.VIDEO_SCRIPT_GENERATION) {
+				toast.error(
+					`You need at least ${CREDIT_COSTS.VIDEO_SCRIPT_GENERATION} credits to generate a script.`
+				);
+				throw new Error('Insufficient credits');
+			}
+			setScriptGenWidgetSteps(initialScriptGenTaskSteps());
+			setScriptGenWidgetStatus('running');
+			setScriptGenWidgetError(undefined);
+			setScriptGenWidgetErrorDetail(undefined);
+			setScriptGenWidgetOpen(true);
+			setScriptGenSubmitting(true);
+			try {
+				const script = await generateVideoScript(
+					JSON.stringify(editor.getJSON()),
+					'tiptap_json',
+					opts,
+					page.clusterId ?? undefined,
+					page.id
+				);
+				await refetchOrg();
+				setScriptGenWidgetOpen(false);
+				return script;
+			} catch (e) {
+				const err = e as Error;
+				setScriptGenWidgetStatus('error');
+				setScriptGenWidgetError(err.message || 'Script generation failed');
+				setScriptGenWidgetErrorDetail(
+					err.stack && import.meta.env.DEV ? err.stack : undefined
+				);
+				throw e;
+			} finally {
+				setScriptGenSubmitting(false);
+			}
+		},
+		[editor, page?.id, page?.clusterId, creditsRemaining, refetchOrg]
+	);
+
+	const handleModalRenderVideo = useCallback(
+		async (scriptJsonText: string, opts: VideoJobOptions) => {
+			if (!page?.id) return;
+			if (creditsRemaining < CREDIT_COSTS.VIDEO_RENDER) {
+				toast.error(`You need at least ${CREDIT_COSTS.VIDEO_RENDER} credits to render the video.`);
+				return;
+			}
+			setGenerateVideoOpen(false);
+			setVideoGenWidgetSteps(initialVideoGenTaskSteps());
+			setVideoGenWidgetStatus('running');
+			setVideoGenWidgetError(undefined);
+			setVideoGenWidgetErrorDetail(undefined);
+			setVideoGenDoneUrl(null);
+			setVideoGenWidgetOpen(true);
+			setVideoJobSubmitting(true);
+			try {
+				const draftOpts = page.videoRenderOptionsDraft as VideoDraftRenderOptions | null | undefined;
+				const draftVoice =
+					typeof draftOpts?.cartesia_voice_id === 'string' && draftOpts.cartesia_voice_id.trim()
+						? draftOpts.cartesia_voice_id.trim()
+						: null;
+				const voiceForJob = draftVoice ?? videoSiteVoiceId ?? undefined;
+				const { job_id } = await createVideoJob(
+					scriptJsonText,
+					'script_json',
+					opts,
+					page.clusterId ?? undefined,
+					page.id,
+					voiceForJob || undefined
+				);
+				await refetchOrg();
+				const url = await waitForVideo(job_id, (job) => {
+					setVideoGenWidgetSteps(
+						videoJobToTaskSteps(job.status, job.current_step, job.progress)
+					);
+					if (job.status === 'failed' && job.error) {
+						setVideoGenWidgetErrorDetail(job.error);
+					}
+				});
+				setVideoGenDoneUrl(url);
+				setVideoGenWidgetStatus('done');
+				setVideoGenWidgetSteps(videoJobToTaskSteps('complete', null, 100));
+				const finishedAt = new Date().toISOString();
+				if (page.videoDraftId) {
+					const { error: vidErr } = await supabase
+						.from('videos')
+						.update({
+							output_url: url,
+							status: 'complete',
+							updated_at: finishedAt
+						})
+						.eq('id', page.videoDraftId);
+					if (vidErr) {
+						console.error('[Workspace] could not persist video URL', vidErr);
+					}
+				} else {
+					const { error: insErr } = await supabase.from('videos').insert({
+						page_id: page.id,
+						site_id: page.siteId,
+						status: 'complete',
+						output_url: url,
+						title: page.title,
+						updated_at: finishedAt
+					});
+					if (insErr) {
+						console.error('[Workspace] could not insert completed video row', insErr);
+					}
+				}
+				toast.success('Video ready — opening in a new tab.');
+				window.open(url, '_blank', 'noopener,noreferrer');
+				void refetch();
+			} catch (e) {
+				const err = e as Error & { code?: string };
+				setVideoGenWidgetStatus('error');
+				if (err.code === 'insufficient_credits') {
+					setVideoGenWidgetError('Insufficient credits');
+				} else {
+					setVideoGenWidgetError(err.message || 'Video generation failed');
+					Sentry.captureException(err instanceof Error ? err : new Error(String(e)), {
+						tags: { feature: 'video-generation' },
+						contexts: {
+							video_generation: {
+								pageId: page.id,
+								clusterId: page.clusterId ?? null
+							}
+						}
+					});
+				}
+				toast.error(err.message || 'Video generation failed');
+			} finally {
+				setVideoJobSubmitting(false);
+			}
+		},
+		[
+			page?.id,
+			page?.clusterId,
+			page?.siteId,
+			page?.title,
+			page?.videoDraftId,
+			page?.videoRenderOptionsDraft,
+			videoSiteVoiceId,
+			creditsRemaining,
+			refetchOrg,
+			refetch
+		]
+	);
+
+	const persistVideoDraft = useCallback(
+		async (partial: {
+			script?: VideoScript;
+			branding?: VideoBranding;
+			cartesiaVoiceId?: string;
+		}) => {
+			if (!page?.id || !page.siteId) return;
+			const prevOpts: VideoDraftRenderOptions =
+				page.videoRenderOptionsDraft && typeof page.videoRenderOptionsDraft === 'object'
+					? (page.videoRenderOptionsDraft as VideoDraftRenderOptions)
+					: {};
+			const render_options: VideoDraftRenderOptions = {
+				...prevOpts,
+				...(partial.branding ? { branding: partial.branding } : {})
+			};
+			if (partial.cartesiaVoiceId !== undefined) {
+				const t = partial.cartesiaVoiceId.trim();
+				render_options.cartesia_voice_id = t.length > 0 ? t : null;
+			}
+			const scriptTitle =
+				partial.script &&
+				typeof partial.script.title === 'string' &&
+				partial.script.title.trim()
+					? partial.script.title.trim()
+					: page.title;
+			const row: Record<string, unknown> = {
+				render_options,
+				updated_at: new Date().toISOString()
+			};
+			if (partial.script) {
+				row.script_json = partial.script as unknown as Record<string, unknown>;
+				row.title = scriptTitle;
+			}
+			if (page.videoDraftId) {
+				const { error: updErr } = await supabase.from('videos').update(row).eq('id', page.videoDraftId);
+				if (updErr) {
+					console.error(updErr);
+					toast.error('Could not save video draft');
+					throw updErr;
+				}
+			} else {
+				if (!partial.script) {
+					return;
+				}
+				const { error: insErr } = await supabase.from('videos').insert({
+					page_id: page.id,
+					site_id: page.siteId,
+					status: 'draft',
+					script_json: partial.script as unknown as Record<string, unknown>,
+					title: scriptTitle,
+					render_options,
+					updated_at: new Date().toISOString()
+				});
+				if (insErr) {
+					console.error(insErr);
+					toast.error('Could not save video draft');
+					throw insErr;
+				}
+			}
+			await refetch({ silent: true });
+		},
+		[page?.id, page?.siteId, page?.videoDraftId, page?.title, page?.videoRenderOptionsDraft, refetch]
+	);
+
+	/** Article workspace never persists manual Step 1 source — strip extra fields the shared modal may send. */
+	const persistVideoDraftFromModal = useCallback(
+		async (partial: VideoDraftPersistPartial) => {
+			await persistVideoDraft({
+				script: partial.script,
+				branding: partial.branding,
+				cartesiaVoiceId: partial.cartesiaVoiceId
+			});
+		},
+		[persistVideoDraft]
+	);
+
+	const persistSiteVideoBranding = useCallback(
+		async (branding: VideoBranding) => {
+			const sid = cluster?.siteId;
+			if (!sid) return;
+			const { error } = await supabase
+				.from('sites')
+				.update({ video_branding: branding, updated_at: new Date().toISOString() })
+				.eq('id', sid);
+			if (error) {
+				console.error(error);
+				toast.error('Could not save video branding to site');
+				throw error;
+			}
+			await refetchSites({ silent: true });
+		},
+		[cluster?.siteId, refetchSites]
+	);
+
 	// Top-level brief data — used by Entities tab three-section panel
 	type BriefEntityData = { term: string; competitor_count?: number; must_cover?: boolean };
 	type BriefLsiData = { term: string; competitor_count?: number };
@@ -1801,6 +2089,44 @@ export default function Workspace() {
 					setTaskWidgetOpen(false);
 					setTaskWidgetError(undefined);
 					setTaskWidgetErrorDetail(undefined);
+				}}
+			/>
+
+			<TaskProgressWidget
+				open={videoGenWidgetOpen}
+				title="Generating video"
+				status={videoGenWidgetStatus}
+				steps={videoGenWidgetSteps}
+				errorMessage={videoGenWidgetError}
+				errorDetail={videoGenWidgetErrorDetail}
+				disableAutoAdvance
+				doneMessage="Your video is ready. We open it in a new tab — if nothing appeared, your browser may have blocked the pop-up. Use Open video below."
+				doneLinkHref={videoGenDoneUrl ?? undefined}
+				doneLinkLabel="Open video"
+				onClose={() => {
+					setVideoGenWidgetOpen(false);
+					setVideoGenWidgetError(undefined);
+					setVideoGenWidgetErrorDetail(undefined);
+					setVideoGenDoneUrl(null);
+				}}
+			/>
+
+			<TaskProgressWidget
+				open={scriptGenWidgetOpen}
+				title="Generating video script"
+				status={scriptGenWidgetStatus}
+				steps={scriptGenWidgetSteps}
+				errorMessage={scriptGenWidgetError}
+				errorDetail={scriptGenWidgetErrorDetail}
+				stepInterval={14000}
+				doneMessage="Your script is ready in the video editor. You can edit scenes, then continue to branding and render."
+				className={
+					videoGenWidgetOpen || taskWidgetOpen ? 'bottom-88' : undefined
+				}
+				onClose={() => {
+					setScriptGenWidgetOpen(false);
+					setScriptGenWidgetError(undefined);
+					setScriptGenWidgetErrorDetail(undefined);
 				}}
 			/>
 
@@ -2502,7 +2828,68 @@ export default function Workspace() {
 									</div>
 								) : (
 									<>
-										<ArticleEditorToolbar editor={editor} />
+										<ArticleEditorToolbar
+											editor={editor}
+											trailingSlot={
+												<span className="inline-flex items-center gap-1">
+													{page?.videoOutputUrl ? (
+														<button
+															type="button"
+															onClick={() =>
+																window.open(
+																	page.videoOutputUrl!,
+																	'_blank',
+																	'noopener,noreferrer'
+																)
+															}
+															className="text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-950/30 flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50/80 px-2 py-1.5 text-xs font-medium dark:border-brand-800 dark:bg-brand-950/40"
+														>
+															<ExternalLink className="size-3.5" />
+															View video
+														</button>
+													) : null}
+													<Tooltip
+														content={
+															!hasPlanAtLeast(organization, 'builder')
+																? 'Video generation requires Builder plan or higher.'
+																: creditsRemaining < CREDIT_COSTS.VIDEO_SCRIPT_GENERATION
+																	? `You need at least ${CREDIT_COSTS.VIDEO_SCRIPT_GENERATION} credits to generate a script (${CREDIT_COSTS.VIDEO_GENERATION} credits total for script + render).`
+																	: !hasEditorContent
+																		? 'Add article content before generating a video.'
+																		: page?.videoOutputUrl
+																			? 'Create a new script and render another MP4. Narration voice from Site → Video.'
+																			: 'Two steps: generate an editable script, then render the MP4. Narration voice from Site → Video.'
+														}
+														tooltipPosition="bottom"
+													>
+														<span className="inline-flex">
+															<button
+																type="button"
+																onClick={() => setGenerateVideoOpen(true)}
+																disabled={
+																	videoJobSubmitting ||
+																	scriptGenSubmitting ||
+																	!hasEditorContent ||
+																	!hasPlanAtLeast(organization, 'builder') ||
+																	creditsRemaining < CREDIT_COSTS.VIDEO_SCRIPT_GENERATION
+																}
+																className="text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/30 flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+															>
+																{videoJobSubmitting || scriptGenSubmitting ? (
+																	<Loader2 className="size-3.5 animate-spin" />
+																) : (
+																	<Video className="size-3.5" />
+																)}
+																{page?.videoOutputUrl ? 'New video' : 'Generate video'}
+																<span className="ml-1 inline-flex items-center gap-1 opacity-90">
+																	<CreditCost amount={CREDIT_COSTS.VIDEO_GENERATION} />
+																</span>
+															</button>
+														</span>
+													</Tooltip>
+												</span>
+											}
+										/>
 
 										{/* L9: AI detection education — dismissable, persistent on first view */}
 										{editor && !aiDetectionDismissed && (
@@ -3613,6 +4000,26 @@ export default function Workspace() {
 				siteId={cluster?.siteId ?? selectedSite?.id ?? ''}
 				site={selectedSite}
 				onSaved={refetch}
+			/>
+
+			<GenerateVideoModal
+				open={generateVideoOpen}
+				onOpenChange={setGenerateVideoOpen}
+				articleContentJson={editor ? JSON.stringify(editor.getJSON()) : ''}
+				pageId={page?.id ?? null}
+				videoDraftId={page?.videoDraftId ?? null}
+				siteCartesiaVoiceId={videoSiteVoiceId ?? null}
+				savedVideoScriptDraft={page?.videoScriptDraft ?? null}
+				savedVideoRenderOptions={page?.videoRenderOptionsDraft ?? null}
+				siteVideoBranding={
+					cluster?.siteId ? (sites.find((s) => s.id === cluster.siteId)?.videoBranding ?? null) : null
+				}
+				onPersistVideoDraft={persistVideoDraftFromModal}
+				onPersistSiteVideoBranding={persistSiteVideoBranding}
+				onGenerateScript={handleModalGenerateScript}
+				onRenderVideo={handleModalRenderVideo}
+				scriptGenerating={scriptGenSubmitting}
+				videoSubmitting={videoJobSubmitting}
 			/>
 
 			{/* S2-15: Diagnose This Page — 7-step SEO decision tree */}

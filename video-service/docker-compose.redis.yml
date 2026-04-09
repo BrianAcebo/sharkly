@@ -1,0 +1,9 @@
+# Local Redis for blog-to-video RQ only — not used by the Express API.
+# From repo root: `make video` starts this + uvicorn + RQ worker; `make video-down` stops Redis.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    container_name: sharkly-dev-redis

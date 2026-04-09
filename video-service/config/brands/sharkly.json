@@ -1,0 +1,17 @@
+{
+	"brand_id": "sharkly",
+	"display_name": "Sharkly",
+	"cartesia_voice_id": "a167e0f3-df7e-4d52-a9c3-f949145efdab",
+	"colors": {
+		"background": "#0a0a0a",
+		"primary_text": "#f5f3ed",
+		"accent": "#2563eb",
+		"gold": "#d97706",
+		"muted": "#6b7280"
+	},
+	"fonts": {
+		"heading": "Montserrat",
+		"body": "Lato"
+	},
+	"video_style_notes": "Clean, authoritative, data-driven. Navy and cream palette. Professional SEO expert tone — direct, clear, never jargon-heavy."
+}

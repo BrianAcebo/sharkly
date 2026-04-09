@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, type ReactNode } from 'react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import type { Editor } from '@tiptap/core';
 import {
@@ -97,19 +97,23 @@ function useArticleEditorLinkMediaHandlers(editor: Editor | null) {
 
 export function ArticleEditorToolbar({
 	editor,
-	className
+	className,
+	trailingSlot
 }: {
 	editor: Editor | null;
 	/** Extra classes (e.g. `mx-6` for blog column gutters). */
 	className?: string;
+	/** Right side of the toolbar (e.g. Generate Video). */
+	trailingSlot?: ReactNode;
 }) {
 	const { setLinkHandler, addImageHandler, addYoutubeHandler } = useArticleEditorLinkMediaHandlers(editor);
 	if (!editor) return null;
 
 	return (
 		<div
-			className={`sticky top-0 z-10 mb-4 flex shrink-0 flex-wrap items-center justify-between gap-1 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-900 ${className ?? ''}`}
+			className={`sticky top-0 z-10 mb-4 flex shrink-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 dark:border-gray-700 dark:bg-gray-900 ${className ?? ''}`}
 		>
+			<div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
 			<Tooltip content="Align left" tooltipPosition="bottom">
 				<button
 					type="button"
@@ -301,6 +305,12 @@ export function ArticleEditorToolbar({
 					<Info className="size-4" />
 				</button>
 			</Tooltip>
+			</div>
+			{trailingSlot ? (
+				<div className="flex shrink-0 items-center gap-2 border-l border-gray-200 pl-2 dark:border-gray-700">
+					{trailingSlot}
+				</div>
+			) : null}
 		</div>
 	);
 }

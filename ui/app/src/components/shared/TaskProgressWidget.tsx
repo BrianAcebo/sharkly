@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, X, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { cn } from '../../utils/common';
 
 export type TaskStep = {
 	id: string;
@@ -28,7 +29,14 @@ type Props = {
 	stepInterval?: number;
 	/** When true, steps are driven by parent (e.g. streaming events) — no auto-advance timer. */
 	disableAutoAdvance?: boolean;
+	/** Shown when status is `done` (default copy assumes results appear elsewhere on the page). */
+	doneMessage?: string;
+	/** Optional primary action when the task produces a URL (e.g. video file if a new tab was blocked). */
+	doneLinkHref?: string;
+	doneLinkLabel?: string;
 	onClose: () => void;
+	/** Merged onto the floating panel (e.g. `bottom-24` when stacking multiple widgets). */
+	className?: string;
 };
 
 // Dual-ring spinner
@@ -88,7 +96,11 @@ export function TaskProgressWidget({
 	errorDetail,
 	stepInterval = 9600,
 	disableAutoAdvance = false,
-	onClose
+	doneMessage = 'All done! Review your results above.',
+	doneLinkHref,
+	doneLinkLabel = 'Open link',
+	onClose,
+	className
 }: Props) {
 	const [minimized, setMinimized] = useState(false);
 	const [showErrorDetail, setShowErrorDetail] = useState(false);
@@ -147,6 +159,10 @@ export function TaskProgressWidget({
 	const completedCount = internalSteps.filter((s) => s.status === 'complete').length;
 	const progress = internalSteps.length > 0 ? completedCount / internalSteps.length : 0;
 
+	/** In production, never surface raw API / stack traces; dev sees the full message. */
+	const displayErrorMessage =
+		errorMessage?.trim() && !import.meta.env.DEV ? 'There was an error.' : errorMessage?.trim();
+
 	return (
 		<AnimatePresence>
 			{open && (
@@ -156,7 +172,11 @@ export function TaskProgressWidget({
 					animate={{ opacity: 1, y: 0, scale: 1 }}
 					exit={{ opacity: 0, y: 16, scale: 0.95 }}
 					transition={{ type: 'spring', stiffness: 340, damping: 28 }}
-					className="fixed right-4 bottom-4 z-50 w-[min(100vw-2rem,320px)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+					className={cn(
+						// Above Dialog overlay/content (z-50) so progress stays visible while modals are open
+						'fixed right-4 bottom-4 z-[100] w-[min(100vw-2rem,320px)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900',
+						className
+					)}
 				>
 					{/* Animated border glow while running */}
 					{status === 'running' && (
@@ -202,9 +222,9 @@ export function TaskProgressWidget({
 											? 'Complete'
 											: 'Failed'}
 								</p>
-								{minimized && status === 'error' && errorMessage && (
+								{minimized && status === 'error' && displayErrorMessage && (
 									<p className="text-error-600 dark:text-error-400 mt-1 line-clamp-2 text-[10px] leading-snug">
-										{errorMessage}
+										{displayErrorMessage}
 									</p>
 								)}
 							</div>
@@ -283,14 +303,14 @@ export function TaskProgressWidget({
 								</ul>
 
 								{/* Error message */}
-								{status === 'error' && errorMessage && (
+								{status === 'error' && displayErrorMessage && (
 									<motion.div
 										initial={{ opacity: 0 }}
 										animate={{ opacity: 1 }}
 										className="mx-3 mb-2 space-y-1.5"
 									>
 										<div className="bg-error-50 text-error-700 dark:bg-error-900/25 dark:text-error-300 rounded-lg px-2.5 py-1.5 text-[11px] leading-snug">
-											{errorMessage}
+											{displayErrorMessage}
 										</div>
 										{import.meta.env.DEV && errorDetail?.trim() && (
 											<div>
@@ -317,9 +337,19 @@ export function TaskProgressWidget({
 										initial={{ opacity: 0, y: 4 }}
 										animate={{ opacity: 1, y: 0 }}
 										transition={{ delay: 0.15 }}
-										className="bg-brand-50 text-brand-700 dark:bg-brand-900/20 dark:text-brand-300 mx-4 mb-3 rounded-lg px-3 py-2 text-[12px] font-medium"
+										className="bg-brand-50 text-brand-800 dark:bg-brand-900/20 dark:text-brand-200 mx-4 mb-3 space-y-2 rounded-lg px-3 py-2.5 text-[12px]"
 									>
-										All done! Review your results above.
+										<p className="font-medium leading-snug">{doneMessage}</p>
+										{doneLinkHref?.trim() ? (
+											<a
+												href={doneLinkHref.trim()}
+												target="_blank"
+												rel="noopener noreferrer"
+												className="bg-brand-600 hover:bg-brand-700 inline-flex w-full items-center justify-center rounded-md px-3 py-2 text-center text-[12px] font-semibold text-white transition-colors"
+											>
+												{doneLinkLabel}
+											</a>
+										) : null}
 									</motion.div>
 								)}
 							</motion.div>

@@ -1,3 +1,5 @@
+import type { VideoBranding } from './videoBranding';
+
 export interface Site {
 	id: string;
 	name: string;
@@ -34,6 +36,10 @@ export interface Site {
 	wikidataUrl?: string | null;
 	isYMYL?: boolean;
 	gsc_connected?: boolean;
+	/** Narration voice UUID for blog-to-video (null = product default) */
+	cartesiaVoiceId?: string | null;
+	/** Default blog-to-video fonts + colors for this site (optional; falls back to Sharkly). */
+	videoBranding?: VideoBranding | null;
 	createdAt: string;
 	updatedAt: string;
 }

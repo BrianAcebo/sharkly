@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "fonts": [
+    {
+      "id": "montserrat",
+      "label": "Montserrat",
+      "category": "Sans",
+      "pangoFamily": "Montserrat",
+      "files": [
+        {
+          "filename": "Montserrat-VF.ttf",
+          "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/montserrat/Montserrat%5Bwght%5D.ttf"
+        }
+      ]
+    },
+    {
+      "id": "lato",
+      "label": "Lato",
+      "category": "Sans",
+      "pangoFamily": "Lato",
+      "files": [
+        {
+          "filename": "Lato-Regular.ttf",
+          "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/lato/Lato-Regular.ttf"
+        }
+      ]
+    },
+    {
+      "id": "inter",
+      "label": "Inter",
+      "category": "Sans",
+      "pangoFamily": "Inter",
+      "files": [
+        {
+          "filename": "Inter-VF.ttf",
+          "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz%2Cwght%5D.ttf"
+        }
+      ]
+    },
+    {
+      "id": "open_sans",
+      "label": "Open Sans",
+      "category": "Sans",
+      "pangoFamily": "Open Sans",
+      "files": [
+        {
+          "filename": "OpenSans-VF.ttf",
+          "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/opensans/OpenSans%5Bwdth%2Cwght%5D.ttf"
+        }
+      ]
+    },
+    {
+      "id": "roboto",
+      "label": "Roboto",
+      "category": "Sans",
+      "pangoFamily": "Roboto",
+      "files": [
+        {
+          "filename": "Roboto-VF.ttf",
+          "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/roboto/Roboto%5Bwdth%2Cwght%5D.ttf"
+        }
+      ]
+    },
+    {
+      "id": "merriweather",
+      "label": "Merriweather",
+      "category": "Serif",
+      "pangoFamily": "Merriweather",
+      "files": [
+        {
+          "filename": "Merriweather-VF.ttf",
+          "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/merriweather/Merriweather%5Bopsz%2Cwdth%2Cwght%5D.ttf"
+        }
+      ]
+    },
+    {
+      "id": "playfair",
+      "label": "Playfair Display",
+      "category": "Serif",
+      "pangoFamily": "Playfair Display",
+      "files": [
+        {
+          "filename": "PlayfairDisplay-VF.ttf",
+          "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/playfairdisplay/PlayfairDisplay%5Bwght%5D.ttf"
+        }
+      ]
+    },
+    {
+      "id": "source_sans_3",
+      "label": "Source Sans 3",
+      "category": "Sans",
+      "pangoFamily": "Source Sans 3",
+      "files": [
+        {
+          "filename": "SourceSans3-VF.ttf",
+          "url": "https://raw.githubusercontent.com/google/fonts/main/ofl/sourcesans3/SourceSans3%5Bwght%5D.ttf"
+        }
+      ]
+    }
+  ],
+  "defaults": {
+    "headingFontId": "montserrat",
+    "bodyFontId": "lato"
+  },
+  "colors": {
+    "background": "#0a0a0a",
+    "primary_text": "#f5f3ed",
+    "accent": "#2563eb",
+    "gold": "#d97706",
+    "muted": "#6b7280"
+  }
+}

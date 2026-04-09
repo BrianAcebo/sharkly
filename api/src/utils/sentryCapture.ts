@@ -52,17 +52,23 @@ export function captureApiError(
 }
 
 /** Non-exception events (e.g. refund RPC failure) — capped severity to avoid noise. */
-export function captureApiWarning(message: string, req: Request | undefined, context?: Record<string, unknown>): void {
+export function captureApiWarning(
+	message: string,
+	req: Request | undefined,
+	context?: Record<string, unknown> & { feature?: string }
+): void {
 	if (!sentryEnabled()) return;
+	const { feature, ...rest } = context ?? {};
 	Sentry.withScope((scope) => {
 		scope.setLevel('warning');
+		if (feature) scope.setTag('feature', String(feature));
 		if (req) {
 			for (const [k, v] of Object.entries(baseRequestTags(req))) {
 				scope.setTag(`http.${k}`, v);
 			}
 			if (req.userId) scope.setUser({ id: req.userId });
 		}
-		if (context) scope.setContext('details', context);
+		if (Object.keys(rest).length > 0) scope.setContext('details', rest as Record<string, unknown>);
 		Sentry.captureMessage(message);
 	});
 }

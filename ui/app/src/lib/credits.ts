@@ -51,6 +51,12 @@ export const CREDIT_COSTS = {
 	KEYWORD_LOOKUP: 5,
 	SECTION_REWRITE: 5,
 	FAQ_GENERATION: 5,
+	/** Blog-to-video: full pipeline from article in one job (legacy / API path) */
+	VIDEO_GENERATION: 10,
+	/** Step 1 — Claude script from article (generate-script) */
+	VIDEO_SCRIPT_GENERATION: 3,
+	/** Step 2 — render MP4 from edited script JSON */
+	VIDEO_RENDER: 7,
 	PRODUCT_DESCRIPTION: 3,
 	COLLECTION_INTRO: 3,
 	TONE_ADJUSTMENT: 5,
@@ -82,7 +88,10 @@ export const CREDIT_COST_LABELS = {
 	PAGE_OPTIMIZATION: 'Optimize existing page',
 	TOXIC_LINK_AUDIT: 'Toxic link audit',
 	REFRESH_AUTHORITY: 'Domain authority refresh',
-	LINK_VELOCITY_CHECK: 'Link velocity check'
+	LINK_VELOCITY_CHECK: 'Link velocity check',
+	VIDEO_GENERATION: 'Blog-to-video generation',
+	VIDEO_SCRIPT_GENERATION: 'Blog-to-video script',
+	VIDEO_RENDER: 'Blog-to-video render'
 };
 
 export type CreditCostKey = keyof typeof CREDIT_COSTS;

@@ -3,6 +3,7 @@ import { supabase } from '../utils/supabaseClient';
 import { api } from '../utils/api';
 import { isYMYLNiche } from '../lib/ymyl';
 import type { Site } from '../types/site';
+import { parseVideoBranding } from '../types/videoBranding';
 import { useAuth } from './useAuth';
 
 const ASSETS_BUCKET = 'assets';
@@ -74,6 +75,11 @@ function getLogoPublicUrl(logoPath: string | null): string | null {
 	return data.publicUrl;
 }
 
+export type SitesFetchOptions = {
+	/** When true, do not set list loading — avoids AppLayout replacing the whole app during background refetch (e.g. after saving site video branding). */
+	silent?: boolean;
+};
+
 export function useSites() {
 	const { user } = useAuth();
 	const organizationId = user?.organization_id ?? null;
@@ -81,7 +87,7 @@ export function useSites() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
-	const fetchSites = useCallback(async () => {
+	const fetchSites = useCallback(async (opts?: SitesFetchOptions) => {
 		if (!organizationId) {
 			// Don't set loading=false — keep loading until we have an org and can actually fetch.
 			// Otherwise AuthShopify sees loading=false + sites=[] and wrongly auto-creates a site.
@@ -90,12 +96,14 @@ export function useSites() {
 			return;
 		}
 		try {
-			setLoading(true);
+			if (!opts?.silent) {
+				setLoading(true);
+			}
 			setError(null);
 			const { data, error: fetchError } = await supabase
 				.from('sites')
 				.select(
-					'id, name, description, logo, url, platform, niche, customer_description, competitor_urls, domain_authority, domain_authority_estimated, last_audit_at, tone, include_terms, avoid_terms, target_language, target_region, author_bio, original_insight, google_review_count, google_average_rating, gbp_url, facebook_url, linkedin_url, twitter_url, yelp_url, wikidata_url, is_ymyl, created_at, updated_at'
+					'id, name, description, logo, url, platform, niche, customer_description, competitor_urls, domain_authority, domain_authority_estimated, last_audit_at, tone, include_terms, avoid_terms, target_language, target_region, author_bio, original_insight, google_review_count, google_average_rating, gbp_url, facebook_url, linkedin_url, twitter_url, yelp_url, wikidata_url, is_ymyl, cartesia_voice_id, video_branding, created_at, updated_at'
 				)
 				.eq('organization_id', organizationId)
 				.order('created_at', { ascending: false });
@@ -132,6 +140,9 @@ export function useSites() {
 				yelpUrl: (row.yelp_url as string | null) ?? null,
 				wikidataUrl: (row.wikidata_url as string | null) ?? null,
 				isYMYL: Boolean(row.is_ymyl),
+				cartesiaVoiceId: (row.cartesia_voice_id as string | null) ?? null,
+				videoBranding:
+					parseVideoBranding((row as { video_branding?: unknown }).video_branding) ?? undefined,
 				createdAt: row.created_at,
 				updatedAt: row.updated_at
 			}));
@@ -273,6 +284,7 @@ export function useSites() {
 				yelpUrl?: string | null;
 				wikidataUrl?: string | null;
 				originalInsight?: string | null;
+				cartesiaVoiceId?: string | null;
 				logoFile?: File | null;
 				removeLogo?: boolean;
 			}
@@ -330,6 +342,7 @@ export function useSites() {
 				yelp_url: data.yelpUrl ?? null,
 				wikidata_url: data.wikidataUrl ?? null,
 				original_insight: data.originalInsight ?? null,
+				cartesia_voice_id: data.cartesiaVoiceId ?? null,
 				logo: logoPath
 				})
 				.eq('id', siteId)

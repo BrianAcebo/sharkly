@@ -19,7 +19,8 @@ import {
 	Lock,
 	BadgeDollarSign,
 	ChevronDown,
-	GitCompare
+	GitCompare,
+	Video
 } from 'lucide-react';
 import { Link } from 'react-router';
 import UserAvatar from '../common/UserAvatar';
@@ -119,6 +120,7 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 				children: [
 					{ icon: MapIcon, label: 'Strategy', path: '/strategy' },
 					{ icon: GitFork, label: 'Clusters', path: '/clusters' },
+					{ icon: Video, label: 'Videos', path: '/videos' },
 					{ icon: ShoppingBag, label: 'Ecommerce', path: '/ecommerce' }
 					// { icon: CalendarDays, label: 'Calendar', path: '/calendar' },
 					// { icon: Key, label: 'Keywords', path: '/keywords' }

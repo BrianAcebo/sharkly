@@ -55,7 +55,7 @@ const LayoutContent: React.FC = () => {
 	const navigate = useNavigate();
 	const { isExpanded, isMobileOpen } = useSidebar();
 	const { user, loadingState, session } = useAuth();
-	const { sites, loading: sitesLoading } = useSiteContext();
+	const { sites, sitesListLoading } = useSiteContext();
 	const trialInfo = useTrial();
 	const { organization: currentOrg, loading: orgLoading } = useOrganization();
 	const { isPaused, isDisabled, status: orgStatus } = useOrganizationStatus();
@@ -125,7 +125,7 @@ const LayoutContent: React.FC = () => {
 		if (!user?.completed_onboarding) {
 			return <Navigate to="/onboarding" replace />;
 		}
-		if (sitesLoading) {
+		if (sitesListLoading) {
 			return <AuthLoading state={AuthLoadingState.LOADING} />;
 		}
 		if (sites.length === 0) {
@@ -156,7 +156,7 @@ const LayoutContent: React.FC = () => {
 	if (
 		pathname === '/site-setup' &&
 		hasOrganization &&
-		!sitesLoading &&
+		!sitesListLoading &&
 		sites.length > 0
 	) {
 		return <Navigate to="/dashboard" replace />;
@@ -166,7 +166,7 @@ const LayoutContent: React.FC = () => {
 	if (
 		hasOrganization &&
 		user?.completed_onboarding &&
-		sitesLoading &&
+		sitesListLoading &&
 		!isStripeIncomplete &&
 		!isStripeExpired &&
 		orgAllowsSiteSetup
@@ -186,7 +186,7 @@ const LayoutContent: React.FC = () => {
 	const needsFirstSite =
 		hasOrganization &&
 		Boolean(user?.completed_onboarding) &&
-		!sitesLoading &&
+		!sitesListLoading &&
 		sites.length === 0 &&
 		!isStripeIncomplete &&
 		!isStripeExpired &&

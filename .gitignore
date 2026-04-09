@@ -41,3 +41,6 @@ sql/**/*_data_*.sql
 
 # Supabase local DB volumes (contains token data)
 supabase/docker/volumes/
+
+# Blog-to-video: optional local font files (catalog is JSON-only; Remotion uses @remotion/google-fonts / CSS)
+video-service/fonts/bundled/*.ttf

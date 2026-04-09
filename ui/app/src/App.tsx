@@ -45,6 +45,7 @@ import Technical from './pages/Technical';
 import Calendar from './pages/Calendar';
 import Sites from './pages/Sites';
 import SiteDetail from './pages/SiteDetail';
+import Videos from './pages/Videos';
 import RefundAdmin from './pages/Admin/RefundAdmin';
 import StripeAudit from './pages/Admin/StripeAudit';
 import AdminDashboard from './pages/Admin/AdminDashboard';
@@ -90,6 +91,7 @@ export default function App() {
 					<Route path="/projects" element={<Navigate to="/sites" replace />} />
 						<Route path="/sites" element={<Sites />} />
 						<Route path="/sites/:id" element={<SiteDetail />} />
+						<Route path="/videos" element={<Videos />} />
 						<Route path="/settings" element={<SettingsLayout />}>
 							<Route index element={<Navigate to="profile" replace />} />
 							<Route path="credits" element={<SettingsCredits />} />

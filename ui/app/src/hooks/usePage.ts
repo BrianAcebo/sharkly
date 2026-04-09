@@ -36,6 +36,21 @@ export type PageDetail = {
 	publishedUrl: string | null;
 	croChecklist: CroChecklistData | null;
 	croScore: number;
+	/** Denormalized from pages — needed when inserting `videos` rows. */
+	siteId: string;
+	/** Draft video row id (`videos` where status = draft), if any. */
+	videoDraftId: string | null;
+	/** Script JSON from the draft `videos` row (same shape as generate-script API). */
+	videoScriptDraft: unknown | null;
+	/** `videos.render_options` for the draft row (e.g. branding). */
+	videoRenderOptionsDraft: unknown | null;
+	/** Latest rendered MP4 URL for this page (`videos.output_url`), survives reload. */
+	videoOutputUrl: string | null;
+};
+
+export type PageRefetchOptions = {
+	/** When true, do not set `loading` — avoids unmounting the workspace (e.g. modals open during draft save). */
+	silent?: boolean;
 };
 
 export function usePage(pageId: string | null) {
@@ -43,19 +58,21 @@ export function usePage(pageId: string | null) {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
-	const fetchPage = useCallback(async () => {
+	const fetchPage = useCallback(async (opts?: PageRefetchOptions) => {
 		if (!pageId) {
 			setPage(null);
 			setLoading(false);
 			return;
 		}
 		try {
-			setLoading(true);
+			if (!opts?.silent) {
+				setLoading(true);
+			}
 			setError(null);
 			const { data, error: fetchErr } = await supabase
 				.from('pages')
 				.select(
-					'id, cluster_id, title, keyword, monthly_searches, keyword_difficulty, funnel_stage, page_type, status, type, seo_score, word_count, target_word_count, content, brief_data, meta_title, meta_description, position_x, position_y, published_url, cro_checklist, cro_score, author_bio_override'
+					'id, cluster_id, site_id, title, keyword, monthly_searches, keyword_difficulty, funnel_stage, page_type, status, type, seo_score, word_count, target_word_count, content, brief_data, meta_title, meta_description, position_x, position_y, published_url, cro_checklist, cro_score, author_bio_override'
 				)
 				.eq('id', pageId)
 				.single();
@@ -76,6 +93,31 @@ export function usePage(pageId: string | null) {
 				return;
 			}
 
+			const { data: videoRows, error: videosErr } = await supabase
+				.from('videos')
+				.select('id, script_json, render_options, status, output_url, updated_at')
+				.eq('page_id', pageId)
+				.order('updated_at', { ascending: false });
+
+			if (videosErr) {
+				console.error('[usePage] videos load', videosErr);
+			}
+
+			const rows = Array.isArray(videoRows) ? videoRows : [];
+			const draftVideo =
+				(rows as Array<{ status?: string }>).find((r) => r.status === 'draft') ?? null;
+			const withOutput = rows.find(
+				(r: { output_url?: string | null }) =>
+					typeof r.output_url === 'string' && r.output_url.trim().length > 0
+			) as
+				| {
+						id?: string;
+						script_json?: unknown;
+						render_options?: unknown;
+						output_url?: string;
+				  }
+				| undefined;
+
 			// slug: from published_url path (e.g. /blog/my-page) or null
 			const pubUrl = data.published_url as string | null | undefined;
 			const slugVal =
@@ -86,6 +128,7 @@ export function usePage(pageId: string | null) {
 			setPage({
 				id: data.id,
 				clusterId: data.cluster_id,
+				siteId: data.site_id as string,
 				title: data.title,
 				keyword: data.keyword || '',
 				authorBioOverride: (data.author_bio_override as string | null) ?? null,
@@ -107,7 +150,15 @@ export function usePage(pageId: string | null) {
 				slug: slugVal,
 				publishedUrl: (typeof pubUrl === 'string' && pubUrl ? pubUrl : null) ?? null,
 				croChecklist: (data.cro_checklist as CroChecklistData) ?? null,
-				croScore: data.cro_score ?? 0
+				croScore: data.cro_score ?? 0,
+				videoDraftId: (draftVideo as { id?: string } | null)?.id ?? null,
+				videoScriptDraft:
+					(draftVideo as { script_json?: unknown } | null)?.script_json ??
+					(withOutput?.script_json ?? null),
+				videoRenderOptionsDraft:
+					(draftVideo as { render_options?: unknown } | null)?.render_options ??
+					(withOutput?.render_options ?? null),
+				videoOutputUrl: withOutput?.output_url?.trim() ?? null
 			});
 		} catch (err) {
 			const msg = err instanceof Error ? err.message : 'Failed to load page';

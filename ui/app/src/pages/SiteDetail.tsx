@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Globe, Loader2, ShieldCheck, Zap } from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { Button } from '../components/ui/button';
@@ -118,6 +118,7 @@ export default function SiteDetail() {
 				yelpUrl: data.yelpUrl,
 				wikidataUrl: data.wikidataUrl,
 				originalInsight: data.originalInsight,
+				cartesiaVoiceId: data.cartesiaVoiceId,
 				logoFile: data.logoFile,
 				removeLogo: data.removeLogo
 			});
@@ -173,12 +174,14 @@ export default function SiteDetail() {
 		);
 	}
 
+	const da = site.domainAuthorityEstimated ?? site.domainAuthority;
+
 	return (
 		<>
 			<PageMeta title={site.name} description="Site settings" />
 			<PageHeader
 				title={site.name}
-				subtitle="Configure your site for SEO and content generation"
+				subtitle="Configure your site settings, integrations, and video generation"
 				breadcrumb={
 					<Link to="/sites" className="text-brand-500 hover:underline dark:text-brand-400">
 						<ArrowLeft className="mr-1 inline size-3" />
@@ -187,8 +190,61 @@ export default function SiteDetail() {
 				}
 			/>
 
+			{/* Site overview strip */}
+			<div className="mt-4 flex flex-wrap items-center gap-5 rounded-xl border border-gray-200 bg-white px-6 py-5 dark:border-gray-700 dark:bg-gray-900">
+				<div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-800">
+					{site.logo ? (
+						<img src={site.logo} alt={site.name} className="size-full object-cover" />
+					) : (
+						<Globe className="size-7 text-gray-400 dark:text-gray-500" />
+					)}
+				</div>
+
+				<div className="min-w-0 flex-1">
+					<p className="truncate text-base font-semibold text-gray-900 dark:text-white">
+						{site.name}
+					</p>
+					{site.url && (
+						<a
+							href={site.url.startsWith('http') ? site.url : `https://${site.url}`}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="mt-0.5 flex w-fit items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+						>
+							{site.url}
+							<ExternalLink className="size-3" />
+						</a>
+					)}
+				</div>
+
+				<div className="flex flex-wrap items-center gap-3">
+					{da > 0 && (
+						<div className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 dark:border-gray-700 dark:bg-gray-800">
+							<Zap className="size-3.5 text-amber-500" />
+							<span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+								DA {da}
+							</span>
+						</div>
+					)}
+					{site.gsc_connected && (
+						<div className="flex items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 dark:border-green-800/40 dark:bg-green-900/20">
+							<ShieldCheck className="size-3.5 text-green-600 dark:text-green-400" />
+							<span className="text-xs font-semibold text-green-700 dark:text-green-300">
+								GSC connected
+							</span>
+						</div>
+					)}
+					{site.platform && (
+						<span className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium capitalize text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+							{site.platform}
+						</span>
+					)}
+				</div>
+			</div>
+
 			<div className="mt-6">
 				<SiteDetailForm
+					key={site.id}
 					initial={site}
 					onSubmit={handleFormSubmit}
 					onCancel={() => navigate('/sites')}

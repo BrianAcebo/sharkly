@@ -47,6 +47,12 @@ export const CREDIT_COSTS = {
 	KEYWORD_LOOKUP: 5,
 	SECTION_REWRITE: 5,
 	FAQ_GENERATION: 5,
+	/** Blog-to-video — full job from article (tiptap) without separate script step */
+	VIDEO_GENERATION: 10,
+	/** Claude script only (POST /api/video/generate-script) */
+	VIDEO_SCRIPT_GENERATION: 3,
+	/** Render job from edited script JSON (POST /api/video/create with input_type script_json) */
+	VIDEO_RENDER: 7,
 	PRODUCT_DESCRIPTION: 3,
 	COLLECTION_INTRO: 3,
 	TONE_ADJUSTMENT: 5,

@@ -4,7 +4,7 @@ import {
 	X,
 	Plus,
 	Trash2,
-	Settings,
+	Film,
 	Palette,
 	Building2,
 	FileText,
@@ -31,6 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import { validateUrl } from '../../utils/validation';
 import { GSCConnectionManager } from '../gsc/GSCConnectionManager';
 import { ShopifyConnectionStatus } from '../shopify/ShopifyConnectionStatus';
+import { CartesiaVideoVoicePanel } from './CartesiaVideoVoicePanel';
 import type { Site } from '../../types/site';
 
 const MAX_LOGO_SIZE_MB = 5;
@@ -125,6 +126,8 @@ export interface SiteFormData {
 	originalInsight?: string | null;
 	logoFile?: File | null;
 	removeLogo?: boolean;
+	/** Narration voice UUID for videos for this site */
+	cartesiaVoiceId?: string | null;
 }
 
 interface SiteDetailFormProps {
@@ -139,6 +142,15 @@ interface SiteDetailFormProps {
 	/** When true, Delete is disabled — use with deleteBlockedMessage. */
 	deleteBlocked?: boolean;
 	deleteBlockedMessage?: string;
+}
+
+function TabHeading({ title, description }: { title: string; description: string }) {
+	return (
+		<div className="mb-6 border-b border-gray-100 pb-5 dark:border-gray-800">
+			<h2 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h2>
+			<p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{description}</p>
+		</div>
+	);
 }
 
 export default function SiteDetailForm({
@@ -184,6 +196,7 @@ export default function SiteDetailForm({
 	const [yelpUrl, setYelpUrl] = useState(initial?.yelpUrl ?? '');
 	const [wikidataUrl, setWikidataUrl] = useState(initial?.wikidataUrl ?? '');
 	const [originalInsight, setOriginalInsight] = useState(initial?.originalInsight ?? '');
+	const [cartesiaVoiceId, setCartesiaVoiceId] = useState(initial?.cartesiaVoiceId ?? '');
 	const [logo, setLogo] = useState<File | null>(null);
 	const [logoPreview, setLogoPreview] = useState<string | null>(initial?.logo ?? null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -289,10 +302,14 @@ export default function SiteDetailForm({
 			yelpUrl: yelpUrl.trim() || null,
 			wikidataUrl: wikidataUrl.trim() || null,
 			originalInsight: originalInsight.trim() || null,
+			cartesiaVoiceId: cartesiaVoiceId.trim() || null,
 			logoFile: logo ?? undefined,
 			removeLogo: Boolean(initial?.logo && !logoPreview && !logo)
 		});
 	};
+
+	const TAB_CLASS =
+		'data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 -mb-px inline-flex items-center gap-2 rounded-none border-b-2 border-transparent px-5 py-3 text-sm font-medium whitespace-nowrap text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 data-[state=active]:font-semibold';
 
 	const generalFields = (
 		<>
@@ -383,9 +400,13 @@ export default function SiteDetailForm({
 
 	const brandingFields = (
 		<>
-			<div className="flex flex-col items-start space-y-4">
-				<Label>Logo</Label>
-				<div className="flex items-center gap-4">
+			{/* Logo */}
+			<div className="rounded-xl border border-gray-200 p-5 dark:border-gray-700">
+				<h3 className="mb-1 text-sm font-semibold text-gray-900 dark:text-white">Site Logo</h3>
+				<p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+					Used in video end cards and reports. JPEG, PNG, GIF, or WebP up to 5 MB.
+				</p>
+				<div className="flex items-center gap-5">
 					<div className="relative">
 						{logoPreview ? (
 							<div className="relative">
@@ -422,7 +443,7 @@ export default function SiteDetailForm({
 						className="hidden"
 						id="site-logo-upload"
 					/>
-					<div className="flex flex-col gap-1">
+					<div className="flex flex-col gap-1.5">
 						<label
 							htmlFor="site-logo-upload"
 							className="cursor-pointer rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -433,17 +454,18 @@ export default function SiteDetailForm({
 					</div>
 				</div>
 			</div>
-			{/* Brand voice section */}
-			<div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-600">
-				<h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-					Brand Voice &amp; Content Settings
-				</h3>
-				<p className="text-xs text-gray-500 dark:text-gray-400">
-					These settings are injected into every brief and article prompt so AI-generated content
-					matches your style.
-				</p>
 
-				{/* Tone */}
+			{/* Brand voice */}
+			<div className="space-y-5 rounded-xl border border-gray-200 p-5 dark:border-gray-700">
+				<div>
+					<h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+						Brand Voice &amp; Content Settings
+					</h3>
+					<p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+						Injected into every brief and article prompt so AI-generated content matches your style.
+					</p>
+				</div>
+
 				<div>
 					<Label>Writing tone</Label>
 					<Select value={tone || 'professional'} onValueChange={setTone}>
@@ -460,7 +482,6 @@ export default function SiteDetailForm({
 					</Select>
 				</div>
 
-				{/* Include terms */}
 				<div>
 					<Label htmlFor="include-terms">Always include these terms</Label>
 					<TextArea
@@ -470,11 +491,10 @@ export default function SiteDetailForm({
 						onChange={(e) => setIncludeTerms(e.target.value)}
 					/>
 					<p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-						Comma-separated. These will appear in every brief and article prompt.
+						These will appear in every brief and article prompt.
 					</p>
 				</div>
 
-				{/* Avoid terms */}
 				<div>
 					<Label htmlFor="avoid-terms">Never use these terms</Label>
 					<TextArea
@@ -484,11 +504,10 @@ export default function SiteDetailForm({
 						onChange={(e) => setAvoidTerms(e.target.value)}
 					/>
 					<p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-						Comma-separated. AI will be instructed to avoid these in all generated content.
+						AI will be instructed to avoid these in all generated content.
 					</p>
 				</div>
 
-				{/* Language & Region */}
 				<div className="grid grid-cols-2 gap-4">
 					<div>
 						<Label>Content language</Label>
@@ -541,19 +560,20 @@ export default function SiteDetailForm({
 					onChange={(e) => setAuthorBio(e.target.value)}
 				/>
 				<p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-					Inject into briefs and articles for EEAT. Can be overridden per page in the Workspace.
+					Injected into briefs and articles for EEAT. Can be overridden per page in the Workspace.
 				</p>
 			</div>
-			<div className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-600">
-				<h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-					Your business profiles
-				</h3>
-				<p className="text-xs text-gray-500 dark:text-gray-400">
-					These help Google confirm your business is real and connect all your online presence
-					together. Used in LocalBusiness schema (sameAs) and AggregateRating.
-				</p>
 
-				<div className="grid gap-3 sm:grid-cols-2">
+			<div className="space-y-5 rounded-xl border border-gray-200 p-5 dark:border-gray-700">
+				<div>
+					<h3 className="text-sm font-semibold text-gray-900 dark:text-white">Business profiles</h3>
+					<p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+						Help Google confirm your business is real and connect your online presence. Used in
+						LocalBusiness schema (sameAs) and AggregateRating.
+					</p>
+				</div>
+
+				<div className="grid gap-4 sm:grid-cols-2">
 					<div>
 						<Label htmlFor="gbp-url">Google Business Profile URL</Label>
 						<Input
@@ -616,7 +636,7 @@ export default function SiteDetailForm({
 					</div>
 				</div>
 
-				<div className="grid gap-3 sm:grid-cols-2">
+				<div className="grid gap-4 sm:grid-cols-2">
 					<div>
 						<Label htmlFor="google-review-count">Google review count</Label>
 						<Input
@@ -652,7 +672,7 @@ export default function SiteDetailForm({
 
 	const contentFields = (
 		<>
-			<div className="rounded-xl border border-gray-200 p-4 dark:border-gray-600">
+			<div className="rounded-xl border border-gray-200 p-5 dark:border-gray-700">
 				<Label htmlFor="site-original-insight">Original insight (information gain)</Label>
 				<TextArea
 					id="site-original-insight"
@@ -664,8 +684,7 @@ export default function SiteDetailForm({
 				/>
 				<p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
 					Saved per site. Article generation uses this when a page doesn&apos;t have its own
-					brief-level insight (e.g. supporting articles). You can also set this from the workspace
-					when you first generate.
+					brief-level insight. You can also set this from the workspace when you first generate.
 				</p>
 			</div>
 			<div>
@@ -730,25 +749,82 @@ export default function SiteDetailForm({
 		</>
 	);
 
+	const videoFields = (
+		<div className="space-y-5">
+			{/* Feature intro */}
+			<div className="flex gap-4 rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-800/40 dark:bg-blue-900/20">
+				<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-blue-100 dark:bg-blue-900/50">
+					<Film className="size-5 text-blue-600 dark:text-blue-400" />
+				</div>
+				<div>
+					<h3 className="font-semibold text-blue-900 dark:text-blue-100">Blog to Video</h3>
+					<p className="mt-1 text-sm leading-relaxed text-blue-700 dark:text-blue-300">
+						Turn any article you publish into a narrated MP4 video — ready to post on YouTube,
+						LinkedIn, or embed on your site.
+					</p>
+				</div>
+			</div>
+
+			<CartesiaVideoVoicePanel
+				selectedVoiceId={cartesiaVoiceId}
+				onSelectedVoiceIdChange={setCartesiaVoiceId}
+			/>
+
+			{/* How to use */}
+			<div className="rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-gray-700 dark:bg-gray-800/40">
+				<h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
+					How to generate a video
+				</h3>
+				<ol className="space-y-3">
+					{[
+						'Finish writing and scoring your article in the Workspace',
+						'Click Generate Video in the article toolbar',
+						'Choose duration, quality, and caption settings — then download your MP4'
+					].map((step, i) => (
+						<li key={i} className="flex items-start gap-3">
+							<span className="bg-brand-500 mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white">
+								{i + 1}
+							</span>
+							<span className="text-sm text-gray-600 dark:text-gray-400">{step}</span>
+						</li>
+					))}
+				</ol>
+			</div>
+
+			<p className="text-xs text-gray-400 dark:text-gray-500">
+				Video generation is available on Builder tier and above. Videos are stored in your Sharkly
+				account for 7 days.
+			</p>
+		</div>
+	);
+
 	const integrationsFields = initial ? (
-		<div className="space-y-6">
+		<div className="space-y-8">
 			<div>
-				<h3 className="mb-3 font-medium text-gray-900 dark:text-white">Google Search Console</h3>
+				<h3 className="mb-1 text-sm font-semibold text-gray-900 dark:text-white">
+					Google Search Console
+				</h3>
+				<p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+					Connect to pull live rankings, impressions, and CTR data for this site.
+				</p>
 				<GSCConnectionManager siteId={initial.id} siteName={initial.name} />
 			</div>
-			<div>
-				<h3 className="mb-3 flex items-center gap-2 font-medium text-gray-900 dark:text-white">
+			<div className="border-t border-gray-100 pt-6 dark:border-gray-800">
+				<h3 className="mb-1 flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
 					Shopify
 					<Tooltip
 						content="If you uninstalled the Sharkly app from your Shopify store, it will take 48 hours for Shopify to trigger the removal of your store from Sharkly."
 						tooltipPosition="top"
 						usePortal
 					>
-						<span className="text-xs text-gray-500 dark:text-gray-400">
+						<span className="text-gray-400 dark:text-gray-500">
 							<Info className="size-4" />
 						</span>
 					</Tooltip>
 				</h3>
+				<p className="mb-4 text-xs text-gray-500 dark:text-gray-400">
+					Link your Shopify store to enable ecommerce SEO features and product page optimization.
+				</p>
 				<ShopifyConnectionStatus siteId={initial.id} siteName={initial.name} />
 			</div>
 		</div>
@@ -757,66 +833,90 @@ export default function SiteDetailForm({
 	const formContent =
 		variant === 'page' ? (
 			<Tabs defaultValue="general" className="w-full">
-				<TabsList className="mb-6 flex h-auto flex-wrap gap-1 rounded-none border-b border-gray-200 bg-transparent p-0 pb-2 dark:border-gray-700">
-					<TabsTrigger
-						value="general"
-						className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
-					>
-						<Settings className="mr-2 size-4" />
+				<TabsList className="mb-8 flex h-auto gap-0 overflow-x-auto rounded-none border-b border-gray-200 bg-transparent p-0 dark:border-gray-700">
+					<TabsTrigger value="general" className={TAB_CLASS}>
 						General
 					</TabsTrigger>
-					<TabsTrigger
-						value="branding"
-						className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
-					>
-						<Palette className="mr-2 size-4" />
+					<TabsTrigger value="branding" className={TAB_CLASS}>
+						<Palette className="size-3.5" />
 						Branding
 					</TabsTrigger>
-					<TabsTrigger
-						value="business"
-						className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
-					>
-						<Building2 className="mr-2 size-4" />
+					<TabsTrigger value="business" className={TAB_CLASS}>
+						<Building2 className="size-3.5" />
 						Business / E-E-A-T
 					</TabsTrigger>
-					<TabsTrigger
-						value="content"
-						className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
-					>
-						<FileText className="mr-2 size-4" />
+					<TabsTrigger value="content" className={TAB_CLASS}>
+						<FileText className="size-3.5" />
 						Content
 					</TabsTrigger>
 					{initial && (
-						<TabsTrigger
-							value="integrations"
-							className="data-[state=active]:border-brand-500 data-[state=active]:text-brand-600 dark:data-[state=active]:text-brand-400 rounded-none border-b-2 border-transparent px-4 py-2"
-						>
-							<Plug className="mr-2 size-4" />
+						<TabsTrigger value="video" className={TAB_CLASS}>
+							<Film className="size-3.5" />
+							Video
+						</TabsTrigger>
+					)}
+					{initial && (
+						<TabsTrigger value="integrations" className={TAB_CLASS}>
+							<Plug className="size-3.5" />
 							Integrations
 						</TabsTrigger>
 					)}
 				</TabsList>
+
 				<TabsContent value="general" className="mt-0 space-y-6">
+					<TabHeading
+						title="General settings"
+						description="Basic site identity, URL, platform, and niche. Used across strategy and content generation."
+					/>
 					{generalFields}
 				</TabsContent>
+
 				<TabsContent value="branding" className="mt-0 space-y-6">
+					<TabHeading
+						title="Branding"
+						description="Logo, writing tone, terms to use or avoid, and target language. Applied to all AI-generated content."
+					/>
 					{brandingFields}
 				</TabsContent>
+
 				<TabsContent value="business" className="mt-0 space-y-6">
+					<TabHeading
+						title="Business & E-E-A-T"
+						description="Author bio, business profiles, and review data. Signals expertise and trust to Google."
+					/>
 					{businessFields}
 				</TabsContent>
+
 				<TabsContent value="content" className="mt-0 space-y-6">
+					<TabHeading
+						title="Content strategy"
+						description="Original insight, target customer, and competitor sites that inform content generation."
+					/>
 					{contentFields}
 				</TabsContent>
+
+				{initial && (
+					<TabsContent value="video" className="mt-0 space-y-6">
+						<TabHeading
+							title="Blog to Video"
+							description="Turn published articles into narrated videos for YouTube, social, or your website."
+						/>
+						{videoFields}
+					</TabsContent>
+				)}
+
 				{initial && (
 					<TabsContent value="integrations" className="mt-0">
+						<TabHeading
+							title="Integrations"
+							description="Connect external services to pull live data into Sharkly."
+						/>
 						{integrationsFields}
 					</TabsContent>
 				)}
 			</Tabs>
 		) : (
 			<div className="space-y-6">
-				{/* Sheet: flat layout for Add site */}
 				{generalFields}
 				{brandingFields}
 				{businessFields}
@@ -828,19 +928,34 @@ export default function SiteDetailForm({
 	return (
 		<form
 			onSubmit={handleSubmit}
-			className="space-y-6 rounded-lg border border-gray-200 bg-white p-3 dark:bg-gray-900"
+			className={
+				variant === 'page'
+					? 'space-y-0'
+					: 'space-y-6 rounded-xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900'
+			}
 		>
 			{formContent}
 
-			{/* Submit */}
-			<div className="flex max-w-sm gap-3 pt-4">
+			{/* Submit / Delete */}
+			<div
+				className={`flex items-center gap-3 pt-6 ${
+					variant === 'page' ? 'border-t border-gray-100 dark:border-gray-800' : ''
+				}`}
+			>
 				<Button
 					type="submit"
-					className="bg-brand-500 hover:bg-brand-600 flex-1 text-white"
+					className="bg-brand-500 hover:bg-brand-600 text-white"
 					disabled={!name.trim() || disabled}
 				>
 					{initial ? 'Save Changes' : 'Add Site'}
 				</Button>
+
+				{!initial && variant === 'sheet' && (
+					<Button type="button" variant="outline" onClick={onCancel} disabled={disabled}>
+						Cancel
+					</Button>
+				)}
+
 				{initial &&
 					(deleteCheckLoading ? (
 						<Tooltip
@@ -857,7 +972,7 @@ export default function SiteDetailForm({
 									disabled
 									startIcon={<Trash2 className="size-4" />}
 								>
-									Delete
+									Delete site
 								</Button>
 							</span>
 						</Tooltip>
@@ -877,7 +992,7 @@ export default function SiteDetailForm({
 									onClick={() => setDeleteBlockedDialogOpen(true)}
 									startIcon={<Trash2 className="size-4" />}
 								>
-									Delete
+									Delete site
 								</Button>
 							</span>
 						</Tooltip>
@@ -891,7 +1006,7 @@ export default function SiteDetailForm({
 							disabled={disabled}
 							startIcon={<Trash2 className="size-4" />}
 						>
-							Delete
+							Delete site
 						</Button>
 					))}
 			</div>
