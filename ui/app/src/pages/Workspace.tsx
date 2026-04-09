@@ -119,6 +119,7 @@ import {
 } from '../lib/videoGenerationProgress';
 import type { VideoScript } from '../types/videoScript';
 import type { VideoBranding, VideoDraftRenderOptions } from '../types/videoBranding';
+import { FEATURE_VIDEOS_UI } from '../config/featureFlags';
 
 /** Task steps for brief generation — summarized, no internal detail */
 // Focus page: unified Research & Write flow (Step 1 = brief, Step 2 = article)
@@ -2092,43 +2093,47 @@ export default function Workspace() {
 				}}
 			/>
 
-			<TaskProgressWidget
-				open={videoGenWidgetOpen}
-				title="Generating video"
-				status={videoGenWidgetStatus}
-				steps={videoGenWidgetSteps}
-				errorMessage={videoGenWidgetError}
-				errorDetail={videoGenWidgetErrorDetail}
-				disableAutoAdvance
-				doneMessage="Your video is ready. We open it in a new tab — if nothing appeared, your browser may have blocked the pop-up. Use Open video below."
-				doneLinkHref={videoGenDoneUrl ?? undefined}
-				doneLinkLabel="Open video"
-				onClose={() => {
-					setVideoGenWidgetOpen(false);
-					setVideoGenWidgetError(undefined);
-					setVideoGenWidgetErrorDetail(undefined);
-					setVideoGenDoneUrl(null);
-				}}
-			/>
+			{FEATURE_VIDEOS_UI && (
+				<>
+					<TaskProgressWidget
+						open={videoGenWidgetOpen}
+						title="Generating video"
+						status={videoGenWidgetStatus}
+						steps={videoGenWidgetSteps}
+						errorMessage={videoGenWidgetError}
+						errorDetail={videoGenWidgetErrorDetail}
+						disableAutoAdvance
+						doneMessage="Your video is ready. We open it in a new tab — if nothing appeared, your browser may have blocked the pop-up. Use Open video below."
+						doneLinkHref={videoGenDoneUrl ?? undefined}
+						doneLinkLabel="Open video"
+						onClose={() => {
+							setVideoGenWidgetOpen(false);
+							setVideoGenWidgetError(undefined);
+							setVideoGenWidgetErrorDetail(undefined);
+							setVideoGenDoneUrl(null);
+						}}
+					/>
 
-			<TaskProgressWidget
-				open={scriptGenWidgetOpen}
-				title="Generating video script"
-				status={scriptGenWidgetStatus}
-				steps={scriptGenWidgetSteps}
-				errorMessage={scriptGenWidgetError}
-				errorDetail={scriptGenWidgetErrorDetail}
-				stepInterval={14000}
-				doneMessage="Your script is ready in the video editor. You can edit scenes, then continue to branding and render."
-				className={
-					videoGenWidgetOpen || taskWidgetOpen ? 'bottom-88' : undefined
-				}
-				onClose={() => {
-					setScriptGenWidgetOpen(false);
-					setScriptGenWidgetError(undefined);
-					setScriptGenWidgetErrorDetail(undefined);
-				}}
-			/>
+					<TaskProgressWidget
+						open={scriptGenWidgetOpen}
+						title="Generating video script"
+						status={scriptGenWidgetStatus}
+						steps={scriptGenWidgetSteps}
+						errorMessage={scriptGenWidgetError}
+						errorDetail={scriptGenWidgetErrorDetail}
+						stepInterval={14000}
+						doneMessage="Your script is ready in the video editor. You can edit scenes, then continue to branding and render."
+						className={
+							videoGenWidgetOpen || taskWidgetOpen ? 'bottom-88' : undefined
+						}
+						onClose={() => {
+							setScriptGenWidgetOpen(false);
+							setScriptGenWidgetError(undefined);
+							setScriptGenWidgetErrorDetail(undefined);
+						}}
+					/>
+				</>
+			)}
 
 			<Dialog
 				open={igsModalOpen}
@@ -2831,63 +2836,65 @@ export default function Workspace() {
 										<ArticleEditorToolbar
 											editor={editor}
 											trailingSlot={
-												<span className="inline-flex items-center gap-1">
-													{page?.videoOutputUrl ? (
-														<button
-															type="button"
-															onClick={() =>
-																window.open(
-																	page.videoOutputUrl!,
-																	'_blank',
-																	'noopener,noreferrer'
-																)
-															}
-															className="text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-950/30 flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50/80 px-2 py-1.5 text-xs font-medium dark:border-brand-800 dark:bg-brand-950/40"
-														>
-															<ExternalLink className="size-3.5" />
-															View video
-														</button>
-													) : null}
-													<Tooltip
-														content={
-															!hasPlanAtLeast(organization, 'builder')
-																? 'Video generation requires Builder plan or higher.'
-																: creditsRemaining < CREDIT_COSTS.VIDEO_SCRIPT_GENERATION
-																	? `You need at least ${CREDIT_COSTS.VIDEO_SCRIPT_GENERATION} credits to generate a script (${CREDIT_COSTS.VIDEO_GENERATION} credits total for script + render).`
-																	: !hasEditorContent
-																		? 'Add article content before generating a video.'
-																		: page?.videoOutputUrl
-																			? 'Create a new script and render another MP4. Narration voice from Site → Video.'
-																			: 'Two steps: generate an editable script, then render the MP4. Narration voice from Site → Video.'
-														}
-														tooltipPosition="bottom"
-													>
-														<span className="inline-flex">
+												FEATURE_VIDEOS_UI ? (
+													<span className="inline-flex items-center gap-1">
+														{page?.videoOutputUrl ? (
 															<button
 																type="button"
-																onClick={() => setGenerateVideoOpen(true)}
-																disabled={
-																	videoJobSubmitting ||
-																	scriptGenSubmitting ||
-																	!hasEditorContent ||
-																	!hasPlanAtLeast(organization, 'builder') ||
-																	creditsRemaining < CREDIT_COSTS.VIDEO_SCRIPT_GENERATION
+																onClick={() =>
+																	window.open(
+																		page.videoOutputUrl!,
+																		'_blank',
+																		'noopener,noreferrer'
+																	)
 																}
-																className="text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/30 flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+																className="text-brand-700 dark:text-brand-300 hover:bg-brand-50 dark:hover:bg-brand-950/30 flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50/80 px-2 py-1.5 text-xs font-medium dark:border-brand-800 dark:bg-brand-950/40"
 															>
-																{videoJobSubmitting || scriptGenSubmitting ? (
-																	<Loader2 className="size-3.5 animate-spin" />
-																) : (
-																	<Video className="size-3.5" />
-																)}
-																{page?.videoOutputUrl ? 'New video' : 'Generate video'}
-																<span className="ml-1 inline-flex items-center gap-1 opacity-90">
-																	<CreditCost amount={CREDIT_COSTS.VIDEO_GENERATION} />
-																</span>
+																<ExternalLink className="size-3.5" />
+																View video
 															</button>
-														</span>
-													</Tooltip>
-												</span>
+														) : null}
+														<Tooltip
+															content={
+																!hasPlanAtLeast(organization, 'builder')
+																	? 'Video generation requires Builder plan or higher.'
+																	: creditsRemaining < CREDIT_COSTS.VIDEO_SCRIPT_GENERATION
+																		? `You need at least ${CREDIT_COSTS.VIDEO_SCRIPT_GENERATION} credits to generate a script (${CREDIT_COSTS.VIDEO_GENERATION} credits total for script + render).`
+																		: !hasEditorContent
+																			? 'Add article content before generating a video.'
+																			: page?.videoOutputUrl
+																				? 'Create a new script and render another MP4. Narration voice from Site → Video.'
+																				: 'Two steps: generate an editable script, then render the MP4. Narration voice from Site → Video.'
+															}
+															tooltipPosition="bottom"
+														>
+															<span className="inline-flex">
+																<button
+																	type="button"
+																	onClick={() => setGenerateVideoOpen(true)}
+																	disabled={
+																		videoJobSubmitting ||
+																		scriptGenSubmitting ||
+																		!hasEditorContent ||
+																		!hasPlanAtLeast(organization, 'builder') ||
+																		creditsRemaining < CREDIT_COSTS.VIDEO_SCRIPT_GENERATION
+																	}
+																	className="text-brand-600 dark:text-brand-400 hover:bg-brand-50 dark:hover:bg-brand-950/30 flex items-center gap-1.5 rounded-md border border-transparent px-2 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+																>
+																	{videoJobSubmitting || scriptGenSubmitting ? (
+																		<Loader2 className="size-3.5 animate-spin" />
+																	) : (
+																		<Video className="size-3.5" />
+																	)}
+																	{page?.videoOutputUrl ? 'New video' : 'Generate video'}
+																	<span className="ml-1 inline-flex items-center gap-1 opacity-90">
+																		<CreditCost amount={CREDIT_COSTS.VIDEO_GENERATION} />
+																	</span>
+																</button>
+															</span>
+														</Tooltip>
+													</span>
+												) : undefined
 											}
 										/>
 
@@ -4002,25 +4009,27 @@ export default function Workspace() {
 				onSaved={refetch}
 			/>
 
-			<GenerateVideoModal
-				open={generateVideoOpen}
-				onOpenChange={setGenerateVideoOpen}
-				articleContentJson={editor ? JSON.stringify(editor.getJSON()) : ''}
-				pageId={page?.id ?? null}
-				videoDraftId={page?.videoDraftId ?? null}
-				siteCartesiaVoiceId={videoSiteVoiceId ?? null}
-				savedVideoScriptDraft={page?.videoScriptDraft ?? null}
-				savedVideoRenderOptions={page?.videoRenderOptionsDraft ?? null}
-				siteVideoBranding={
-					cluster?.siteId ? (sites.find((s) => s.id === cluster.siteId)?.videoBranding ?? null) : null
-				}
-				onPersistVideoDraft={persistVideoDraftFromModal}
-				onPersistSiteVideoBranding={persistSiteVideoBranding}
-				onGenerateScript={handleModalGenerateScript}
-				onRenderVideo={handleModalRenderVideo}
-				scriptGenerating={scriptGenSubmitting}
-				videoSubmitting={videoJobSubmitting}
-			/>
+			{FEATURE_VIDEOS_UI && (
+				<GenerateVideoModal
+					open={generateVideoOpen}
+					onOpenChange={setGenerateVideoOpen}
+					articleContentJson={editor ? JSON.stringify(editor.getJSON()) : ''}
+					pageId={page?.id ?? null}
+					videoDraftId={page?.videoDraftId ?? null}
+					siteCartesiaVoiceId={videoSiteVoiceId ?? null}
+					savedVideoScriptDraft={page?.videoScriptDraft ?? null}
+					savedVideoRenderOptions={page?.videoRenderOptionsDraft ?? null}
+					siteVideoBranding={
+						cluster?.siteId ? (sites.find((s) => s.id === cluster.siteId)?.videoBranding ?? null) : null
+					}
+					onPersistVideoDraft={persistVideoDraftFromModal}
+					onPersistSiteVideoBranding={persistSiteVideoBranding}
+					onGenerateScript={handleModalGenerateScript}
+					onRenderVideo={handleModalRenderVideo}
+					scriptGenerating={scriptGenSubmitting}
+					videoSubmitting={videoJobSubmitting}
+				/>
+			)}
 
 			{/* S2-15: Diagnose This Page — 7-step SEO decision tree */}
 			<DiagnoseModal open={diagnoseOpen} onClose={() => setDiagnoseOpen(false)} pageId={id ?? ''} />

@@ -58,11 +58,13 @@ class RemotionRenderer:
         _ = job_id  # reserved for logging / future artifact names
         if not REMOTION_DIR.is_dir():
             raise RuntimeError(f"Remotion project missing: {REMOTION_DIR}")
-        index = REMOTION_DIR / "src" / "index.ts"
-        if not index.is_file():
-            raise RuntimeError(f"Remotion entry not found: {index}")
+        entry = REMOTION_DIR / "src" / "index.ts"
+        if not entry.is_file():
+            raise RuntimeError(f"Remotion entry not found: {entry}")
 
-        output_path = self.output_dir / "video_no_audio.mp4"
+        # Absolute path — Remotion runs with cwd=video-templates; a relative path would resolve
+        # under video-templates/ and not where the worker writes (video-service/output/jobs/...).
+        output_path = (self.output_dir / "video_no_audio.mp4").resolve()
         props: dict[str, Any] = {
             "scenes": scenes,
             "brand": self._build_brand_prop(),
@@ -79,6 +81,7 @@ class RemotionRenderer:
             npx,
             "remotion",
             "render",
+            str(entry),
             "VideoComposition",
             str(output_path),
             "--props",
@@ -88,7 +91,17 @@ class RemotionRenderer:
             "--codec",
             "h264",
         ]
-        log.info("remotion render start job_id=%s crf=%s", job_id, self._quality_to_crf())
+        # Remotion defaults to high parallelism (heavy CPU/fan on laptops). Set in repo root .env e.g.
+        # REMOTION_CONCURRENCY=2  or  REMOTION_CONCURRENCY=50%
+        _conc = (os.environ.get("REMOTION_CONCURRENCY") or "").strip()
+        if _conc:
+            cmd.extend(["--concurrency", _conc])
+        log.info(
+            "remotion render start job_id=%s crf=%s concurrency=%s",
+            job_id,
+            self._quality_to_crf(),
+            _conc or "(default)",
+        )
         result = subprocess.run(
             cmd,
             cwd=str(REMOTION_DIR),

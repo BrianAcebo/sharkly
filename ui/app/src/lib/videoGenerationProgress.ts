@@ -33,8 +33,12 @@ function activeIndex(status: string, currentStep: string | null): number {
 	return 0;
 }
 
-/** When status=failed, current_step is often null — use coarse progress from the worker. */
-function failedStepIndex(progress: number): number {
+/** When status=failed, prefer worker `current_step`; else infer from coarse progress. */
+function failedStepIndex(progress: number, currentStep: string | null): number {
+	if (currentStep) {
+		const n = STEP_ORDER[currentStep];
+		if (n !== undefined) return n;
+	}
 	if (progress >= 88) return 5;
 	if (progress >= 72) return 4;
 	if (progress >= 42) return 3;
@@ -53,7 +57,10 @@ export function videoJobToTaskSteps(
 		return DEFS.map((d) => ({ ...d, status: 'complete' as const }));
 	}
 
-	const idx = status === 'failed' ? failedStepIndex(progress) : activeIndex(status, currentStep);
+	const idx =
+		status === 'failed'
+			? failedStepIndex(progress, currentStep)
+			: activeIndex(status, currentStep);
 
 	return DEFS.map((d, i) => {
 		const st: TaskStep['status'] = i < idx ? 'complete' : i === idx ? 'active' : 'pending';

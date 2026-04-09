@@ -166,7 +166,8 @@ def process_video_job(job_id: str, payload: dict[str, Any]) -> None:
             )
             clip_paths = [video_no_audio]
         except (RuntimeError, ValueError) as e:
-            update_status(job_id, "failed", None, 0, error=f"Render: {e}")
+            # Keep current_step + coarse progress so the app progress UI pins the failed stage (not "Queued").
+            update_status(job_id, "failed", "rendering_scenes", 50, error=f"Render: {e}")
             return
 
         log.info(

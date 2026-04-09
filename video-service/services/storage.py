@@ -47,7 +47,18 @@ def upload_video_to_storage(job_id: str, local_path: str) -> str:
         "content-type": "video/mp4",
         "upsert": "true",
     }
-    api.upload(storage_path, file_bytes, file_options=opts)
+    try:
+        api.upload(storage_path, file_bytes, file_options=opts)
+    except Exception as e:
+        err_s = str(e).lower()
+        if "too large" in err_s or "payload" in err_s:
+            raise RuntimeError(
+                "Video upload rejected: file exceeds Supabase Storage max size. "
+                "Raise the global limit in Supabase Dashboard → Storage → Settings (Pro+); "
+                "the Free tier max is 50 MB and cannot be increased. "
+                "Or reduce size: shorter script, render quality 'low', or FFMPEG_FINAL_CRF=26 in .env."
+            ) from e
+        raise
 
     signed = api.create_signed_url(storage_path, ttl)
     if isinstance(signed, dict) and signed.get("signedURL"):

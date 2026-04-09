@@ -37,6 +37,8 @@ export const TRANSITIONS = new Set([
   'wipe_right',
 ] as const);
 
+export type Transition = 'cut' | 'fade' | 'slide_up' | 'wipe_left' | 'wipe_right';
+
 /** Valid accent color names (map to hex via brand config). */
 export const ACCENT_COLORS = new Set([
   'accent',
@@ -44,6 +46,8 @@ export const ACCENT_COLORS = new Set([
   'muted',
   'primary_text',
 ] as const);
+
+export type AccentColorName = 'accent' | 'gold' | 'muted' | 'primary_text';
 
 /** Allowed animation_style values per scene type. */
 export const ANIMATION_BY_TYPE: Record<string, readonly string[]> = {
@@ -90,13 +94,13 @@ export function coerceAnimationStyle(sceneType: string, animation: string): stri
 }
 
 /** Same as Python `_coerce_transition_to_allowed`. */
-export function normalizeTransition(transitionIn: string): string {
+export function normalizeTransition(transitionIn: string): Transition {
   const t = transitionIn.trim();
-  return TRANSITIONS.has(t) ? t : 'fade';
+  return TRANSITIONS.has(t as Transition) ? (t as Transition) : 'fade';
 }
 
 /** Same as Python `_coerce_accent_to_allowed`. */
-export function normalizeAccentColor(accent: string): string {
+export function normalizeAccentColor(accent: string): AccentColorName {
   const c = accent.trim();
-  return ACCENT_COLORS.has(c) ? c : 'accent';
+  return ACCENT_COLORS.has(c as AccentColorName) ? (c as AccentColorName) : 'accent';
 }

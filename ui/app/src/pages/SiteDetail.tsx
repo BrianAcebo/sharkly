@@ -181,7 +181,7 @@ export default function SiteDetail() {
 			<PageMeta title={site.name} description="Site settings" />
 			<PageHeader
 				title={site.name}
-				subtitle="Configure your site settings, integrations, and video generation"
+				subtitle="Configure your site settings and integrations"
 				breadcrumb={
 					<Link to="/sites" className="text-brand-500 hover:underline dark:text-brand-400">
 						<ArrowLeft className="mr-1 inline size-3" />

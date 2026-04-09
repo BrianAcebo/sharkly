@@ -28,6 +28,7 @@ dev-ngrok:
 	cd api && npm run ngrok
 
 # Blog-to-video FastAPI (video-service) — port 8000; set VIDEO_SERVICE_URL=http://localhost:8000 in repo root .env (see docs/blog-to-video-spec.md §16)
+# macOS: `brew install ffmpeg` (provides ffmpeg + ffprobe for assemble/mux). Optional: REMOTION_CONCURRENCY=2 in .env to reduce CPU/fan during Remotion renders.
 # POSIX sh: cannot append `-m …` after a subshell `(...)` — use if/fi so `-m` is on the same command as the interpreter.
 dev-video:
 	cd video-service && if [ -x .venv/bin/python ]; then .venv/bin/python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000; else python3 -m uvicorn main:app --reload --host 127.0.0.1 --port 8000; fi

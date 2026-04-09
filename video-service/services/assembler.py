@@ -12,6 +12,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import List
@@ -24,7 +25,15 @@ def _which_or_raise(bin_name: str) -> str:
 
     p = which(bin_name)
     if not p:
-        raise RuntimeError(f"{bin_name} not found on PATH — install FFmpeg")
+        hint = (
+            " Install FFmpeg so both `ffmpeg` and `ffprobe` are on your PATH."
+            + (
+                " On macOS: `brew install ffmpeg`."
+                if sys.platform == "darwin"
+                else " See https://ffmpeg.org/download.html."
+            )
+        )
+        raise RuntimeError(f"{bin_name} not found on PATH —{hint}")
     return p
 
 

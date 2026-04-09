@@ -33,6 +33,7 @@ import { GSCConnectionManager } from '../gsc/GSCConnectionManager';
 import { ShopifyConnectionStatus } from '../shopify/ShopifyConnectionStatus';
 import { CartesiaVideoVoicePanel } from './CartesiaVideoVoicePanel';
 import type { Site } from '../../types/site';
+import { FEATURE_VIDEOS_UI } from '../../config/featureFlags';
 
 const MAX_LOGO_SIZE_MB = 5;
 const ALLOWED_LOGO_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -749,7 +750,7 @@ export default function SiteDetailForm({
 		</>
 	);
 
-	const videoFields = (
+	const videoFields = FEATURE_VIDEOS_UI ? (
 		<div className="space-y-5">
 			{/* Feature intro */}
 			<div className="flex gap-4 rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-800/40 dark:bg-blue-900/20">
@@ -796,7 +797,7 @@ export default function SiteDetailForm({
 				account for 7 days.
 			</p>
 		</div>
-	);
+	) : null;
 
 	const integrationsFields = initial ? (
 		<div className="space-y-8">
@@ -849,7 +850,7 @@ export default function SiteDetailForm({
 						<FileText className="size-3.5" />
 						Content
 					</TabsTrigger>
-					{initial && (
+					{initial && FEATURE_VIDEOS_UI && (
 						<TabsTrigger value="video" className={TAB_CLASS}>
 							<Film className="size-3.5" />
 							Video
@@ -895,7 +896,7 @@ export default function SiteDetailForm({
 					{contentFields}
 				</TabsContent>
 
-				{initial && (
+				{initial && FEATURE_VIDEOS_UI && (
 					<TabsContent value="video" className="mt-0 space-y-6">
 						<TabHeading
 							title="Blog to Video"

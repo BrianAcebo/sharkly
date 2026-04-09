@@ -761,6 +761,8 @@ SUPABASE_VIDEOS_BUCKET=videos
 SUPABASE_SIGNED_URL_TTL_SEC=604800
 ```
 
+**Storage upload size:** Supabase enforces a global max upload size (**Dashboard → Storage → Settings**). The Free tier cap is fixed at **50 MB**; Pro+ can raise it. If uploads fail with “Payload too large,” increase that limit, use a smaller render (shorter / lower quality / higher `FFMPEG_FINAL_CRF`), or split the workflow until the file fits.
+
 **Cartesia (Express voice routes + video service TTS)**
 
 ```bash
