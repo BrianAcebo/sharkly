@@ -1870,9 +1870,8 @@ export default function Technical() {
 							<div>
 								<p className="font-medium text-gray-900 dark:text-white">Full site audit reports</p>
 								<p className="mt-0.5 max-w-xl text-xs text-gray-500 dark:text-gray-400">
-									Health score, Domain Authority, Core Web Vitals, indexation, and{' '}
-									<strong className="font-medium text-gray-700 dark:text-gray-300">past snapshots</strong>{' '}
-									from onboarding or &quot;Run audit&quot; — separate from crawl history below.
+									Opens the report list first — pick a run to see the full snapshot (health score, DA,
+									CWV, indexation). Separate from crawl history below.
 								</p>
 							</div>
 						</div>
@@ -1880,7 +1879,7 @@ export default function Technical() {
 							type="button"
 							variant="outline"
 							className="shrink-0 border-brand-500/40 text-brand-700 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-950/40"
-							onClick={() => navigate(`/audit/${selectedSite.id}`)}
+							onClick={() => navigate('/audits')}
 							startIcon={<FileText className="size-4" />}
 						>
 							View reports & history

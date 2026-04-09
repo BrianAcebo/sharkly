@@ -53,6 +53,7 @@ import BlogAdmin from './pages/Admin/BlogAdmin';
 import BlogEditor from './pages/Admin/BlogEditor';
 import BlogCategories from './pages/Admin/BlogCategories';
 import AuditResults from './pages/AuditResults';
+import SiteAudits from './pages/SiteAudits';
 import SchemaGenerator from './pages/SchemaGenerator';
 import Ecommerce from './pages/Ecommerce';
 import EcommerceWorkspace from './pages/EcommerceWorkspace';
@@ -86,7 +87,8 @@ export default function App() {
 					<Route path="/schema-generator" element={<SchemaGenerator />} />
 					<Route path="/cro-studio/audit/:id" element={<CROAuditDetail />} />
 					<Route path="/cro-studio" element={<CROStudio />} />
-					<Route path="/audit/:siteId" element={<AuditResults />} />
+					<Route path="/audits" element={<SiteAudits />} />
+					<Route path="/audits/:snapshotId" element={<AuditResults />} />
 					{/* <Route path="/calendar" element={<Calendar />} /> */}
 					<Route path="/projects" element={<Navigate to="/sites" replace />} />
 						<Route path="/sites" element={<Sites />} />

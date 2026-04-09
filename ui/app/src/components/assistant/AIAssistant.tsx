@@ -79,7 +79,7 @@ const TOOL_CONFIG: Record<
 		icon: Server,
 		label: 'Technical Audit',
 		color: 'text-red-500',
-		resultPath: (r: { site_id?: string }) => (r?.site_id ? `/audit/${r.site_id}` : null)
+		resultPath: () => '/audits'
 	}
 };
 
@@ -330,7 +330,7 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 						<Button
 							type="button"
 							onClick={() =>
-								navigate(`/audit/${(tool.result as { site_id: string }).site_id}`)
+								navigate('/audits')
 							}
 							className="gap-2 bg-green-600 text-white hover:bg-green-700"
 						>

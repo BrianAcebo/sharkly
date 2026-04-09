@@ -238,7 +238,7 @@ export const runAudit = async (req: Request, res: Response) => {
 						message: `Audit for ${siteLabel} is ready. View results for issues and recommendations.`,
 						type: 'audit_complete',
 						priority: 'medium',
-						action_url: `/audit/${siteId}`,
+						action_url: '/audits',
 						metadata: { site_id: siteId }
 					});
 				}

@@ -17,6 +17,8 @@ import { useWeeklyPriorityStack } from '../hooks/useWeeklyPriorityStack';
 import { WeeklyPriorityStack } from '../components/shared/WeeklyPriorityStack';
 import { PublishingCadenceCard } from '../components/shared/PublishingCadenceCard';
 import AuditScoreCard from '../components/audit/AuditScoreCard';
+import { SiteHealthPanel } from '../components/dashboard/SiteHealthPanel';
+import { useAuditHistory } from '../hooks/useAuditHistory';
 
 export default function Dashboard() {
 	const { user } = useAuth();
@@ -25,6 +27,7 @@ export default function Dashboard() {
 	const { topics } = useTopics(selectedSite?.id ?? null);
 	const { publishedCount, avgSeoScore } = useDashboardStats(selectedSite?.id ?? null);
 	const { isConnected: gscConnected } = useGSCStatus(selectedSite?.id);
+	const { history: auditHistory, loading: auditHistoryLoading } = useAuditHistory(selectedSite?.id, 5);
 	const { avgPosition, totalClicks } = usePerformanceData({
 		siteId: selectedSite?.id,
 		days: 30,
@@ -108,10 +111,19 @@ export default function Dashboard() {
 			<SEOGrowthStagePanel stage={growthStage} />
 		</div>
 
-		{/* Section 4c: Site Audit Card */}
+		{/* Section 4c: Site audit + health rail — fills width on large screens */}
 		{selectedSite && (
-			<div className="mt-6 lg:max-w-sm">
-				<AuditScoreCard siteId={selectedSite.id} siteName={selectedSite.name} />
+			<div className="mt-6 grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+				<div className="min-w-0">
+					<AuditScoreCard />
+				</div>
+				<div className="min-w-0">
+					<SiteHealthPanel
+						gscConnected={gscConnected}
+						history={auditHistory}
+						historyLoading={auditHistoryLoading}
+					/>
+				</div>
 			</div>
 		)}
 

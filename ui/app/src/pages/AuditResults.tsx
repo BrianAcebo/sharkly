@@ -1,22 +1,33 @@
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams, Link, Navigate, useNavigate } from 'react-router';
 import { useAudit } from '../hooks/useAudit';
 import { Button } from '../components/ui/button';
-import { AlertCircle, CheckCircle2, AlertTriangle, XCircle, RotateCcw, History } from 'lucide-react';
+import {
+	AlertCircle,
+	CheckCircle2,
+	AlertTriangle,
+	XCircle,
+	RotateCcw,
+	ArrowLeft
+} from 'lucide-react';
 import PageMeta from '../components/common/PageMeta';
 import { useBreadcrumbs } from '../hooks/useBreadcrumbs';
 import { useEffect } from 'react';
-import { cn } from '../utils/common';
+import { useSiteContext } from '../contexts/SiteContext';
 
+/** Single saved technical SEO audit. Uses the site selected in the header; route is `/audits/:snapshotId`. */
 export default function AuditResults() {
-	const { siteId } = useParams<{ siteId: string }>();
-	const [searchParams, setSearchParams] = useSearchParams();
-	const snapshotId = searchParams.get('snapshot');
-	const { audit, isLoading, isInProgress, error, runAudit, history } = useAudit(siteId, snapshotId);
+	const { snapshotId } = useParams<{ snapshotId: string }>();
+	const navigate = useNavigate();
+	const { selectedSite } = useSiteContext();
+	const siteId = selectedSite?.id;
+
+	const { audit, isLoading, error, runAudit, refetch } = useAudit(siteId, snapshotId);
 
 	const handleRunAudit = async () => {
-		setSearchParams({});
 		await runAudit();
+		navigate('/audits');
 	};
+
 	const { setTitle } = useBreadcrumbs();
 
 	useEffect(() => {
@@ -24,31 +35,43 @@ export default function AuditResults() {
 	}, [setTitle]);
 
 	if (!siteId) {
-		return <div className="p-6">Site not found</div>;
+		return (
+			<div className="mx-auto max-w-6xl p-6">
+				<p className="text-gray-600 dark:text-gray-400">Select a site in the header to view this audit.</p>
+			</div>
+		);
+	}
+
+	if (!snapshotId) {
+		return <Navigate to="/audits" replace />;
 	}
 
 	if (isLoading && !audit) {
 		return (
 			<div className="p-6">
 				<div className="animate-pulse">
-					<div className="h-12 bg-gray-200 dark:bg-gray-700 rounded mb-6"></div>
-					<div className="h-64 bg-gray-200 dark:bg-gray-700 rounded"></div>
+					<div className="mb-6 h-12 rounded bg-gray-200 dark:bg-gray-700"></div>
+					<div className="h-64 rounded bg-gray-200 dark:bg-gray-700"></div>
 				</div>
 			</div>
 		);
 	}
 
-	if (isInProgress && !audit) {
+	if (error) {
 		return (
-			<div className="p-6">
-				<div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 text-center">
-					<div className="animate-spin h-12 w-12 border-4 border-blue-200 border-t-blue-500 rounded-full mx-auto mb-4"></div>
-					<h2 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-2">
-						Audit in Progress
-					</h2>
-					<p className="text-blue-700 dark:text-blue-200">
-						Scanning your website... This typically takes 10-30 seconds
-					</p>
+			<div className="mx-auto max-w-6xl space-y-4 p-6">
+				<Link
+					to="/audits"
+					className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+				>
+					<ArrowLeft className="size-4" />
+					All reports
+				</Link>
+				<div className="rounded-lg border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-950/30">
+					<p className="text-red-800 dark:text-red-200">{error}</p>
+					<Button className="mt-4" variant="outline" type="button" onClick={() => refetch()}>
+						Retry
+					</Button>
 				</div>
 			</div>
 		);
@@ -56,20 +79,15 @@ export default function AuditResults() {
 
 	if (!audit) {
 		return (
-			<div className="p-6">
-				<div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-lg p-12 text-center">
-					<AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-					<h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-						No Audit Available
-					</h2>
-					<p className="text-gray-600 dark:text-gray-400 mb-6">
-						Start your first site audit to get a detailed technical SEO report
-					</p>
-					<Button onClick={handleRunAudit} disabled={isLoading}>
-						<RotateCcw className="w-4 h-4 mr-2" />
-						Start Audit
-					</Button>
-				</div>
+			<div className="mx-auto max-w-6xl p-6">
+				<Link
+					to="/audits"
+					className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+				>
+					<ArrowLeft className="size-4" />
+					All reports
+				</Link>
+				<p className="mt-8 text-center text-gray-600 dark:text-gray-400">Report not found.</p>
 			</div>
 		);
 	}
@@ -119,85 +137,31 @@ export default function AuditResults() {
 
 			<div className="max-w-6xl mx-auto p-6 space-y-8">
 				{/* Header */}
-				<div className="flex justify-between items-start">
+				<div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
 					<div>
+						<Link
+							to="/audits"
+							className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-400"
+						>
+							<ArrowLeft className="size-4" />
+							All reports
+						</Link>
 						<h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
 							Site Technical Audit
 						</h1>
 						<p className="text-gray-600 dark:text-gray-400">
-							{snapshotId ? (
-								<span className="text-amber-700 dark:text-amber-300">
-									Viewing saved report from {new Date(audit.createdAt).toLocaleString()} — not
-									necessarily the latest crawl.
-								</span>
-							) : (
-								<>Last scanned: {new Date(audit.createdAt).toLocaleDateString()}</>
-							)}
+							<span className="text-amber-700 dark:text-amber-300">
+								Saved report · {new Date(audit.createdAt).toLocaleString()}
+							</span>
 						</p>
 					</div>
-					<div className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
-						{snapshotId && (
-							<Button variant="outline" onClick={() => setSearchParams({})}>
-								View latest audit
-							</Button>
-						)}
-						<Button onClick={handleRunAudit} disabled={isLoading}>
+					<div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+						<Button onClick={() => void handleRunAudit()} disabled={isLoading}>
 							<RotateCcw className="w-4 h-4 mr-2" />
 							Re-run Audit
 						</Button>
 					</div>
 				</div>
-
-				{history.length > 0 && (
-					<div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50">
-						<div className="mb-2 flex items-center gap-2">
-							<History className="h-4 w-4 text-gray-500" />
-							<h2 className="text-sm font-semibold text-gray-900 dark:text-white">Past reports</h2>
-						</div>
-						<p className="mb-3 text-xs text-gray-600 dark:text-gray-400">
-							Each run saves a snapshot (health score, crawl counts, DA/CWV). Open an older report to
-							compare with the current site state.
-						</p>
-						<div className="flex flex-wrap gap-2">
-							{history.map((h) => {
-								const latestId = history[0]?.id;
-								const active =
-									(snapshotId && h.id === snapshotId) ||
-									(!snapshotId && h.id === latestId);
-								return (
-									<button
-										key={h.id}
-										type="button"
-										onClick={() => {
-											if (h.id === latestId) setSearchParams({});
-											else setSearchParams({ snapshot: h.id });
-										}}
-										className={cn(
-											'rounded-lg border px-3 py-2 text-left text-xs transition-colors',
-											active
-												? 'border-brand-500 bg-brand-50 text-brand-900 dark:bg-brand-950/40 dark:text-brand-100'
-												: 'border-gray-200 bg-white hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-900 dark:hover:bg-gray-800'
-										)}
-									>
-										<span className="font-medium">
-											{new Date(h.created_at).toLocaleDateString()}{' '}
-											<span className="text-gray-500 dark:text-gray-400">
-												{new Date(h.created_at).toLocaleTimeString([], {
-													hour: '2-digit',
-													minute: '2-digit'
-												})}
-											</span>
-										</span>
-										<span className="mt-0.5 block text-[11px] text-gray-600 dark:text-gray-400">
-											Score {h.overall_score} · {h.health_status} · {h.crawl_total_issues ?? '—'}{' '}
-											issues
-										</span>
-									</button>
-								);
-							})}
-						</div>
-					</div>
-				)}
 
 				{/* Overall Score Card */}
 				<div className={`${getHealthBgColor(audit.healthStatus)} rounded-lg p-8 border border-current`}>

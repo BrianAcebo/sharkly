@@ -1,15 +1,13 @@
 import { useAudit } from '../../hooks/useAudit';
 import { Button } from '../ui/button';
 import { RotateCcw, AlertTriangle, AlertCircle, CheckCircle, XCircle, Circle } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
+import { useSiteContext } from '../../contexts/SiteContext';
 
-interface AuditScoreCardProps {
-	siteId: string;
-	siteName: string;
-}
-
-export default function AuditScoreCard({ siteId, siteName }: AuditScoreCardProps) {
-	const { audit, isLoading, isInProgress, runAudit } = useAudit(siteId);
+export default function AuditScoreCard() {
+	const { selectedSite } = useSiteContext();
+	const siteId = selectedSite?.id;
+	const { audit, isLoading, isInProgress, runAudit } = useAudit(siteId, 'latest');
 	const navigate = useNavigate();
 
 	const getHealthColor = (status: string | undefined) => {
@@ -38,9 +36,13 @@ export default function AuditScoreCard({ siteId, siteName }: AuditScoreCardProps
 		}
 	};
 
+	if (!siteId) {
+		return null;
+	}
+
 	if (isInProgress && !audit) {
 		return (
-			<div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-800">
+			<div className="flex h-full min-h-[280px] flex-col rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
 				<div className="flex items-center justify-between mb-4">
 					<h3 className="font-semibold text-gray-900 dark:text-white">Site Audit</h3>
 					<div className="animate-spin h-4 w-4 border-2 border-blue-200 border-t-blue-600 rounded-full"></div>
@@ -54,7 +56,7 @@ export default function AuditScoreCard({ siteId, siteName }: AuditScoreCardProps
 
 	if (!audit) {
 		return (
-			<div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-800">
+			<div className="flex h-full min-h-[280px] flex-col rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
 				<div className="flex items-center justify-between mb-4">
 					<h3 className="font-semibold text-gray-900 dark:text-white">Site Audit</h3>
 					<AlertTriangle className="h-5 w-5 text-yellow-500" />
@@ -76,7 +78,7 @@ export default function AuditScoreCard({ siteId, siteName }: AuditScoreCardProps
 	}
 
 	return (
-		<div className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-800">
+		<div className="flex h-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
 			{/* Header */}
 			<div className="px-6 py-4 border-b border-gray-200 dark:border-gray-800">
 				<div className="flex items-center justify-between">
@@ -95,7 +97,7 @@ export default function AuditScoreCard({ siteId, siteName }: AuditScoreCardProps
 			</div>
 
 			{/* Score and Status */}
-			<div className="px-6 py-6">
+			<div className="flex flex-1 flex-col px-6 py-6">
 				<div className="flex items-center gap-6 mb-6">
 					{/* Score Circle */}
 					<div className={`relative w-24 h-24 rounded-full bg-gradient-to-br ${getHealthColor(audit.healthStatus)} flex items-center justify-center flex-shrink-0`}>
@@ -163,12 +165,13 @@ export default function AuditScoreCard({ siteId, siteName }: AuditScoreCardProps
 					</div>
 				)}
 
-				{/* View Full Report Button */}
+				{/* View audit reports (list → pick a snapshot) */}
 				<button
-					onClick={() => navigate(`/audit/${siteId}`)}
-					className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300 transition"
+					type="button"
+					onClick={() => navigate('/technical')}
+					className="mt-auto w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
 				>
-					View Full Report
+					View Report
 				</button>
 			</div>
 		</div>

@@ -64,7 +64,7 @@ const TOOL_CONFIG: Record<
 		icon: Server,
 		label: 'Technical Audit',
 		color: 'text-red-500',
-		resultPath: (r: { site_id?: string }) => (r?.site_id ? `/audit/${r.site_id}` : null)
+		resultPath: () => '/audits'
 	}
 };
 
@@ -229,7 +229,7 @@ function ToolExecutionPanel({ tool }: { tool: ToolExecution }) {
 						<Button
 							size="sm"
 							className="h-7 text-xs"
-							onClick={() => navigate(`/audit/${(tool.result as { site_id: string }).site_id}`)}
+							onClick={() => navigate('/audits')}
 						>
 							Full report
 						</Button>

@@ -256,7 +256,7 @@ async function buildOrgNextActions(organizationId: string): Promise<{ success: b
 				priority: 'high',
 				title: `Run a technical audit: ${s.name}`,
 				description: 'This site has no completed audit on record — crawl health and issue counts are unknown.',
-				action_url: `/audit/${s.id}`,
+				action_url: '/audits',
 				source: 'org_overview'
 			});
 		}
@@ -273,7 +273,7 @@ async function buildOrgNextActions(organizationId: string): Promise<{ success: b
 			priority: s.audit_health_status === 'critical' || crit > 5 ? 'high' : 'medium',
 			title: `Technical health needs attention: ${s.name}`,
 			description: `Audit score ${s.audit_score ?? '—'}/100${crit ? ` · ${crit} critical issues` : ''}.`,
-			action_url: `/audit/${s.id}`,
+			action_url: '/audits',
 			source: 'org_overview'
 		});
 	}
@@ -360,7 +360,7 @@ async function buildSiteNextActions(
 				priority: 'high',
 				title: `Technical health: ${audit.health_status} (${score}/100)`,
 				description: `${crit} critical issues, ${total} total — review crawl, CWV, and indexation on the audit report.`,
-				action_url: `/audit/${siteId}`,
+				action_url: '/audits',
 				source: 'audit'
 			});
 		} else if (score < 70) {
@@ -368,7 +368,7 @@ async function buildSiteNextActions(
 				priority: 'medium',
 				title: `Audit score ${score}/100 — improvement opportunity`,
 				description: `${crit} critical · ${total} total issues.`,
-				action_url: `/audit/${siteId}`,
+				action_url: '/audits',
 				source: 'audit'
 			});
 		}
@@ -380,7 +380,7 @@ async function buildSiteNextActions(
 				priority: 'low',
 				title: text.length > 90 ? `${text.slice(0, 87)}…` : text,
 				description: 'From the latest technical audit recommendations.',
-				action_url: `/audit/${siteId}`,
+				action_url: '/audits',
 				source: 'audit'
 			});
 		}
@@ -389,7 +389,7 @@ async function buildSiteNextActions(
 			priority: 'high',
 			title: 'No technical audit on file for this site',
 			description: `Run an audit for ${siteName} to measure crawl issues, Core Web Vitals, and indexation.`,
-			action_url: `/audit/${siteId}`,
+			action_url: '/audits',
 			source: 'audit'
 		});
 	}
@@ -765,7 +765,7 @@ export async function executeTool(
 							warning_issues: auditResult.crawlResults.warningIssues,
 							total_issues: auditResult.crawlResults.totalIssuesFound,
 							recommendations_preview: preview,
-							report_url: `/audit/${siteId}`,
+							report_url: '/audits',
 							technical_seo_url: '/technical',
 							credits_used: cost
 						},
