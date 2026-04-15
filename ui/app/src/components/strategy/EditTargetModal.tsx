@@ -27,6 +27,7 @@ import InputField from '../form/input/InputField';
 import { Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Target, UpdateTargetInput } from '../../types/target';
+import { TargetIntentGuidance } from './TargetIntentGuidance';
 
 interface Props {
 	open: boolean;
@@ -155,6 +156,18 @@ export function EditTargetModal({ open, onClose, target, onSave, onDelete }: Pro
 								Use specific keywords that are relevant to the target. Generic keywords will likely
 								throw off the results and lead to topics not related to the target.
 							</p>
+							<TargetIntentGuidance
+								previewOnly
+								compact
+								className="mt-3"
+								name={form.name}
+								seedKeywords={form.seedKeywords
+									.split(/[,\n]/)
+									.map((s) => s.trim())
+									.filter(Boolean)}
+								destinationPageLabel={form.destinationPageLabel}
+								destinationPageUrl={form.destinationPageUrl}
+							/>
 						</div>
 					</div>
 					<DialogFooter className="flex-col gap-3 sm:flex-row sm:justify-between">

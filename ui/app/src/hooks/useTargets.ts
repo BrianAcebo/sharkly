@@ -12,7 +12,13 @@ function mapApiToTarget(raw: {
 	sortOrder: number;
 	createdAt: string;
 	updatedAt: string;
+	primarySearchIntent?: string | null;
+	searchIntentProbability?: number | null;
+	searchIntentSource?: string | null;
+	searchIntentPhrase?: string | null;
 }): Target {
+	const allowed = new Set(['informational', 'commercial', 'transactional', 'navigational']);
+	const pi = raw.primarySearchIntent;
 	return {
 		id: raw.id,
 		siteId: raw.siteId,
@@ -22,7 +28,15 @@ function mapApiToTarget(raw: {
 		seedKeywords: Array.isArray(raw.seedKeywords) ? raw.seedKeywords : [],
 		sortOrder: raw.sortOrder ?? 0,
 		createdAt: raw.createdAt,
-		updatedAt: raw.updatedAt
+		updatedAt: raw.updatedAt,
+		primarySearchIntent: pi && allowed.has(pi) ? (pi as Target['primarySearchIntent']) : null,
+		searchIntentProbability:
+			typeof raw.searchIntentProbability === 'number' ? raw.searchIntentProbability : null,
+		searchIntentSource:
+			raw.searchIntentSource === 'dataforseo' || raw.searchIntentSource === 'fallback'
+				? raw.searchIntentSource
+				: null,
+		searchIntentPhrase: raw.searchIntentPhrase ?? null
 	};
 }
 
@@ -55,6 +69,10 @@ export function useTargets(siteId: string | null) {
 				sortOrder: number;
 				createdAt: string;
 				updatedAt: string;
+				primarySearchIntent?: string | null;
+				searchIntentProbability?: number | null;
+				searchIntentSource?: string | null;
+				searchIntentPhrase?: string | null;
 			}>;
 			setTargets((Array.isArray(data) ? data : []).map(mapApiToTarget));
 		} catch (err) {

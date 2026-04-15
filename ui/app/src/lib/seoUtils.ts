@@ -1,13 +1,15 @@
 // Shared SEO utility functions used across Strategy, ClusterDetail, Workspace, etc.
 
 export type SearchIntent = 'informational' | 'commercial' | 'transactional';
+/** DataForSEO Labs search_intent includes navigational; we surface it for target guidance. */
+export type KeywordIntentKind = SearchIntent | 'navigational';
 export type FunnelStage = 'tofu' | 'mofu' | 'bofu' | 'money';
 
 /**
- * Classifies the primary search intent of a keyword.
- * Mirrors the same logic in api/src/controllers/clusters.ts.
+ * Last-resort intent when DataForSEO search_intent is unavailable (offline export, etc.).
+ * Mirrors api/src/utils/searchIntentFallback.ts — keep minimal.
  */
-export function detectSearchIntent(keyword: string): SearchIntent {
+export function fallbackSearchIntentFromKeyword(keyword: string): SearchIntent {
 	const kw = keyword.toLowerCase();
 	if (
 		/\b(buy|price|pricing|cost|hire|near me|discount|deal|free trial|sign up|get started|order|quote|shop)\b/.test(
@@ -22,6 +24,125 @@ export function detectSearchIntent(keyword: string): SearchIntent {
 	)
 		return 'commercial';
 	return 'informational';
+}
+
+/**
+ * Classifies the primary search intent of a keyword (regex fallback only).
+ * Prefer DataForSEO Labs via `/api/keywords/search-intent` for targets; this remains for topic tables and exports.
+ */
+export function detectSearchIntent(keyword: string): SearchIntent {
+	return fallbackSearchIntentFromKeyword(keyword);
+}
+
+/**
+ * When the user marked the destination as a product/collection/shop page, trust that over bare keywords
+ * (e.g. product name alone often classifies weakly as informational).
+ */
+export function inferIntentFromDestinationContext(
+	destinationPageLabel?: string | null,
+	destinationPageUrl?: string | null
+): SearchIntent | null {
+	const l = (destinationPageLabel ?? '').toLowerCase();
+	const u = (destinationPageUrl ?? '').toLowerCase();
+	if (!l.trim() && !u.trim()) return null;
+
+	if (/\/(collections?|products?)(\/|$|\?)/i.test(u)) return 'transactional';
+	if (/\/cart\b|\/checkout\b/i.test(u)) return 'transactional';
+
+	if (/product\s*page|collection\s*page/i.test(l)) return 'transactional';
+	if (/\b(shop|store)\s*page\b/i.test(l)) return 'transactional';
+	if (/\bcategory\s*page\b/i.test(l)) return 'commercial';
+	if (/\b(blog|article|guide)\s*page\b/i.test(l)) return 'informational';
+
+	return null;
+}
+
+/**
+ * Merge DataForSEO (or API) intent with optional destination-page hints.
+ * Example: keyword alone reads informational, but label says "Product page" → transactional.
+ */
+export function mergeTargetKeywordIntent(
+	dataForSeoKind: KeywordIntentKind | null | undefined,
+	destinationPageLabel: string | null | undefined,
+	destinationPageUrl: string | null | undefined,
+	keywordForFallback: string
+): KeywordIntentKind {
+	const dest = inferIntentFromDestinationContext(destinationPageLabel, destinationPageUrl);
+	const base: KeywordIntentKind =
+		dataForSeoKind ?? fallbackSearchIntentFromKeyword(keywordForFallback);
+	if (dest === 'transactional' && (base === 'informational' || base === 'navigational')) {
+		return 'transactional';
+	}
+	if (dest === 'commercial' && (base === 'informational' || base === 'navigational')) {
+		return 'commercial';
+	}
+	return base;
+}
+
+/** User-facing label for SEO search intent (not the same as funnel stage ToFu/MoFu/BoFu). */
+export function searchIntentDisplayLabel(intent: KeywordIntentKind): string {
+	switch (intent) {
+		case 'informational':
+			return 'Informational';
+		case 'commercial':
+			return 'Commercial';
+		case 'transactional':
+			return 'Transactional';
+		case 'navigational':
+			return 'Navigational';
+	}
+}
+
+/**
+ * Phrase used to infer search intent for a strategy target: first seed keyword, else target name.
+ * Matches how the backend defaults seeds when none are provided.
+ */
+export function getTargetIntentKeyword(name: string, seedKeywords?: string[] | null): string {
+	const seeds = (seedKeywords ?? []).map((s) => s.trim()).filter(Boolean);
+	if (seeds.length > 0) return seeds[0];
+	return (name ?? '').trim();
+}
+
+/**
+ * How to shape the destination URL and cluster plan so the target matches real search behavior.
+ */
+export function getTargetPageStrategyGuidance(intent: KeywordIntentKind): {
+	headline: string;
+	detail: string;
+	compactHint: string;
+} {
+	switch (intent) {
+		case 'informational':
+			return {
+				headline: 'Plan for educational content',
+				detail:
+					'This phrase reads as informational — people want to learn, not buy yet. Aim your destination page and topic clusters at guides, explainers, and deep articles. A generic product or service landing page usually will not match the query, so avoid treating this target like a thin sales page.',
+				compactHint:
+					'Favor guides and articles for your destination page — not a generic product or sales page.'
+			};
+		case 'commercial':
+			return {
+				headline: 'Plan for comparison and evaluation content',
+				detail:
+					'Searchers are weighing options (best, reviews, vs, alternatives). Your hub should support that journey — comparisons, proof, and clear criteria — rather than only top-of-funnel blog posts or a single brochure page.',
+				compactHint: 'Lean into comparisons and proof on your destination page — not awareness-only posts.'
+			};
+		case 'transactional':
+			return {
+				headline: 'Plan for a conversion-focused page',
+				detail:
+					'This phrase signals purchase or lead intent. Your destination URL should be a strong service, product, or landing page with a clear next step — not a tangential article that hides the offer.',
+				compactHint: 'Use a strong service, product, or landing page — searchers expect to convert.'
+			};
+		case 'navigational':
+			return {
+				headline: 'Plan for destination and findability',
+				detail:
+					'Many searches are navigational — people want a specific site, brand, or page. Make your destination URL the obvious canonical result: clear title, strong branding, internal links, and (where relevant) structured data so Google can surface the right landing experience.',
+				compactHint:
+					'Prioritize a definitive destination URL and on-site navigation — less of a long-form blog play.'
+			};
+	}
 }
 
 /**

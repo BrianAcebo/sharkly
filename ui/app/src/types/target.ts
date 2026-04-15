@@ -1,3 +1,10 @@
+/** Persisted from DataForSEO Labs on target save — matches KeywordIntentKind in seoUtils */
+export type TargetPrimarySearchIntent =
+	| 'informational'
+	| 'commercial'
+	| 'transactional'
+	| 'navigational';
+
 export interface Target {
 	id: string;
 	siteId: string;
@@ -8,6 +15,10 @@ export interface Target {
 	sortOrder: number;
 	createdAt: string;
 	updatedAt: string;
+	primarySearchIntent: TargetPrimarySearchIntent | null;
+	searchIntentProbability: number | null;
+	searchIntentSource: 'dataforseo' | 'fallback' | null;
+	searchIntentPhrase: string | null;
 }
 
 export interface CreateTargetInput {

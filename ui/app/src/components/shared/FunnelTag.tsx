@@ -8,25 +8,28 @@ const stageConfig: Record<
 	{ label: string; shortLabel: string; plainLabel: string; description: string; className: string }
 > = {
 	tofu: {
-		label: 'Informational',
-		shortLabel: 'Info',
+		label: 'ToFu',
+		shortLabel: 'ToFu',
 		plainLabel: 'New Visitors',
-		description: 'Informational — people discovering your business for the first time',
+		description:
+			'Top of funnel — awareness and discovery. (This is funnel stage, not the same as “informational search intent” in SEO.)',
 		className:
 			'bg-blue-light-50 text-blue-light-700 dark:bg-blue-light-900/30 dark:text-blue-light-400'
 	},
 	mofu: {
-		label: 'Commercial',
-		shortLabel: 'Commercial',
+		label: 'MoFu',
+		shortLabel: 'MoFu',
 		plainLabel: 'Interested',
-		description: 'Commercial — people comparing options and doing research',
+		description:
+			'Middle of funnel — consideration and deeper research. Not the same label as “commercial search intent” (comparison/buyer keywords).',
 		className: 'bg-warning-50 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400'
 	},
 	bofu: {
-		label: 'Transactional',
-		shortLabel: 'Transact.',
+		label: 'BoFu',
+		shortLabel: 'BoFu',
 		plainLabel: 'Ready to Buy',
-		description: 'Transactional — people close to making a decision or purchase',
+		description:
+			'Bottom of funnel — high purchase intent. (Funnel stage ≠ transactional keyword intent alone.)',
 		className: 'bg-success-50 text-success-700 dark:bg-success-900/30 dark:text-success-400'
 	},
 	money: {

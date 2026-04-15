@@ -14,6 +14,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../utils/supabaseClient.js';
 import { captureApiError } from '../utils/sentryCapture.js';
 import { resolveSiteDomainAuthority } from '../utils/siteDomainAuthority.js';
+import { resolveSearchIntentForTargetRow } from '../utils/targetSearchIntent.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
@@ -146,7 +147,7 @@ export const listTargets = async (req: Request, res: Response) => {
 	const { data, error } = await supabase
 		.from('targets')
 		.select(
-			'id, site_id, name, destination_page_url, destination_page_label, seed_keywords, sort_order, created_at, updated_at'
+			'id, site_id, name, destination_page_url, destination_page_label, seed_keywords, sort_order, created_at, updated_at, primary_search_intent, search_intent_probability, search_intent_source, search_intent_phrase'
 		)
 		.eq('site_id', siteId)
 		.order('sort_order', { ascending: true })
@@ -168,7 +169,11 @@ export const listTargets = async (req: Request, res: Response) => {
 			seedKeywords: t.seed_keywords ?? [],
 			sortOrder: t.sort_order ?? 0,
 			createdAt: t.created_at,
-			updatedAt: t.updated_at
+			updatedAt: t.updated_at,
+			primarySearchIntent: t.primary_search_intent ?? null,
+			searchIntentProbability: t.search_intent_probability ?? null,
+			searchIntentSource: t.search_intent_source ?? null,
+			searchIntentPhrase: t.search_intent_phrase ?? null
 		}))
 	);
 };
@@ -208,18 +213,38 @@ export const createTarget = async (req: Request, res: Response) => {
 
 	const sortOrder = (existing?.sort_order ?? -1) + 1;
 
+	const destUrl = body.destinationPageUrl?.trim() || null;
+	const destLabel = body.destinationPageLabel?.trim() || null;
+
+	let intentFields: Awaited<ReturnType<typeof resolveSearchIntentForTargetRow>>;
+	try {
+		intentFields = await resolveSearchIntentForTargetRow(name, seedKeywords, destLabel, destUrl);
+	} catch (e) {
+		console.error('[Targets] resolveSearchIntentForTargetRow error:', e);
+		intentFields = {
+			primary_search_intent: 'informational',
+			search_intent_probability: null,
+			search_intent_source: 'fallback',
+			search_intent_phrase: seedKeywords[0] ?? name
+		};
+	}
+
 	const { data: inserted, error } = await supabase
 		.from('targets')
 		.insert({
 			site_id: siteId,
 			name,
-			destination_page_url: body.destinationPageUrl?.trim() || null,
-			destination_page_label: body.destinationPageLabel?.trim() || null,
+			destination_page_url: destUrl,
+			destination_page_label: destLabel,
 			seed_keywords: seedKeywords,
-			sort_order: sortOrder
+			sort_order: sortOrder,
+			primary_search_intent: intentFields.primary_search_intent,
+			search_intent_probability: intentFields.search_intent_probability,
+			search_intent_source: intentFields.search_intent_source,
+			search_intent_phrase: intentFields.search_intent_phrase
 		})
 		.select(
-			'id, site_id, name, destination_page_url, destination_page_label, seed_keywords, sort_order, created_at, updated_at'
+			'id, site_id, name, destination_page_url, destination_page_label, seed_keywords, sort_order, created_at, updated_at, primary_search_intent, search_intent_probability, search_intent_source, search_intent_phrase'
 		)
 		.single();
 
@@ -238,7 +263,11 @@ export const createTarget = async (req: Request, res: Response) => {
 		seedKeywords: inserted.seed_keywords ?? [],
 		sortOrder: inserted.sort_order ?? 0,
 		createdAt: inserted.created_at,
-		updatedAt: inserted.updated_at
+		updatedAt: inserted.updated_at,
+		primarySearchIntent: inserted.primary_search_intent ?? null,
+		searchIntentProbability: inserted.search_intent_probability ?? null,
+		searchIntentSource: inserted.search_intent_source ?? null,
+		searchIntentPhrase: inserted.search_intent_phrase ?? null
 	});
 };
 
@@ -252,6 +281,18 @@ export const updateTarget = async (req: Request, res: Response) => {
 	if (!orgId) return res.status(400).json({ error: 'No organization found' });
 	const access = await assertTargetAccess(targetId, orgId);
 	if (!access) return res.status(404).json({ error: 'Target not found' });
+
+	const { data: current, error: curErr } = await supabase
+		.from('targets')
+		.select(
+			'name, seed_keywords, destination_page_url, destination_page_label'
+		)
+		.eq('id', targetId)
+		.single();
+
+	if (curErr || !current) {
+		return res.status(404).json({ error: 'Target not found' });
+	}
 
 	const body = req.body as {
 		name?: string;
@@ -274,12 +315,49 @@ export const updateTarget = async (req: Request, res: Response) => {
 	}
 	if (body.sortOrder !== undefined) updates.sort_order = Number(body.sortOrder);
 
+	const recomputeIntent =
+		body.name !== undefined ||
+		body.seedKeywords !== undefined ||
+		body.destinationPageUrl !== undefined ||
+		body.destinationPageLabel !== undefined;
+
+	if (recomputeIntent) {
+		const nextName = body.name !== undefined ? body.name.trim() : current.name;
+		const nextSeeds =
+			body.seedKeywords !== undefined
+				? (updates.seed_keywords as string[])
+				: (current.seed_keywords ?? []);
+		const nextDestUrl =
+			body.destinationPageUrl !== undefined
+				? (updates.destination_page_url as string | null)
+				: current.destination_page_url;
+		const nextDestLabel =
+			body.destinationPageLabel !== undefined
+				? (updates.destination_page_label as string | null)
+				: current.destination_page_label;
+
+		try {
+			const intentFields = await resolveSearchIntentForTargetRow(
+				nextName,
+				Array.isArray(nextSeeds) ? nextSeeds : [],
+				nextDestLabel,
+				nextDestUrl
+			);
+			updates.primary_search_intent = intentFields.primary_search_intent;
+			updates.search_intent_probability = intentFields.search_intent_probability;
+			updates.search_intent_source = intentFields.search_intent_source;
+			updates.search_intent_phrase = intentFields.search_intent_phrase;
+		} catch (e) {
+			console.error('[Targets] updateTarget resolveSearchIntent error:', e);
+		}
+	}
+
 	const { data, error } = await supabase
 		.from('targets')
 		.update(updates)
 		.eq('id', targetId)
 		.select(
-			'id, site_id, name, destination_page_url, destination_page_label, seed_keywords, sort_order, created_at, updated_at'
+			'id, site_id, name, destination_page_url, destination_page_label, seed_keywords, sort_order, created_at, updated_at, primary_search_intent, search_intent_probability, search_intent_source, search_intent_phrase'
 		)
 		.single();
 
@@ -298,7 +376,11 @@ export const updateTarget = async (req: Request, res: Response) => {
 		seedKeywords: data.seed_keywords ?? [],
 		sortOrder: data.sort_order ?? 0,
 		createdAt: data.created_at,
-		updatedAt: data.updated_at
+		updatedAt: data.updated_at,
+		primarySearchIntent: data.primary_search_intent ?? null,
+		searchIntentProbability: data.search_intent_probability ?? null,
+		searchIntentSource: data.search_intent_source ?? null,
+		searchIntentPhrase: data.search_intent_phrase ?? null
 	});
 };
 

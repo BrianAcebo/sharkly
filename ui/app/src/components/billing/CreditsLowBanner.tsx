@@ -9,19 +9,19 @@ export interface CreditsLowBannerProps {
 	organization: OrganizationRow | null;
 	/** When true, banner is hidden — avoids flash from placeholder 0 / 1 math before org loads */
 	loading: boolean;
-	/** Show when remaining / monthly allocation is strictly below this (default 20%) */
-	lowThreshold?: number;
+	/** Show only when remaining credits are strictly below this count (default 20) */
+	lowCreditsThreshold?: number;
 	className?: string;
 }
 
 /**
- * Warns when included credits are low vs this period’s allocation.
+ * Warns when included credits remaining are critically low (absolute count, not a % of period allocation).
  * Does not render while org/subscription is still loading or when the allocation cannot be determined.
  */
 export function CreditsLowBanner({
 	organization,
 	loading,
-	lowThreshold = 0.2,
+	lowCreditsThreshold = 20,
 	className = ''
 }: CreditsLowBannerProps) {
 	if (loading || !organization) {
@@ -35,7 +35,7 @@ export function CreditsLowBanner({
 
 	const remaining =
 		organization.included_credits_remaining ?? organization.included_credits ?? 0;
-	if (remaining / monthly >= lowThreshold) {
+	if (remaining >= lowCreditsThreshold) {
 		return null;
 	}
 

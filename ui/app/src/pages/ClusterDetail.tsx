@@ -989,11 +989,7 @@ export default function ClusterDetail() {
 			| 'mofu'
 			| 'bofu';
 		const intentLabel =
-			primaryIntent === 'tofu'
-				? 'Informational'
-				: primaryIntent === 'mofu'
-					? 'Commercial'
-					: 'Transactional';
+			primaryIntent === 'tofu' ? 'Mostly ToFu' : primaryIntent === 'mofu' ? 'Mostly MoFu' : 'Mostly BoFu';
 		const intentColor =
 			primaryIntent === 'tofu'
 				? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
@@ -1970,7 +1966,7 @@ export default function ClusterDetail() {
 												</div>
 												<div className="rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
 													<div className="text-[11px] font-semibold tracking-wider text-gray-400 uppercase">
-														Primary Intent
+														Primary funnel
 													</div>
 													<div className="mt-1">
 														<span
@@ -1980,9 +1976,8 @@ export default function ClusterDetail() {
 														</span>
 													</div>
 													<div className="mt-0.5 text-[11px] text-gray-400">
-														Info {clusterSummary.intentCounts.tofu} · Commercial{' '}
-														{clusterSummary.intentCounts.mofu} · Transact.{' '}
-														{clusterSummary.intentCounts.bofu}
+														ToFu {clusterSummary.intentCounts.tofu} · MoFu{' '}
+														{clusterSummary.intentCounts.mofu} · BoFu {clusterSummary.intentCounts.bofu}
 													</div>
 												</div>
 											</div>

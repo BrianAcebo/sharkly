@@ -1,14 +1,9 @@
 import * as XLSX from 'xlsx';
 import type { Topic } from '../hooks/useTopics';
-import { detectPageType } from './seoUtils';
+import { detectPageType, detectSearchIntent, searchIntentDisplayLabel } from './seoUtils';
 
-function funnelIntentLabel(funnel: Topic['funnel']): string {
-	const map: Record<Topic['funnel'], string> = {
-		tofu: 'Informational',
-		mofu: 'Commercial',
-		bofu: 'Transactional'
-	};
-	return map[funnel] ?? funnel;
+function searchIntentFromKeyword(keyword: string): string {
+	return searchIntentDisplayLabel(detectSearchIntent(keyword));
 }
 
 function authorityFitLabel(fit: Topic['authorityFit']): string {
@@ -88,7 +83,7 @@ export function downloadStrategyCsv(params: {
 		t.keyword,
 		t.reasoning,
 		detectPageType(t.keyword),
-		funnelIntentLabel(t.funnel),
+		searchIntentFromKeyword(t.keyword),
 		t.volume,
 		t.kd,
 		Number(t.cpc.toFixed(4)),
@@ -159,7 +154,7 @@ export function downloadStrategyXlsx(params: {
 			t.keyword,
 			t.reasoning,
 			detectPageType(t.keyword),
-			funnelIntentLabel(t.funnel),
+			searchIntentFromKeyword(t.keyword),
 			t.volume,
 			t.kd,
 			Number(t.cpc.toFixed(4)),
@@ -218,7 +213,7 @@ export function downloadStrategyXlsx(params: {
 			detectPageType(t.keyword),
 			t.volume,
 			t.kd,
-			funnelIntentLabel(t.funnel),
+			searchIntentFromKeyword(t.keyword),
 			authorityFitLabel(t.authorityFit),
 			t.status
 		])

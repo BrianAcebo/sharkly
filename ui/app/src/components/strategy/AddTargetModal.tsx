@@ -25,6 +25,7 @@ import { toast } from 'sonner';
 import { supabase } from '../../utils/supabaseClient';
 import { api } from '../../utils/api';
 import type { Target } from '../../types/target';
+import { TargetIntentGuidance } from './TargetIntentGuidance';
 
 /** Same steps as StrategyTargetDetail — consistent TaskProgressWidget experience */
 const TOPIC_PLAN_STEPS: TaskStep[] = [
@@ -296,6 +297,18 @@ export function AddTargetModal({ open, onClose, siteId, onTargetCreated }: Props
 									Use specific keywords that are relevant to the target. Generic keywords will
 									likely throw off the results and lead to topics not related to the target.
 								</p>
+								<TargetIntentGuidance
+									previewOnly
+									compact
+									className="mt-3"
+									name={form.name}
+									seedKeywords={form.seedKeywords
+										.split(/[,\n]/)
+										.map((s) => s.trim())
+										.filter(Boolean)}
+									destinationPageLabel={form.destinationPageLabel}
+									destinationPageUrl={form.destinationPageUrl}
+								/>
 							</div>
 							<DialogFooter>
 								<Button variant="outline" onClick={handleClose}>

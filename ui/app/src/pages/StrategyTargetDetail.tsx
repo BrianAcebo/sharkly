@@ -3,6 +3,7 @@ import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
 import { FunnelTag } from '../components/shared/FunnelTag';
+import { SearchIntentTag } from '../components/shared/SearchIntentTag';
 import { inferClusterContentPageType, pageTypeColor } from '../lib/seoUtils';
 import { CreditBadge, CreditCost } from '../components/shared/CreditBadge';
 import { TaskProgressWidget } from '../components/shared/TaskProgressWidget';
@@ -78,6 +79,7 @@ import { CREDIT_COSTS } from '../lib/credits';
 import { downloadStrategyCsv, downloadStrategyXlsx } from '../lib/strategyTargetExport';
 import { KeywordLookupModal } from '../components/strategy/KeywordLookupModal';
 import { EditTargetModal } from '../components/strategy/EditTargetModal';
+import { TargetIntentGuidance } from '../components/strategy/TargetIntentGuidance';
 import { MoveTopicModal } from '../components/strategy/MoveTopicModal';
 import { Slider } from '../components/ui/slider';
 import TextArea from '../components/form/input/TextArea';
@@ -1443,6 +1445,14 @@ export default function StrategyTargetDetail() {
 					</div>
 				</div>
 
+				<TargetIntentGuidance
+					target={target}
+					name={target.name}
+					seedKeywords={target.seedKeywords ?? []}
+					destinationPageLabel={target.destinationPageLabel}
+					destinationPageUrl={target.destinationPageUrl}
+				/>
+
 				<PageHeader
 					title=""
 					subtitle={
@@ -1737,7 +1747,7 @@ export default function StrategyTargetDetail() {
 													<td className="px-4 py-3 text-sm">{topic.volume.toLocaleString()}</td>
 													<td className="px-4 py-3 text-sm">{topic.kd}</td>
 													<td className="px-4 py-3">
-														<FunnelTag stage={topic.funnel} showTooltip />
+														<SearchIntentTag keyword={topic.keyword} showTooltip />
 													</td>
 													<td className="px-4 py-3 text-[13px]">
 														{topic.authorityFit === 'achievable' ? (

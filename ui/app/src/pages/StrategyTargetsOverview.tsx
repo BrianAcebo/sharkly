@@ -30,6 +30,7 @@ import { useTargets } from '../hooks/useTargets';
 import { useTopics } from '../hooks/useTopics';
 import { useClusters } from '../hooks/useClusters';
 import { AddTargetModal } from '../components/strategy/AddTargetModal';
+import { TargetIntentGuidance } from '../components/strategy/TargetIntentGuidance';
 import { toast } from 'sonner';
 import type { Target } from '../types/target';
 
@@ -149,6 +150,14 @@ export default function StrategyTargetsOverview() {
 												→ {target.destinationPageLabel}
 											</p>
 										)}
+										<TargetIntentGuidance
+											compact
+											target={target}
+											name={target.name}
+											seedKeywords={target.seedKeywords ?? []}
+											destinationPageLabel={target.destinationPageLabel}
+											destinationPageUrl={target.destinationPageUrl}
+										/>
 										<div className="mt-4 flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-400">
 											<span className="flex items-center gap-1.5">
 												<FileText className="size-4" />

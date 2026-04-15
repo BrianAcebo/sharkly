@@ -231,3 +231,85 @@ export async function getKeywordMetrics(keyword: string): Promise<{
 		return { monthly_searches: null, keyword_difficulty: null, cpc: null, configured: true };
 	}
 }
+
+/** Labels from DataForSEO Labs search_intent — https://docs.dataforseo.com/v3/dataforseo_labs/google/search_intent/live/ */
+export type DfsSearchIntentLabel =
+	| 'informational'
+	| 'navigational'
+	| 'commercial'
+	| 'transactional';
+
+export type DfsSearchIntentItem = {
+	keyword: string;
+	label: DfsSearchIntentLabel;
+	probability: number;
+};
+
+/**
+ * Google search intent (ML on keyword + SERP signals), up to 1000 keywords per request.
+ * Cost: see DataForSEO pricing for search_intent/live.
+ */
+export async function getKeywordSearchIntents(
+	keywords: string[]
+): Promise<{ items: DfsSearchIntentItem[]; configured: boolean; error?: string }> {
+	const auth = getAuth();
+	if (!auth) return { items: [], configured: false };
+
+	const cleaned = [...new Set(keywords.map((k) => k.trim()).filter((k) => k.length >= 3))].slice(0, 100);
+	if (cleaned.length === 0) return { items: [], configured: true };
+
+	try {
+		const res = await fetch(`${BASE_URL}/v3/dataforseo_labs/google/search_intent/live`, {
+			method: 'POST',
+			headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' },
+			body: JSON.stringify([
+				{
+					language_code: 'en',
+					keywords: cleaned
+				}
+			])
+		});
+
+		if (!res.ok) {
+			return { items: [], configured: true, error: `HTTP ${res.status}` };
+		}
+
+		const data = (await res.json()) as {
+			tasks?: Array<{
+				status_code?: number;
+				result?: Array<{
+					items?: Array<{
+						keyword: string;
+						keyword_intent?: { label?: string; probability?: number };
+					}>;
+				}>;
+			}>;
+		};
+
+		const task = data.tasks?.[0];
+		if (task?.status_code != null && task.status_code !== 20000) {
+			return { items: [], configured: true, error: 'Task failed' };
+		}
+
+		const rawItems = task?.result?.[0]?.items ?? [];
+		const items: DfsSearchIntentItem[] = [];
+		for (const row of rawItems) {
+			const label = row.keyword_intent?.label as DfsSearchIntentLabel | undefined;
+			const prob = row.keyword_intent?.probability ?? 0;
+			if (!label || !row.keyword) continue;
+			items.push({
+				keyword: row.keyword,
+				label,
+				probability: typeof prob === 'number' ? prob : 0
+			});
+		}
+
+		return { items, configured: true };
+	} catch (err) {
+		return {
+			items: [],
+			configured: true,
+			error: err instanceof Error ? err.message : 'Request failed'
+		};
+	}
+}

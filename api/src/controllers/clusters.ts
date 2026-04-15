@@ -9,6 +9,7 @@ import { inferClusterContentPageType } from '../utils/clusterContentPageType.js'
 import { detectKeywordCannibalization } from '../utils/keywordCannibalization.js';
 import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
 import { resolveSiteDomainAuthority } from '../utils/siteDomainAuthority.js';
+import { fallbackSearchIntentFromKeyword } from '../utils/searchIntentFallback.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
@@ -741,20 +742,7 @@ function isNearDuplicate(a: string, b: string): boolean {
 type SearchIntent = 'informational' | 'commercial' | 'transactional';
 
 function detectSearchIntent(keyword: string): SearchIntent {
-	const kw = keyword.toLowerCase();
-	if (
-		/\b(buy|price|pricing|cost|hire|near me|discount|deal|free trial|sign up|get started|order|quote|shop)\b/.test(
-			kw
-		)
-	)
-		return 'transactional';
-	if (
-		/\b(best|top|vs|versus|compare|comparison|review|reviews|worth it|ranking|alternative|alternatives|recommend)\b/.test(
-			kw
-		)
-	)
-		return 'commercial';
-	return 'informational';
+	return fallbackSearchIntentFromKeyword(keyword);
 }
 
 function intentToFunnelStage(intent: SearchIntent): 'tofu' | 'mofu' | 'bofu' {
