@@ -83,14 +83,14 @@ export default function App() {
 						<Route path="/workspace/:id" element={<Workspace />} />
 						<Route path="/performance" element={<Performance />} />
 						<Route path="/rankings" element={<Rankings />} />
-					<Route path="/technical" element={<Technical />} />
-					<Route path="/schema-generator" element={<SchemaGenerator />} />
-					<Route path="/cro-studio/audit/:id" element={<CROAuditDetail />} />
-					<Route path="/cro-studio" element={<CROStudio />} />
-					<Route path="/audits" element={<SiteAudits />} />
-					<Route path="/audits/:snapshotId" element={<AuditResults />} />
-					{/* <Route path="/calendar" element={<Calendar />} /> */}
-					<Route path="/projects" element={<Navigate to="/sites" replace />} />
+						<Route path="/technical" element={<Technical />} />
+						<Route path="/schema-generator" element={<SchemaGenerator />} />
+						<Route path="/cro-studio/audit/:id" element={<CROAuditDetail />} />
+						<Route path="/cro-studio" element={<CROStudio />} />
+						<Route path="/audits" element={<SiteAudits />} />
+						<Route path="/audits/:snapshotId" element={<AuditResults />} />
+						<Route path="/calendar" element={<Calendar />} />
+						<Route path="/projects" element={<Navigate to="/sites" replace />} />
 						<Route path="/sites" element={<Sites />} />
 						<Route path="/sites/:id" element={<SiteDetail />} />
 						{/* <Route path="/videos" element={<Videos />} /> */}

@@ -19,7 +19,8 @@ import {
 	Lock,
 	BadgeDollarSign,
 	ChevronDown,
-	GitCompare
+	GitCompare,
+	CalendarDays
 	// Video — re-enable with Videos nav (FEATURE_VIDEOS_UI)
 } from 'lucide-react';
 import { Link } from 'react-router';
@@ -121,8 +122,8 @@ const Sidebar: React.FC<AppSidebarProps> = ({ organization, organizationLoading 
 					{ icon: MapIcon, label: 'Strategy', path: '/strategy' },
 					{ icon: GitFork, label: 'Clusters', path: '/clusters' },
 					// { icon: Video, label: 'Videos', path: '/videos' },
-					{ icon: ShoppingBag, label: 'Ecommerce', path: '/ecommerce' }
-					// { icon: CalendarDays, label: 'Calendar', path: '/calendar' },
+					{ icon: ShoppingBag, label: 'Ecommerce', path: '/ecommerce' },
+					{ icon: CalendarDays, label: 'Calendar', path: '/calendar' }
 					// { icon: Key, label: 'Keywords', path: '/keywords' }
 				]
 			}

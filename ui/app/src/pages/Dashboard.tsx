@@ -1,11 +1,11 @@
 import PageMeta from '../components/common/PageMeta';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
 import { StatCard } from '../components/shared/StatCard';
-import { FunnelTag } from '../components/shared/FunnelTag';
+import { TopicQueueTable } from '../components/shared/TopicQueueTable';
 import { SEOGrowthStagePanel, getDefaultGrowthStage } from '../components/shared/SEOGrowthStagePanel';
 import { Link } from 'react-router';
 import { Button } from '../components/ui/button';
-import { Target, Check, Clock, Lock, Plus } from 'lucide-react';
+import { Target, Plus } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
 import { useSiteContext } from '../contexts/SiteContext';
 import { useClusters } from '../hooks/useClusters';
@@ -24,7 +24,7 @@ export default function Dashboard() {
 	const { user } = useAuth();
 	const { selectedSite } = useSiteContext();
 	const { clusters } = useClusters(selectedSite?.id ?? null);
-	const { topics } = useTopics(selectedSite?.id ?? null);
+	const { topics, loading: topicsLoading } = useTopics(selectedSite?.id ?? null);
 	const { publishedCount, avgSeoScore } = useDashboardStats(selectedSite?.id ?? null);
 	const { isConnected: gscConnected } = useGSCStatus(selectedSite?.id);
 	const { history: auditHistory, loading: auditHistoryLoading } = useAuditHistory(selectedSite?.id, 5);
@@ -201,139 +201,27 @@ export default function Dashboard() {
 				</div>
 			</div>
 
-			{/* Section 6: Topic Queue */}
-			<div className="mt-6 overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-				<div className="flex items-center justify-between border-b border-gray-200 p-5 dark:border-gray-700">
+			{/* Section 6: Topic Queue (preview — full queue on Calendar) */}
+			<div className="mt-6">
+				<div className="mb-4 flex items-center justify-between">
 					<h3 className="font-montserrat flex items-center gap-2 text-base font-bold text-gray-900 dark:text-white">
 						<Target className="text-brand-500 dark:text-brand-400 size-4" />
 						Topic Queue
 					</h3>
-					<Link to="/strategy">
-						<Button variant="ghost" size="sm">
-							View full strategy →
-						</Button>
-					</Link>
+					<div className="flex items-center gap-2">
+						<Link to="/calendar">
+							<Button variant="ghost" size="sm">
+								Full queue on Calendar →
+							</Button>
+						</Link>
+						<Link to="/strategy">
+							<Button variant="ghost" size="sm">
+								View full strategy →
+							</Button>
+						</Link>
+					</div>
 				</div>
-				<table className="w-full">
-					<thead>
-						<tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900">
-							<th className="px-5 py-3 text-left text-[11px] font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">
-								#
-							</th>
-							<th className="px-5 py-3 text-left text-[11px] font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">
-								Topic
-							</th>
-							<th className="px-5 py-3 text-left text-[11px] font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">
-								Funnel
-							</th>
-							<th className="px-5 py-3 text-left text-[11px] font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">
-								Monthly Searches
-							</th>
-							<th className="px-5 py-3 text-left text-[11px] font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400" title="How hard it is to rank for this">
-								Rank
-							</th>
-							<th className="px-5 py-3 text-left text-[11px] font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">
-								Authority Fit
-							</th>
-							<th className="px-5 py-3 text-left text-[11px] font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">
-								Action
-							</th>
-						</tr>
-					</thead>
-					<tbody>
-						{topics.length === 0 ? (
-							<tr>
-								<td colSpan={7} className="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-									No topics yet. Add topics on the Strategy page or complete onboarding for an AI-generated strategy.
-									<div className="mt-3">
-										<Link to="/strategy">
-											<Button size="sm" variant="outline">Go to Strategy</Button>
-										</Link>
-									</div>
-								</td>
-							</tr>
-						) : (
-						topics.slice(0, 5).map((topic, idx) => {
-							const kdColor =
-								topic.kd < 25
-									? 'text-success-600 dark:text-success-400 font-bold'
-									: topic.kd <= 45
-										? 'text-warning-600 dark:text-warning-400 font-bold'
-										: 'text-error-600 dark:text-error-400 font-bold';
-							const AuthIcon =
-								topic.authorityFit === 'achievable'
-									? Check
-									: topic.authorityFit === 'buildToward'
-										? Clock
-										: Lock;
-							const authLabel =
-								topic.authorityFit === 'achievable'
-									? 'Achievable Now'
-									: topic.authorityFit === 'buildToward'
-										? 'Build Toward'
-										: 'Locked';
-							const authColor =
-								topic.authorityFit === 'achievable'
-									? 'text-brand-600 dark:text-brand-400 font-semibold'
-									: topic.authorityFit === 'buildToward'
-										? 'text-warning-600 font-semibold'
-										: 'text-gray-500 dark:text-gray-400';
-							const isActive = topic.status === 'active';
-
-							return (
-								<tr
-									key={topic.id}
-									className={`border-b border-gray-200 transition-colors last:border-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800 ${
-										isActive ? 'border-l-brand-500 border-l-4' : ''
-									}`}
-								>
-									<td className="px-5 py-4 text-[13px] text-gray-500 dark:text-gray-400">
-										{topic.priority ?? idx + 1}
-									</td>
-									<td className="px-5 py-4">
-										<div className="font-semibold text-gray-900 dark:text-white">{topic.title}</div>
-										<div className="text-xs text-gray-500 dark:text-gray-400">
-											{topic.reasoning}
-										</div>
-									</td>
-									<td className="px-5 py-4">
-										<FunnelTag stage={topic.funnel} />
-									</td>
-									<td className="px-5 py-4 text-sm text-gray-900 dark:text-white">
-										{topic.volume.toLocaleString()}
-									</td>
-									<td className={`px-5 py-4 text-sm ${kdColor}`}>{topic.kd}</td>
-									<td className={`px-5 py-4 text-sm ${authColor}`}>
-										<span className="inline-flex items-center gap-1.5">
-											<AuthIcon className="size-3.5 shrink-0" />
-											{authLabel}
-										</span>
-									</td>
-									<td className="px-5 py-4">
-										{topic.status === 'active' && topic.clusterId ? (
-											<Link to={`/clusters/${topic.clusterId}`}>
-												<Button size="sm" className="bg-brand-500 hover:bg-brand-600 text-white">
-													View Cluster
-												</Button>
-											</Link>
-										) : (topic.status === 'queued' || !topic.clusterId) && topic.authorityFit === 'achievable' ? (
-											<Link to="/strategy">
-												<Button size="sm" variant="outline">
-													Start
-												</Button>
-											</Link>
-										) : (
-											<Button size="sm" variant="ghost" disabled>
-												Locked
-											</Button>
-										)}
-									</td>
-								</tr>
-							);
-						})
-						)}
-					</tbody>
-				</table>
+				<TopicQueueTable topics={topics} loading={topicsLoading} maxRows={5} />
 			</div>
 		</>
 	);
