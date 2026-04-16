@@ -89,7 +89,7 @@ export default function App() {
 						<Route path="/cro-studio" element={<CROStudio />} />
 						<Route path="/audits" element={<SiteAudits />} />
 						<Route path="/audits/:snapshotId" element={<AuditResults />} />
-						<Route path="/calendar" element={<Calendar />} />
+						{/* <Route path="/calendar" element={<Calendar />} /> */}
 						<Route path="/projects" element={<Navigate to="/sites" replace />} />
 						<Route path="/sites" element={<Sites />} />
 						<Route path="/sites/:id" element={<SiteDetail />} />

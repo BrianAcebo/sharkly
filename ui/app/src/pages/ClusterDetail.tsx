@@ -24,6 +24,7 @@ import { ReverseSiloAlert } from '../components/shared/ReverseSiloAlert';
 import { Button } from '../components/ui/button';
 import { useTheme } from '../hooks/useTheme';
 import { useCluster } from '../hooks/useCluster';
+import { useTopics, getBlockingIncompleteClusterTopic } from '../hooks/useTopics';
 import { useClusterPages } from '../hooks/useClusterPages';
 import { useOrganization } from '../hooks/useOrganization';
 import {
@@ -54,6 +55,7 @@ import { CreditBadge } from '../components/shared/CreditBadge';
 import { TaskProgressWidget } from '../components/shared/TaskProgressWidget';
 import type { TaskStep, TaskStatus } from '../components/shared/TaskProgressWidget';
 import { useClusterRuns, type ClusterRunSuggestion } from '../hooks/useClusterRuns';
+import { CLUSTER_SEQUENCING_BLOG_URL, CLUSTER_SEQUENCING_REASON } from '../lib/clusterSequencingMessaging';
 import { FunnelTag } from '../components/shared/FunnelTag';
 import {
 	generateInternalLinkSuggestions,
@@ -88,6 +90,7 @@ import { ClusterHealthCheck } from '../components/cluster/ClusterHealthCheck';
 import { useClusterIntelligence } from '../hooks/useClusterIntelligence';
 import { useAuth } from '../hooks/useAuth';
 import { useCROStudioUpgrade } from '../contexts/CROStudioUpgradeContext';
+import { syncClusterTopicCompletionIfFullyPublished } from '../lib/clusterTopicCompletion';
 
 const MARKETING_URL = import.meta.env.VITE_MARKETING_URL ?? 'https://sharkly.co';
 
@@ -946,6 +949,11 @@ export default function ClusterDetail() {
 	const { id } = useParams();
 	const { theme } = useTheme();
 	const { cluster, loading: clusterLoading, refetch: refetchCluster } = useCluster(id ?? null);
+	const { topics: siteTopicsClusterGate } = useTopics(cluster?.siteId ?? null);
+	const blockingIncompleteClusterTopic = useMemo(
+		() => getBlockingIncompleteClusterTopic(siteTopicsClusterGate),
+		[siteTopicsClusterGate]
+	);
 	const {
 		pages: dbPages,
 		loading: pagesLoading,
@@ -963,6 +971,23 @@ export default function ClusterDetail() {
 	const { openCROStudioUpgradeModal } = useCROStudioUpgrade();
 
 	const articleCount = dbPages.filter((p) => p.type === 'article').length;
+
+	useEffect(() => {
+		if (!id || pagesLoading || dbPages.length === 0) return;
+		if (!dbPages.every((p) => p.status === 'published')) return;
+		let cancelled = false;
+		void (async () => {
+			const { updated } = await syncClusterTopicCompletionIfFullyPublished(id);
+			if (cancelled || !updated) return;
+			await refetchCluster();
+			if (!cancelled) {
+				toast.success('All pieces in this cluster are published — topic marked complete.');
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [id, pagesLoading, dbPages, refetchCluster]);
 
 	const clusterSummary = useMemo(() => {
 		const totalVolume = dbPages.reduce((s, p) => s + (p.volume || 0), 0);
@@ -1537,6 +1562,43 @@ export default function ClusterDetail() {
 					<Button variant="outline">Back to Clusters</Button>
 				</Link>
 			</div>
+		);
+	}
+
+	if (
+		id &&
+		cluster &&
+		blockingIncompleteClusterTopic?.clusterId &&
+		blockingIncompleteClusterTopic.clusterId !== id
+	) {
+		return (
+			<>
+				<PageMeta
+					title="Finish your cluster first"
+					noIndex
+					description="Build topical authority one cluster at a time"
+				/>
+				<div className="flex h-[calc(100vh-120px)] flex-col items-center justify-center gap-4 px-6 text-center">
+					<p className="max-w-md text-sm text-gray-600 dark:text-gray-400">
+						{CLUSTER_SEQUENCING_REASON} Finish and publish every piece of your in-progress cluster before
+						opening another.
+					</p>
+					<a
+						href={CLUSTER_SEQUENCING_BLOG_URL}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-brand-600 dark:text-brand-400 text-sm font-medium hover:underline"
+					>
+						Why one cluster at a time →
+					</a>
+					<Link to={`/clusters/${blockingIncompleteClusterTopic.clusterId}`}>
+						<Button className="bg-brand-500 hover:bg-brand-600 text-white">Open active cluster</Button>
+					</Link>
+					<Link to="/clusters">
+						<Button variant="outline">Back to Clusters</Button>
+					</Link>
+				</div>
+			</>
 		);
 	}
 

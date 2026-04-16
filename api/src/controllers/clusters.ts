@@ -10,6 +10,10 @@ import { detectKeywordCannibalization } from '../utils/keywordCannibalization.js
 import { captureApiError, captureApiWarning } from '../utils/sentryCapture.js';
 import { resolveSiteDomainAuthority } from '../utils/siteDomainAuthority.js';
 import { fallbackSearchIntentFromKeyword } from '../utils/searchIntentFallback.js';
+import {
+	CLUSTER_SEQUENCING_BLOG_URL,
+	CLUSTER_SEQUENCING_MESSAGE_WITH_LINK
+} from '../constants/clusterSequencing.js';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY ?? '';
@@ -991,6 +995,43 @@ export const createCluster = async (req: Request, res: Response) => {
 				});
 		}
 
+		const { data: topic, error: topicErr } = await supabase
+			.from('topics')
+			.select(
+				'id, site_id, target_id, title, keyword, monthly_searches, keyword_difficulty, cpc, funnel_stage, cluster_id, status'
+			)
+			.eq('id', topicId)
+			.single();
+		if (topicErr || !topic) return res.status(404).json({ error: 'Topic not found' });
+
+		if (topic.cluster_id) {
+			return res.status(400).json({ error: 'This topic already has a cluster.' });
+		}
+
+		const siteId = topic.site_id;
+
+		const { data: blockingTopics, error: blockingErr } = await supabase
+			.from('topics')
+			.select('id, cluster_id, title')
+			.eq('site_id', siteId)
+			.not('cluster_id', 'is', null)
+			.neq('status', 'complete')
+			.neq('id', topicId)
+			.limit(1);
+		if (blockingErr) {
+			console.error('[Clusters] blocking topic check failed:', blockingErr);
+			return res.status(500).json({ error: 'Failed to verify cluster queue' });
+		}
+		const blockingRow = blockingTopics?.[0];
+		if (blockingRow?.cluster_id) {
+			return res.status(409).json({
+				error: CLUSTER_SEQUENCING_MESSAGE_WITH_LINK,
+				learnMoreUrl: CLUSTER_SEQUENCING_BLOG_URL,
+				blockingClusterId: blockingRow.cluster_id,
+				blockingTopicTitle: blockingRow.title
+			});
+		}
+
 		const creditsAfterCreate = Math.max(0, creditsRemaining - CREDIT_COSTS.CLUSTER_GENERATION);
 		const { error: deductErr } = await supabase
 			.from('organizations')
@@ -1004,17 +1045,6 @@ export const createCluster = async (req: Request, res: Response) => {
 			return res.status(500).json({ error: 'Failed to deduct credits' });
 		}
 		creditsDeducted = true;
-
-		const { data: topic, error: topicErr } = await supabase
-			.from('topics')
-			.select(
-				'id, site_id, target_id, title, keyword, monthly_searches, keyword_difficulty, cpc, funnel_stage'
-			)
-			.eq('id', topicId)
-			.single();
-		if (topicErr || !topic) return res.status(404).json({ error: 'Topic not found' });
-
-		const siteId = topic.site_id;
 		const { data: site } = await supabase
 			.from('sites')
 			.select('name, niche, customer_description, domain_authority, domain_authority_estimated, last_audit_at')

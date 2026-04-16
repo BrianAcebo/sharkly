@@ -23,6 +23,7 @@ import type { TaskStep, TaskStatus } from '../components/shared/TaskProgressWidg
 import { ScoreUnavailableNotice } from '../components/shared/ScoreUnavailableNotice';
 import { usePage } from '../hooks/usePage';
 import { useCluster } from '../hooks/useCluster';
+import { useTopics, getBlockingIncompleteClusterTopic } from '../hooks/useTopics';
 import { useOrganization } from '../hooks/useOrganization';
 import { usePageGscData } from '../hooks/usePageGscData';
 import { useGSCStatus } from '../hooks/useGSCStatus';
@@ -40,6 +41,8 @@ import {
 	pageTypeColor
 } from '../lib/seoUtils';
 import { cleanPastedHTML } from '../lib/editorUtils';
+import { syncClusterTopicCompletionIfFullyPublished } from '../lib/clusterTopicCompletion';
+import { CLUSTER_SEQUENCING_BLOG_URL, CLUSTER_SEQUENCING_REASON } from '../lib/clusterSequencingMessaging';
 import { Button } from '../components/ui/button';
 import TextArea from '../components/form/input/TextArea';
 import { MetaSidebar } from '../components/workspace/MetaSidebar';
@@ -480,6 +483,16 @@ export default function Workspace() {
 	const navigate = useNavigate();
 	const { page, loading, error, refetch } = usePage(id ?? null);
 	const { cluster } = useCluster(page?.clusterId ?? null);
+	const gateSiteId = page?.siteId ?? cluster?.siteId ?? null;
+	const { topics: siteTopicsClusterGate } = useTopics(gateSiteId);
+	const blockingIncompleteClusterTopic = useMemo(
+		() => getBlockingIncompleteClusterTopic(siteTopicsClusterGate),
+		[siteTopicsClusterGate]
+	);
+	const workspaceBlockedWrongCluster =
+		!!page?.clusterId &&
+		!!blockingIncompleteClusterTopic?.clusterId &&
+		page.clusterId !== blockingIncompleteClusterTopic.clusterId;
 	const { organization, refetch: refetchOrg } = useOrganization();
 	const { session } = useAuth();
 	const { openCROStudioUpgradeModal } = useCROStudioUpgrade();
@@ -1467,7 +1480,14 @@ export default function Workspace() {
 				toast.error(updErr.message);
 				return;
 			}
-			toast.success('Marked as published — your cluster map will show this as live.');
+			const { updated: clusterTopicCompleted } = await syncClusterTopicCompletionIfFullyPublished(
+				page.clusterId
+			);
+			toast.success(
+				clusterTopicCompleted
+					? 'Marked as published — every piece in this cluster is live, so the topic was marked complete.'
+					: 'Marked as published — your cluster map will show this as live.'
+			);
 			await refetch();
 		} finally {
 			setMarkPublishedLoading(false);
@@ -2072,6 +2092,40 @@ export default function Workspace() {
 					Go back
 				</Button>
 			</div>
+		);
+	}
+
+	if (workspaceBlockedWrongCluster && blockingIncompleteClusterTopic?.clusterId) {
+		return (
+			<>
+				<PageMeta
+					title="Finish your cluster first"
+					noIndex
+					description="Build topical authority one cluster at a time"
+				/>
+				<div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-6 py-20 text-center">
+					<p className="text-sm text-gray-600 dark:text-gray-400">
+						{CLUSTER_SEQUENCING_REASON} Finish and publish every piece of your in-progress cluster before
+						working on content from another. This page belongs to a different cluster.
+					</p>
+					<a
+						href={CLUSTER_SEQUENCING_BLOG_URL}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-brand-600 dark:text-brand-400 text-sm font-medium hover:underline"
+					>
+						Why one cluster at a time →
+					</a>
+					<div className="flex flex-wrap items-center justify-center gap-3">
+						<Link to={`/clusters/${blockingIncompleteClusterTopic.clusterId}`}>
+							<Button className="bg-brand-500 hover:bg-brand-600 text-white">Open active cluster</Button>
+						</Link>
+						<Button variant="outline" onClick={() => navigate(-1)}>
+							Go back
+						</Button>
+					</div>
+				</div>
+			</>
 		);
 	}
 

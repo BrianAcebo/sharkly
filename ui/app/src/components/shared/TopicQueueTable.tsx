@@ -4,10 +4,15 @@ import { Button } from '../ui/button';
 import { FunnelTag } from './FunnelTag';
 import { Check, Clock, Lock, ChevronDown } from 'lucide-react';
 import type { Topic } from '../../hooks/useTopics';
+import { CLUSTER_SEQUENCING_BLOG_URL, CLUSTER_SEQUENCING_REASON } from '../../lib/clusterSequencingMessaging';
 import { useEffect, useMemo, useState } from 'react';
 
 export type TopicQueueTableProps = {
 	topics: Topic[];
+	/** Overrides the default empty copy when `topics` is empty (e.g. active queue with everything completed). */
+	emptyDescription?: string;
+	/** When false, the “Go to Strategy” button is omitted in the empty state. */
+	emptyShowStrategyCta?: boolean;
 	loading?: boolean;
 	/** When set, only the first N rows are shown and pagination is hidden (e.g. Dashboard preview). */
 	maxRows?: number;
@@ -20,10 +25,14 @@ export type TopicQueueTableProps = {
 	expandedTopicId?: string | null;
 	onExpandedTopicChange?: (topicId: string | null) => void;
 	renderExpanded?: (topic: Topic) => ReactNode;
+	/** When set, "Start" is disabled until that cluster is fully complete (topic status complete). */
+	blockingIncompleteClusterTopic?: Topic | null;
 };
 
 export function TopicQueueTable({
 	topics,
+	emptyDescription,
+	emptyShowStrategyCta = true,
 	loading = false,
 	maxRows,
 	pageSize = 15,
@@ -32,7 +41,8 @@ export function TopicQueueTable({
 	expandable = false,
 	expandedTopicId = null,
 	onExpandedTopicChange,
-	renderExpanded
+	renderExpanded,
+	blockingIncompleteClusterTopic = null
 }: TopicQueueTableProps) {
 	const isPreview = maxRows != null;
 	const canExpand = Boolean(expandable && !isPreview && renderExpanded && onExpandedTopicChange);
@@ -118,15 +128,17 @@ export function TopicQueueTable({
 									colSpan={colCount}
 									className="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400"
 								>
-									No topics yet. Add topics on the Strategy page or complete onboarding for an
-									AI-generated strategy.
-									<div className="mt-3">
-										<Link to="/strategy">
-											<Button size="sm" variant="outline">
-												Go to Strategy
-											</Button>
-										</Link>
-									</div>
+									{emptyDescription ??
+										'No topics yet. Add topics on the Strategy page or complete onboarding for an AI-generated strategy.'}
+									{emptyShowStrategyCta && (
+										<div className="mt-3">
+											<Link to="/strategy">
+												<Button size="sm" variant="outline">
+													Go to Strategy
+												</Button>
+											</Link>
+										</div>
+									)}
 								</td>
 							</tr>
 						) : (
@@ -237,19 +249,55 @@ export function TopicQueueTable({
 											</span>
 										</td>
 										<td className="px-5 py-4">
-											{topic.status === 'active' && topic.clusterId ? (
+											{topic.clusterId &&
+											(topic.status === 'active' || topic.status === 'complete') ? (
 												<Link to={`/clusters/${topic.clusterId}`}>
-													<Button size="sm" className="bg-brand-500 hover:bg-brand-600 text-white">
-														View Cluster
+													<Button
+														size="sm"
+														variant={topic.status === 'complete' ? 'outline' : 'default'}
+														className={
+															topic.status === 'complete'
+																? ''
+																: 'bg-brand-500 hover:bg-brand-600 text-white'
+														}
+													>
+														View cluster
 													</Button>
 												</Link>
 											) : (topic.status === 'queued' || !topic.clusterId) &&
 											  topic.authorityFit === 'achievable' ? (
-												<Link to={`/strategy/${target.id}`}>
-													<Button size="sm" variant="outline">
-														Start
-													</Button>
-												</Link>
+												!topic.clusterId &&
+												blockingIncompleteClusterTopic?.clusterId ? (
+													<div className="flex max-w-[200px] flex-col gap-1">
+														<Button size="sm" variant="outline" disabled>
+															<Lock className="mr-1 size-3 shrink-0" />
+															Finish cluster first
+														</Button>
+														<p className="text-[9px] leading-snug text-gray-500 dark:text-gray-400">
+															{CLUSTER_SEQUENCING_REASON}
+														</p>
+														<a
+															href={CLUSTER_SEQUENCING_BLOG_URL}
+															target="_blank"
+															rel="noopener noreferrer"
+															className="text-brand-600 dark:text-brand-400 text-[10px] font-medium hover:underline"
+														>
+															Why one cluster →
+														</a>
+														<Link
+															to={`/clusters/${blockingIncompleteClusterTopic.clusterId}`}
+															className="text-brand-600 dark:text-brand-400 text-[10px] font-medium hover:underline"
+														>
+															Open active →
+														</Link>
+													</div>
+												) : (
+													<Link to={`/strategy/${target.id}`}>
+														<Button size="sm" variant="outline">
+															Start
+														</Button>
+													</Link>
+												)
 											) : (
 												<Button size="sm" variant="ghost" disabled>
 													Locked

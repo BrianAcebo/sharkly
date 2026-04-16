@@ -8,7 +8,7 @@ import { Button } from '../components/ui/button';
 import { cn } from '../utils/common';
 import { useSiteContext } from '../contexts/SiteContext';
 import { useClusters } from '../hooks/useClusters';
-import { useTopics } from '../hooks/useTopics';
+import { useTopics, getBlockingIncompleteClusterTopic } from '../hooks/useTopics';
 import { useTargets } from '../hooks/useTargets';
 import { supabase } from '../utils/supabaseClient';
 import { toast } from 'sonner';
@@ -44,6 +44,7 @@ import { Label } from '../components/ui/label';
 import InputField from '../components/form/input/InputField';
 import type { Cluster } from '../hooks/useClusters';
 import { inferClusterContentPageType } from '../lib/seoUtils';
+import { CLUSTER_SEQUENCING_MESSAGE_WITH_LINK } from '../lib/clusterSequencingMessaging';
 
 export default function Clusters() {
 	const { selectedSite } = useSiteContext();
@@ -94,6 +95,12 @@ export default function Clusters() {
 		const hasDestination = !!destUrl;
 		setCreateSubmitting(true);
 		try {
+			const busy = getBlockingIncompleteClusterTopic(topics);
+			if (busy?.clusterId && busy.id !== createForm.topicId) {
+				toast.error(CLUSTER_SEQUENCING_MESSAGE_WITH_LINK);
+				return;
+			}
+
 			const { data: cluster, error: clusterErr } = await supabase
 				.from('clusters')
 				.insert({

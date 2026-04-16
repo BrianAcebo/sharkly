@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import PageMeta from '../components/common/PageMeta';
 import { PageHeader } from '../components/layout/PageHeader';
 import { AIInsightBlock } from '../components/shared/AIInsightBlock';
@@ -34,7 +34,12 @@ import {
 	Download
 } from 'lucide-react';
 import { useSiteContext } from '../contexts/SiteContext';
-import { useTopics } from '../hooks/useTopics';
+import { useTopics, getBlockingIncompleteClusterTopic } from '../hooks/useTopics';
+import {
+	CLUSTER_SEQUENCING_BLOG_URL,
+	CLUSTER_SEQUENCING_MESSAGE_WITH_LINK,
+	CLUSTER_SEQUENCING_REASON
+} from '../lib/clusterSequencingMessaging';
 import { useTargetTopics } from '../hooks/useTargetTopics';
 import { useTargets } from '../hooks/useTargets';
 import { useStrategyRuns } from '../hooks/useStrategyRuns';
@@ -235,7 +240,8 @@ function SortableTopicRow({
 	movingTopicId,
 	deletingTopicId,
 	isUnlocked,
-	clustersToUnlock
+	clustersToUnlock,
+	blockingIncompleteClusterTopic
 }: {
 	topic: Topic;
 	startingTopicId: string | null;
@@ -249,6 +255,8 @@ function SortableTopicRow({
 	deletingTopicId: string | null;
 	isUnlocked: boolean;
 	clustersToUnlock: number;
+	/** When set, user must finish this topic's cluster before starting a new one elsewhere. */
+	blockingIncompleteClusterTopic: Topic | null;
 }) {
 	const [confirmDelete, setConfirmDelete] = useState(false);
 	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
@@ -285,6 +293,8 @@ function SortableTopicRow({
 				? 'text-warning-600 font-semibold'
 				: 'text-gray-500 dark:text-gray-400';
 	const isActive = topic.status === 'active';
+	const priorClusterBlocksNewStart =
+		!topic.clusterId && !!blockingIncompleteClusterTopic?.clusterId;
 
 	return (
 		<tr
@@ -332,6 +342,35 @@ function SortableTopicRow({
 									? '1 more cluster to unlock'
 									: `${clustersToUnlock} clusters to unlock`}
 							</div>
+						</div>
+					) : priorClusterBlocksNewStart ? (
+						<div className="flex max-w-[240px] flex-col gap-1.5">
+							<Button
+								size="sm"
+								variant="outline"
+								disabled
+								className="border-gray-200 dark:border-gray-700"
+							>
+								<Lock className="mr-1.5 size-3.5 shrink-0" />
+								Finish current cluster first
+							</Button>
+							<p className="text-[10px] leading-snug text-gray-500 dark:text-gray-400">
+								{CLUSTER_SEQUENCING_REASON}
+							</p>
+							<a
+								href={CLUSTER_SEQUENCING_BLOG_URL}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="text-brand-600 dark:text-brand-400 text-[11px] font-medium hover:underline"
+							>
+								Why one cluster at a time →
+							</a>
+							<Link
+								to={`/clusters/${blockingIncompleteClusterTopic!.clusterId}`}
+								className="text-brand-600 dark:text-brand-400 text-[11px] font-medium hover:underline"
+							>
+								Open active cluster →
+							</Link>
 						</div>
 					) : (
 						<Button
@@ -538,6 +577,13 @@ export default function StrategyTargetDetail() {
 		deleteTopic,
 		moveTopic
 	} = useTargetTopics(targetId ?? null);
+	const { topics: siteTopicsForClusterGate, refetch: refetchSiteTopicsForClusterGate } = useTopics(
+		selectedSite?.id ?? null
+	);
+	const blockingIncompleteClusterTopic = useMemo(
+		() => getBlockingIncompleteClusterTopic(siteTopicsForClusterGate),
+		[siteTopicsForClusterGate]
+	);
 	const [deletingTopicId, setDeletingTopicId] = useState<string | null>(null);
 	const [movingTopicId, setMovingTopicId] = useState<string | null>(null);
 	const {
@@ -669,6 +715,10 @@ export default function StrategyTargetDetail() {
 	const openClusterDialog = (topicId: string) => {
 		const topic = topics.find((t) => t.id === topicId);
 		if (!topic) return;
+		if (!topic.clusterId && blockingIncompleteClusterTopic?.clusterId) {
+			toast.error(CLUSTER_SEQUENCING_MESSAGE_WITH_LINK);
+			return;
+		}
 		const rec = getArticleRecommendation(topic.kd ?? 30, topic.volume ?? 0);
 		setClusterArticleCount(rec.count);
 		setClusterDialogTopic(topic);
@@ -723,6 +773,15 @@ export default function StrategyTargetDetail() {
 					setClusterWidgetError(msg);
 					return;
 				}
+				if (res.status === 409) {
+					const msg =
+						typeof data?.error === 'string' ? data.error : CLUSTER_SEQUENCING_MESSAGE_WITH_LINK;
+					toast.error(msg);
+					setClusterWidgetStatus('error');
+					setClusterWidgetError(msg);
+					void refetchSiteTopicsForClusterGate();
+					return;
+				}
 				throw new Error(data?.error || 'Failed to create cluster');
 			}
 
@@ -738,6 +797,7 @@ export default function StrategyTargetDetail() {
 				return;
 			}
 			await refetchTopics();
+			void refetchSiteTopicsForClusterGate();
 			refetchOrg();
 			// Brief pause so user sees the "done" state before redirect
 			setTimeout(() => navigate(`/clusters/${clusterId}`), 800);
@@ -1765,8 +1825,8 @@ export default function StrategyTargetDetail() {
 														)}
 													</td>
 													<td className="px-4 py-3">
-														{topic.status === 'active' ? (
-															<Link to="/clusters">
+														{topic.status === 'active' && topic.clusterId ? (
+															<Link to={`/clusters/${topic.clusterId}`}>
 																<Button variant="outline" size="sm">
 																	View Cluster
 																</Button>
@@ -1778,6 +1838,30 @@ export default function StrategyTargetDetail() {
 																	? '1 more cluster'
 																	: `${clustersToUnlock} clusters`}{' '}
 																to unlock
+															</div>
+														) : !topic.clusterId && !!blockingIncompleteClusterTopic?.clusterId ? (
+															<div className="flex max-w-[220px] flex-col gap-1">
+																<Button size="sm" variant="outline" disabled>
+																	<Lock className="mr-1 size-3 shrink-0" />
+																	Finish current cluster
+																</Button>
+																<p className="text-[10px] leading-snug text-gray-500 dark:text-gray-400">
+																	{CLUSTER_SEQUENCING_REASON}
+																</p>
+																<a
+																	href={CLUSTER_SEQUENCING_BLOG_URL}
+																	target="_blank"
+																	rel="noopener noreferrer"
+																	className="text-brand-600 dark:text-brand-400 text-[11px] font-medium hover:underline"
+																>
+																	Why one cluster at a time →
+																</a>
+																<Link
+																	to={`/clusters/${blockingIncompleteClusterTopic.clusterId}`}
+																	className="text-brand-600 dark:text-brand-400 text-[11px] font-medium hover:underline"
+																>
+																	Open active cluster →
+																</Link>
 															</div>
 														) : (
 															<Button
@@ -1938,6 +2022,7 @@ export default function StrategyTargetDetail() {
 														deletingTopicId={deletingTopicId}
 														isUnlocked={isUnlocked}
 														clustersToUnlock={clustersToUnlock}
+														blockingIncompleteClusterTopic={blockingIncompleteClusterTopic}
 													/>
 												</React.Fragment>
 											);
